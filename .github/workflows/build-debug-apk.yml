@@ -1,4 +1,4 @@
-name: Build Debug APK (Actions artifact)
+name: Build Debug APK (artifact)
 
 on:
   push:
@@ -6,10 +6,6 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-
-permissions:
-  contents: read
-  id-token: write
 
 jobs:
   build-debug:
@@ -35,12 +31,16 @@ jobs:
 
       - name: Ensure gradlew is executable
         run: |
-          if [ -f ./gradlew ]; then chmod +x ./gradlew; fi
-          echo "gradlew permissions:"
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            echo "gradlew exists and marked executable"
+          else
+            echo "Warning: gradlew not found at repo root — build may fail"
+          fi
           ls -la ./gradlew || true
         shell: bash
 
-      - name: Install Android SDK command-line tools + platform & build-tools
+      - name: Install Android SDK command-line tools & required packages
         run: |
           sudo apt-get update -y
           sudo apt-get install -y unzip curl
@@ -52,13 +52,6 @@ jobs:
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
           yes | sdkmanager --licenses
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-        shell: bash
-
-      - name: Show Java & SDK info
-        run: |
-          java -version || true
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          sdkmanager --list || true
         shell: bash
 
       - name: (Optional) Create google-services.json from secret
@@ -74,26 +67,24 @@ jobs:
       - name: Build debug APK (:app:assembleDebug)
         run: |
           ./gradlew :app:assembleDebug --no-daemon --stacktrace |& tee build_debug.log
-          echo "=== Last 200 lines of build log ==="
+          echo "=== LAST 200 LINES OF BUILD LOG ==="
           tail -n 200 build_debug.log || true
-        env:
-          JAVA_TOOL_OPTIONS: ${{ env.JAVA_TOOL_OPTIONS }}
         shell: bash
 
-      - name: List build outputs (debug)
+      - name: List build outputs (diagnostic)
         run: |
-          echo "APK/AAB files (if any):"
+          echo "Listing APK/AAB files under app/build:"
           find app/build -type f \( -name "*.apk" -o -name "*.aab" \) -print || true
+          echo "app/build/outputs contents:"
           ls -la app/build/outputs || true
           ls -la app/build/outputs/apk || true
         shell: bash
 
-      - name: Upload debug APK artifact (wildcard)
+      - name: Upload debug APK artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-artifacts
           path: |
             app/build/outputs/**/*.apk
-            app/build/outputs/**/*.aab
           retention-days: 14
