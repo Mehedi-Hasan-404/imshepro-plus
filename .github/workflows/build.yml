@@ -1,77 +1,107 @@
-name: Build Android App
+name: Android CI - Build Debug APK
 
+# Triggers: push to main/develop, workflow_dispatch for manual runs, PRs to main
 on:
   push:
-    branches: [ "main" ]
-    tags: [ "v*" ]
+    branches: [ main, develop ]
   pull_request:
-    branches: [ "main" ]
-  workflow_dispatch: # Allows you to trigger manually from GitHub interface
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
-  build:
-    name: Build APKs
+  build-debug:
+    name: Build Debug APK
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    timeout-minutes: 60
 
-      - name: Set up JDK 17
+    env:
+      ANDROID_SDK_ROOT: /opt/android-sdk
+      ANDROID_HOME: /opt/android-sdk
+      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF8
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Grant Execute Permission for Gradlew
-        run: chmod +x gradlew
+      - name: Ensure gradlew is executable
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            echo "gradlew exists and marked executable"
+          else
+            echo "Warning: gradlew not found at repo root — the build may fail"
+          fi
+          ls -la ./gradlew || true
 
-      # CRITICAL STEP: Create google-services.json
-      # The build will FAIL if you have not added the GOOGLE_SERVICES_JSON secret.
-      - name: Create google-services.json
+      - name: Install Android SDK command-line tools and platform (platform 34)
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y unzip curl
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+          cd $ANDROID_SDK_ROOT
+          # Download command-line tools (versioned url)
+          curl -sS https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
+          # normalize path (cmdline-tools folder contains "cmdline-tools")
+          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest || true
+          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
+          # Accept licenses and install essential components
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        shell: bash
+
+      - name: Show Java and SDK info
+        run: |
+          java -version || true
+          echo "SDK root: $ANDROID_SDK_ROOT"
+          ls -la $ANDROID_SDK_ROOT || true
+          sdkmanager --list || true
+        shell: bash
+
+      - name: (Optional) Create google-services.json from secret
+        if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
-          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
-            echo "ERROR: GOOGLE_SERVICES_JSON secret is missing!"
-            echo "Please go to Settings > Secrets and variables > Actions and add it."
-            exit 1
-          fi
+          mkdir -p app
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          echo "google-services.json created successfully."
+          echo "Wrote app/google-services.json"
+        shell: bash
 
-      # Step to decode Keystore (Only needed for Signed Release Builds)
-      - name: Decode Keystore
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      - name: Build debug APK (:app:assembleDebug)
         run: |
-          mkdir -p keystore
-          echo "$KEYSTORE_BASE64" | base64 -d > keystore/keystore.jks
-
-      # Build the Debug APK (Always runs)
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
-
-      # Build Release APK (Only runs if a keystore is provided)
-      - name: Build Release APK
-        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+          ./gradlew :app:assembleDebug --no-daemon --stacktrace |& tee build_debug.log
+          echo "=== Last 200 lines of build log ==="
+          tail -n 200 build_debug.log || true
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-            ./gradlew assembleRelease \
-              -Pandroid.injected.signing.store.file=$(pwd)/keystore/keystore.jks \
-              -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD \
-              -Pandroid.injected.signing.key.alias=$KEY_ALIAS \
-              -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+          JAVA_TOOL_OPTIONS: ${{ env.JAVA_TOOL_OPTIONS }}
+        shell: bash
 
-      # Upload Artifacts (Download your APKs here after the build finishes)
-      - name: Upload APKs
+      - name: List build outputs (debug)
+        run: |
+          echo "Listing potential APK locations:"
+          find app/build -type f \( -name "*.apk" -o -name "*.aab" \) -print || true
+          ls -la app/build/outputs || true
+          ls -la app/build/outputs/apk || true
+        shell: bash
+
+      - name: Upload debug APK artifact (wildcard)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-app-apks
-          path: app/build/outputs/apk/**/*.apk
+          name: app-debug-apks
+          path: |
+            app/build/outputs/**/*.apk
           retention-days: 14
