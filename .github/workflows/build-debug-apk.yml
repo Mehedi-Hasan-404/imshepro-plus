@@ -56,41 +56,51 @@ jobs:
           done
           echo "✓ Created placeholder launcher icons"
 
-      - name: Create mock google-services.json
+      - name: Create google-services.json from secret
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           mkdir -p app
-          cat > app/google-services.json << 'EOF'
-          {
-            "project_info": {
-              "project_number": "123456789",
-              "project_id": "livetvpro-mock",
-              "storage_bucket": "livetvpro-mock.appspot.com"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:123456789:android:abcdef1234567890",
-                  "android_client_info": {
-                    "package_name": "com.livetvpro.debug"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "AIzaSyDummyKeyForDebugBuilds123456789"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
-          echo "✓ Created mock google-services.json"
+          
+          # Check if secret exists
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "❌ ERROR: GOOGLE_SERVICES_JSON secret not found!"
+            echo ""
+            echo "Please add your google-services.json to GitHub Secrets:"
+            echo "1. Go to Settings → Secrets and variables → Actions"
+            echo "2. Click 'New repository secret'"
+            echo "3. Name: GOOGLE_SERVICES_JSON"
+            echo "4. Value: Paste your entire google-services.json content"
+            echo ""
+            exit 1
+          fi
+          
+          # Create the file
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "✓ Created google-services.json from GitHub secret"
+          
+          # Verify it's valid JSON and show project info
+          if command -v jq &> /dev/null; then
+            if jq empty app/google-services.json 2>/dev/null; then
+              echo "✓ google-services.json is valid JSON"
+              PROJECT_ID=$(jq -r '.project_info.project_id' app/google-services.json)
+              PROJECT_NUMBER=$(jq -r '.project_info.project_number' app/google-services.json)
+              echo "✓ Project ID: $PROJECT_ID"
+              echo "✓ Project Number: $PROJECT_NUMBER"
+            else
+              echo "❌ Invalid google-services.json format"
+              exit 1
+            fi
+          else
+            echo "⚠️  jq not available, skipping JSON validation"
+            # Basic check - file should contain project_id
+            if grep -q "project_id" app/google-services.json; then
+              echo "✓ google-services.json appears valid"
+            else
+              echo "❌ google-services.json appears invalid"
+              exit 1
+            fi
+          fi
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
