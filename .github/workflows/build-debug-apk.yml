@@ -1,37 +1,115 @@
-# .github/workflows/build-apk.yml
-name: Build LiveTVPro Debug APK
+name: Build Debug APK (artifact)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main", "develop"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-debug:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      ANDROID_SDK_ROOT: /opt/android-sdk
+      ANDROID_HOME: /opt/android-sdk
+      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF8
+      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx1536m"
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Set up JDK 17
+      - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
           cache: 'gradle'
 
-      - name: Grant Execute Permission to gradlew
-        run: chmod +x gradlew
+      - name: Ensure gradlew is executable
+        run: |
+          if [ -f ./gradlew ]; then
+            git update-index --add --chmod=+x gradlew || true
+            chmod +x ./gradlew
+            echo "gradlew exists and is executable"
+          else
+            echo "Error: gradlew not found at repo root (add Gradle wrapper to repo)" >&2
+            exit 1
+          fi
+        shell: bash
 
-      - name: Build Debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+      - name: Install Android SDK cmdline-tools, platform-tools, platform & build-tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y unzip curl zip
+          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
+          cd $ANDROID_SDK_ROOT
+          curl -sS https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
+          # move into "latest" so sdkmanager path is stable
+          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest || true
+          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
+          # accept licenses and install essentials
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" || sdkmanager --verbose "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+        shell: bash
 
-      - name: Upload Debug APK Artifact
+      - name: Show Java & SDK info (diagnostic)
+        run: |
+          java -version || true
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la $ANDROID_SDK_ROOT || true
+          sdkmanager --list || true
+        shell: bash
+
+      - name: (Optional) Create google-services.json from secret
+        if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          mkdir -p app
+          echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+          echo "Wrote app/google-services.json"
+        shell: bash
+
+      - name: (Optional) Decode keystore from secret (for release)
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/keystore"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/keystore/keystore.jks"
+          ls -la "$GITHUB_WORKSPACE/keystore"
+        shell: bash
+
+      - name: Build debug APK (:app:assembleDebug)
+        run: |
+          ./gradlew clean :app:assembleDebug --no-daemon --stacktrace |& tee build_debug.log
+          echo
+          echo "=== LAST 200 LINES OF BUILD LOG ==="
+          tail -n 200 build_debug.log || true
+        shell: bash
+
+      - name: List build outputs (diagnostic)
+        run: |
+          echo "Listing any APK/AAB under app/build:"
+          find app/build -type f \( -name "*.apk" -o -name "*.aab" \) -print || true
+          echo "Top-level outputs folder:"
+          ls -la app/build/outputs || true
+          echo "APK debug folder:"
+          ls -la app/build/outputs/apk || true
+        shell: bash
+
+      - name: Upload debug APK artifact (wildcard)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: LiveTVPro-debug
-          path: app/build/outputs/**/*.apk
-          retention-days: 5
+          name: app-debug-artifacts
+          path: |
+            app/build/outputs/**/*.apk
+          retention-days: 14
