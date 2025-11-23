@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
@@ -40,11 +41,11 @@ class HomeFragment : Fragment() {
 
     private fun setupRecyclerView() {
         categoryAdapter = CategoryAdapter { category ->
-            val action = HomeFragmentDirections.actionHomeToCategory(
-                categoryId = category.id,
-                categoryName = category.name
+            val bundle = bundleOf(
+                "categoryId" to category.id,
+                "categoryName" to category.name
             )
-            findNavController().navigate(action)
+            findNavController().navigate(R.id.action_home_to_category, bundle)
         }
 
         binding.recyclerViewCategories.apply {
