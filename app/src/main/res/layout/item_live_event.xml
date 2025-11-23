@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent" android:layout_height="wrap_content"
+    android:layout_margin="8dp" android:cardCornerRadius="8dp" android:cardElevation="2dp">
+
+    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="horizontal" android:padding="8dp">
+
+        <ImageView
+            android:id="@+id/img_team1"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:scaleType="centerCrop"
+            android:src="@drawable/ic_channel_placeholder" />
+
+        <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content"
+            android:layout_weight="1" android:orientation="vertical" android:paddingStart="8dp">
+
+            <TextView android:id="@+id/tv_title" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Team A vs Team B" android:textStyle="bold" android:maxLines="1" android:ellipsize="end" />
+
+            <TextView android:id="@+id/tv_league" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="League name" android:textSize="12sp" android:alpha="0.8" />
+
+            <TextView android:id="@+id/tv_start_time" android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:text="Start Time" android:textSize="12sp" android:alpha="0.7" />
+        </LinearLayout>
+
+        <ImageView android:id="@+id/status_indicator" android:layout_width="36dp" android:layout_height="36dp"
+            android:src="@drawable/ic_live_indicator" android:contentDescription="status" />
+    </LinearLayout>
+</androidx.cardview.widget.CardView>

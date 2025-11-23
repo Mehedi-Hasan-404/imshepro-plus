@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Live TV Pro</string>
+
+    <!-- Bottom Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_live">Live</string>
+    <string name="nav_favorites">Favorites</string>
+    <string name="nav_contact">Contact</string>
+
+    <!-- Common -->
+    <string name="loading">Loading…</string>
+    <string name="error_generic">Something went wrong</string>
+    <string name="retry">Retry</string>
+    <string name="search">Search</string>
+
+    <!-- Favorites -->
+    <string name="no_favorites">No favorite channels yet</string>
+    <string name="clear_all">Clear All</string>
+    <string name="clear_all_confirm">Are you sure you want to remove all favorites?</string>
+</resources>

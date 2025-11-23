@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.livetvpro.ui.home.HomeFragment"
+        android:label="Home">
+        <action
+            android:id="@+id/action_home_to_category"
+            app:destination="@id/categoryChannelsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/categoryChannelsFragment"
+        android:name="com.livetvpro.ui.categories.CategoryChannelsFragment"
+        android:label="Channels">
+        <argument
+            android:name="categoryId"
+            app:argType="string" />
+        <argument
+            android:name="categoryName"
+            app:argType="string" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/favoritesFragment"
+        android:name="com.livetvpro.ui.favorites.FavoritesFragment"
+        android:label="Favorites" />
+
+    <fragment
+        android:id="@+id/liveEventsFragment"
+        android:name="com.livetvpro.ui.live.LiveEventsFragment"
+        android:label="Live Events" />
+
+    <fragment
+        android:id="@+id/contactFragment"
+        android:name="com.livetvpro.ui.contact.ContactFragment"
+        android:label="Contact" />
+
+</navigation>

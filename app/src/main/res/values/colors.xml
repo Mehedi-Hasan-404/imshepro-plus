@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark Theme Colors -->
+    <color name="primary_dark">#EF4444</color>
+    <color name="primary_variant_dark">#DC2626</color>
+    <color name="secondary_dark">#10B981</color>
+
+    <color name="background_dark">#0A0A0A</color>
+    <color name="surface_dark">#1A1A1A</color>
+    <color name="card_background">#1F1F1F</color>
+
+    <color name="text_primary_dark">#E0E0E0</color>
+    <color name="text_secondary_dark">#CCCCCC</color>
+
+    <!-- Accent -->
+    <color name="accent">#EF4444</color>
+    <color name="accent_hover">#DC2626</color>
+
+    <!-- Status Colors -->
+    <color name="live_indicator">#EF4444</color>
+    <color name="success">#10B981</color>
+    <color name="warning">#F59E0B</color>
+    <color name="error">#EF4444</color>
+
+    <!-- Common -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
+</resources>
