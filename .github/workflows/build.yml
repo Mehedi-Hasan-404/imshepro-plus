@@ -1,4 +1,4 @@
-name: Android CI/CD (with SDK install)
+name: Android CI/CD (stable)
 
 on:
   push:
@@ -9,6 +9,10 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -17,14 +21,15 @@ jobs:
     env:
       ANDROID_SDK_ROOT: /opt/android-sdk
       ANDROID_HOME: /opt/android-sdk
+      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF8
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
+      - name: Set up JDK 17 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -32,39 +37,46 @@ jobs:
 
       - name: Ensure gradlew is executable
         run: |
-          if [ -f ./gradlew ]; then chmod +x ./gradlew; fi
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            echo "gradlew is executable"
+          else
+            echo "Warning: gradlew not found at repo root"
+          fi
+          ls -la ./gradlew || true
 
-      - name: Install Android SDK command-line tools & accept licenses
+      - name: Install Android SDK command-line tools + platform & build-tools
         run: |
-          sudo apt-get update
+          sudo apt-get update -y
           sudo apt-get install -y unzip curl
           mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
           cd $ANDROID_SDK_ROOT
+          # download commandline tools (versioned zip)
           curl -sS https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o cmdline-tools.zip
           unzip -q cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
+          # normalize path
           mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest || true
           export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
           yes | sdkmanager --licenses
           sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
         shell: bash
 
-      - name: Show installed sdkmanager/platforms
+      - name: Show SDK & java info
         run: |
-          echo "SDK root: $ANDROID_SDK_ROOT"
-          ls -la $ANDROID_SDK_ROOT
-          ls -la $ANDROID_SDK_ROOT/platforms || true
-          sdkmanager --list
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          java -version || true
+          sdkmanager --list || true
 
-      - name: Create google-services.json (if secret provided)
+      - name: Create google-services.json (from secret)
         if: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
         env:
           GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           mkdir -p app
           echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
-          echo "Wrote google-services.json"
+          echo "wrote app/google-services.json"
 
-      - name: Decode Keystore (if provided)
+      - name: Decode keystore (from secret)
         if: ${{ secrets.KEYSTORE_BASE64 != '' }}
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -73,50 +85,47 @@ jobs:
           echo "$KEYSTORE_BASE64" | base64 -d > "$GITHUB_WORKSPACE/keystore/keystore.jks"
           ls -la "$GITHUB_WORKSPACE/keystore"
 
-      - name: Build Debug APK
+      - name: Build Debug APK (run gradle)
         run: |
-          ./gradlew :app:assembleDebug --stacktrace
-        env:
-          JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF8"
+          ./gradlew :app:assembleDebug --stacktrace --no-daemon |& tee build_debug.log
+          echo "=== Last 200 lines of build log ==="
+          tail -n 200 build_debug.log || true
 
-      - name: List APK outputs
+      - name: List build outputs (for debugging)
         run: |
-          echo "Listing app/build/outputs/apk"
+          echo "Listing app/build outputs..."
+          find app/build -maxdepth 6 -type f \( -name "*.apk" -o -name "*.aab" \) -print || true
+          ls -la app/build/outputs || true
           ls -la app/build/outputs/apk || true
-          ls -la app/build/outputs/apk/debug || true
 
-      - name: Upload Debug APK
+      - name: Upload any APK/AAB artifacts (wildcard)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: app-artifacts
+          path: |
+            app/build/outputs/**/*.apk
+            app/build/outputs/**/*.aab
           retention-days: 14
 
-      - name: Build Release APK (signed)
+      - name: Build Release APK (signed) on tag
         if: startsWith(github.ref, 'refs/tags/')
-        run: |
-          ./gradlew :app:assembleRelease -Pandroid.injected.signing.store.file=${{ github.workspace }}/keystore/keystore.jks -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }} --stacktrace
         env:
-          JAVA_TOOL_OPTIONS: "-Dfile.encoding=UTF8"
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/keystore/keystore.jks" ]; then
+            ./gradlew :app:assembleRelease -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/keystore/keystore.jks -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD -Pandroid.injected.signing.key.alias=$KEY_ALIAS -Pandroid.injected.signing.key.password=$KEY_PASSWORD --stacktrace --no-daemon |& tee build_release.log
+            tail -n 200 build_release.log || true
+          else
+            echo "Keystore not found; skipping release build"
+          fi
 
-      - name: Upload Release APK
+      - name: Upload Release APKs (if any)
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
           name: app-release
-          path: app/build/outputs/apk/release/app-release.apk
+          path: app/build/outputs/**/*.apk
           retention-days: 90
-
-      - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/apk/debug/app-debug.apk
-          draft: false
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
