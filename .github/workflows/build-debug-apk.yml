@@ -1,4 +1,4 @@
-name: Build Debug APK (artifact)
+name: Build Debug APK
 
 on:
   push:
@@ -10,53 +10,26 @@ on:
 jobs:
   build-debug:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
-    env:
-      ANDROID_SDK_ROOT: /opt/android-sdk
-      ANDROID_HOME: /opt/android-sdk
-      JAVA_TOOL_OPTIONS: -Dfile.encoding=UTF8
-      GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx2048m -Dorg.gradle.daemon=false"
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set up JDK 17 (Temurin)
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
+          distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
 
-      - name: Ensure gradlew is executable
-        run: |
-          if [ -f ./gradlew ]; then
-            chmod +x ./gradlew
-            echo "gradlew exists and is executable"
-          else
-            echo "Error: gradlew not found at repo root" >&2
-            exit 1
-          fi
-        shell: bash
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK cmdline-tools, platform-tools, platform & build-tools
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y unzip curl zip
-          mkdir -p $ANDROID_SDK_ROOT/cmdline-tools
-          cd $ANDROID_SDK_ROOT
-          curl -sS https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -o cmdline-tools.zip
-          unzip -q cmdline-tools.zip -d $ANDROID_SDK_ROOT/cmdline-tools
-          mv $ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools $ANDROID_SDK_ROOT/cmdline-tools/latest || true
-          export PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-        shell: bash
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
-      - name: Create mock google-services.json for debug build
+      - name: Create mock google-services.json
         run: |
           mkdir -p app
           cat > app/google-services.json << 'EOF'
@@ -90,51 +63,31 @@ jobs:
             "configuration_version": "1"
           }
           EOF
-          echo "Created mock google-services.json for debug build"
-        shell: bash
+          echo "✓ Created mock google-services.json"
 
-      - name: Show Java & SDK info (diagnostic)
-        run: |
-          java -version
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls -la $ANDROID_SDK_ROOT
-          which sdkmanager
-        shell: bash
-
-      - name: Validate Gradle wrapper
-        run: |
-          ./gradlew --version
-        shell: bash
-
-      - name: Build debug APK
-        run: |
-          ./gradlew clean assembleDebug --no-daemon --stacktrace --info
-        shell: bash
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: List build outputs
         if: always()
         run: |
-          echo "=== Searching for APK files ==="
-          find . -type f -name "*.apk" -print
-          echo ""
-          echo "=== APK directory listing ==="
-          ls -la app/build/outputs/apk/debug/ || echo "Debug APK directory not found"
-        shell: bash
+          echo "=== APK files found ==="
+          find app/build/outputs -name "*.apk" -type f -exec ls -lh {} \;
 
-      - name: Upload debug APK artifact
-        if: success()
+      - name: Upload Debug APK
         uses: actions/upload-artifact@v4
+        if: success()
         with:
-          name: app-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: app-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
 
-      - name: Upload build logs on failure
-        if: failure()
+      - name: Upload build reports on failure
         uses: actions/upload-artifact@v4
+        if: failure()
         with:
-          name: build-logs
+          name: build-reports
           path: |
+            app/build/reports/
             app/build/outputs/logs/
-            build_debug.log
           retention-days: 7
