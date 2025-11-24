@@ -59,9 +59,9 @@ class ChannelAdapter(
             
             val title = if (isFav) "Remove from Favorites?" else "Add to Favorites?"
             val message = if (isFav) {
-                "Do you want to remove \"${channel.name}\" from your favorites?"
+                "Remove \"${channel.name}\" from favorites?"
             } else {
-                "Do you want to add \"${channel.name}\" to your favorites?"
+                "Add \"${channel.name}\" to favorites?"
             }
             val positiveButton = if (isFav) "Remove" else "Add"
 
@@ -70,16 +70,9 @@ class ChannelAdapter(
                 .setMessage(message)
                 .setPositiveButton(positiveButton) { dialog, _ ->
                     onFavoriteToggle(channel)
-                    // Update UI immediately
-                    val position = bindingAdapterPosition
-                    if (position != RecyclerView.NO_POSITION) {
-                        notifyItemChanged(position)
-                    }
                     dialog.dismiss()
                 }
-                .setNegativeButton("Cancel") { dialog, _ ->
-                    dialog.dismiss()
-                }
+                .setNegativeButton("Cancel", null)
                 .show()
         }
 
