@@ -1,12 +1,15 @@
 package com.livetvpro
 
 import android.os.Bundle
+import android.view.MenuItem
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.appcompat.widget.SearchView
 import androidx.core.view.GravityCompat
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.databinding.ActivityMainBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -38,12 +41,14 @@ class MainActivity : AppCompatActivity() {
         setupToolbar()
         setupNavigation()
         setupDrawer()
+        setupToolbarButtons()
     }
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         supportActionBar?.setDisplayShowHomeEnabled(true)
+        supportActionBar?.setDisplayShowTitleEnabled(false) // We'll use custom title TextView
     }
 
     private fun setupNavigation() {
@@ -51,20 +56,26 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         val navController = navHostFragment.navController
 
+        // Setup both drawer and bottom navigation
         binding.navigationView.setupWithNavController(navController)
+        binding.bottomNavigation.setupWithNavController(navController)
 
         // Update toolbar title based on destination
         navController.addOnDestinationChangedListener { _, destination, _ ->
-            binding.toolbar.title = when (destination.id) {
+            val title = when (destination.id) {
                 R.id.homeFragment -> "Categories"
                 R.id.categoryChannelsFragment -> "Channels"
-                R.id.liveEventsFragment -> "Live TV Pro"
+                R.id.liveEventsFragment -> "Live Events"
                 R.id.favoritesFragment -> "Favorites"
                 R.id.contactFragment -> "Contact"
                 else -> "Live TV Pro"
             }
+            binding.toolbarTitle.text = title
+            
             // Close drawer after navigation
-            binding.drawerLayout.closeDrawer(GravityCompat.START)
+            if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                binding.drawerLayout.closeDrawer(GravityCompat.START)
+            }
         }
     }
 
@@ -78,6 +89,68 @@ class MainActivity : AppCompatActivity() {
         )
         binding.drawerLayout.addDrawerListener(drawerToggle)
         drawerToggle.syncState()
+    }
+
+    private fun setupToolbarButtons() {
+        // Theme toggle button
+        binding.btnThemeToggle.setOnClickListener {
+            toggleTheme()
+        }
+
+        // Search button
+        binding.btnSearch.setOnClickListener {
+            showSearchDialog()
+        }
+
+        // Favorites button
+        binding.btnFavorites.setOnClickListener {
+            // Navigate to favorites
+            val navHostFragment = supportFragmentManager
+                .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
+            val navController = navHostFragment.navController
+            
+            // Check if we're not already on favorites page
+            if (navController.currentDestination?.id != R.id.favoritesFragment) {
+                navController.navigate(R.id.favoritesFragment)
+            }
+        }
+    }
+
+    private fun showSearchDialog() {
+        val searchView = SearchView(this)
+        searchView.queryHint = "Search..."
+        
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("Search")
+            .setView(searchView)
+            .setNegativeButton("Close", null)
+            .create()
+
+        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                // Handle search
+                dialog.dismiss()
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                // Handle search text change
+                return true
+            }
+        })
+
+        dialog.show()
+        
+        // Auto-focus search and show keyboard
+        searchView.isIconified = false
+        searchView.requestFocus()
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (drawerToggle.onOptionsItemSelected(item)) {
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -105,5 +178,8 @@ class MainActivity : AppCompatActivity() {
             if (newMode) AppCompatDelegate.MODE_NIGHT_YES 
             else AppCompatDelegate.MODE_NIGHT_NO
         )
+        
+        // Recreate activity to apply theme
+        recreate()
     }
 }
