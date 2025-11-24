@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Dark Theme -->
     <style name="Theme.LiveTVPro" parent="Theme.Material3.Dark.NoActionBar">
-        <item name="colorPrimary">@color/primary_dark</item>
-        <item name="colorPrimaryVariant">@color/primary_variant_dark</item>
+        <!-- Primary color - Changed from red to dark blue/purple -->
+        <item name="colorPrimary">#1F1F1F</item>
+        <item name="colorPrimaryVariant">#0A0A0A</item>
         <item name="colorSecondary">@color/secondary_dark</item>
 
         <item name="android:colorBackground">@color/background_dark</item>
@@ -13,9 +15,33 @@
         <item name="colorOnBackground">@color/text_primary_dark</item>
         <item name="colorOnSurface">@color/text_primary_dark</item>
 
+        <!-- Accent color for highlights -->
+        <item name="colorAccent">@color/accent</item>
+
         <item name="android:statusBarColor">@color/background_dark</item>
         <item name="android:navigationBarColor">@color/surface_dark</item>
         <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <!-- Light Theme -->
+    <style name="Theme.LiveTVPro.Light" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">#FFFFFF</item>
+        <item name="colorPrimaryVariant">#F5F5F5</item>
+        <item name="colorSecondary">#2196F3</item>
+
+        <item name="android:colorBackground">#FAFAFA</item>
+        <item name="colorSurface">#FFFFFF</item>
+
+        <item name="colorOnPrimary">#000000</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorOnBackground">#000000</item>
+        <item name="colorOnSurface">#000000</item>
+
+        <item name="colorAccent">@color/accent</item>
+
+        <item name="android:statusBarColor">#FAFAFA</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 
     <style name="Theme.LiveTVPro.Fullscreen" parent="Theme.LiveTVPro">
