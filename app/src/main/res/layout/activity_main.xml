@@ -34,7 +34,7 @@
                     android:orientation="horizontal"
                     android:gravity="center_vertical">
 
-                    <!-- Title (will be set programmatically) -->
+                    <!-- Title -->
                     <TextView
                         android:id="@+id/toolbar_title"
                         android:layout_width="0dp"
@@ -43,30 +43,20 @@
                         android:text="Live TV Pro"
                         android:textColor="@android:color/white"
                         android:textSize="20sp"
-                        android:textStyle="bold"
-                        android:layout_marginEnd="8dp" />
+                        android:textStyle="bold" />
 
-                    <!-- Theme toggle icon -->
-                    <ImageButton
-                        android:id="@+id/btn_theme_toggle"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Toggle Theme"
-                        android:src="@drawable/ic_theme_toggle"
-                        android:tint="@android:color/white"
-                        android:padding="12dp" />
-
-                    <!-- Search icon -->
-                    <ImageButton
-                        android:id="@+id/btn_search"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Search"
-                        android:src="@drawable/ic_search"
-                        android:tint="@android:color/white"
-                        android:padding="12dp" />
+                    <!-- Search View -->
+                    <androidx.appcompat.widget.SearchView
+                        android:id="@+id/search_view"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1.5"
+                        android:layout_marginEnd="8dp"
+                        android:background="@android:color/transparent"
+                        app:iconifiedByDefault="true"
+                        app:queryHint="Search..."
+                        app:searchIcon="@drawable/ic_search"
+                        app:closeIcon="@drawable/ic_close" />
 
                     <!-- Favorites icon -->
                     <ImageButton
