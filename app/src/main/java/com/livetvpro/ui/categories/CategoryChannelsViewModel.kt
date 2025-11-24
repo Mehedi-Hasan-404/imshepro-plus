@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.FavoriteChannel
+import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,7 @@ import javax.inject.Inject
 @HiltViewModel
 class CategoryChannelsViewModel @Inject constructor(
     private val channelRepository: ChannelRepository,
+    private val categoryRepository: CategoryRepository,
     private val favoritesRepository: FavoritesRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -47,9 +49,21 @@ class CategoryChannelsViewModel @Inject constructor(
             try {
                 _isLoading.value = true
                 _error.value = null
-                val channels = channelRepository.getChannelsByCategory(categoryId)
+                
+                // Get category to check for M3U URL
+                val category = categoryRepository.getCategoryBySlug(categoryId) 
+                    ?: categoryRepository.getCategories().find { it.id == categoryId }
+                
+                val channels = if (category?.m3uUrl?.isNotEmpty() == true) {
+                    Timber.d("Loading channels from M3U: ${category.m3uUrl}")
+                    channelRepository.getAllChannels(categoryId, category.m3uUrl, categoryName)
+                } else {
+                    Timber.d("Loading channels from Firestore for category: $categoryId")
+                    channelRepository.getChannelsByCategory(categoryId)
+                }
+                
                 _channels.value = channels
-                _filteredChannels.value = channels
+                searchChannels(currentSearchQuery) // Apply current search
                 Timber.d("Loaded ${channels.size} channels for category $categoryId")
             } catch (e: Exception) {
                 Timber.e(e, "Error loading channels")
