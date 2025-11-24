@@ -11,6 +11,9 @@
         <action
             android:id="@+id/action_home_to_category"
             app:destination="@id/categoryChannelsFragment" />
+        <action
+            android:id="@+id/action_home_to_favorites"
+            app:destination="@id/favoritesFragment" />
     </fragment>
 
     <fragment
@@ -23,6 +26,9 @@
         <argument
             android:name="categoryName"
             app:argType="string" />
+        <action
+            android:id="@+id/action_category_to_favorites"
+            app:destination="@id/favoritesFragment" />
     </fragment>
 
     <fragment
@@ -33,7 +39,11 @@
     <fragment
         android:id="@+id/liveEventsFragment"
         android:name="com.livetvpro.ui.live.LiveEventsFragment"
-        android:label="Live Events" />
+        android:label="Live Events">
+        <action
+            android:id="@+id/action_live_to_favorites"
+            app:destination="@id/favoritesFragment" />
+    </fragment>
 
     <fragment
         android:id="@+id/contactFragment"
