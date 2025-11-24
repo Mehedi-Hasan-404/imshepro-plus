@@ -8,6 +8,10 @@
     <string name="nav_favorites">Favorites</string>
     <string name="nav_contact">Contact</string>
 
+    <!-- Navigation Drawer -->
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+
     <!-- Common -->
     <string name="loading">Loading…</string>
     <string name="error_generic">Something went wrong</string>
@@ -18,4 +22,9 @@
     <string name="no_favorites">No favorite channels yet</string>
     <string name="clear_all">Clear All</string>
     <string name="clear_all_confirm">Are you sure you want to remove all favorites?</string>
+    
+    <!-- Actions -->
+    <string name="action_favorites">Favorites</string>
+    <string name="action_search">Search</string>
+    <string name="action_theme_toggle">Toggle Theme</string>
 </resources>
