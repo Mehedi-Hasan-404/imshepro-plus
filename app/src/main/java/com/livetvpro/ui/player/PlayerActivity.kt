@@ -12,7 +12,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
 import com.livetvpro.data.models.Channel
@@ -57,18 +56,21 @@ class PlayerActivity : AppCompatActivity() {
 
         setupUI()
         initializePlayer()
-        observeViewModel()
     }
 
     private fun setupUI() {
-        binding.channelName.text = channel.name
+        // Set channel name in custom player controls
+        val channelNameView = binding.playerView.findViewById<android.widget.TextView>(
+            resources.getIdentifier("exo_channel_name", "id", packageName)
+        )
+        channelNameView?.text = channel.name
 
-        binding.backButton.setOnClickListener {
+        // Setup back button in custom controls
+        val backButton = binding.playerView.findViewById<android.widget.ImageButton>(
+            resources.getIdentifier("exo_back", "id", packageName)
+        )
+        backButton?.setOnClickListener {
             finish()
-        }
-
-        binding.favoriteButton.setOnClickListener {
-            viewModel.toggleFavorite(channel)
         }
 
         // Lock to landscape for better viewing
@@ -89,6 +91,8 @@ class PlayerActivity : AppCompatActivity() {
             .build()
             .also { exoPlayer ->
                 binding.playerView.player = exoPlayer
+                binding.playerView.controllerAutoShow = true
+                binding.playerView.controllerShowTimeoutMs = 3000 // Auto-hide after 3 seconds
 
                 // Prepare media source
                 val mediaItem = MediaItem.fromUri(channel.streamUrl)
@@ -126,15 +130,6 @@ class PlayerActivity : AppCompatActivity() {
             }
 
         Timber.d("Player initialized for channel: ${channel.name}")
-    }
-
-    private fun observeViewModel() {
-        viewModel.isFavorite(channel.id).observe(this) { isFavorite ->
-            binding.favoriteButton.setImageResource(
-                if (isFavorite) com.livetvpro.R.drawable.ic_star_filled 
-                else com.livetvpro.R.drawable.ic_star_outline
-            )
-        }
     }
 
     private fun hideSystemUI() {
