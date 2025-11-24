@@ -6,7 +6,8 @@
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
     app:cardCornerRadius="8dp"
-    app:cardElevation="2dp">
+    app:cardElevation="2dp"
+    android:foreground="?attr/selectableItemBackground">
 
     <RelativeLayout
         android:layout_width="match_parent"
@@ -21,15 +22,18 @@
             android:padding="16dp"
             android:scaleType="fitCenter" />
 
-        <ImageButton
-            android:id="@+id/favorite_button"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+        <!-- Small favorite indicator badge (non-clickable) -->
+        <ImageView
+            android:id="@+id/favorite_indicator"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
             android:layout_alignParentEnd="true"
             android:layout_margin="8dp"
-            android:background="@drawable/bg_favorite_button"
-            android:contentDescription="Add to favorites"
-            android:src="@drawable/ic_star_outline" />
+            android:contentDescription="Favorite indicator"
+            android:src="@drawable/ic_star_filled"
+            android:visibility="gone"
+            android:tint="@color/accent"
+            android:elevation="2dp" />
 
         <LinearLayout
             android:layout_width="match_parent"
