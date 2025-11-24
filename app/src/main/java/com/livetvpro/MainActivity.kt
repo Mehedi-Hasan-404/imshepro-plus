@@ -2,14 +2,12 @@ package com.livetvpro
 
 import android.os.Bundle
 import android.view.MenuItem
+import android.view.View
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.appcompat.widget.SearchView
 import androidx.core.view.GravityCompat
 import androidx.navigation.fragment.NavHostFragment
-import androidx.navigation.ui.setupWithNavController
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.databinding.ActivityMainBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -24,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var preferencesManager: PreferencesManager
     
     private lateinit var drawerToggle: ActionBarDrawerToggle
+    private var currentSearchQuery: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,13 +40,11 @@ class MainActivity : AppCompatActivity() {
         setupToolbar()
         setupNavigation()
         setupDrawer()
-        setupToolbarButtons()
+        setupSearch()
     }
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        supportActionBar?.setDisplayShowHomeEnabled(true)
         supportActionBar?.setDisplayShowTitleEnabled(false) // We'll use custom title TextView
     }
 
@@ -56,7 +53,14 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         val navController = navHostFragment.navController
 
-        // Setup drawer navigation (manual setup for better control)
+        // Top-level destinations where hamburger menu should show
+        val topLevelDestinations = setOf(
+            R.id.homeFragment,
+            R.id.liveEventsFragment,
+            R.id.contactFragment
+        )
+
+        // Setup drawer navigation
         binding.navigationView.setNavigationItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.homeFragment -> {
@@ -71,11 +75,6 @@ class MainActivity : AppCompatActivity() {
                         navController.navigate(R.id.liveEventsFragment)
                     }
                 }
-                R.id.favoritesFragment -> {
-                    if (navController.currentDestination?.id != R.id.favoritesFragment) {
-                        navController.navigate(R.id.favoritesFragment)
-                    }
-                }
                 R.id.contactFragment -> {
                     if (navController.currentDestination?.id != R.id.contactFragment) {
                         navController.navigate(R.id.contactFragment)
@@ -86,7 +85,7 @@ class MainActivity : AppCompatActivity() {
             true
         }
 
-        // Setup bottom navigation (manual setup for better control)
+        // Setup bottom navigation
         binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.homeFragment -> {
@@ -103,12 +102,6 @@ class MainActivity : AppCompatActivity() {
                     }
                     true
                 }
-                R.id.favoritesFragment -> {
-                    if (navController.currentDestination?.id != R.id.favoritesFragment) {
-                        navController.navigate(R.id.favoritesFragment)
-                    }
-                    true
-                }
                 R.id.contactFragment -> {
                     if (navController.currentDestination?.id != R.id.contactFragment) {
                         navController.navigate(R.id.contactFragment)
@@ -119,7 +112,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Update toolbar title and bottom nav selection based on destination
+        // Update toolbar title and handle back button vs hamburger menu
         navController.addOnDestinationChangedListener { _, destination, _ ->
             val title = when (destination.id) {
                 R.id.homeFragment -> "Categories"
@@ -131,12 +124,35 @@ class MainActivity : AppCompatActivity() {
             }
             binding.toolbarTitle.text = title
             
+            // Show/hide hamburger menu vs back button
+            if (destination.id in topLevelDestinations) {
+                // Top level - show hamburger menu
+                supportActionBar?.setDisplayHomeAsUpEnabled(true)
+                supportActionBar?.setDisplayShowHomeEnabled(true)
+                drawerToggle.isDrawerIndicatorEnabled = true
+            } else {
+                // Inner page - show back button
+                supportActionBar?.setDisplayHomeAsUpEnabled(true)
+                supportActionBar?.setDisplayShowHomeEnabled(true)
+                drawerToggle.isDrawerIndicatorEnabled = false
+                supportActionBar?.setHomeAsUpIndicator(R.drawable.ic_arrow_back)
+            }
+            
             // Update bottom navigation selection
-            binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
+            if (destination.id in topLevelDestinations) {
+                binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
+            }
             
             // Close drawer after navigation
             if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
                 binding.drawerLayout.closeDrawer(GravityCompat.START)
+            }
+        }
+
+        // Favorites button
+        binding.btnFavorites.setOnClickListener {
+            if (navController.currentDestination?.id != R.id.favoritesFragment) {
+                navController.navigate(R.id.favoritesFragment)
             }
         }
     }
@@ -153,65 +169,50 @@ class MainActivity : AppCompatActivity() {
         drawerToggle.syncState()
     }
 
-    private fun setupToolbarButtons() {
-        // Theme toggle button
-        binding.btnThemeToggle.setOnClickListener {
-            toggleTheme()
-        }
-
-        // Search button
-        binding.btnSearch.setOnClickListener {
-            showSearchDialog()
-        }
-
-        // Favorites button
-        binding.btnFavorites.setOnClickListener {
-            // Navigate to favorites
-            val navHostFragment = supportFragmentManager
-                .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
-            val navController = navHostFragment.navController
-            
-            // Check if we're not already on favorites page
-            if (navController.currentDestination?.id != R.id.favoritesFragment) {
-                navController.navigate(R.id.favoritesFragment)
-            }
-        }
-    }
-
-    private fun showSearchDialog() {
-        val searchView = SearchView(this)
-        searchView.queryHint = "Search..."
-        
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("Search")
-            .setView(searchView)
-            .setNegativeButton("Close", null)
-            .create()
-
-        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+    private fun setupSearch() {
+        binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
-                // Handle search
-                dialog.dismiss()
+                currentSearchQuery = query ?: ""
+                // Broadcast search query to fragments
+                supportFragmentManager.fragments.forEach { fragment ->
+                    (fragment as? NavHostFragment)?.childFragmentManager?.fragments?.forEach { childFragment ->
+                        when (childFragment) {
+                            is com.livetvpro.ui.home.HomeFragment -> {
+                                childFragment.view?.post {
+                                    // Search will be handled by the fragment's ViewModel
+                                }
+                            }
+                            is com.livetvpro.ui.categories.CategoryChannelsFragment -> {
+                                childFragment.view?.post {
+                                    // Search will be handled by the fragment's ViewModel
+                                }
+                            }
+                        }
+                    }
+                }
                 return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                // Handle search text change
+                currentSearchQuery = newText ?: ""
+                // Real-time search as user types
                 return true
             }
         })
-
-        dialog.show()
-        
-        // Auto-focus search and show keyboard
-        searchView.isIconified = false
-        searchView.requestFocus()
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        // Handle back button click
+        if (item.itemId == android.R.id.home && !drawerToggle.isDrawerIndicatorEnabled) {
+            onBackPressed()
+            return true
+        }
+        
+        // Handle hamburger menu
         if (drawerToggle.onOptionsItemSelected(item)) {
             return true
         }
+        
         return super.onOptionsItemSelected(item)
     }
 
@@ -231,17 +232,5 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun toggleTheme() {
-        val currentMode = preferencesManager.isDarkTheme()
-        val newMode = !currentMode
-        preferencesManager.setDarkTheme(newMode)
-        
-        AppCompatDelegate.setDefaultNightMode(
-            if (newMode) AppCompatDelegate.MODE_NIGHT_YES 
-            else AppCompatDelegate.MODE_NIGHT_NO
-        )
-        
-        // Recreate activity to apply theme
-        recreate()
-    }
+    fun getSearchQuery(): String = currentSearchQuery
 }
