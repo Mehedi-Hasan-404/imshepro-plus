@@ -26,4 +26,7 @@
     <color name="white">#FFFFFF</color>
     <color name="black">#000000</color>
     <color name="transparent">#00000000</color>
+    
+    <!-- ADD THIS NEW COLOR FOR LAUNCHER ICON -->
+    <color name="ic_launcher_background">#EF4444</color>
 </resources>
