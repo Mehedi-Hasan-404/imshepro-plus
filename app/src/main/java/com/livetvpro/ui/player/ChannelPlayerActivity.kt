@@ -215,7 +215,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         exoChannelName?.text = channel.name
 
-        // ensure fullscreen button exists and is visible — read into local val to avoid smart cast issues
+        // ensure fullscreen button exists and is visible — copy to local val to avoid smart-cast error
         val fullscreenBtn = exoFullscreen
         if (fullscreenBtn == null) {
             Timber.e("exo_fullscreen not found — check controller layout id and file")
@@ -344,7 +344,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.layoutParams = params
 
         exoAspectRatio?.visibility = View.VISIBLE
-        exoFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+
+        // set fullscreen icon safely
+        val fullscreenBtn = exoFullscreen
+        fullscreenBtn?.setImageResource(R.drawable.ic_fullscreen_exit)
+
         updateResizeMode()
     }
 
@@ -360,7 +364,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.layoutParams = params
 
         exoAspectRatio?.visibility = View.GONE
-        exoFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+
+        val fullscreenBtn = exoFullscreen
+        fullscreenBtn?.setImageResource(R.drawable.ic_fullscreen)
+
         updateResizeMode()
     }
 
