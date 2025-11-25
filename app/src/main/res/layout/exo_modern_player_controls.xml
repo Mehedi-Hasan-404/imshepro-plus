@@ -5,7 +5,6 @@
     android:layout_height="match_parent"
     android:padding="0dp">
 
-    <!-- Top overlay: back + channel name + pip/settings/volume/lock -->
     <LinearLayout
         android:id="@+id/exo_top_bar"
         android:layout_width="match_parent"
@@ -13,7 +12,8 @@
         android:orientation="horizontal"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:background="@drawable/gradient_overlay_top">
 
         <ImageButton
             android:id="@+id/exo_back"
@@ -73,7 +73,6 @@
 
     </LinearLayout>
 
-    <!-- Center area: large center play/pause (optional) -->
     <FrameLayout
         android:id="@+id/exo_center_area"
         android:layout_width="match_parent"
@@ -91,16 +90,15 @@
 
     </FrameLayout>
 
-    <!-- Bottom overlay: seekbar + controls anchored at bottom -->
     <LinearLayout
         android:id="@+id/exo_bottom_overlay"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:layout_gravity="bottom"
+        android:background="@drawable/gradient_overlay_bottom"
         android:padding="12dp">
 
-        <!-- Seekbar row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -116,8 +114,6 @@
                 android:textSize="12sp"
                 android:paddingEnd="8dp" />
 
-            <!-- Using the Media3 DefaultTimeBar if available in your project.
-                 If you prefer SeekBar, you can replace this tag with SeekBar. -->
             <androidx.media3.ui.DefaultTimeBar
                 android:id="@+id/exo_progress"
                 android:layout_width="0dp"
@@ -134,7 +130,6 @@
                 android:paddingStart="8dp" />
         </LinearLayout>
 
-        <!-- Transport controls (bottom row) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="64dp"
@@ -204,13 +199,14 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Lock overlay (shown when locked) -->
     <FrameLayout
         android:id="@+id/lock_overlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone"
-        android:background="#88000000">
+        android:background="#88000000"
+        android:clickable="true"
+        android:focusable="true">
 
         <ImageButton
             android:id="@+id/unlock_button"
@@ -218,7 +214,7 @@
             android:layout_height="64dp"
             android:layout_gravity="center"
             android:background="@drawable/circular_button_bg"
-            android:src="@drawable/ic_unlock"
+            android:src="@drawable/ic_lock_open"
             android:tint="@android:color/white"
             android:contentDescription="Unlock" />
     </FrameLayout>
