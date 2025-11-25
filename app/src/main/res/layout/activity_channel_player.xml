@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <!-- Video Player Container (16:9 in portrait) -->
+    <!-- Player container anchored to top and related channels anchored to bottom -->
     <FrameLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -16,23 +16,21 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/related_channels_section"
+        app:layout_constraintBottom_toTopOf="@+id/related_channels_section"
         app:layout_constraintDimensionRatio="16:9">
 
-        <!-- ExoPlayer with Modern Custom Controls -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:show_buffering="when_playing"
             app:surface_type="texture_view"
             app:use_controller="true"
-            app:controller_layout_id="@layout/exo_modern_player_controls"
-            app:show_timeout="5000"
+            app:auto_show="true"
             app:hide_on_touch="true"
-            app:auto_show="true" />
+            app:show_timeout="5000"
+            app:show_buffering="when_playing"
+            app:controller_layout_id="@layout/exo_modern_player_controls" />
 
-        <!-- Loading Progress -->
         <ProgressBar
             android:id="@+id/progress_bar"
             android:layout_width="56dp"
@@ -41,7 +39,6 @@
             android:indeterminateTint="@android:color/white"
             android:visibility="gone" />
 
-        <!-- Error View -->
         <LinearLayout
             android:id="@+id/error_view"
             android:layout_width="wrap_content"
@@ -95,7 +92,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Section Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -122,7 +118,6 @@
 
         </LinearLayout>
 
-        <!-- Related Channels Grid -->
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -143,26 +138,5 @@
         </androidx.core.widget.NestedScrollView>
 
     </LinearLayout>
-
-    <!-- Lock overlay (on top of everything when locked) -->
-    <FrameLayout
-        android:id="@+id/lock_overlay"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:visibility="gone"
-        android:clickable="true"
-        android:focusable="true">
-
-        <ImageButton
-            android:id="@+id/unlock_button"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:layout_gravity="center"
-            android:src="@drawable/ic_unlock"
-            android:background="@android:color/transparent"
-            android:tint="@android:color/white"
-            android:contentDescription="Unlock" />
-
-    </FrameLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
