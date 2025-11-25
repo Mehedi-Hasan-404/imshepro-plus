@@ -48,9 +48,12 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Make fullscreen
+        // Make fullscreen and keep screen on
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUI()
+
+        // START IN PORTRAIT MODE
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run {
             Timber.e("No channel data provided")
@@ -102,7 +105,7 @@ class PlayerActivity : AppCompatActivity() {
         )
         channelNameView?.text = channel.name
 
-        // Setup back button in custom controls
+        // Setup back button
         val backButton = binding.playerView.findViewById<android.widget.ImageButton>(
             resources.getIdentifier("exo_back", "id", packageName)
         )
@@ -110,8 +113,41 @@ class PlayerActivity : AppCompatActivity() {
             finish()
         }
 
-        // Lock to landscape for better viewing
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        // Setup fullscreen button
+        val fullscreenButton = binding.playerView.findViewById<android.widget.ImageButton>(
+            resources.getIdentifier("exo_fullscreen", "id", packageName)
+        )
+        fullscreenButton?.setOnClickListener {
+            toggleFullscreen()
+        }
+    }
+
+    private var isFullscreen = false
+
+    private fun toggleFullscreen() {
+        isFullscreen = !isFullscreen
+        
+        if (isFullscreen) {
+            // Enter fullscreen - switch to landscape
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            binding.relatedChannelsContainer.visibility = View.GONE
+            
+            // Update fullscreen icon
+            val fullscreenButton = binding.playerView.findViewById<android.widget.ImageButton>(
+                resources.getIdentifier("exo_fullscreen", "id", packageName)
+            )
+            fullscreenButton?.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+        } else {
+            // Exit fullscreen - switch back to portrait
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            binding.relatedChannelsContainer.visibility = View.VISIBLE
+            
+            // Update fullscreen icon
+            val fullscreenButton = binding.playerView.findViewById<android.widget.ImageButton>(
+                resources.getIdentifier("exo_fullscreen", "id", packageName)
+            )
+            fullscreenButton?.setImageResource(android.R.drawable.ic_menu_gallery)
+        }
     }
 
     private fun setupRelatedChannels() {
@@ -132,7 +168,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun loadRelatedChannels() {
-        // Load channels from the same category
         viewModel.loadRelatedChannels(channel.categoryId, channel.id)
         
         viewModel.relatedChannels.observe(this) { channels ->
@@ -188,6 +223,10 @@ class PlayerActivity : AppCompatActivity() {
                     binding.playerView.player = exoPlayer
                     binding.playerView.controllerAutoShow = true
                     binding.playerView.controllerShowTimeoutMs = 3000
+                    binding.playerView.useController = true
+
+                    // Setup FILL button for aspect ratio
+                    setupPlayerControls()
 
                     // Prepare media source
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
@@ -254,6 +293,22 @@ class PlayerActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Timber.e(e, "Failed to initialize player")
             showError("Failed to initialize player: ${e.message}")
+        }
+    }
+
+    private fun setupPlayerControls() {
+        // Setup FILL button to toggle aspect ratio
+        val fillButton = binding.playerView.findViewById<android.widget.Button>(
+            resources.getIdentifier("exo_fill", "id", packageName)
+        )
+        fillButton?.setOnClickListener {
+            // Toggle aspect ratio between FIT and FILL
+            binding.playerView.resizeMode = 
+                if (binding.playerView.resizeMode == androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL) {
+                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT
+                } else {
+                    androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL
+                }
         }
     }
 
