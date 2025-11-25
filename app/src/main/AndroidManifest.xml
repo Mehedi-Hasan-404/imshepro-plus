@@ -1,3 +1,8 @@
+<!-- ===================================
+FILE: app/src/main/AndroidManifest.xml
+ACTION: UPDATE - Add ChannelPlayerActivity
+=================================== -->
+
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -24,6 +29,7 @@
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
 
+        <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -36,6 +42,16 @@
             </intent-filter>
         </activity>
 
+        <!-- ⬇️ NEW: Channel Player Activity (Main player for regular channels) -->
+        <activity
+            android:name=".ui.player.ChannelPlayerActivity"
+            android:exported="false"
+            android:screenOrientation="sensor"
+            android:theme="@style/Theme.LiveTVPro.Fullscreen"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:launchMode="singleTop" />
+
+        <!-- OLD: Original Player Activity (Optional - can be deleted or kept for events) -->
         <activity
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
@@ -43,6 +59,7 @@
             android:theme="@style/Theme.LiveTVPro.Fullscreen"
             android:configChanges="orientation|screenSize|keyboardHidden" />
 
+        <!-- Event Player Activity -->
         <activity
             android:name=".ui.live.EventPlayerActivity"
             android:exported="false"
