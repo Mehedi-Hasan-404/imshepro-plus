@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <!-- Video Player Container (player fills area; related channels below) -->
+    <!-- Player container. Related channels below. -->
     <FrameLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -18,7 +18,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/related_channels_section">
 
-        <!-- ExoPlayer: custom controller layout + fill resize mode -->
+        <!-- PlayerView: uses custom controller and fills container -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
             android:layout_width="match_parent"
@@ -32,7 +32,7 @@
             app:surface_type="texture_view"
             app:resize_mode="fill" />
 
-        <!-- Lock overlay (above PlayerView) -->
+        <!-- Lock overlay above player -->
         <FrameLayout
             android:id="@+id/lock_overlay"
             android:layout_width="match_parent"
@@ -54,7 +54,7 @@
                 android:contentDescription="Unlock" />
         </FrameLayout>
 
-        <!-- Loading spinner (hidden by default) -->
+        <!-- Loading spinner -->
         <ProgressBar
             android:id="@+id/progress_bar"
             android:layout_width="56dp"
@@ -63,7 +63,7 @@
             android:indeterminateTint="@android:color/white"
             android:visibility="gone" />
 
-        <!-- Error view centered -->
+        <!-- Error view -->
         <LinearLayout
             android:id="@+id/error_view"
             android:layout_width="wrap_content"
@@ -141,7 +141,7 @@
                 android:textSize="14sp" />
         </LinearLayout>
 
-        <!-- Channels grid (scrollable) -->
+        <!-- Grid -->
         <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
             android:layout_height="0dp"
