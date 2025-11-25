@@ -1,81 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/activity_root"
+    android:id="@+id/activity_channel_player_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <!-- Player container (top) -->
-    <FrameLayout
-        android:id="@+id/player_container"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:background="@android:color/black"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@id/related_channels_section"
-        app:layout_constraintDimensionRatio="16:9">
+    <!-- PlayerView (Media3) - controller_layout_id points to our custom controls -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/player_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:use_controller="true"
+        app:controller_layout_id="@layout/exo_modern_player_controls"
+        app:show_timeout="3000"
+        app:keep_content_on_player_reset="true" />
 
-        <!-- PlayerView uses custom controller; child anchored to top -->
-        <androidx.media3.ui.PlayerView
-            android:id="@+id/player_view"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_gravity="top"
-            app:controller_layout_id="@layout/exo_modern_player_controls"
-            app:use_controller="true"
-            app:auto_show="true"
-            app:hide_on_touch="true"
-            app:show_timeout="5000"
-            app:show_buffering="when_playing"
-            app:surface_type="texture_view"
-            app:resize_mode="fit" />
+    <!-- A top gradient overlay (optional) -->
+    <View
+        android:id="@+id/top_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:layout_gravity="top"
+        android:background="@drawable/gradient_overlay_top"
+        android:visibility="gone" />
 
-        <!-- Lock overlay above player (hidden by default).
-             Unlock button anchored top|end so it won't appear center. -->
-        <FrameLayout
-            android:id="@+id/lock_overlay"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:visibility="gone"
-            android:clickable="true"
-            android:focusable="true"
-            android:elevation="20dp"
-            android:background="#88000000">
+    <!-- A bottom gradient overlay (optional) -->
+    <View
+        android:id="@+id/bottom_overlay"
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/gradient_overlay_bottom"
+        android:visibility="gone" />
 
-            <ImageButton
-                android:id="@+id/unlockButton"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_margin="12dp"
-                android:layout_gravity="top|end"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/unlock"
-                android:src="@drawable/ic_lock_open" />
-        </FrameLayout>
+    <!-- A centered lock icon when locked (we will show/hide but keep original lock position in top-right) -->
+    <ImageButton
+        android:id="@+id/lock_center_icon"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_gravity="center"
+        android:background="@android:color/transparent"
+        android:src="@drawable/ic_lock_closed"
+        android:visibility="gone"
+        android:contentDescription="@string/lock" />
 
-    </FrameLayout>
-
-    <!-- Related channels / content below the player -->
+    <!-- Error view -->
     <LinearLayout
-        android:id="@+id/related_channels_section"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:id="@+id/error_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="8dp"
-        app:layout_constraintTop_toBottomOf="@id/player_container"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/related_channels_recycler"
-            android:layout_width="match_parent"
+        android:gravity="center"
+        android:visibility="gone"
+        android:padding="24dp">
+        <ImageView
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:src="@drawable/ic_error"
+            android:contentDescription="Error" />
+        <TextView
+            android:id="@+id/error_text"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:clipToPadding="false" />
-
+            android:text="Failed to load stream"
+            android:textColor="@android:color/white"
+            android:layout_marginTop="12dp" />
     </LinearLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>
