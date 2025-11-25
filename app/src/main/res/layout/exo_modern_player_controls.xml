@@ -3,19 +3,19 @@
     android:id="@+id/exo_controller_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:foregroundGravity="center"
+    android:foregroundGravity="top"
     android:clipToPadding="false">
 
-    <!-- TOP BAR -->
+    <!-- TOP BAR (anchored to top) -->
     <LinearLayout
         android:id="@+id/exo_top_bar"
         android:layout_width="match_parent"
         android:layout_height="56dp"
         android:orientation="horizontal"
+        android:layout_gravity="top"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:gravity="center_vertical"
-        android:layout_gravity="top">
+        android:gravity="center_vertical">
 
         <ImageButton
             android:id="@+id/exo_back"
@@ -71,13 +71,13 @@
             android:contentDescription="Lock" />
     </LinearLayout>
 
-    <!-- BOTTOM CONTROLS (seekbar + centered playback controls) -->
+    <!-- BOTTOM CONTROLS (seekbar + centered playback controls anchored to bottom) -->
     <LinearLayout
         android:id="@+id/exo_bottom_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="12dp"
+        android:padding="8dp"
         android:layout_gravity="bottom"
         android:background="@android:color/transparent">
 
@@ -99,7 +99,7 @@
             <androidx.media3.ui.DefaultTimeBar
                 android:id="@id/exo_progress"
                 android:layout_width="0dp"
-                android:layout_height="24dp"
+                android:layout_height="18dp"
                 android:layout_weight="1"
                 android:paddingStart="8dp"
                 android:paddingEnd="8dp" />
@@ -113,13 +113,13 @@
                 android:textSize="12sp" />
         </LinearLayout>
 
-        <!-- Playback row: Aspect | Rewind | Play | Forward | Fullscreen -->
+        <!-- Playback row anchored to bottom of controller, small gaps (no big margin) -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
             android:orientation="horizontal"
             android:gravity="center"
-            android:layout_marginTop="6dp">
+            android:layout_marginTop="0dp">
 
             <ImageButton
                 android:id="@+id/exo_aspect_ratio"
