@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.util.Rational
 import android.view.View
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.activity.viewModels
@@ -39,7 +40,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private lateinit var channel: Channel
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
-    
+      
     // UI Control Elements
     private var exoBack: ImageButton? = null
     private var exoChannelName: TextView? = null
@@ -50,13 +51,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var exoAspectRatio: ImageButton? = null
     private var exoPlayPause: ImageButton? = null
     private var exoFullscreen: ImageButton? = null
-    
+      
     // State variables
     private var isFullscreen = false
     private var isLocked = false
     private var isMuted = false
     private var currentAspectRatioIndex = 0
-    
+      
     private val aspectRatios = listOf(
         androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
         androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FILL,
@@ -114,7 +115,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .build()
                 .also { exoPlayer ->
                     binding.playerView.player = exoPlayer
-                    
+                      
                     // Configure PlayerView
                     binding.playerView.useController = true
                     binding.playerView.controllerAutoShow = true
@@ -148,9 +149,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                             binding.progressBar.visibility = View.GONE
                             val errorMessage = when (error.errorCode) {
-                                androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> 
+                                androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
                                     "Server error"
-                                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> 
+                                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
                                     "Network error"
                                 else -> "Playback failed"
                             }
@@ -169,7 +170,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupCustomControls() {
-        // Find custom control views
+        // Find all controls
         exoBack = binding.playerView.findViewById(R.id.exo_back)
         exoChannelName = binding.playerView.findViewById(R.id.exo_channel_name)
         exoPip = binding.playerView.findViewById(R.id.exo_pip)
@@ -179,6 +180,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         exoAspectRatio = binding.playerView.findViewById(R.id.exo_aspect_ratio)
         exoPlayPause = binding.playerView.findViewById(R.id.exo_play_pause)
         exoFullscreen = binding.playerView.findViewById(R.id.exo_fullscreen)
+          
+        // Find lock overlay
+        val lockOverlay: FrameLayout? = binding.playerView.findViewById(R.id.lock_overlay)
+        val unlockButton: ImageButton? = binding.playerView.findViewById(R.id.unlock_button)
 
         // Set channel name
         exoChannelName?.text = channel.name
@@ -192,20 +197,22 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // PiP button
+        // PiP button - FIX
         exoPip?.apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                 visibility = View.VISIBLE
-                setOnClickListener { enterPipMode() }
+                setOnClickListener {
+                    enterPipMode()
+                }
             } else {
                 visibility = View.GONE
             }
         }
 
-        // Settings button (placeholder - can add quality settings)
+        // Settings button
         exoSettings?.setOnClickListener {
-            // TODO: Show quality/speed settings dialog
+            // TODO: Show settings dialog
         }
 
         // Mute button
@@ -213,17 +220,34 @@ class ChannelPlayerActivity : AppCompatActivity() {
             toggleMute()
         }
 
-        // Lock button
+        // Lock button - FIX
         exoLock?.setOnClickListener {
-            toggleLock()
+            isLocked = true
+
+            // Hide all controls
+            binding.playerView.useController = false
+
+            // Show lock overlay with unlock button
+            lockOverlay?.visibility = View.VISIBLE
+        }
+          
+        // Unlock button - FIX
+        unlockButton?.setOnClickListener {
+            isLocked = false
+
+            // Show controls again
+            binding.playerView.useController = true
+
+            // Hide lock overlay
+            lockOverlay?.visibility = View.GONE
         }
 
-        // Aspect ratio button
+        // Aspect ratio
         exoAspectRatio?.setOnClickListener {
             cycleAspectRatio()
         }
 
-        // Play/Pause button
+        // Play/Pause
         exoPlayPause?.setOnClickListener {
             player?.let {
                 if (it.isPlaying) {
@@ -234,12 +258,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // Fullscreen button
+        // Fullscreen
         exoFullscreen?.setOnClickListener {
             toggleFullscreen()
         }
 
-        // Retry button in error view
+        // Retry button
         binding.retryButton.setOnClickListener {
             binding.errorView.visibility = View.GONE
             setupPlayer()
@@ -263,11 +287,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun loadRelatedChannels() {
         viewModel.loadRelatedChannels(channel.categoryId, channel.id)
-        
+          
         viewModel.relatedChannels.observe(this) { channels ->
             relatedChannelsAdapter.submitList(channels)
             binding.relatedCount.text = channels.size.toString()
-            
+              
             if (channels.isEmpty()) {
                 binding.relatedChannelsSection.visibility = View.GONE
             }
@@ -277,13 +301,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun switchChannel(newChannel: Channel) {
         channel = newChannel
         exoChannelName?.text = channel.name
-        
+          
         player?.stop()
         val mediaItem = MediaItem.fromUri(channel.streamUrl)
         player?.setMediaItem(mediaItem)
         player?.prepare()
         player?.playWhenReady = true
-        
+          
         binding.errorView.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
     }
@@ -299,17 +323,17 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun enterFullscreen() {
         isFullscreen = true
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        
+          
         // Hide related channels
         binding.relatedChannelsSection.visibility = View.GONE
-        
+          
         // Make player fill screen
         val params = binding.playerContainer.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
         params.dimensionRatio = null
         params.bottomToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
         params.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
         binding.playerContainer.layoutParams = params
-        
+          
         // Update icon
         exoFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
     }
@@ -317,17 +341,17 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun exitFullscreen() {
         isFullscreen = false
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        
+          
         // Show related channels
         binding.relatedChannelsSection.visibility = View.VISIBLE
-        
+          
         // Restore 16:9
         val params = binding.playerContainer.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
         params.dimensionRatio = "16:9"
         params.bottomToTop = R.id.related_channels_section
         params.bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.UNSET
         binding.playerContainer.layoutParams = params
-        
+          
         // Update icon
         exoFullscreen?.setImageResource(R.drawable.ic_fullscreen)
     }
@@ -339,24 +363,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             exoMute?.setImageResource(
                 if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
             )
-        }
-    }
-
-    private fun toggleLock() {
-        isLocked = !isLocked
-        
-        // Hide/show controls when locked
-        val visibility = if (isLocked) View.GONE else View.VISIBLE
-        binding.playerView.useController = !isLocked
-        
-        // Update lock icon
-        exoLock?.setImageResource(
-            if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open
-        )
-        
-        // Hide related channels when locked
-        if (isFullscreen) {
-            binding.relatedChannelsSection.visibility = if (isLocked) View.GONE else View.GONE
         }
     }
 
