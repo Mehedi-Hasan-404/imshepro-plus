@@ -14,8 +14,10 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityPlayerBinding
+import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 
@@ -28,6 +30,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private var player: ExoPlayer? = null
     private lateinit var channel: Channel
+    private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
 
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
@@ -61,7 +64,9 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         setupUI()
+        setupRelatedChannels()
         initializePlayer()
+        loadRelatedChannels()
     }
 
     private fun validateChannel(): Boolean {
@@ -109,6 +114,59 @@ class PlayerActivity : AppCompatActivity() {
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
     }
 
+    private fun setupRelatedChannels() {
+        relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel ->
+            // When a related channel is clicked, switch to it
+            switchChannel(relatedChannel)
+        }
+
+        binding.relatedChannelsRecycler.apply {
+            layoutManager = LinearLayoutManager(
+                this@PlayerActivity,
+                LinearLayoutManager.HORIZONTAL,
+                false
+            )
+            adapter = relatedChannelsAdapter
+            setHasFixedSize(true)
+        }
+    }
+
+    private fun loadRelatedChannels() {
+        // Load channels from the same category
+        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+        
+        viewModel.relatedChannels.observe(this) { channels ->
+            Timber.d("Loaded ${channels.size} related channels")
+            relatedChannelsAdapter.submitList(channels)
+            
+            // Show/hide related channels section
+            binding.relatedChannelsContainer.visibility = 
+                if (channels.isEmpty()) View.GONE else View.VISIBLE
+        }
+    }
+
+    private fun switchChannel(newChannel: Channel) {
+        Timber.d("Switching to channel: ${newChannel.name}")
+        
+        // Release current player
+        player?.release()
+        player = null
+        
+        // Update current channel
+        channel = newChannel
+        
+        // Update UI
+        val channelNameView = binding.playerView.findViewById<android.widget.TextView>(
+            resources.getIdentifier("exo_channel_name", "id", packageName)
+        )
+        channelNameView?.text = channel.name
+        
+        // Reinitialize player with new channel
+        if (validateChannel()) {
+            initializePlayer()
+        }
+    }
+
     private fun initializePlayer() {
         try {
             Timber.d("Initializing player for channel: ${channel.name}")
@@ -129,7 +187,7 @@ class PlayerActivity : AppCompatActivity() {
                 .also { exoPlayer ->
                     binding.playerView.player = exoPlayer
                     binding.playerView.controllerAutoShow = true
-                    binding.playerView.controllerShowTimeoutMs = 3000 // Auto-hide after 3 seconds
+                    binding.playerView.controllerShowTimeoutMs = 3000
 
                     // Prepare media source
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
