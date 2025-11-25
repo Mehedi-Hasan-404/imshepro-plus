@@ -22,7 +22,6 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var preferencesManager: PreferencesManager
     
-    // Make nullable to avoid lateinit crash
     private var drawerToggle: ActionBarDrawerToggle? = null
     private var currentSearchQuery: String = ""
 
@@ -54,7 +53,6 @@ class MainActivity : AppCompatActivity() {
             Timber.e(e, "FATAL: Error in MainActivity onCreate")
             e.printStackTrace()
             
-            // Show error dialog instead of crashing
             Toast.makeText(
                 this,
                 "Error starting app: ${e.message}",
@@ -67,6 +65,7 @@ class MainActivity : AppCompatActivity() {
         try {
             setSupportActionBar(binding.toolbar)
             supportActionBar?.setDisplayShowTitleEnabled(false)
+            supportActionBar?.setDisplayHomeAsUpEnabled(true)
             Timber.d("Toolbar setup complete")
         } catch (e: Exception) {
             Timber.e(e, "Error setting up toolbar")
@@ -159,20 +158,24 @@ class MainActivity : AppCompatActivity() {
                 }
                 binding.toolbarTitle.text = title
                 
-                // Show/hide hamburger menu vs back button
-                if (destination.id in topLevelDestinations) {
-                    supportActionBar?.setDisplayHomeAsUpEnabled(true)
-                    supportActionBar?.setDisplayShowHomeEnabled(true)
+                // Show/hide hamburger menu vs back button with animation
+                val isTopLevel = destination.id in topLevelDestinations
+                
+                if (isTopLevel) {
+                    // Show hamburger menu (drawer indicator)
                     drawerToggle?.isDrawerIndicatorEnabled = true
-                } else {
                     supportActionBar?.setDisplayHomeAsUpEnabled(true)
-                    supportActionBar?.setDisplayShowHomeEnabled(true)
+                    // Sync state to animate properly
+                    drawerToggle?.syncState()
+                } else {
+                    // Show back arrow
                     drawerToggle?.isDrawerIndicatorEnabled = false
+                    supportActionBar?.setDisplayHomeAsUpEnabled(true)
                     supportActionBar?.setHomeAsUpIndicator(R.drawable.ic_arrow_back)
                 }
                 
                 // Update bottom navigation selection
-                if (destination.id in topLevelDestinations) {
+                if (isTopLevel) {
                     binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
                 }
                 
@@ -204,11 +207,16 @@ class MainActivity : AppCompatActivity() {
                 binding.toolbar,
                 R.string.navigation_drawer_open,
                 R.string.navigation_drawer_close
-            )
+            ).apply {
+                // Enable animation
+                isDrawerIndicatorEnabled = true
+                syncState()
+            }
+            
             drawerToggle?.let {
                 binding.drawerLayout.addDrawerListener(it)
-                it.syncState()
             }
+            
             Timber.d("Drawer setup complete")
         } catch (e: Exception) {
             Timber.e(e, "Error setting up drawer")
@@ -236,19 +244,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        // Safe access to drawerToggle
-        drawerToggle?.let { toggle ->
-            if (item.itemId == android.R.id.home && !toggle.isDrawerIndicatorEnabled) {
-                onBackPressed()
-                return true
+        // Handle the drawer toggle and back navigation
+        return when {
+            // If drawer indicator is disabled (showing back arrow), handle back navigation
+            item.itemId == android.R.id.home && drawerToggle?.isDrawerIndicatorEnabled == false -> {
+                onBackPressedDispatcher.onBackPressed()
+                true
             }
-            
-            if (toggle.onOptionsItemSelected(item)) {
-                return true
+            // Otherwise, let the drawer toggle handle it (hamburger menu)
+            drawerToggle?.onOptionsItemSelected(item) == true -> {
+                true
             }
+            else -> super.onOptionsItemSelected(item)
         }
-        
-        return super.onOptionsItemSelected(item)
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -265,6 +273,18 @@ class MainActivity : AppCompatActivity() {
         } else {
             super.onBackPressed()
         }
+    }
+
+    override fun onPostCreate(savedInstanceState: Bundle?) {
+        super.onPostCreate(savedInstanceState)
+        // Sync the toggle state after onRestoreInstanceState has occurred.
+        drawerToggle?.syncState()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // Pass any configuration change to the drawer toggle
+        drawerToggle?.onConfigurationChanged(newConfig)
     }
 
     fun getSearchQuery(): String = currentSearchQuery
