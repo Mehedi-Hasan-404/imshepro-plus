@@ -50,12 +50,44 @@ class PlayerActivity : AppCompatActivity() {
         hideSystemUI()
 
         channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run {
-            finish()
+            Timber.e("No channel data provided")
+            showError("No channel data available")
+            return
+        }
+
+        // Validate channel data
+        if (!validateChannel()) {
             return
         }
 
         setupUI()
         initializePlayer()
+    }
+
+    private fun validateChannel(): Boolean {
+        return when {
+            channel.name.isEmpty() -> {
+                Timber.e("Channel name is empty")
+                showError("Invalid channel: missing name")
+                false
+            }
+            channel.streamUrl.isEmpty() -> {
+                Timber.e("Stream URL is empty for channel: ${channel.name}")
+                showError("Invalid stream URL for ${channel.name}")
+                false
+            }
+            !isValidUrl(channel.streamUrl) -> {
+                Timber.e("Invalid stream URL format: ${channel.streamUrl}")
+                showError("Invalid stream URL format")
+                false
+            }
+            else -> true
+        }
+    }
+
+    private fun isValidUrl(url: String): Boolean {
+        return url.startsWith("http://", ignoreCase = true) || 
+               url.startsWith("https://", ignoreCase = true)
     }
 
     private fun setupUI() {
@@ -78,58 +110,99 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun initializePlayer() {
-        player = ExoPlayer.Builder(this)
-            .setMediaSourceFactory(
-                DefaultMediaSourceFactory(this)
-                    .setDataSourceFactory(
-                        DefaultHttpDataSource.Factory()
-                            .setUserAgent("LiveTVPro/1.0")
-                            .setConnectTimeoutMs(30000)
-                            .setReadTimeoutMs(30000)
-                    )
-            )
-            .build()
-            .also { exoPlayer ->
-                binding.playerView.player = exoPlayer
-                binding.playerView.controllerAutoShow = true
-                binding.playerView.controllerShowTimeoutMs = 3000 // Auto-hide after 3 seconds
+        try {
+            Timber.d("Initializing player for channel: ${channel.name}")
+            Timber.d("Stream URL: ${channel.streamUrl}")
 
-                // Prepare media source
-                val mediaItem = MediaItem.fromUri(channel.streamUrl)
-                exoPlayer.setMediaItem(mediaItem)
-                exoPlayer.prepare()
-                exoPlayer.playWhenReady = true
+            player = ExoPlayer.Builder(this)
+                .setMediaSourceFactory(
+                    DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(
+                            DefaultHttpDataSource.Factory()
+                                .setUserAgent("LiveTVPro/1.0")
+                                .setConnectTimeoutMs(30000)
+                                .setReadTimeoutMs(30000)
+                                .setAllowCrossProtocolRedirects(true)
+                        )
+                )
+                .build()
+                .also { exoPlayer ->
+                    binding.playerView.player = exoPlayer
+                    binding.playerView.controllerAutoShow = true
+                    binding.playerView.controllerShowTimeoutMs = 3000 // Auto-hide after 3 seconds
 
-                // Add listener
-                exoPlayer.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_BUFFERING -> {
-                                binding.loadingProgress.visibility = View.VISIBLE
-                            }
-                            Player.STATE_READY -> {
-                                binding.loadingProgress.visibility = View.GONE
-                                binding.errorView.visibility = View.GONE
-                            }
-                            Player.STATE_ENDED -> {
-                                Timber.d("Playback ended")
-                            }
-                            Player.STATE_IDLE -> {
-                                Timber.d("Player idle")
+                    // Prepare media source
+                    val mediaItem = MediaItem.fromUri(channel.streamUrl)
+                    exoPlayer.setMediaItem(mediaItem)
+                    exoPlayer.prepare()
+                    exoPlayer.playWhenReady = true
+
+                    // Add listener
+                    exoPlayer.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            when (playbackState) {
+                                Player.STATE_BUFFERING -> {
+                                    binding.loadingProgress.visibility = View.VISIBLE
+                                    binding.errorView.visibility = View.GONE
+                                    Timber.d("Player buffering")
+                                }
+                                Player.STATE_READY -> {
+                                    binding.loadingProgress.visibility = View.GONE
+                                    binding.errorView.visibility = View.GONE
+                                    Timber.d("Player ready")
+                                }
+                                Player.STATE_ENDED -> {
+                                    Timber.d("Playback ended")
+                                    showError("Stream ended")
+                                }
+                                Player.STATE_IDLE -> {
+                                    Timber.d("Player idle")
+                                }
                             }
                         }
-                    }
 
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        Timber.e(error, "Playback error")
-                        binding.loadingProgress.visibility = View.GONE
-                        binding.errorView.visibility = View.VISIBLE
-                        binding.errorText.text = "Failed to play stream: ${error.message}"
-                    }
-                })
-            }
+                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            Timber.e(error, "Playback error for ${channel.name}")
+                            binding.loadingProgress.visibility = View.GONE
+                            
+                            val errorMessage = when (error.errorCode) {
+                                androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> 
+                                    "Server error: Unable to connect to stream"
+                                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> 
+                                    "Network error: Check your internet connection"
+                                androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT -> 
+                                    "Connection timeout: Stream took too long to respond"
+                                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED -> 
+                                    "Invalid stream format"
+                                androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> 
+                                    "Invalid stream manifest"
+                                else -> "Failed to play stream: ${error.message ?: "Unknown error"}"
+                            }
+                            
+                            showError(errorMessage)
+                        }
 
-        Timber.d("Player initialized for channel: ${channel.name}")
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            if (isPlaying) {
+                                Timber.d("Playback started")
+                            } else {
+                                Timber.d("Playback paused")
+                            }
+                        }
+                    })
+                }
+
+            Timber.d("Player initialized successfully for channel: ${channel.name}")
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to initialize player")
+            showError("Failed to initialize player: ${e.message}")
+        }
+    }
+
+    private fun showError(message: String) {
+        binding.errorView.visibility = View.VISIBLE
+        binding.errorText.text = message
+        binding.loadingProgress.visibility = View.GONE
     }
 
     private fun hideSystemUI() {
@@ -146,16 +219,19 @@ class PlayerActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         player?.pause()
+        Timber.d("Player paused")
     }
 
     override fun onStop() {
         super.onStop()
         player?.release()
+        Timber.d("Player stopped")
     }
 
     override fun onDestroy() {
         super.onDestroy()
         player?.release()
         player = null
+        Timber.d("Player destroyed")
     }
 }
