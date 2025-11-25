@@ -165,13 +165,23 @@ class MainActivity : AppCompatActivity() {
                     // Show hamburger menu (drawer indicator)
                     drawerToggle?.isDrawerIndicatorEnabled = true
                     supportActionBar?.setDisplayHomeAsUpEnabled(true)
-                    // Sync state to animate properly
                     drawerToggle?.syncState()
+                    
+                    // Lock drawer (enable swipe to open)
+                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 } else {
                     // Show back arrow
                     drawerToggle?.isDrawerIndicatorEnabled = false
                     supportActionBar?.setDisplayHomeAsUpEnabled(true)
                     supportActionBar?.setHomeAsUpIndicator(R.drawable.ic_arrow_back)
+                    
+                    // Lock drawer (disable swipe to open on sub-screens)
+                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+                    
+                    // Set toolbar navigation click listener for back button
+                    binding.toolbar.setNavigationOnClickListener {
+                        navController.navigateUp()
+                    }
                 }
                 
                 // Update bottom navigation selection
@@ -208,7 +218,6 @@ class MainActivity : AppCompatActivity() {
                 R.string.navigation_drawer_open,
                 R.string.navigation_drawer_close
             ).apply {
-                // Enable animation
                 isDrawerIndicatorEnabled = true
                 syncState()
             }
@@ -244,19 +253,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        // Handle the drawer toggle and back navigation
-        return when {
-            // If drawer indicator is disabled (showing back arrow), handle back navigation
-            item.itemId == android.R.id.home && drawerToggle?.isDrawerIndicatorEnabled == false -> {
-                onBackPressedDispatcher.onBackPressed()
-                true
+        // Let drawer toggle handle it if enabled
+        if (drawerToggle?.isDrawerIndicatorEnabled == true) {
+            if (drawerToggle?.onOptionsItemSelected(item) == true) {
+                return true
             }
-            // Otherwise, let the drawer toggle handle it (hamburger menu)
-            drawerToggle?.onOptionsItemSelected(item) == true -> {
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
         }
+        return super.onOptionsItemSelected(item)
     }
 
     override fun onSupportNavigateUp(): Boolean {
@@ -277,13 +280,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
-        // Sync the toggle state after onRestoreInstanceState has occurred.
         drawerToggle?.syncState()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
-        // Pass any configuration change to the drawer toggle
         drawerToggle?.onConfigurationChanged(newConfig)
     }
 
