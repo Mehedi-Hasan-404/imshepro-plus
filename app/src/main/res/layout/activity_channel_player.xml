@@ -1,0 +1,180 @@
+<!-- ===================================
+FILE: app/src/main/res/layout/activity_channel_player.xml
+ACTION: CREATE NEW FILE
+=================================== -->
+
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/black">
+
+    <!-- Top Toolbar -->
+    <LinearLayout
+        android:id="@+id/toolbar"
+        android:layout_width="0dp"
+        android:layout_height="56dp"
+        android:orientation="horizontal"
+        android:background="#1F1F1F"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Back Button -->
+        <ImageButton
+            android:id="@+id/btn_back"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Back"
+            android:src="@drawable/ic_arrow_back"
+            android:tint="@android:color/white" />
+
+        <!-- Channel Name -->
+        <TextView
+            android:id="@+id/toolbar_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:text="Channel Name"
+            android:textColor="@android:color/white"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <!-- FILL Button (Aspect Ratio Toggle) -->
+        <Button
+            android:id="@+id/btn_fill"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="FILL"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp" />
+
+        <!-- Fullscreen Button -->
+        <ImageButton
+            android:id="@+id/btn_fullscreen"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Fullscreen"
+            android:src="@drawable/ic_search"
+            android:tint="@android:color/white" />
+
+    </LinearLayout>
+
+    <!-- Player Container (16:9 in portrait, full screen in landscape) -->
+    <FrameLayout
+        android:id="@+id/player_container"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="@android:color/black"
+        app:layout_constraintTop_toBottomOf="@id/toolbar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/related_channels_section"
+        app:layout_constraintDimensionRatio="16:9">
+
+        <!-- ExoPlayer PlayerView with Default Controls -->
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/player_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:show_buffering="when_playing"
+            app:surface_type="texture_view"
+            app:use_controller="true"
+            app:show_timeout="5000"
+            app:controller_layout_id="@layout/exo_player_control_view" />
+
+        <!-- Loading Progress (shown while buffering) -->
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="visible" />
+
+        <!-- Error View (shown when playback fails) -->
+        <LinearLayout
+            android:id="@+id/error_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone"
+            android:padding="16dp"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/error_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Failed to load stream"
+                android:textColor="@android:color/white"
+                android:textSize="16sp"
+                android:gravity="center"
+                android:paddingBottom="8dp" />
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+    <!-- Related Channels Section (below player, scrollable) -->
+    <ScrollView
+        android:id="@+id/related_channels_section"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#1A1A1A"
+        android:fillViewport="true"
+        app:layout_constraintTop_toBottomOf="@id/player_container"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp">
+
+            <!-- Section Title -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Related Channels"
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="12dp" />
+
+            <!-- Horizontal RecyclerView for Related Channels -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/related_channels_recycler"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:clipToPadding="false" />
+
+        </LinearLayout>
+
+    </ScrollView>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
