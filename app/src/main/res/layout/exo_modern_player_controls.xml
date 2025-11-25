@@ -6,7 +6,7 @@
     android:foregroundGravity="top"
     android:clipToPadding="false">
 
-    <!-- TOP BAR (anchored to top) -->
+    <!-- TOP BAR (anchored to top) with overlay gradient & elevation -->
     <LinearLayout
         android:id="@+id/exo_top_bar"
         android:layout_width="match_parent"
@@ -15,7 +15,9 @@
         android:layout_gravity="top"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:background="@drawable/gradient_overlay_top"
+        android:elevation="6dp">
 
         <ImageButton
             android:id="@+id/exo_back"
@@ -23,7 +25,7 @@
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_arrow_back"
-            android:contentDescription="Back" />
+            android:contentDescription="@string/back" />
 
         <TextView
             android:id="@+id/exo_channel_name"
@@ -43,7 +45,7 @@
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_pip"
-            android:contentDescription="PiP" />
+            android:contentDescription="@string/pip" />
 
         <ImageButton
             android:id="@+id/exo_settings"
@@ -51,7 +53,7 @@
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_settings"
-            android:contentDescription="Settings" />
+            android:contentDescription="@string/settings" />
 
         <ImageButton
             android:id="@+id/exo_mute"
@@ -59,7 +61,7 @@
             android:layout_height="40dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_volume_up"
-            android:contentDescription="Mute" />
+            android:contentDescription="@string/mute" />
 
         <ImageButton
             android:id="@+id/exo_lock"
@@ -68,103 +70,54 @@
             android:layout_marginStart="6dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_lock_open"
-            android:contentDescription="Lock" />
+            android:contentDescription="@string/lock" />
     </LinearLayout>
 
-    <!-- BOTTOM CONTROLS (seekbar + centered playback controls anchored to bottom) -->
+    <!-- Center area (ExoPlayer center controls appear here) -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:paddingTop="56dp"
+        android:paddingBottom="64dp">
+        <!-- Exo center controls -->
+    </FrameLayout>
+
+    <!-- BOTTOM CONTROLS (seekbar + playback) with overlay gradient & elevation -->
     <LinearLayout
         android:id="@+id/exo_bottom_bar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="8dp"
+        android:layout_height="64dp"
         android:layout_gravity="bottom"
-        android:background="@android:color/transparent">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:background="@drawable/gradient_overlay_bottom"
+        android:elevation="6dp">
 
-        <!-- Seekbar + times -->
-        <LinearLayout
-            android:layout_width="match_parent"
+        <ImageButton
+            android:id="@+id/exo_play_pause"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_play"
+            android:contentDescription="@string/play" />
+
+        <com.google.android.exoplayer2.ui.DefaultTimeBar
+            android:id="@+id/exo_progress"
+            android:layout_width="0dp"
+            android:layout_weight="1"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_marginStart="12dp"
+            android:layout_marginEnd="12dp" />
 
-            <TextView
-                android:id="@+id/exo_position"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:text="0:00"
-                android:textColor="@android:color/white"
-                android:textSize="12sp" />
-
-            <androidx.media3.ui.DefaultTimeBar
-                android:id="@id/exo_progress"
-                android:layout_width="0dp"
-                android:layout_height="18dp"
-                android:layout_weight="1"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp" />
-
-            <TextView
-                android:id="@+id/exo_duration"
-                android:layout_width="48dp"
-                android:layout_height="wrap_content"
-                android:text="0:00"
-                android:textColor="@android:color/white"
-                android:textSize="12sp" />
-        </LinearLayout>
-
-        <!-- Playback row anchored to bottom of controller, small gaps (no big margin) -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginTop="0dp">
-
-            <ImageButton
-                android:id="@+id/exo_aspect_ratio"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginEnd="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_aspect_ratio"
-                android:contentDescription="Aspect ratio" />
-
-            <ImageButton
-                android:id="@+id/exo_rewind"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_skip_backward"
-                android:contentDescription="Rewind" />
-
-            <ImageButton
-                android:id="@+id/exo_play_pause"
-                android:layout_width="72dp"
-                android:layout_height="72dp"
-                android:layout_marginEnd="8dp"
-                android:background="@drawable/circular_button_bg"
-                android:src="@drawable/ic_play"
-                android:contentDescription="Play/Pause" />
-
-            <ImageButton
-                android:id="@+id/exo_forward"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginEnd="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_skip_forward"
-                android:contentDescription="Forward" />
-
-            <ImageButton
-                android:id="@+id/exo_fullscreen"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_fullscreen"
-                android:contentDescription="Fullscreen" />
-        </LinearLayout>
+        <ImageButton
+            android:id="@+id/exo_fullscreen"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_fullscreen"
+            android:contentDescription="@string/fullscreen" />
     </LinearLayout>
 
 </FrameLayout>
