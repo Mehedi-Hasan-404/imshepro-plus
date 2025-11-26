@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <!-- Player container (top) -->
+    <!-- Player container (top) - starts with 16:9 ratio -->
     <FrameLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -17,7 +17,8 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toTopOf="@id/related_channels_section"
-        app:layout_constraintDimensionRatio="16:9">
+        app:layout_constraintDimensionRatio="H,16:9"
+        app:layout_constraintVertical_bias="0.0">
 
         <!-- PlayerView uses custom controller -->
         <androidx.media3.ui.PlayerView
