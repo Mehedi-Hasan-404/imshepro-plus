@@ -311,9 +311,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     binding.playerView.controllerAutoShow = false
                     binding.playerView.useController = false
                     binding.playerView.hideController()
-                    // Defensive: hide internal exo controller view if present
-                    val exoControllerId = com.google.android.exoplayer2.ui.R.id.exo_controller
-                    binding.playerView.findViewById<View?>(exoControllerId)?.visibility = View.GONE
+                    // Defensive: hide internal media3 controller view if present
+                    val media3ControllerId = androidx.media3.ui.R.id.exo_controller
+                    binding.playerView.findViewById<View?>(media3ControllerId)?.visibility = View.GONE
                 } catch (t: Throwable) {
                     Timber.w(t, "Could not fully hide controller before PiP")
                 }
@@ -334,12 +334,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.useController = false
         binding.playerView.hideController()
 
-        // Defensive: hide the internal ExoPlayer controller view by id (so it cannot auto-appear)
+        // Defensive: hide the internal media3 controller view by id (so it cannot auto-appear)
         try {
-            val exoControllerId = com.google.android.exoplayer2.ui.R.id.exo_controller
-            binding.playerView.findViewById<View?>(exoControllerId)?.visibility = View.GONE
+            val media3ControllerId = androidx.media3.ui.R.id.exo_controller
+            binding.playerView.findViewById<View?>(media3ControllerId)?.visibility = View.GONE
         } catch (t: Throwable) {
-            Timber.w(t, "Could not force-hide exo controller view")
+            Timber.w(t, "Could not force-hide media3 controller view")
         }
     }
 
@@ -402,8 +402,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 binding.playerView.controllerAutoShow = false
                 binding.playerView.useController = false
                 binding.playerView.hideController()
-                val exoControllerId = com.google.android.exoplayer2.ui.R.id.exo_controller
-                binding.playerView.findViewById<View?>(exoControllerId)?.visibility = View.GONE
+                val media3ControllerId = androidx.media3.ui.R.id.exo_controller
+                binding.playerView.findViewById<View?>(media3ControllerId)?.visibility = View.GONE
             } catch (t: Throwable) {
                 Timber.w(t, "Could not fully hide controller in PiP")
             }
