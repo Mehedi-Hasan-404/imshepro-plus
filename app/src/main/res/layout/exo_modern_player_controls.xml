@@ -28,7 +28,7 @@
         android:layout_gravity="top"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
-        android:paddingTop="2dp"
+        android:paddingTop="0dp"
         android:paddingBottom="4dp"
         android:gravity="center_vertical">
 
@@ -101,7 +101,7 @@
         android:orientation="vertical"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
-        android:paddingBottom="2dp"
+        android:paddingBottom="0dp"
         android:layout_gravity="bottom">
 
         <!-- Seekbar + times - less padding -->
