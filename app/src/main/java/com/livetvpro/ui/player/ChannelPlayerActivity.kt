@@ -254,17 +254,16 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         exoMute?.setOnClickListener { toggleMute() }
 
-        // FIXED LOCK BEHAVIOR - keep icon in same place
+        // FIXED LOCK BEHAVIOR - unlock button in same position as lock icon
         exoLock?.setOnClickListener {
             isLocked = true
             binding.playerView.useController = false
             lockOverlay.visibility = View.VISIBLE
-            unlockButton.visibility = View.VISIBLE
+            unlockButton.visibility = View.VISIBLE // Show immediately
             exoLock?.setImageResource(R.drawable.ic_lock_closed)
-            // DON'T hide the exo_lock button - it stays visible in top bar
         }
 
-        // Tap overlay to show/hide unlock button (quick peek)
+        // Tap overlay to toggle unlock button visibility
         lockOverlay.setOnClickListener {
             unlockButton.visibility = if (unlockButton.visibility == View.VISIBLE) {
                 View.GONE
