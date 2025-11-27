@@ -27,4 +27,9 @@
     <string name="action_favorites">Favorites</string>
     <string name="action_search">Search</string>
     <string name="action_theme_toggle">Toggle Theme</string>
+
+    <!-- Strings required by new player layouts -->
+    <string name="related_channels">Related channels</string>
+    <string name="expand">Expand</string>
+    <string name="close">Close</string>
 </resources>
