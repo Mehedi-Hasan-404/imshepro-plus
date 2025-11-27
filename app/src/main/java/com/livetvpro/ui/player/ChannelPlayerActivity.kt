@@ -369,6 +369,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         Timber.d("Exited fullscreen mode")
     }
+
+    private fun toggleMute() {
         player?.let {
             isMuted = !isMuted
             it.volume = if (isMuted) 0f else 1f
