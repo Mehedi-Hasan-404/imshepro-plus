@@ -269,18 +269,27 @@ class ChannelPlayerActivity : AppCompatActivity() {
             adapter = relatedChannelsAdapter
             setHasFixedSize(true)
         }
+        
+        Timber.d("Related channels RecyclerView setup complete")
     }
 
     private fun loadRelatedChannels() {
+        Timber.d("Loading related channels for category: ${channel.categoryId}, current channel: ${channel.id}")
+        
         // Load all channels from same category (including M3U parsed channels)
         viewModel.loadAllChannelsFromCategory(channel.categoryId, channel.categoryName, channel.id)
         
         viewModel.relatedChannels.observe(this) { channels ->
-            Timber.d("Loaded ${channels.size} related channels (excluding current)")
-            relatedChannelsAdapter.submitList(channels)
+            Timber.d("✅ Received ${channels.size} related channels from ViewModel")
             
-            // Always show related channels section
-            binding.relatedChannelsSection.visibility = View.VISIBLE
+            if (channels.isEmpty()) {
+                Timber.w("⚠️ No related channels found!")
+                binding.relatedChannelsSection.visibility = View.GONE
+            } else {
+                Timber.d("📺 Related channels: ${channels.take(5).map { it.name }}")
+                relatedChannelsAdapter.submitList(channels)
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+            }
         }
     }
 
