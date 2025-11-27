@@ -1,5 +1,6 @@
 package com.livetvpro.ui.player
 
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
@@ -7,15 +8,20 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.util.Rational
 import android.view.*
 import android.widget.ImageButton
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.children
 import androidx.core.view.isVisible
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.ui.PlayerView
+import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.snackbar.Snackbar
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
@@ -24,12 +30,6 @@ import com.livetvpro.databinding.FloatingPlayerViewBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
-import androidx.media3.common.MediaItem
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.datasource.DefaultHttpDataSource
-import androidx.media3.common.Player
-import androidx.media3.ui.PlayerView
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
@@ -54,6 +54,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var isFloating = false
     private var touchSlop = 0
 
+    private lateinit var floatingBinding: FloatingPlayerViewBinding
+
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
         fun start(context: Context, channel: Channel) {
@@ -71,7 +73,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         touchSlop = ViewConfiguration.get(this).scaledTouchSlop
 
-        // Keep previous behaviour - set initial 16:9
+        // Keep initial 16:9 height to prevent jumping
         binding.playerView.post {
             val screenWidth = resources.displayMetrics.widthPixels
             val height16by9 = (screenWidth * 9f / 16f).toInt()
@@ -94,13 +96,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
             return
         }
 
-        binding.progressBar.visibility = android.view.View.GONE
+        // NOTE: your layout ProgressBar id is loading_progress so use binding.loadingProgress
+        binding.loadingProgress.visibility = android.view.View.GONE
 
         setupPlayer()
         setupCustomControls()
         setupRelatedChannels()
         loadRelatedChannels()
-        setupFloatingContainer() // prepare floating container UI
+        setupFloatingContainer()
     }
 
     // ------------------------
@@ -122,14 +125,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 )
                 .build()
                 .also { exoPlayer ->
-                    // attach to the PlayerView (binding.playerView)
                     binding.playerView.player = exoPlayer
-                    // default UI controller behavior
                     binding.playerView.useController = true
                     binding.playerView.controllerAutoShow = true
                     binding.playerView.controllerShowTimeoutMs = 3000
 
-                    // prepare and start
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
                     exoPlayer.setMediaItem(mediaItem)
                     exoPlayer.prepare()
@@ -175,15 +175,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
     // Controls and related channels
     // ------------------------
     private fun setupCustomControls() {
-        // find controller views inside PlayerView if present in controller layout
         exoPip = binding.playerView.findViewById(R.id.exo_pip)
         exoFullscreen = binding.playerView.findViewById(R.id.exo_fullscreen)
 
-        // channel name if present in controller
-        val exoChannelName = binding.playerView.findViewById<View?>(resources.getIdentifier("exo_channel_name", "id", packageName))
-        (exoChannelName as? android.widget.TextView)?.text = channel.name
-
-        // PiP button behaviour (still available)
         exoPip?.let { pip ->
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
@@ -202,14 +196,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun setupRelatedChannels() {
         relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel ->
-            // When a related channel is clicked, switch to it
             switchChannel(relatedChannel)
         }
 
         binding.relatedChannelsRecycler.apply {
-            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(
+            layoutManager = GridLayoutManager(
                 this@ChannelPlayerActivity,
-                androidx.recyclerview.widget.LinearLayoutManager.HORIZONTAL,
+                GridLayoutManager.HORIZONTAL,
                 false
             )
             adapter = relatedChannelsAdapter
@@ -230,10 +223,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun switchChannel(newChannel: Channel) {
         Timber.d("Switching to channel: ${newChannel.name}")
-
         player?.release()
         player = null
-
         channel = newChannel
 
         binding.playerView.findViewById<android.widget.TextView?>(
@@ -274,13 +265,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     // ------------------------
     // Floating (mini) player logic
     // ------------------------
-    private lateinit var floatingBinding: FloatingPlayerViewBinding
     private fun setupFloatingContainer() {
-        // inflate but keep hidden initially
         val floatingView = layoutInflater.inflate(R.layout.floating_player_view, binding.activityRoot, false)
         floatingBinding = FloatingPlayerViewBinding.bind(floatingView)
 
-        // add to root but invisible by default
         val params = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
@@ -293,50 +281,36 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.activityRoot.addView(floatingView, params)
         floatingView.visibility = View.GONE
 
-        // expand button - put player back to normal
         floatingBinding.btnExpand.setOnClickListener {
             restoreFromFloating()
         }
 
-        // close button - stop & finish
         floatingBinding.btnClose.setOnClickListener {
-            // stop playback and finish
             player?.pause()
             player?.release()
             player = null
             finish()
         }
 
-        // make draggable
         makeViewDraggable(floatingView)
     }
 
     private fun toggleFloatingMode() {
-        if (isFloating) {
-            restoreFromFloating()
-        } else {
-            enterFloatingMode()
-        }
+        if (isFloating) restoreFromFloating() else enterFloatingMode()
     }
 
     private fun enterFloatingMode() {
-        // Only allowed if playerView is present
         val playerView = binding.playerView as PlayerView
         val floatingView = binding.activityRoot.findViewById<View>(R.id.floating_root) ?: return
 
-        // Hide full-screen UI pieces
         binding.relatedChannelsContainer.visibility = View.GONE
         binding.errorView.visibility = View.GONE
         binding.loadingProgress.visibility = View.GONE
 
-        // Re-parent the playerView into floating container
         reparentPlayerView(playerView, floatingView.findViewById(R.id.floating_player_container))
 
-        // Show floating UI
         floatingView.visibility = View.VISIBLE
-
-        // Hide controller on the big container to reduce duplication
-        playerView.useController = true // keeps controls inside player view if desired
+        playerView.useController = true
         isFloating = true
     }
 
@@ -345,26 +319,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val floatingView = binding.activityRoot.findViewById<View>(R.id.floating_root) ?: return
         val fullContainer = binding.playerContainer
 
-        // Re-parent back to full container
         reparentPlayerView(playerView, fullContainer)
-
-        // Hide floating view
         floatingView.visibility = View.GONE
-
-        // restore related channels visibility
         binding.relatedChannelsContainer.visibility = View.VISIBLE
         isFloating = false
     }
 
-    /**
-     * Removes [playerView] from its current parent and adds it to [newParent].
-     * Works for PlayerView reparenting to mini/full containers.
-     */
     private fun reparentPlayerView(playerView: PlayerView, newParent: ViewGroup) {
-        // Remove from old parent
         (playerView.parent as? ViewGroup)?.removeView(playerView)
 
-        // Ensure layout params for the new parent
         val lp = if (newParent is FrameLayout) {
             FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -374,7 +337,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
         }
 
-        // Add to new parent
         newParent.addView(playerView, 0, lp)
     }
 
@@ -406,7 +368,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     if (isDragging) {
                         val newX = lastX + dx
                         val newY = lastY + dy
-                        // ensure within parent bounds
                         val maxX = parent.width - v.width
                         val maxY = parent.height - v.height
                         v.x = min(max(newX, 0f), maxX.toFloat())
@@ -415,7 +376,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     true
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    // if it was just a tap (not drag), consume so buttons inside clickable still get events
                     !isDragging
                 }
                 else -> false
@@ -430,13 +390,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
             packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
         ) {
-            // hide UI except PlayerView so PiP shows only video
             binding.relatedChannelsContainer.visibility = View.GONE
             binding.errorView.visibility = View.GONE
             binding.loadingProgress.visibility = View.GONE
 
             val aspectRatio = Rational(16, 9)
-            val params = android.app.PictureInPictureParams.Builder()
+            val params = PictureInPictureParams.Builder()
                 .setAspectRatio(aspectRatio)
                 .build()
 
@@ -446,18 +405,25 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration?) {
+    // Provide both overrides to be compatible with different platform / androidX versions
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        handlePipChange(isInPictureInPictureMode, null)
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        if (isInPictureInPictureMode) {
-            // hide all UI
+        handlePipChange(isInPictureInPictureMode, newConfig)
+    }
+
+    private fun handlePipChange(isInPip: Boolean, newConfig: Configuration?) {
+        if (isInPip) {
+            // show only PlayerView
             binding.activityRoot.children.forEach { it.visibility = if (it.id == binding.playerView.id) View.VISIBLE else View.GONE }
         } else {
             // restore UI
             binding.activityRoot.children.forEach { it.visibility = View.VISIBLE }
-            // ensure playerView reattached to full container when returning from PiP
-            if (isFloating) {
-                // no-op, still in floating
-            } else {
+            if (!isFloating) {
                 restoreFromFloating()
             }
         }
@@ -474,8 +440,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        // don't release here if you want playback to continue when returning quickly;
-        // but to be safe we release onDestroy
         Timber.d("Activity stopped")
     }
 
@@ -488,7 +452,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onBackPressed() {
         if (isFloating) {
-            // if floating, restore first
             restoreFromFloating()
         } else {
             super.onBackPressed()
