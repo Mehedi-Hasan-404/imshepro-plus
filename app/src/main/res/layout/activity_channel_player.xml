@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:background="@android:color/black">
 
-    <!-- Player Section (Top - Fixed 16:9 aspect ratio) -->
+    <!-- Player Section (Top - Fixed 16:9 aspect ratio in portrait) -->
     <FrameLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -16,6 +16,7 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/related_channels_section"
         app:layout_constraintDimensionRatio="16:9">
 
         <!-- PlayerView with custom controls -->
