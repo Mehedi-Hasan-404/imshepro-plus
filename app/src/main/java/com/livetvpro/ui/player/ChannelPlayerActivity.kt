@@ -22,7 +22,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.ui.PlayerView
-import androidx.recyclerview.widget.RecyclerView
+import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -38,11 +38,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private lateinit var channel: Channel
 
-    // controller button references (nullable)
+    // direct controller views (found from controller layout inside PlayerView)
     private var exoPip: ImageButton? = null
     private var exoFullscreen: ImageButton? = null
 
-    // state
     private var isInPipMode = false
     private var isFullscreen = false
 
@@ -61,7 +60,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Ensure the top player container is anchored to top and sized as expected (fix centering)
+        // anchor player container to top, set 16:9 height to avoid vertical centering
         val screenWidth = resources.displayMetrics.widthPixels
         val expected16by9Height = (screenWidth * 9f / 16f).toInt()
         val containerParams = binding.playerContainer.layoutParams
@@ -79,7 +78,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUI()
 
-        // lock portrait by default
+        // lock portrait by default (you can change)
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run {
@@ -94,13 +93,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         setupCustomControls()
         setupUIInteractions()
 
-        // Try to restore related section if present (safe lookup)
-        val relatedRecycler = findViewByName<RecyclerView>("related_recycler_view") ?: findViewByName(
-            "relatedRecyclerView"
-        )
-        relatedRecycler?.visibility = View.VISIBLE
-        // If you have your own loadRelatedChannels() implementation, call it here.
-        // Otherwise, this keeps the UI visible if the view exists.
+        // restore related section (use binding directly)
+        binding.relatedRecyclerView.visibility = View.VISIBLE
+        // If you have an existing method to populate related items, call it here:
+        // loadRelatedChannels()
     }
 
     private fun setupPlayer() {
@@ -119,6 +115,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .build()
                 .also { exoPlayer ->
                     binding.playerView.player = exoPlayer
+
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
                     exoPlayer.setMediaItem(mediaItem)
                     exoPlayer.prepare()
@@ -126,7 +123,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
                     exoPlayer.addListener(object : Player.Listener {
                         override fun onEvents(player: Player, events: Player.Events) {
-                            // optional telemetry
+                            // telemetry / debug if needed
                         }
                     })
                 }
@@ -134,7 +131,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             Timber.e(e, "Error setting up ExoPlayer")
         }
 
-        // ensure PlayerView is interactive and on top
+        // ensure player view interactive and on top
         binding.playerView.apply {
             useController = true
             isClickable = true
@@ -144,28 +141,33 @@ class ChannelPlayerActivity : AppCompatActivity() {
             controllerShowTimeoutMs = 4000
         }
 
-        // avoid parent intercepting touches
+        // ensure container doesn't intercept touches
         binding.playerContainer.isClickable = false
         binding.playerContainer.isFocusable = false
     }
 
     private fun setupCustomControls() {
-        // Safe lookup for controller button ids (don't rely on generated binding names)
-        exoPip = findViewByName<ImageButton>("exo_pip") ?: run {
-            // try camelCase too
-            findViewByName("exoPip")
-        }
-        exoFullscreen = findViewByName("exo_fullscreen") ?: findViewByName("exoFullscreen")
+        // Find controller buttons inside the PlayerView controller layout
+        // (these IDs must exist in your controller layout: exo_pip, exo_fullscreen)
+        exoPip = binding.playerView.findViewById(R.id.exo_pip)
+        exoFullscreen = binding.playerView.findViewById(R.id.exo_fullscreen)
 
-        // Wire PiP if we found the button
+        // If your controller layout uses different ids, update those ids accordingly.
+        // Wire PiP
         exoPip?.setOnClickListener { enterPipMode() }
 
-        // Wire fullscreen toggle if found
+        // Wire fullscreen toggle
         exoFullscreen?.setOnClickListener { toggleFullscreen() }
 
-        // Ensure icons visible if present
+        // Ensure icons are visible in controller
         exoPip?.visibility = View.VISIBLE
         exoFullscreen?.visibility = View.VISIBLE
+
+        // Set initial fullscreen icon if drawable exists
+        val drawableId = resources.getIdentifier("ic_fullscreen", "drawable", packageName)
+        if (drawableId != 0) {
+            exoFullscreen?.setImageResource(drawableId)
+        }
     }
 
     private fun setupUIInteractions() {
@@ -174,7 +176,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.playerView.showController()
         }
 
-        // Resolve overload ambiguity by using explicit type
+        // explicitly use PlayerView.ControllerVisibilityListener to avoid ambiguity
         binding.playerView.setControllerVisibilityListener(object :
             PlayerView.ControllerVisibilityListener {
             override fun onVisibilityChanged(visibility: Int) {
@@ -190,11 +192,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
     // --------------------
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            Toast.makeText(this, "PiP is not supported on this device", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.pip_not_supported), Toast.LENGTH_SHORT).show()
             return
         }
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-            Toast.makeText(this, "PiP is not supported on this device", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.pip_not_supported), Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -202,13 +204,16 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val height = binding.playerContainer.height.takeIf { it > 0 } ?: (width * 9 / 16)
         val aspectRatio = Rational(width, height)
 
-        val params = PictureInPictureParams.Builder().setAspectRatio(aspectRatio).build()
+        val params = PictureInPictureParams.Builder()
+            .setAspectRatio(aspectRatio)
+            .build()
+
         isInPipMode = true
         enterPictureInPictureMode(params)
     }
 
     override fun onUserLeaveHint() {
-        // optional auto-enter PiP (commented)
+        // optionally auto-enter PiP when user leaves; left commented to keep explicit PiP action
         // if (!isInPipMode) enterPipMode()
         super.onUserLeaveHint()
     }
@@ -226,27 +231,22 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     // --------------------
-    // Fullscreen handling
+    // Fullscreen toggle
     // --------------------
     private fun toggleFullscreen() {
         isFullscreen = !isFullscreen
         if (isFullscreen) {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            // hide related if present
-            findViewByName<RecyclerView>("related_recycler_view")?.visibility = View.GONE
-            findViewByName<RecyclerView>("relatedRecyclerView")?.visibility = View.GONE
+            binding.relatedRecyclerView.visibility = View.GONE
         } else {
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            findViewByName<RecyclerView>("related_recycler_view")?.visibility = View.VISIBLE
-            findViewByName<RecyclerView>("relatedRecyclerView")?.visibility = View.VISIBLE
+            binding.relatedRecyclerView.visibility = View.VISIBLE
         }
 
-        // Try to update fullscreen icon drawable safely if present
-        exoFullscreen?.let { btn ->
-            val drawableName = if (isFullscreen) "ic_fullscreen_exit" else "ic_fullscreen"
-            val drawableId = resources.getIdentifier(drawableName, "drawable", packageName)
-            if (drawableId != 0) btn.setImageResource(drawableId)
-        }
+        // swap fullscreen icon if exit drawable exists
+        val drawableName = if (isFullscreen) "ic_fullscreen_exit" else "ic_fullscreen"
+        val drawableId = resources.getIdentifier(drawableName, "drawable", packageName)
+        if (drawableId != 0) exoFullscreen?.setImageResource(drawableId)
     }
 
     override fun onStop() {
@@ -268,21 +268,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    // --------------------
-    // Utility: safe view lookup by resource name (returns null if not found or wrong type)
-    // --------------------
-    private inline fun <reified T : View> findViewByName(name: String): T? {
-        val id = resources.getIdentifier(name, "id", packageName)
-        if (id == 0) return null
-        val v = try {
-            findViewById<View>(id)
-        } catch (t: Throwable) {
-            null
-        }
-        return if (v is T) v else null
-    }
-
-    // Helper to hide system UI
+    // helper to hide system UI
     private fun hideSystemUI() {
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
