@@ -6,13 +6,17 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Rational
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.common.MediaItem
@@ -30,8 +34,6 @@ import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 
 @UnstableApi
 @AndroidEntryPoint
@@ -62,6 +64,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var isLocked = false
     private var isMuted = false
     private var currentAspectRatioIndex = 0
+    private var isFloatingPlayerActive = false
 
     private val aspectRatios = listOf(
         androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -71,6 +74,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
+        private const val OVERLAY_PERMISSION_REQUEST_CODE = 1001
+        
         fun start(context: Context, channel: Channel) {
             val intent = Intent(context, ChannelPlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel)
@@ -84,7 +89,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // --- Option A: force expected 16:9 height immediately so PlayerView + top controls start at top ---
         val screenWidth = resources.displayMetrics.widthPixels
         val expected16by9Height = (screenWidth * 9f / 16f).toInt()
         val containerParams = binding.playerContainer.layoutParams
@@ -96,7 +100,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             containerParams.height = expected16by9Height
             binding.playerContainer.layoutParams = containerParams
         }
-        // -------------------------------------------------------------------------------------------
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUI()
@@ -152,7 +155,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     exoPlayer.addListener(object : Player.Listener {
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
-                            // guarded update: only change container height if difference is significant
                             runOnUiThread {
                                 try {
                                     val vw = videoSize.width
@@ -164,7 +166,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
                                         val params =
                                             binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-                                        // update only if difference is meaningful to avoid jitter
                                         if (abs(params.height - desiredHeight) > 4) {
                                             params.height = desiredHeight
                                             params.dimensionRatio = null
@@ -214,7 +215,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupCustomControls() {
-        // find controller views inside PlayerView (via binding)
         exoBack = binding.playerView.findViewById(R.id.exo_back)
         exoChannelName = binding.playerView.findViewById(R.id.exo_channel_name)
         exoPip = binding.playerView.findViewById(R.id.exo_pip)
@@ -232,26 +232,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         (exoChannelName as? android.widget.TextView)?.text = channel.name
 
-        // ensure fullscreen button exists and is visible — copy to local val to avoid smart-cast issues
         val fullscreenBtn = exoFullscreen
         if (fullscreenBtn == null) {
-            Timber.e("exo_fullscreen not found — check controller layout id and file")
+            Timber.e("exo_fullscreen not found")
         } else {
             fullscreenBtn.visibility = View.VISIBLE
         }
 
-        // aspect hidden in portrait by default
         exoAspectRatio?.visibility = View.GONE
 
         exoBack?.setOnClickListener { if (isFullscreen) exitFullscreen() else finish() }
 
+        // PiP button - Start floating player instead of direct PiP
         exoPip?.apply {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-            ) {
-                visibility = View.VISIBLE
-                setOnClickListener { enterPipMode() }
-            } else visibility = View.GONE
+            visibility = View.VISIBLE
+            setOnClickListener { 
+                startFloatingPlayer()
+            }
         }
 
         exoSettings?.setOnClickListener { /* TODO: settings */ }
@@ -267,7 +264,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         lockOverlay.setOnClickListener {
-            // toggle unlock button visibility (quick peek)
             unlockButton.visibility = if (unlockButton.visibility == View.VISIBLE) View.GONE else View.VISIBLE
         }
 
@@ -308,6 +304,64 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.retryButton.setOnClickListener {
             binding.errorView.visibility = View.GONE
             setupPlayer()
+        }
+    }
+
+    private fun startFloatingPlayer() {
+        // Check for overlay permission on Android M+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!Settings.canDrawOverlays(this)) {
+                showOverlayPermissionDialog()
+                return
+            }
+        }
+        
+        // Pause main player
+        player?.pause()
+        
+        // Start floating player service
+        FloatingPlayerService.start(
+            context = this,
+            streamUrl = channel.streamUrl,
+            channelName = channel.name
+        )
+        
+        isFloatingPlayerActive = true
+        
+        Toast.makeText(this, "Floating player started", Toast.LENGTH_SHORT).show()
+        
+        // Finish this activity or minimize it
+        moveTaskToBack(true)
+    }
+
+    private fun showOverlayPermissionDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Permission Required")
+            .setMessage("This app needs overlay permission to show floating player. Grant permission in settings?")
+            .setPositiveButton("Settings") { _, _ ->
+                // Open settings
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                    startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (Settings.canDrawOverlays(this)) {
+                    startFloatingPlayer()
+                } else {
+                    Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
@@ -361,10 +415,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.layoutParams = params
 
         exoAspectRatio?.visibility = View.VISIBLE
-
-        val fullscreenBtn = exoFullscreen
-        fullscreenBtn?.setImageResource(R.drawable.ic_fullscreen_exit)
-
+        exoFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         updateResizeMode()
     }
 
@@ -380,10 +431,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.layoutParams = params
 
         exoAspectRatio?.visibility = View.GONE
-
-        val fullscreenBtn = exoFullscreen
-        fullscreenBtn?.setImageResource(R.drawable.ic_fullscreen)
-
+        exoFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         updateResizeMode()
     }
 
@@ -397,41 +445,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun updatePlayPauseIcon() {
         player?.let { exoPlayPause?.setImageResource(if (it.isPlaying) R.drawable.ic_pause else R.drawable.ic_play) }
-    }
-
-    // PiP: hide other UI first, post a layout pass, then enter PiP so mainly player surface is captured
-    private fun enterPipMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // hide UI
-            binding.playerView.useController = false
-            binding.relatedChannelsSection.visibility = View.GONE
-            binding.errorView.visibility = View.GONE
-            binding.progressBar.visibility = View.GONE
-            binding.lockOverlay.visibility = View.GONE
-
-            // give layout a chance to settle
-            binding.playerContainer.post {
-                val width = binding.playerView.width
-                val height = binding.playerView.height
-                val aspectRatio = if (width > 0 && height > 0) Rational(width, height) else Rational(16, 9)
-
-                val params = PictureInPictureParams.Builder()
-                    .setAspectRatio(aspectRatio)
-                    .build()
-                enterPictureInPictureMode(params)
-            }
-        }
-    }
-
-    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        if (isInPictureInPictureMode) {
-            binding.relatedChannelsSection.visibility = View.GONE
-            binding.playerView.useController = false
-        } else {
-            if (!isFullscreen) binding.relatedChannelsSection.visibility = View.VISIBLE
-            binding.playerView.useController = true
-        }
     }
 
     private fun showError(message: String) {
@@ -453,12 +466,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        player?.pause()
+        if (!isFloatingPlayerActive) {
+            player?.pause()
+        }
     }
 
     override fun onStop() {
         super.onStop()
-        if (!isInPictureInPictureMode) {
+        if (!isFloatingPlayerActive) {
             player?.release()
             player = null
         }
@@ -466,6 +481,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Stop floating player service if active
+        if (isFloatingPlayerActive) {
+            FloatingPlayerService.stop(this)
+        }
         player?.release()
         player = null
     }
