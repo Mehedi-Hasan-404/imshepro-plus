@@ -18,8 +18,8 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintDimensionRatio="16:9">
 
-        <!-- 🎬 EXO PLAYER -->
-        <com.google.android.exoplayer2.ui.PlayerView
+        <!-- 🎬 MEDIA3 PlayerView (correct namespace for androidx.media3) -->
+        <androidx.media3.ui.PlayerView
             android:id="@+id/playerView"
             android:layout_width="0dp"
             android:layout_height="0dp"
