@@ -11,7 +11,15 @@
         android:layout_width="280dp"
         android:layout_height="160dp"
         android:background="@android:color/black"
-        android:elevation="8dp" />
+        android:elevation="8dp">
+        
+        <!-- Add the PlayerView here with the ID that FloatingPlayerService expects -->
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/floating_player_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@android:color/black" />
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="wrap_content"
