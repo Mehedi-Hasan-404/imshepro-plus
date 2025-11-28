@@ -1,6 +1,6 @@
 // ===================================
 // FILE: app/src/main/java/com/livetvpro/ui/player/ChannelPlayerActivity.kt
-// ACTION: REPLACE - Fix floating player implementation
+// ACTION: REPLACE - Implement native Android PiP mode
 // ===================================
 
 package com.livetvpro.ui.player
@@ -11,17 +11,14 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import android.util.Rational
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.Toast
 import androidx.activity.viewModels
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.common.MediaItem
@@ -69,7 +66,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var isLocked = false
     private var isMuted = false
     private var currentAspectRatioIndex = 0
-    private var isFloatingPlayerActive = false
+    private var isInPipMode = false
 
     private val aspectRatios = listOf(
         androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -79,7 +76,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
-        private const val OVERLAY_PERMISSION_REQUEST_CODE = 1001
         
         fun start(context: Context, channel: Channel) {
             val intent = Intent(context, ChannelPlayerActivity::class.java).apply {
@@ -237,24 +233,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         (exoChannelName as? android.widget.TextView)?.text = channel.name
 
-        val fullscreenBtn = exoFullscreen
-        if (fullscreenBtn == null) {
-            Timber.e("exo_fullscreen not found")
-        } else {
-            fullscreenBtn.visibility = View.VISIBLE
-        }
-
         exoAspectRatio?.visibility = View.GONE
 
         exoBack?.setOnClickListener { 
             if (isFullscreen) exitFullscreen() else finish() 
         }
 
-        // ✅ FIXED: PiP button - Check permission and start floating player
+        // ✅ Native PiP button
         exoPip?.apply {
-            visibility = View.VISIBLE
-            setOnClickListener { 
-                startFloatingPlayer()
+            // Check if PiP is supported
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && 
+                packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                visibility = View.VISIBLE
+                setOnClickListener { 
+                    enterPipMode()
+                }
+            } else {
+                visibility = View.GONE
             }
         }
 
@@ -314,64 +309,75 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ FIXED: Improved floating player startup
-    private fun startFloatingPlayer() {
-        // Check for overlay permission on Android M+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(this)) {
-                showOverlayPermissionDialog()
-                return
-            }
-        }
-        
-        Timber.d("Starting floating player for: ${channel.name}")
-        
-        // Mark that we're starting floating player
-        isFloatingPlayerActive = true
-        
-        // Start floating player service FIRST
-        FloatingPlayerService.start(
-            context = this,
-            streamUrl = channel.streamUrl,
-            channelName = channel.name
-        )
-        
-        // Give the service a moment to initialize before minimizing
-        binding.root.postDelayed({
-            Toast.makeText(this, "Floating player started", Toast.LENGTH_SHORT).show()
-            
-            // Move to background instead of finishing
-            moveTaskToBack(true)
-        }, 100) // Small delay to ensure service starts
-    }
-
-    private fun showOverlayPermissionDialog() {
-        AlertDialog.Builder(this)
-            .setTitle("Permission Required")
-            .setMessage("This app needs overlay permission to show floating player. Grant permission in settings?")
-            .setPositiveButton("Settings") { _, _ ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName")
-                    )
-                    startActivityForResult(intent, OVERLAY_PERMISSION_REQUEST_CODE)
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == OVERLAY_PERMISSION_REQUEST_CODE) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (Settings.canDrawOverlays(this)) {
-                    startFloatingPlayer()
+    // ✅ Enter native Android PiP mode
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                // Create PiP params with aspect ratio
+                val aspectRatio = Rational(16, 9)
+                
+                val pipParams = PictureInPictureParams.Builder()
+                    .setAspectRatio(aspectRatio)
+                    .build()
+                
+                // Enter PiP mode
+                val result = enterPictureInPictureMode(pipParams)
+                
+                if (result) {
+                    Timber.d("Entered PiP mode successfully")
                 } else {
-                    Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
+                    Timber.e("Failed to enter PiP mode")
+                    Toast.makeText(this, "PiP not available", Toast.LENGTH_SHORT).show()
                 }
+            } catch (e: Exception) {
+                Timber.e(e, "Error entering PiP mode")
+                Toast.makeText(this, "PiP error: ${e.message}", Toast.LENGTH_SHORT).show()
             }
+        } else {
+            Toast.makeText(this, "PiP requires Android 8.0+", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // ✅ Handle PiP mode changes
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        
+        isInPipMode = isInPictureInPictureMode
+        
+        if (isInPictureInPictureMode) {
+            // Entered PiP mode
+            Timber.d("In PiP mode")
+            
+            // Hide controls and UI elements
+            binding.relatedChannelsSection.visibility = View.GONE
+            binding.playerView.useController = false
+            
+            // Keep playing
+            player?.playWhenReady = true
+        } else {
+            // Exited PiP mode
+            Timber.d("Exited PiP mode")
+            
+            // Restore UI
+            if (!isFullscreen) {
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+            }
+            binding.playerView.useController = true
+        }
+    }
+
+    // ✅ Handle user pressing Home while playing (auto-enter PiP)
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        
+        // Auto-enter PiP when user presses Home button (if supported and playing)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && 
+            player?.isPlaying == true &&
+            !isInPipMode) {
+            enterPipMode()
         }
     }
 
@@ -480,51 +486,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        // Don't pause if floating player is starting
-        if (!isFloatingPlayerActive) {
+        // Keep playing in PiP mode
+        if (!isInPipMode) {
             player?.pause()
         }
     }
 
-    // ✅ FIXED: Don't release player when going to background with floating player
     override fun onStop() {
         super.onStop()
-        // Only release player if NOT starting floating player
-        if (!isFloatingPlayerActive) {
+        // Don't release player in PiP mode
+        if (!isInPipMode) {
             player?.release()
             player = null
         }
     }
 
-    // ✅ FIXED: Handle returning from floating player
-    override fun onResume() {
-        super.onResume()
-        
-        // If we were in floating player mode and came back
-        if (isFloatingPlayerActive) {
-            Timber.d("Returning from floating player mode")
-            
-            // Stop floating player service
-            FloatingPlayerService.stop(this)
-            
-            // Reset flag
-            isFloatingPlayerActive = false
-            
-            // Reinitialize player if needed
-            if (player == null) {
-                setupPlayer()
-            } else {
-                player?.playWhenReady = true
-            }
-        }
-    }
-
     override fun onDestroy() {
         super.onDestroy()
-        // Always stop floating player service when activity is destroyed
-        if (isFloatingPlayerActive) {
-            FloatingPlayerService.stop(this)
-        }
         player?.release()
         player = null
     }
