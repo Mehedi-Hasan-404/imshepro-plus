@@ -65,11 +65,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var userRequestedPip = false
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val updateIntervalMs = 1000L
+    private val updateIntervalMs = 500L  // ✅ Reduced from 1000ms to 500ms for smoother updates
     private var isUserScrubbing = false
     
     // ✅ FIX: Declare lastPosition variable
     private var lastPosition = 0L
+    
+    // ✅ Track last displayed position to prevent flickering
+    private var lastDisplayedPosition = ""
+    private var lastDisplayedDuration = ""
     
     private val positionUpdater = object : Runnable {
         override fun run() {
@@ -79,10 +83,20 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     val pos = p.currentPosition
                     val dur = p.duration.takeIf { it > 0 } ?: 0L
                     
-                    txtPosition?.text = formatTime(pos)
-                    txtDuration?.text = formatTime(dur)
+                    // ✅ FIX: Only update if the text actually changed (prevents flickering)
+                    val posText = formatTime(pos)
+                    val durText = formatTime(dur)
                     
-                    // ✅ FIX: Update lastPosition
+                    if (posText != lastDisplayedPosition) {
+                        txtPosition?.text = posText
+                        lastDisplayedPosition = posText
+                    }
+                    
+                    if (durText != lastDisplayedDuration) {
+                        txtDuration?.text = durText
+                        lastDisplayedDuration = durText
+                    }
+                    
                     lastPosition = pos
                 }
             } catch (t: Throwable) {
@@ -378,37 +392,47 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.unlockButton.setOnClickListener {
             toggleLock()
         }
+        
+        // ✅ FIX: Initially hide the lock overlay (it should only show when locked)
+        binding.lockOverlay.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
     }
 
     private fun toggleLock() {
         isLocked = !isLocked
         
         if (isLocked) {
-            // LOCK: Hide controls and show unlock overlay
+            // LOCK: Hide all controls and show unlock overlay
             binding.playerView.useController = false
             binding.playerView.hideController()
+            
+            // ✅ FIX: Show the lock overlay with unlock button
             binding.lockOverlay.visibility = View.VISIBLE
             binding.unlockButton.visibility = View.VISIBLE
             
+            // Update lock button icon to CLOSED
             btnLock?.setImageResource(R.drawable.ic_lock_closed)
             
             // Prevent touches from affecting the player
             binding.playerView.setOnTouchListener { _, _ -> true }
             
-            Timber.d("Player LOCKED - icon changed to CLOSED")
+            Timber.d("Player LOCKED - showing unlock button overlay")
         } else {
-            // UNLOCK: Show controls and hide overlay
+            // UNLOCK: Show controls and hide unlock overlay
             binding.playerView.useController = true
             binding.playerView.showController()
+            
+            // ✅ FIX: Hide the lock overlay (unlock button should not be visible when unlocked)
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
             
+            // Update lock button icon to OPEN
             btnLock?.setImageResource(R.drawable.ic_lock_open)
             
             // Re-enable touch handling
             binding.playerView.setOnTouchListener(null)
             
-            Timber.d("Player UNLOCKED - icon changed to OPEN")
+            Timber.d("Player UNLOCKED - hiding unlock button overlay")
         }
     }
 
@@ -441,21 +465,45 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         binding.playerView.useController = false
         
+        // Hide lock overlay in PiP mode
+        binding.lockOverlay.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
+        
         // KEY FIX: Ensure resize mode is FIT before entering PiP
         binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         
-        // Use fixed 16:9 aspect ratio
-        val aspectRatio = Rational(16, 9)
+        // ✅ FIX: Use source video dimensions for aspect ratio (prevents ratio changes)
+        val aspectRatio = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val videoFormat = player?.videoFormat
+                if (videoFormat != null && videoFormat.width > 0 && videoFormat.height > 0) {
+                    Rational(videoFormat.width, videoFormat.height)
+                } else {
+                    Rational(16, 9) // Fallback to 16:9
+                }
+            } catch (e: Exception) {
+                Timber.w(e, "Could not get video dimensions, using 16:9")
+                Rational(16, 9)
+            }
+        } else {
+            Rational(16, 9)
+        }
         
         val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val builder = PictureInPictureParams.Builder()
                 .setAspectRatio(aspectRatio)
             
-            // For Android 12+, explicitly disable auto-enter and set expanded aspect ratio
+            // ✅ FIX: For Android 12+, set source rect bounds to prevent ratio changes
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 try {
                     builder.setAutoEnterEnabled(false)
+                    // Lock the expanded aspect ratio to match the set aspect ratio
                     builder.setExpandedAspectRatio(aspectRatio)
+                    
+                    // ✅ CRITICAL FIX: Set seamless resize to prevent ratio changes during resize
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        builder.setSeamlessResizeEnabled(true)
+                    }
                 } catch (e: Exception) {
                     Timber.w(e, "Could not set expanded aspect ratio")
                 }
@@ -470,7 +518,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val success = enterPictureInPictureMode(params)
         
         if (success) {
-            Timber.d("Successfully entered PiP mode with locked 16:9 ratio")
+            Timber.d("Successfully entered PiP mode with aspect ratio: $aspectRatio")
         } else {
             Timber.e("Failed to enter PiP mode")
             isInPipMode = false
@@ -499,6 +547,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
             findAndHideRelatedRecycler()
             binding.playerView.useController = false
             
+            // ✅ FIX: Hide lock overlay when entering PiP
+            binding.lockOverlay.visibility = View.GONE
+            binding.unlockButton.visibility = View.GONE
+            
             // Ensure resize mode is FIT in PiP
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
@@ -514,6 +566,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
             findAndShowRelatedRecycler()
             binding.playerView.useController = !isLocked
             binding.playerView.showController()
+            
+            // ✅ FIX: Restore lock overlay state when exiting PiP
+            if (isLocked) {
+                binding.lockOverlay.visibility = View.VISIBLE
+                binding.unlockButton.visibility = View.VISIBLE
+            } else {
+                binding.lockOverlay.visibility = View.GONE
+                binding.unlockButton.visibility = View.GONE
+            }
             
             // Restore resize mode
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
