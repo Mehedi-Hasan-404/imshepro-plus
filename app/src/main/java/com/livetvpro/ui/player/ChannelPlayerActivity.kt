@@ -62,6 +62,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var isLocked = false
     private var lastVolume = 1f
     private val skipMs = 10_000L
+    private var userRequestedPip = false  // Track if user explicitly requested PiP
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val updateIntervalMs = 1000L
@@ -272,6 +273,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         btnPip?.setOnClickListener {
             if (isLocked) return@setOnClickListener
+            userRequestedPip = true  // User explicitly clicked PiP button
             enterPipMode()
         }
 
@@ -439,24 +441,40 @@ class ChannelPlayerActivity : AppCompatActivity() {
         // KEY FIX: Ensure resize mode is FIT before entering PiP
         binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         
-        // FIXED: Use fixed 16:9 aspect ratio with source rect hint
+        // FIXED: Use fixed 16:9 aspect ratio - this locks it and prevents changes
+        val aspectRatio = Rational(16, 9)
+        
         val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .apply {
-                    // Add source rect hint to maintain aspect ratio
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        setAutoEnterEnabled(false)
-                    }
+            val builder = PictureInPictureParams.Builder()
+                .setAspectRatio(aspectRatio)
+            
+            // CRITICAL FIX: For Android 12+ (API 31+), explicitly disable auto-enter
+            // and set expanded aspect ratio to prevent ratio changes during resize
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    builder.setAutoEnterEnabled(false)
+                    // Set the same aspect ratio for expanded state
+                    builder.setExpandedAspectRatio(aspectRatio)
+                } catch (e: Exception) {
+                    Timber.w(e, "Could not set expanded aspect ratio")
                 }
-                .build()
+            }
+            
+            builder.build()
         } else {
             return
         }
         
         isInPipMode = true
-        enterPictureInPictureMode(params)
-        Timber.d("Entered PiP mode with fixed 16:9 ratio")
+        val success = enterPictureInPictureMode(params)
+        
+        if (success) {
+            Timber.d("Successfully entered PiP mode with locked 16:9 ratio")
+        } else {
+            Timber.e("Failed to enter PiP mode")
+            isInPipMode = false
+            userRequestedPip = false
+        }
     }
 
     private fun updatePipParams() {
@@ -466,7 +484,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!isInPipMode && player?.isPlaying == true) {
+        // Auto-enter PiP when user presses home button (not when clicking fullscreen in PiP)
+        if (!isInPipMode && player?.isPlaying == true && !userRequestedPip) {
+            userRequestedPip = true
             enterPipMode()
         }
     }
@@ -476,10 +496,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        isInPipMode = isInPictureInPictureMode
         
         if (isInPictureInPictureMode) {
             // Entering PiP mode
+            isInPipMode = true
             findAndHideRelatedRecycler()
             binding.playerView.useController = false
             
@@ -488,14 +508,22 @@ class ChannelPlayerActivity : AppCompatActivity() {
             
             Timber.d("Entered PiP mode")
         } else {
-            // FIXED: Exiting PiP mode - STOP and RELEASE player
-            Timber.d("Exiting PiP mode - stopping playback")
+            // Exiting PiP mode
+            isInPipMode = false
+            userRequestedPip = false  // Reset the flag
             
-            // Pause and release the player when PiP closes
-            releasePlayer()
+            Timber.d("Exiting PiP mode - returning to normal player")
             
-            // Finish the activity to close it completely
-            finish()
+            // Restore normal player UI
+            findAndShowRelatedRecycler()
+            binding.playerView.useController = !isLocked
+            binding.playerView.showController()
+            
+            // Restore resize mode
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
+            // Re-apply system UI settings
+            hideSystemUI()
         }
     }
 
