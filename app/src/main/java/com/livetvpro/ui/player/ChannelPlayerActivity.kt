@@ -1,10 +1,15 @@
 package com.livetvpro.ui.player
 
+import android.app.PendingIntent
 import android.app.PictureInPictureParams
+import android.app.RemoteAction
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -16,6 +21,7 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.common.C
@@ -52,7 +58,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnBack: ImageButton? = null
     private var btnPip: ImageButton? = null
     private var btnSettings: ImageButton? = null
-    private var btnMute: ImageButton? = null
+    // Mute is removed from new layout or can be re-added to top bar if needed
     private var btnLock: ImageButton? = null
     private var btnRewind: ImageButton? = null
     private var btnPlayPause: ImageButton? = null
@@ -60,12 +66,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnFullscreen: ImageButton? = null
     private var btnAspectRatio: ImageButton? = null
     private var tvChannelName: TextView? = null
-    private var timeBar: TimeBar? = null
 
     // State flags
     private var isInPipMode = false
     private var isLocked = false
-    private var lastVolume = 1f
     private val skipMs = 10_000L
     private var userRequestedPip = false
 
@@ -76,9 +80,27 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private val hideUnlockButtonRunnable = Runnable {
         binding.unlockButton.visibility = View.GONE
     }
+    
+    // PiP Action Receiver
+    private val pipReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_MEDIA_CONTROL) {
+                val controlType = intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)
+                when (controlType) {
+                    CONTROL_TYPE_PLAY -> player?.play()
+                    CONTROL_TYPE_PAUSE -> player?.pause()
+                }
+            }
+        }
+    }
 
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
+        private const val ACTION_MEDIA_CONTROL = "media_control"
+        private const val EXTRA_CONTROL_TYPE = "control_type"
+        private const val CONTROL_TYPE_PLAY = 1
+        private const val CONTROL_TYPE_PAUSE = 2
+
         fun start(context: Context, channel: Channel) {
             val intent = Intent(context, ChannelPlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel)
@@ -90,7 +112,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 1. FIX: Configure Window for Fullscreen + Cutout support immediately
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             window.attributes.layoutInDisplayCutoutMode = 
                 WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -98,10 +119,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
-
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // Ensure content draws behind system bars for true fullscreen positioning
+        // Register PiP control receiver
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), RECEIVER_NOT_EXPORTED)
+        }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
         } else {
@@ -122,17 +146,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         binding.progressBar.visibility = View.GONE
-
         setupPlayer()
         bindControllerViewsExact()
-
         tvChannelName?.text = channel.name
-
         setupControlListenersExact()
         setupPlayerViewInteractions()
         setupLockOverlay()
     }
 
+    // ... (keep onConfigurationChanged and adjustLayoutForOrientation same as before) ...
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -143,48 +165,39 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
 
         if (isLandscape) {
-            // 1. FIX: Ensure immersive mode covers cutout
             hideSystemUI()
-
             binding.playerView.hideController()
             binding.playerView.controllerAutoShow = false
-
-            // 2. Start from Fill/Zoom
+            
+            // Auto-fill in landscape
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-
+            
             params.dimensionRatio = null
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-
             binding.relatedChannelsSection.visibility = View.GONE
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            // Restore System UI Visibility
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-
-            // Restore controller behavior
             binding.playerView.controllerAutoShow = true
-
-            // Force FIT mode in Portrait
+            
+            // Fit in portrait
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-
+            
             params.dimensionRatio = "16:9"
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-
             binding.relatedChannelsSection.visibility = View.VISIBLE
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         }
-
         binding.playerContainer.layoutParams = params
     }
 
     override fun onResume() {
         super.onResume()
-        // Re-apply immersive mode on resume if in landscape
         if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             hideSystemUI()
         }
@@ -192,7 +205,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (!isInPipMode) {
+        // FIX FOR PIP CLOSING BUG:
+        // When closing PiP via 'X', onStop is called.
+        // We must check if we are NOT in PiP mode anymore to release the player.
+        val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) isInPictureInPictureMode else false
+        
+        if (!isPip) {
             releasePlayer()
         }
     }
@@ -200,6 +218,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         releasePlayer()
+        try {
+            unregisterReceiver(pipReceiver)
+        } catch (e: Exception) {
+            // Receiver might not be registered
+        }
         mainHandler.removeCallbacksAndMessages(null)
     }
 
@@ -217,9 +240,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun setupPlayer() {
         player?.release()
-
         trackSelector = DefaultTrackSelector(this)
-
         try {
             player = ExoPlayer.Builder(this)
                 .setTrackSelector(trackSelector!!)
@@ -227,14 +248,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     DefaultMediaSourceFactory(this).setDataSourceFactory(
                         DefaultHttpDataSource.Factory()
                             .setUserAgent("LiveTVPro/1.0")
-                            .setConnectTimeoutMs(30_000)
-                            .setReadTimeoutMs(30_000)
                             .setAllowCrossProtocolRedirects(true)
                     )
                 ).build().also { exo ->
                     binding.playerView.player = exo
-                    // Initial resize mode is set by adjustLayoutForOrientation in onCreate
-
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
@@ -245,26 +262,27 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             if (playbackState == Player.STATE_READY) {
                                 updatePlayPauseIcon(exo.playWhenReady)
                                 binding.progressBar.visibility = View.GONE
+                                updatePipParams() // Update params to reflect playing state
                             } else if (playbackState == Player.STATE_BUFFERING) {
                                 binding.progressBar.visibility = View.VISIBLE
                             }
                         }
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
+                            updatePipParams() // Update params to toggle Play/Pause action
                         }
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
-                            updatePipParams(videoSize.width, videoSize.height)
+                            updatePipParams()
                         }
                     })
                 }
         } catch (e: Exception) {
             Timber.e(e, "Error creating ExoPlayer")
         }
-
+        
         binding.playerView.apply {
             useController = true
-            // controllerAutoShow is managed by adjustLayoutForOrientation
             controllerShowTimeoutMs = 5000
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         }
@@ -283,97 +301,66 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnBack = findViewById(R.id.exo_back)
             btnPip = findViewById(R.id.exo_pip)
             btnSettings = findViewById(R.id.exo_settings)
-            btnMute = findViewById(R.id.exo_mute)
             btnLock = findViewById(R.id.exo_lock)
             btnRewind = findViewById(R.id.exo_rewind)
             btnPlayPause = findViewById(R.id.exo_play_pause)
             btnForward = findViewById(R.id.exo_forward)
             btnFullscreen = findViewById(R.id.exo_fullscreen)
-            btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
-
+            btnAspectRatio = findViewById(R.id.exo_aspect_ratio) // Now an ImageButton
             tvChannelName = findViewById(R.id.exo_channel_name)
-
-            val tbId = resources.getIdentifier("exo_progress", "id", packageName)
-            if (tbId != 0) timeBar = findViewById(tbId)
         }
 
+        // Set icons
         btnBack?.setImageResource(R.drawable.ic_arrow_back)
         btnPip?.setImageResource(R.drawable.ic_pip)
         btnSettings?.setImageResource(R.drawable.ic_settings)
-        btnMute?.setImageResource(R.drawable.ic_volume_up)
         btnLock?.setImageResource(R.drawable.ic_lock_open)
         btnRewind?.setImageResource(R.drawable.ic_skip_backward)
         btnPlayPause?.setImageResource(R.drawable.ic_pause)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
 
         btnAspectRatio?.visibility = View.VISIBLE
         btnPip?.visibility = View.VISIBLE
         btnFullscreen?.visibility = View.VISIBLE
     }
 
+    // ... (keep control listeners mostly same, just update mute logic removal or location) ...
+
     private fun setupControlListenersExact() {
         btnBack?.setOnClickListener { if (!isLocked) finish() }
-
-        btnPip?.setOnClickListener {
+        
+        btnPip?.setOnClickListener { 
             if (!isLocked) {
                 userRequestedPip = true
-                enterPipMode()
+                enterPipMode() 
             }
         }
 
-        btnSettings?.setOnClickListener {
-            if (!isLocked) showQualityDialog()
-        }
-
+        btnSettings?.setOnClickListener { if (!isLocked) showQualityDialog() }
+        
+        // ASPECT RATIO CLICK LISTENER
         btnAspectRatio?.setOnClickListener {
-            if (!isLocked) {
-                toggleAspectRatio()
-            }
+            if (!isLocked) toggleAspectRatio()
         }
-
-        btnMute?.setOnClickListener {
-            if (isLocked) return@setOnClickListener
-            player?.let {
-                if (it.volume > 0f) {
-                    lastVolume = it.volume
-                    it.volume = 0f
-                    btnMute?.setImageResource(R.drawable.ic_volume_off)
-                } else {
-                    it.volume = if (lastVolume > 0f) lastVolume else 1f
-                    btnMute?.setImageResource(R.drawable.ic_volume_up)
-                }
-            }
-        }
-
+        
         btnLock?.setOnClickListener { toggleLock() }
-
-        btnRewind?.setOnClickListener {
-            if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) - skipMs)
-        }
-
+        btnRewind?.setOnClickListener { if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) - skipMs) }
+        
         btnPlayPause?.setOnClickListener {
             if (!isLocked) {
                 if (player?.isPlaying == true) player?.pause() else player?.play()
             }
         }
-
-        btnForward?.setOnClickListener {
-            if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) + skipMs)
-        }
-
+        
+        btnForward?.setOnClickListener { if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) + skipMs) }
         btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
     }
 
+    // ... (toggleAspectRatio, showQualityDialog, setupPlayerViewInteractions, setupLockOverlay, show/hide/toggleLock same as before) ...
     private fun toggleAspectRatio() {
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-        if (!isLandscape) {
-            Toast.makeText(this, "Rotate to landscape to change aspect ratio", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        // Cycle through modes: ZOOM (Fill) -> FIT -> FILL -> ZOOM
+         // Cycle through modes: ZOOM (Fill) -> FIT -> FILL -> ZOOM
         currentResizeMode = when (currentResizeMode) {
             AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> {
                 Toast.makeText(this, "Fit", Toast.LENGTH_SHORT).show()
@@ -383,49 +370,36 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 Toast.makeText(this, "Fill", Toast.LENGTH_SHORT).show()
                 AspectRatioFrameLayout.RESIZE_MODE_FILL
             }
-            else -> { // RESIZE_MODE_FILL
+            else -> { 
                 Toast.makeText(this, "Zoom", Toast.LENGTH_SHORT).show()
                 AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             }
         }
         binding.playerView.resizeMode = currentResizeMode
     }
-
+    
     private fun showQualityDialog() {
         if (trackSelector == null || player == null) return
-
-        TrackSelectionDialogBuilder(
-            /* context = */ this,
-            /* title = */ "Select Video Quality",
-            /* player = */ player!!,
-            /* trackType = */ C.TRACK_TYPE_VIDEO
-        ).build().show()
+        TrackSelectionDialogBuilder(this, "Select Video Quality", player!!, C.TRACK_TYPE_VIDEO).build().show()
     }
 
-    private fun setupPlayerViewInteractions() {
-        binding.playerView.setOnClickListener(null)
-    }
-
+    private fun setupPlayerViewInteractions() { binding.playerView.setOnClickListener(null) }
+    
     private fun setupLockOverlay() {
         binding.unlockButton.setOnClickListener { toggleLock() }
-        binding.lockOverlay.setOnClickListener {
-            if (binding.unlockButton.visibility == View.VISIBLE) hideUnlockButton() else showUnlockButton()
-        }
+        binding.lockOverlay.setOnClickListener { if (binding.unlockButton.visibility == View.VISIBLE) hideUnlockButton() else showUnlockButton() }
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
     }
-
     private fun showUnlockButton() {
         binding.unlockButton.visibility = View.VISIBLE
         mainHandler.removeCallbacks(hideUnlockButtonRunnable)
         mainHandler.postDelayed(hideUnlockButtonRunnable, 3000)
     }
-
     private fun hideUnlockButton() {
         mainHandler.removeCallbacks(hideUnlockButtonRunnable)
         binding.unlockButton.visibility = View.GONE
     }
-
     private fun toggleLock() {
         isLocked = !isLocked
         if (isLocked) {
@@ -444,34 +418,69 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnLock?.setImageResource(R.drawable.ic_lock_open)
         }
     }
+    
+    // ... (toggleFullscreen, hideSystemUI same as before) ...
+    private fun toggleFullscreen() {
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        requestedOrientation = if (isLandscape) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
+    
+    private fun hideSystemUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        @Suppress("DEPRECATION")
+        window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN)
+    }
 
+    // PIP LOGIC UPDATED WITH CONTROLS
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
 
-        // Hide UI for PiP
         binding.relatedChannelsSection.visibility = View.GONE
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
 
-        val format = player?.videoFormat
-        val width = format?.width ?: 16
-        val height = format?.height ?: 9
-        updatePipParams(width, height, enter = true)
+        updatePipParams(enter = true)
     }
 
-    private fun updatePipParams(width: Int, height: Int, enter: Boolean = false) {
+    private fun updatePipParams(enter: Boolean = false) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val format = player?.videoFormat
+            val width = format?.width ?: 16
+            val height = format?.height ?: 9
             val ratio = if (width > 0 && height > 0) Rational(width, height) else Rational(16, 9)
+            
             val builder = PictureInPictureParams.Builder()
             builder.setAspectRatio(ratio)
+            
+            // ADD PLAY/PAUSE ACTIONS TO PIP
+            val actions = ArrayList<RemoteAction>()
+            val isPlaying = player?.isPlaying == true
+            
+            val iconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+            val title = if (isPlaying) "Pause" else "Play"
+            val controlType = if (isPlaying) CONTROL_TYPE_PAUSE else CONTROL_TYPE_PLAY
+            
+            val intent = Intent(ACTION_MEDIA_CONTROL).apply { putExtra(EXTRA_CONTROL_TYPE, controlType) }
+            val pendingIntent = PendingIntent.getBroadcast(this, controlType, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+            
+            val icon = Icon.createWithResource(this, iconId)
+            actions.add(RemoteAction(icon, title, title, pendingIntent))
+            
+            builder.setActions(actions)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setAutoEnterEnabled(true)
                 builder.setSeamlessResizeEnabled(true)
             }
-
+            
             try {
                 if (enter) {
                     if (enterPictureInPictureMode(builder.build())) isInPipMode = true
@@ -487,21 +496,18 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
-
+        
         if (isInPipMode) {
             binding.relatedChannelsSection.visibility = View.GONE
-            binding.playerView.useController = false
+            binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT 
         } else {
             userRequestedPip = false
-
-            // Restore Layout
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             adjustLayoutForOrientation(isLandscape)
-
-            // Restore controls state based on lock
+            
             if (isLocked) {
                 binding.playerView.useController = false
                 binding.lockOverlay.visibility = View.VISIBLE
@@ -520,33 +526,5 @@ class ChannelPlayerActivity : AppCompatActivity() {
             userRequestedPip = true
             enterPipMode()
         }
-    }
-
-    private fun toggleFullscreen() {
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        requestedOrientation = if (isLandscape) {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        } else {
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        }
-    }
-
-    private fun hideSystemUI() {
-        // FIX: Handle Notch/Cutout Mode to remove black bars
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-
-        // Standard immersive flags
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-        )
     }
 }
