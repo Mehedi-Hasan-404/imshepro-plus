@@ -81,11 +81,25 @@ class ChannelPlayerActivity : AppCompatActivity() {
     // PiP Action Receiver
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
+            Timber.d("PiP Receiver: ${intent?.action}")
+            
             if (intent?.action == ACTION_MEDIA_CONTROL) {
                 val controlType = intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)
+                Timber.d("PiP Control Type: $controlType")
+                
                 when (controlType) {
-                    CONTROL_TYPE_PLAY -> player?.play()
-                    CONTROL_TYPE_PAUSE -> player?.pause()
+                    CONTROL_TYPE_PLAY -> {
+                        player?.play()
+                        Timber.d("PiP: Playing")
+                        // Update PiP params to show pause button
+                        updatePipParams()
+                    }
+                    CONTROL_TYPE_PAUSE -> {
+                        player?.pause()
+                        Timber.d("PiP: Paused")
+                        // Update PiP params to show play button
+                        updatePipParams()
+                    }
                 }
             }
         }
@@ -245,6 +259,20 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
+    override fun onPause() {
+        super.onPause()
+        // Pause playback when activity goes to background (unless in PiP)
+        val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            isInPictureInPictureMode
+        } else {
+            false
+        }
+        
+        if (!isPip) {
+            player?.pause()
+        }
+    }
+
     override fun onStop() {
         super.onStop()
         // ✅ FIX: Only release player if NOT in PiP mode
@@ -285,6 +313,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun setupPlayer() {
         player?.release()
         trackSelector = DefaultTrackSelector(this)
+        
         try {
             player = ExoPlayer.Builder(this)
                 .setTrackSelector(trackSelector!!)
@@ -294,7 +323,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             .setUserAgent("LiveTVPro/1.0")
                             .setAllowCrossProtocolRedirects(true)
                     )
-                ).build().also { exo ->
+                )
+                .setSeekBackIncrementMs(skipMs)
+                .setSeekForwardIncrementMs(skipMs)
+                .build().also { exo ->
                     binding.playerView.player = exo
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
                     exo.setMediaItem(mediaItem)
@@ -303,31 +335,59 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
                     exo.addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
-                            if (playbackState == Player.STATE_READY) {
-                                updatePlayPauseIcon(exo.playWhenReady)
-                                binding.progressBar.visibility = View.GONE
-                                updatePipParams() 
-                            } else if (playbackState == Player.STATE_BUFFERING) {
-                                binding.progressBar.visibility = View.VISIBLE
+                            when (playbackState) {
+                                Player.STATE_READY -> {
+                                    updatePlayPauseIcon(exo.playWhenReady)
+                                    binding.progressBar.visibility = View.GONE
+                                    updatePipParams()
+                                }
+                                Player.STATE_BUFFERING -> {
+                                    binding.progressBar.visibility = View.VISIBLE
+                                }
+                                Player.STATE_ENDED -> {
+                                    binding.progressBar.visibility = View.GONE
+                                }
+                                Player.STATE_IDLE -> {
+                                    // Do nothing
+                                }
                             }
                         }
+                        
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
-                            updatePipParams() 
+                            if (isInPipMode) {
+                                updatePipParams()
+                            }
                         }
+                        
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
-                            updatePipParams()
+                            if (isInPipMode) {
+                                updatePipParams()
+                            }
+                        }
+                        
+                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            super.onPlayerError(error)
+                            Timber.e(error, "Playback error")
+                            binding.progressBar.visibility = View.GONE
+                            Toast.makeText(
+                                this@ChannelPlayerActivity,
+                                "Playback error: ${error.message}",
+                                Toast.LENGTH_SHORT
+                            ).show()
                         }
                     })
                 }
         } catch (e: Exception) {
             Timber.e(e, "Error creating ExoPlayer")
+            Toast.makeText(this, "Failed to initialize player", Toast.LENGTH_SHORT).show()
         }
         
         binding.playerView.apply {
             useController = true
             controllerShowTimeoutMs = 5000
+            controllerHideOnTouch = true
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         }
     }
@@ -539,8 +599,22 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     // ✅ PIP LOGIC FIXES
     private fun enterPipMode() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Toast.makeText(this, "PiP not supported", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            Toast.makeText(this, "PiP not available", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Ensure player is playing
+        player?.let {
+            if (!it.isPlaying) {
+                it.play()
+            }
+        }
 
         binding.relatedChannelsSection.visibility = View.GONE
         binding.playerView.useController = false
@@ -552,52 +626,66 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun updatePipParams(enter: Boolean = false) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val format = player?.videoFormat
-            val width = format?.width ?: 16
-            val height = format?.height ?: 9
-            val ratio = if (width > 0 && height > 0) Rational(width, height) else Rational(16, 9)
-            
-            val builder = PictureInPictureParams.Builder()
-            builder.setAspectRatio(ratio)
-            
-            // ✅ FIX: Working PiP controls
-            val actions = ArrayList<RemoteAction>()
-            val isPlaying = player?.isPlaying == true
-            
-            val iconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-            val title = if (isPlaying) "Pause" else "Play"
-            val controlType = if (isPlaying) CONTROL_TYPE_PAUSE else CONTROL_TYPE_PLAY
-            
-            val intent = Intent(ACTION_MEDIA_CONTROL).apply { 
-                putExtra(EXTRA_CONTROL_TYPE, controlType)
-            }
-            val pendingIntent = PendingIntent.getBroadcast(
-                this, 
-                controlType, 
-                intent, 
-                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-            )
-            
-            val icon = Icon.createWithResource(this, iconId)
-            actions.add(RemoteAction(icon, title, title, pendingIntent))
-            
-            builder.setActions(actions)
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                builder.setAutoEnterEnabled(true)
-                builder.setSeamlessResizeEnabled(true)
-            }
-            
             try {
+                val format = player?.videoFormat
+                val width = format?.width ?: 16
+                val height = format?.height ?: 9
+                val ratio = if (width > 0 && height > 0) {
+                    Rational(width, height)
+                } else {
+                    Rational(16, 9)
+                }
+                
+                val builder = PictureInPictureParams.Builder()
+                builder.setAspectRatio(ratio)
+                
+                // ✅ FIX: Working PiP controls with proper intents
+                val actions = ArrayList<RemoteAction>()
+                val isPlaying = player?.isPlaying == true
+                
+                val iconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                val title = if (isPlaying) "Pause" else "Play"
+                val controlType = if (isPlaying) CONTROL_TYPE_PAUSE else CONTROL_TYPE_PLAY
+                
+                val intent = Intent(ACTION_MEDIA_CONTROL).apply {
+                    setPackage(packageName)
+                    putExtra(EXTRA_CONTROL_TYPE, controlType)
+                }
+                
+                val pendingIntent = PendingIntent.getBroadcast(
+                    this,
+                    controlType,
+                    intent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                
+                val icon = Icon.createWithResource(this, iconId)
+                actions.add(RemoteAction(icon, title, title, pendingIntent))
+                
+                builder.setActions(actions)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    builder.setAutoEnterEnabled(false) // Manual control only
+                    builder.setSeamlessResizeEnabled(true)
+                }
+                
                 if (enter) {
-                    if (enterPictureInPictureMode(builder.build())) {
+                    val success = enterPictureInPictureMode(builder.build())
+                    if (success) {
                         isInPipMode = true
+                        Timber.d("Successfully entered PiP mode")
+                    } else {
+                        Timber.w("Failed to enter PiP mode")
+                        Toast.makeText(this, "Could not enter PiP", Toast.LENGTH_SHORT).show()
                     }
                 } else if (isInPipMode) {
                     setPictureInPictureParams(builder.build())
                 }
             } catch (e: Exception) {
                 Timber.e(e, "PiP Error")
+                if (enter) {
+                    Toast.makeText(this, "PiP error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -615,34 +703,51 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT 
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
+            // Hide all UI elements for clean PiP
+            binding.playerView.hideController()
         } else {
             // ✅ FIX: Exiting PiP - properly restore state
             userRequestedPip = false
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             
-            // Re-apply all orientation settings
-            applyOrientationSettings(isLandscape)
-            
-            // Restore lock state if needed
-            if (isLocked) {
-                binding.playerView.useController = false
-                binding.lockOverlay.visibility = View.VISIBLE
-                showUnlockButton()
-            } else {
-                binding.playerView.useController = true
-                binding.playerView.showController()
-                binding.lockOverlay.visibility = View.GONE
-            }
+            // Small delay to ensure smooth transition
+            binding.playerView.postDelayed({
+                // Re-apply all orientation settings
+                applyOrientationSettings(isLandscape)
+                
+                // Restore lock state if needed
+                if (isLocked) {
+                    binding.playerView.useController = false
+                    binding.lockOverlay.visibility = View.VISIBLE
+                    showUnlockButton()
+                } else {
+                    binding.playerView.useController = true
+                    // Show controller after small delay
+                    binding.playerView.postDelayed({
+                        binding.playerView.showController()
+                    }, 100)
+                    binding.lockOverlay.visibility = View.GONE
+                }
+            }, 50)
         }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // ✅ FIX: Auto-enter PiP only when playing
-        if (!isInPipMode && player?.isPlaying == true && !userRequestedPip) {
+        // ✅ FIX: Auto-enter PiP only when playing and not already in PiP
+        if (!isInPipMode && player?.isPlaying == true) {
             userRequestedPip = true
             enterPipMode()
         }
+    }
+
+    override fun finish() {
+        // ✅ FIX: Ensure player is released when closing from PiP
+        if (isInPipMode) {
+            releasePlayer()
+        }
+        super.finish()
     }
 }
