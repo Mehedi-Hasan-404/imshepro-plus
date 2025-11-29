@@ -63,23 +63,20 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private val skipMs = 10_000L
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val updateIntervalMs = 500L
+    private val updateIntervalMs = 1000L // Changed to 1 second to reduce flicker
+    private var isUserScrubbing = false
+    
     private val positionUpdater = object : Runnable {
         override fun run() {
             try {
                 val p = player
-                if (p != null && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED) {
+                if (p != null && !isUserScrubbing && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED) {
                     val pos = p.currentPosition
                     val dur = p.duration.takeIf { it > 0 } ?: 0L
+                    
+                    // Only update text, don't touch the TimeBar to avoid flickering
                     txtPosition?.text = formatTime(pos)
                     txtDuration?.text = formatTime(dur)
-                    timeBar?.let { tb ->
-                        if (dur > 0L) {
-                            tb.setPosition(pos)
-                            tb.setBufferedPosition(p.bufferedPosition)
-                            tb.setDuration(dur)
-                        }
-                    }
                 }
             } catch (t: Throwable) {
                 Timber.w(t, "positionUpdater")
@@ -135,6 +132,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         bindControllerViewsExact()
         setupControlListenersExact()
         setupPlayerViewInteractions()
+        setupLockOverlay()
 
         mainHandler.post(positionUpdater)
 
@@ -187,7 +185,20 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
                     exo.playWhenReady = true
-                    exo.addListener(object : Player.Listener {})
+                    exo.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            // Update play/pause icon
+                            when (playbackState) {
+                                Player.STATE_READY -> {
+                                    if (exo.playWhenReady) {
+                                        btnPlayPause?.setImageResource(R.drawable.ic_pause)
+                                    } else {
+                                        btnPlayPause?.setImageResource(R.drawable.ic_play)
+                                    }
+                                }
+                            }
+                        }
+                    })
                 }
         } catch (e: Exception) {
             Timber.e(e, "Error creating ExoPlayer")
@@ -195,11 +206,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         binding.playerView.apply {
             useController = true
-            isClickable = true
-            isFocusable = true
-            requestFocus()
-            controllerShowTimeoutMs = 4000
-            bringToFront()
+            controllerAutoShow = true
+            controllerShowTimeoutMs = 5000
+            setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                // Don't do anything special here, let ExoPlayer handle it
+            })
         }
 
         binding.playerContainer.isClickable = false
@@ -238,9 +249,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnMute?.setImageResource(R.drawable.ic_volume_up)
         btnLock?.setImageResource(R.drawable.ic_lock_open)
         btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-        btnPlayPause?.setImageResource(R.drawable.ic_play)
+        btnPlayPause?.setImageResource(R.drawable.ic_pause)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        
+        // Show PiP and Fullscreen buttons
+        btnPip?.visibility = View.VISIBLE
+        btnFullscreen?.visibility = View.VISIBLE
 
         Timber.d(
             "bindExact: back=%s pip=%s settings=%s mute=%s lock=%s rew=%s playpause=%s forward=%s fullscreen=%s timebar=%s",
@@ -281,16 +296,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         btnLock?.setOnClickListener {
-            isLocked = !isLocked
-            if (isLocked) {
-                binding.playerView.useController = false
-                binding.playerView.setOnTouchListener { _, _ -> true }
-                btnLock?.setImageResource(R.drawable.ic_lock_closed)
-            } else {
-                binding.playerView.useController = true
-                binding.playerView.setOnTouchListener(null)
-                btnLock?.setImageResource(R.drawable.ic_lock_open)
-            }
+            toggleLock()
         }
 
         btnRewind?.setOnClickListener {
@@ -325,37 +331,88 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         btnFullscreen?.setOnClickListener {
             if (isLocked) return@setOnClickListener
-            val isLandscape = resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT
-            if (!isLandscape) {
-                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                findAndHideRelatedRecycler()
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            } else {
-                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                findAndShowRelatedRecycler()
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            }
+            toggleFullscreen()
         }
 
+        // TimeBar scrubbing listener
         timeBar?.addListener(object : TimeBar.OnScrubListener {
-            override fun onScrubStart(timeBar: TimeBar, position: Long) {}
-            override fun onScrubMove(timeBar: TimeBar, position: Long) {}
+            override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                isUserScrubbing = true
+            }
+            
+            override fun onScrubMove(timeBar: TimeBar, position: Long) {
+                // Update position text while scrubbing
+                txtPosition?.text = formatTime(position)
+            }
+            
             override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
-                player?.seekTo(position)
+                if (!canceled) {
+                    player?.seekTo(position)
+                }
+                isUserScrubbing = false
             }
         })
     }
 
     private fun setupPlayerViewInteractions() {
-        binding.playerView.setOnClickListener {
-            if (!isLocked) binding.playerView.showController()
-        }
+        // Remove any existing click listeners
+        binding.playerView.setOnClickListener(null)
+        
+        // Let ExoPlayer handle controller visibility automatically
+        binding.playerView.controllerAutoShow = true
+        binding.playerView.useController = true
+    }
 
-        binding.playerView.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
-            override fun onVisibilityChanged(visibility: Int) {
-                if (visibility == View.VISIBLE) binding.playerView.bringToFront()
-            }
-        })
+    private fun setupLockOverlay() {
+        // Setup unlock button
+        binding.unlockButton.setOnClickListener {
+            toggleLock()
+        }
+    }
+
+    private fun toggleLock() {
+        isLocked = !isLocked
+        
+        if (isLocked) {
+            // Lock: Hide controls and show unlock overlay
+            binding.playerView.useController = false
+            binding.playerView.hideController()
+            binding.lockOverlay.visibility = View.VISIBLE
+            binding.unlockButton.visibility = View.VISIBLE
+            btnLock?.setImageResource(R.drawable.ic_lock_closed)
+            
+            // Prevent touches from affecting the player
+            binding.playerView.setOnTouchListener { _, _ -> true }
+            
+            Timber.d("Player LOCKED")
+        } else {
+            // Unlock: Show controls and hide overlay
+            binding.playerView.useController = true
+            binding.playerView.showController()
+            binding.lockOverlay.visibility = View.GONE
+            binding.unlockButton.visibility = View.GONE
+            btnLock?.setImageResource(R.drawable.ic_lock_open)
+            
+            // Re-enable touch handling
+            binding.playerView.setOnTouchListener(null)
+            
+            Timber.d("Player UNLOCKED")
+        }
+    }
+
+    private fun toggleFullscreen() {
+        val isLandscape = resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT
+        if (!isLandscape) {
+            // Enter fullscreen - landscape
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            findAndHideRelatedRecycler()
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+        } else {
+            // Exit fullscreen - portrait
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            findAndShowRelatedRecycler()
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        }
     }
 
     private fun enterPipMode() {
@@ -382,6 +439,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        // Auto-enter PiP when user presses home
+        if (!isInPipMode && player?.isPlaying == true) {
+            enterPipMode()
+        }
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
@@ -393,17 +454,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
         } else {
             findAndShowRelatedRecycler()
             binding.playerView.useController = !isLocked
-            binding.playerView.bringToFront()
-            binding.playerView.requestFocus()
+            binding.playerView.showController()
         }
     }
 
     private fun findRelatedRecyclerView(): RecyclerView? {
-        val names = listOf("related_recycler_view", "relatedRecyclerView", "related_recycler", "related_list")
+        val names = listOf("related_recycler_view", "relatedRecyclerView", "related_recycler", "related_list", "relatedChannelsRecycler")
         for (n in names) {
             val id = resources.getIdentifier(n, "id", packageName)
             if (id != 0) {
-                // FIXED: Use non-generic findViewById and cast
                 val v = try {
                     findViewById(id) as? RecyclerView
                 } catch (_: Throwable) {
