@@ -45,7 +45,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private val viewModel: PlayerViewModel by viewModels()
 
     private var player: ExoPlayer? = null
-    private var trackSelector: DefaultTrackSelector? = null 
+    private var trackSelector: DefaultTrackSelector? = null
     private lateinit var channel: Channel
 
     // Controller Views
@@ -58,8 +58,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnPlayPause: ImageButton? = null
     private var btnForward: ImageButton? = null
     private var btnFullscreen: ImageButton? = null
-    private var btnAspectRatio: ImageButton? = null 
-    private var tvChannelName: TextView? = null 
+    private var btnAspectRatio: ImageButton? = null
+    private var tvChannelName: TextView? = null
     private var timeBar: TimeBar? = null
 
     // State flags
@@ -68,7 +68,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var lastVolume = 1f
     private val skipMs = 10_000L
     private var userRequestedPip = false
-    
+
     // Set default resize mode to FIT for portrait start
     private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
 
@@ -89,12 +89,19 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 1. FIX: Configure Window for Fullscreen + Cutout support immediately
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = 
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
-        // --- FIX: Ensure content draws behind system bars for true fullscreen positioning ---
+
+        // Ensure content draws behind system bars for true fullscreen positioning
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
         } else {
@@ -105,8 +112,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
             )
         }
-        // ----------------------------------------------------------------------------------
-        
+
         val currentOrientation = resources.configuration.orientation
         adjustLayoutForOrientation(currentOrientation == Configuration.ORIENTATION_LANDSCAPE)
 
@@ -119,9 +125,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         setupPlayer()
         bindControllerViewsExact()
-        
+
         tvChannelName?.text = channel.name
-        
+
         setupControlListenersExact()
         setupPlayerViewInteractions()
         setupLockOverlay()
@@ -135,42 +141,44 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        
+
         if (isLandscape) {
-            // 1. Bar Should Not Show (Immersive Mode + Controls Hidden)
-            hideSystemUI() 
-            binding.playerView.hideController() 
-            binding.playerView.controllerAutoShow = false 
-            
+            // 1. FIX: Ensure immersive mode covers cutout
+            hideSystemUI()
+
+            binding.playerView.hideController()
+            binding.playerView.controllerAutoShow = false
+
             // 2. Start from Fill/Zoom
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            
-            params.dimensionRatio = null 
+
+            params.dimensionRatio = null
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
-            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID 
-            
+            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+
             binding.relatedChannelsSection.visibility = View.GONE
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            // Restore System UI Visibility 
+            // Restore System UI Visibility
+            @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-            
+
             // Restore controller behavior
             binding.playerView.controllerAutoShow = true
-            
+
             // Force FIT mode in Portrait
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            
+
             params.dimensionRatio = "16:9"
-            params.height = 0 
-            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET 
-            
+            params.height = 0
+            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+
             binding.relatedChannelsSection.visibility = View.VISIBLE
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         }
-        
+
         binding.playerContainer.layoutParams = params
     }
 
@@ -182,7 +190,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    // FIX: PiP Closing logic
     override fun onStop() {
         super.onStop()
         if (!isInPipMode) {
@@ -215,7 +222,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         try {
             player = ExoPlayer.Builder(this)
-                .setTrackSelector(trackSelector!!) 
+                .setTrackSelector(trackSelector!!)
                 .setMediaSourceFactory(
                     DefaultMediaSourceFactory(this).setDataSourceFactory(
                         DefaultHttpDataSource.Factory()
@@ -227,12 +234,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 ).build().also { exo ->
                     binding.playerView.player = exo
                     // Initial resize mode is set by adjustLayoutForOrientation in onCreate
-                    
+
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
                     exo.playWhenReady = true
-                    
+
                     exo.addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             if (playbackState == Player.STATE_READY) {
@@ -282,10 +289,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnPlayPause = findViewById(R.id.exo_play_pause)
             btnForward = findViewById(R.id.exo_forward)
             btnFullscreen = findViewById(R.id.exo_fullscreen)
-            btnAspectRatio = findViewById(R.id.exo_aspect_ratio) 
-            
+            btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
+
             tvChannelName = findViewById(R.id.exo_channel_name)
-            
+
             val tbId = resources.getIdentifier("exo_progress", "id", packageName)
             if (tbId != 0) timeBar = findViewById(tbId)
         }
@@ -299,7 +306,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnPlayPause?.setImageResource(R.drawable.ic_pause)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-        
+
         btnAspectRatio?.visibility = View.VISIBLE
         btnPip?.visibility = View.VISIBLE
         btnFullscreen?.visibility = View.VISIBLE
@@ -307,24 +314,24 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun setupControlListenersExact() {
         btnBack?.setOnClickListener { if (!isLocked) finish() }
-        
-        btnPip?.setOnClickListener { 
+
+        btnPip?.setOnClickListener {
             if (!isLocked) {
                 userRequestedPip = true
-                enterPipMode() 
+                enterPipMode()
             }
         }
 
         btnSettings?.setOnClickListener {
             if (!isLocked) showQualityDialog()
         }
-        
+
         btnAspectRatio?.setOnClickListener {
             if (!isLocked) {
                 toggleAspectRatio()
             }
         }
-        
+
         btnMute?.setOnClickListener {
             if (isLocked) return@setOnClickListener
             player?.let {
@@ -360,7 +367,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun toggleAspectRatio() {
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        
+
         if (!isLandscape) {
             Toast.makeText(this, "Rotate to landscape to change aspect ratio", Toast.LENGTH_SHORT).show()
             return
@@ -391,13 +398,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             /* context = */ this,
             /* title = */ "Select Video Quality",
             /* player = */ player!!,
-            /* trackType = */ C.TRACK_TYPE_VIDEO 
+            /* trackType = */ C.TRACK_TYPE_VIDEO
         ).build().show()
     }
 
     private fun setupPlayerViewInteractions() {
         binding.playerView.setOnClickListener(null)
-        // Controller Auto Show is managed by adjustLayoutForOrientation based on orientation
     }
 
     private fun setupLockOverlay() {
@@ -448,7 +454,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
-        
+
         val format = player?.videoFormat
         val width = format?.width ?: 16
         val height = format?.height ?: 9
@@ -460,12 +466,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             val ratio = if (width > 0 && height > 0) Rational(width, height) else Rational(16, 9)
             val builder = PictureInPictureParams.Builder()
             builder.setAspectRatio(ratio)
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setAutoEnterEnabled(true)
                 builder.setSeamlessResizeEnabled(true)
             }
-            
+
             try {
                 if (enter) {
                     if (enterPictureInPictureMode(builder.build())) isInPipMode = true
@@ -481,20 +487,20 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
-        
+
         if (isInPipMode) {
             binding.relatedChannelsSection.visibility = View.GONE
-            binding.playerView.useController = false 
+            binding.playerView.useController = false
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT 
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         } else {
             userRequestedPip = false
-            
+
             // Restore Layout
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             adjustLayoutForOrientation(isLandscape)
-            
+
             // Restore controls state based on lock
             if (isLocked) {
                 binding.playerView.useController = false
@@ -526,9 +532,19 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun hideSystemUI() {
-        // This is the code for true immersive fullscreen mode (hides status bar/nav bar)
+        // FIX: Handle Notch/Cutout Mode to remove black bars
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+
+        // Standard immersive flags
+        @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                 or View.SYSTEM_UI_FLAG_FULLSCREEN
         )
