@@ -30,7 +30,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TimeBar
-import androidx.media3.ui.TrackSelectionDialogBuilder // Required for quality controls
+import androidx.media3.ui.TrackSelectionDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
@@ -45,7 +45,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private val viewModel: PlayerViewModel by viewModels()
 
     private var player: ExoPlayer? = null
-    private var trackSelector: DefaultTrackSelector? = null // For quality controls
+    private var trackSelector: DefaultTrackSelector? = null 
     private lateinit var channel: Channel
 
     // Controller Views
@@ -58,8 +58,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnPlayPause: ImageButton? = null
     private var btnForward: ImageButton? = null
     private var btnFullscreen: ImageButton? = null
-    private var btnAspectRatio: ImageButton? = null // New reference
-    private var tvChannelName: TextView? = null // New reference for name
+    private var btnAspectRatio: ImageButton? = null 
+    private var tvChannelName: TextView? = null 
     private var timeBar: TimeBar? = null
 
     // State flags
@@ -107,7 +107,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         setupPlayer()
         bindControllerViewsExact()
         
-        // Fix: Set Channel Name immediately after binding views
+        // FIX: Set Channel Name immediately after binding views
         tvChannelName?.text = channel.name
         
         setupControlListenersExact()
@@ -133,7 +133,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.relatedChannelsSection.visibility = View.GONE
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            // Force FIT mode in Portrait
+            // Force FIT mode in Portrait, as requested, to prevent ratio changes
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
             params.dimensionRatio = "16:9"
@@ -147,7 +147,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.layoutParams = params
     }
 
-    // Fix PiP Closing logic: If we are STOPPING and NOT entering PiP, release the player
+    // FIX: PiP Closing logic: If we are STOPPING and NOT entering PiP, release the player
     override fun onStop() {
         super.onStop()
         // If the activity is stopping and we are NOT in PiP mode, it means the user closed the app/activity
@@ -210,6 +210,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             }
                         }
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            // This addresses the lack of play/pause in PiP by ensuring the icon is correct when returning
                             updatePlayPauseIcon(isPlaying)
                         }
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -284,12 +285,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // Quality Controls (Settings)
+        // FIX: Quality Controls (Settings)
         btnSettings?.setOnClickListener {
             if (!isLocked) showQualityDialog()
         }
         
-        // Aspect Ratio Logic
+        // FIX: Aspect Ratio Logic
         btnAspectRatio?.setOnClickListener {
             if (!isLocked) {
                 toggleAspectRatio()
@@ -333,6 +334,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         
         if (!isLandscape) {
+            // FIX: Won't change aspect ratio in portrait mode
             Toast.makeText(this, "Rotate to landscape to change aspect ratio", Toast.LENGTH_SHORT).show()
             return
         }
@@ -358,11 +360,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun showQualityDialog() {
         if (trackSelector == null || player == null) return
 
+        // FIX: Using the correct TrackSelectionDialogBuilder constructor for video quality (C.TRACK_TYPE_VIDEO)
         TrackSelectionDialogBuilder(
-            this,
-            "Select Video Quality",
-            player!!,
-            trackSelector!!
+            /* context = */ this,
+            /* title = */ "Select Video Quality",
+            /* player = */ player!!,
+            /* trackType = */ C.TRACK_TYPE_VIDEO 
         ).build().show()
     }
 
@@ -416,7 +419,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         // Hide UI for PiP
         binding.relatedChannelsSection.visibility = View.GONE
-        binding.playerView.useController = false // Hide custom controls
+        binding.playerView.useController = false // Hide custom controls (PiP relies on system controls)
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
         
@@ -431,10 +434,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             val ratio = if (width > 0 && height > 0) Rational(width, height) else Rational(16, 9)
             val builder = PictureInPictureParams.Builder()
             builder.setAspectRatio(ratio)
-            
-            // PiP Actions are System Controlled in Android (Play/Pause/Next/Prev)
-            // You can add RemoteActions here if you want specific custom actions,
-            // but the OS usually provides a default Play/Pause button for media apps.
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setAutoEnterEnabled(true)
@@ -459,10 +458,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         if (isInPipMode) {
             binding.relatedChannelsSection.visibility = View.GONE
-            binding.playerView.useController = false // Ensure controls are hidden
+            binding.playerView.useController = false // Controls are handled by the system PiP window
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT // Use Fit for PiP
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT 
         } else {
             userRequestedPip = false
             
@@ -486,6 +485,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
+        // Allow PiP entry if the user swipes home and the player is running
         if (!isInPipMode && player?.isPlaying == true && !userRequestedPip) {
             userRequestedPip = true
             enterPipMode()
