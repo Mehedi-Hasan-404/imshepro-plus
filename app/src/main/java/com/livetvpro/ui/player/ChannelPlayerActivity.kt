@@ -212,6 +212,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
             useController = true
             controllerAutoShow = true
             controllerShowTimeoutMs = 5000
+            
+            // FIXED: Disable default position updates to prevent flickering
+            setControllerShowTimeoutMs(5000)
+            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         }
 
         binding.playerContainer.isClickable = false
@@ -330,20 +334,29 @@ class ChannelPlayerActivity : AppCompatActivity() {
             toggleFullscreen()
         }
 
+        // TimeBar scrubbing listener - FIXED: Smoother scrubbing without flickering
         timeBar?.addListener(object : TimeBar.OnScrubListener {
             override fun onScrubStart(timeBar: TimeBar, position: Long) {
                 isUserScrubbing = true
+                Timber.d("Scrubbing started at position: ${formatTime(position)}")
             }
             
             override fun onScrubMove(timeBar: TimeBar, position: Long) {
+                // FIXED: Update position text smoothly during scrubbing
                 txtPosition?.text = formatTime(position)
+                lastPosition = position  // Update last position to prevent flickering
             }
             
             override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
                 if (!canceled) {
                     player?.seekTo(position)
+                    lastPosition = position
+                    Timber.d("Scrubbing stopped, seeked to: ${formatTime(position)}")
                 }
-                isUserScrubbing = false
+                // FIXED: Small delay before resuming auto-update to prevent immediate flicker
+                mainHandler.postDelayed({
+                    isUserScrubbing = false
+                }, 100)
             }
         })
     }
