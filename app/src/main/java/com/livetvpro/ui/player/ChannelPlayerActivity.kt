@@ -62,11 +62,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var isLocked = false
     private var lastVolume = 1f
     private val skipMs = 10_000L
-    private var userRequestedPip = false  // Track if user explicitly requested PiP
+    private var userRequestedPip = false
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val updateIntervalMs = 1000L
     private var isUserScrubbing = false
+    
+    // ✅ FIX: Declare lastPosition variable
+    private var lastPosition = 0L
     
     private val positionUpdater = object : Runnable {
         override fun run() {
@@ -78,6 +81,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     
                     txtPosition?.text = formatTime(pos)
                     txtDuration?.text = formatTime(dur)
+                    
+                    // ✅ FIX: Update lastPosition
+                    lastPosition = pos
                 }
             } catch (t: Throwable) {
                 Timber.w(t, "positionUpdater")
@@ -214,7 +220,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             controllerAutoShow = true
             controllerShowTimeoutMs = 5000
             
-            // FIXED: Disable default position updates to prevent flickering
             setControllerShowTimeoutMs(5000)
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         }
@@ -253,7 +258,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnPip?.setImageResource(R.drawable.ic_pip)
         btnSettings?.setImageResource(R.drawable.ic_settings)
         btnMute?.setImageResource(R.drawable.ic_volume_up)
-        btnLock?.setImageResource(R.drawable.ic_lock_open)  // FIXED: Start with OPEN icon
+        btnLock?.setImageResource(R.drawable.ic_lock_open)
         btnRewind?.setImageResource(R.drawable.ic_skip_backward)
         btnPlayPause?.setImageResource(R.drawable.ic_pause)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
@@ -273,7 +278,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         btnPip?.setOnClickListener {
             if (isLocked) return@setOnClickListener
-            userRequestedPip = true  // User explicitly clicked PiP button
+            userRequestedPip = true
             enterPipMode()
         }
 
@@ -336,7 +341,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             toggleFullscreen()
         }
 
-        // TimeBar scrubbing listener - FIXED: Smoother scrubbing without flickering
+        // TimeBar scrubbing listener
         timeBar?.addListener(object : TimeBar.OnScrubListener {
             override fun onScrubStart(timeBar: TimeBar, position: Long) {
                 isUserScrubbing = true
@@ -344,9 +349,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
             
             override fun onScrubMove(timeBar: TimeBar, position: Long) {
-                // FIXED: Update position text smoothly during scrubbing
+                // Update position text smoothly during scrubbing
                 txtPosition?.text = formatTime(position)
-                lastPosition = position  // Update last position to prevent flickering
+                lastPosition = position
             }
             
             override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
@@ -355,7 +360,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     lastPosition = position
                     Timber.d("Scrubbing stopped, seeked to: ${formatTime(position)}")
                 }
-                // FIXED: Small delay before resuming auto-update to prevent immediate flicker
+                // Small delay before resuming auto-update to prevent immediate flicker
                 mainHandler.postDelayed({
                     isUserScrubbing = false
                 }, 100)
@@ -385,7 +390,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.lockOverlay.visibility = View.VISIBLE
             binding.unlockButton.visibility = View.VISIBLE
             
-            // FIXED: Update lock button icon to CLOSED when locked
             btnLock?.setImageResource(R.drawable.ic_lock_closed)
             
             // Prevent touches from affecting the player
@@ -399,7 +403,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
             
-            // FIXED: Update lock button icon to OPEN when unlocked
             btnLock?.setImageResource(R.drawable.ic_lock_open)
             
             // Re-enable touch handling
@@ -441,19 +444,17 @@ class ChannelPlayerActivity : AppCompatActivity() {
         // KEY FIX: Ensure resize mode is FIT before entering PiP
         binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         
-        // FIXED: Use fixed 16:9 aspect ratio - this locks it and prevents changes
+        // Use fixed 16:9 aspect ratio
         val aspectRatio = Rational(16, 9)
         
         val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val builder = PictureInPictureParams.Builder()
                 .setAspectRatio(aspectRatio)
             
-            // CRITICAL FIX: For Android 12+ (API 31+), explicitly disable auto-enter
-            // and set expanded aspect ratio to prevent ratio changes during resize
+            // For Android 12+, explicitly disable auto-enter and set expanded aspect ratio
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 try {
                     builder.setAutoEnterEnabled(false)
-                    // Set the same aspect ratio for expanded state
                     builder.setExpandedAspectRatio(aspectRatio)
                 } catch (e: Exception) {
                     Timber.w(e, "Could not set expanded aspect ratio")
@@ -477,14 +478,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun updatePipParams() {
-        // REMOVED: This function is no longer needed
-        // PiP params are set once during enterPipMode() with fixed 16:9 ratio
-    }
-
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Auto-enter PiP when user presses home button (not when clicking fullscreen in PiP)
+        // Auto-enter PiP when user presses home button
         if (!isInPipMode && player?.isPlaying == true && !userRequestedPip) {
             userRequestedPip = true
             enterPipMode()
@@ -503,14 +499,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
             findAndHideRelatedRecycler()
             binding.playerView.useController = false
             
-            // KEY FIX: Ensure resize mode is FIT in PiP
+            // Ensure resize mode is FIT in PiP
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
             Timber.d("Entered PiP mode")
         } else {
             // Exiting PiP mode
             isInPipMode = false
-            userRequestedPip = false  // Reset the flag
+            userRequestedPip = false
             
             Timber.d("Exiting PiP mode - returning to normal player")
             
