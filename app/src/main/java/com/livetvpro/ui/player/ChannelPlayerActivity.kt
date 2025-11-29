@@ -7,11 +7,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Rational
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
-import android.widget.Toast
+import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -21,6 +23,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.ui.DefaultTimeBar
 import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
@@ -39,16 +42,52 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private lateinit var channel: Channel
 
-    // Controller button references (nullable)
-    private var exoPip: ImageButton? = null
-    private var exoFullscreen: ImageButton? = null
+    // exact controller ids from your controller XML
+    private var btnBack: ImageButton? = null
+    private var btnPip: ImageButton? = null
+    private var btnSettings: ImageButton? = null
+    private var btnMute: ImageButton? = null
+    private var btnLock: ImageButton? = null
+    private var btnRewind: ImageButton? = null
+    private var btnPlayPause: ImageButton? = null
+    private var btnForward: ImageButton? = null
+    private var btnFullscreen: ImageButton? = null
 
-    // State
+    private var txtPosition: TextView? = null
+    private var txtDuration: TextView? = null
+    private var timeBar: DefaultTimeBar? = null
+
     private var isInPipMode = false
-    private var isFullscreen = false
     private var isLocked = false
-    private val skipMs = 10_000L
     private var lastVolume = 1f
+    private val skipMs = 10_000L
+
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val updateIntervalMs = 500L
+    private val positionUpdater = object : Runnable {
+        override fun run() {
+            try {
+                val p = player
+                if (p != null && p.playbackState != Player.STATE_IDLE && p.playbackState != Player.STATE_ENDED) {
+                    val pos = p.currentPosition
+                    val dur = p.duration.takeIf { it > 0 } ?: 0L
+                    txtPosition?.text = formatTime(pos)
+                    txtDuration?.text = formatTime(dur)
+                    timeBar?.let { tb ->
+                        if (dur > 0L) {
+                            tb.setPosition(pos)
+                            tb.setBufferedPosition(p.bufferedPosition)
+                            tb.setDuration(dur)
+                        }
+                    }
+                }
+            } catch (t: Throwable) {
+                Timber.w(t, "positionUpdater")
+            } finally {
+                mainHandler.postDelayed(this, updateIntervalMs)
+            }
+        }
+    }
 
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
@@ -61,14 +100,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     // --------------------
-    // Lifecycle
+    // lifecycle
     // --------------------
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Force player container to a 16:9 top-anchored box to avoid vertical-centering issues
+        // anchor player container to top and enforce 16:9 height to avoid vertical-centering issues
         val screenWidth = resources.displayMetrics.widthPixels
         val expected16by9Height = (screenWidth * 9f / 16f).toInt()
         val containerParams = binding.playerContainer.layoutParams
@@ -86,10 +125,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         hideSystemUI()
 
-        // lock portrait by default (change if needed)
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
-        // Expecting a Channel parcelable in intent
         channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run {
             Timber.e("No channel provided")
             finish()
@@ -98,51 +135,47 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         binding.progressBar.visibility = View.GONE
 
-        // Setup player and UI
         setupPlayer()
-        setupCustomControls()
-        setupUIInteractions()
+        bindControllerViewsExact()
+        setupControlListenersExact()
+        setupPlayerViewInteractions()
 
-        // Restore related section visibility if present
-        // Use binding directly - if layout doesn't have it, this will throw at compile time; if you have different id change accordingly
-        try {
-            binding.relatedRecyclerView.visibility = View.VISIBLE
-        } catch (t: Throwable) {
-            // safe: some layouts may not have relatedRecyclerView; ignore
-            Timber.d("relatedRecyclerView not found in binding")
-        }
+        mainHandler.post(positionUpdater)
+
+        // runtime-safe show of related recycler (if present)
+        findAndShowRelatedRecycler()
     }
 
     override fun onStop() {
         super.onStop()
-        // If we're in PiP keep the player alive. Otherwise release to avoid leaks/double audio.
-        if (!isInPipMode) {
-            player?.run {
-                playWhenReady = false
-                release()
-            }
-            player = null
-        }
+        if (!isInPipMode) releasePlayer()
+        mainHandler.removeCallbacks(positionUpdater)
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        if (!isInPipMode) {
-            player?.release()
-            player = null
-        }
+        if (!isInPipMode) releasePlayer()
+        mainHandler.removeCallbacks(positionUpdater)
     }
 
-    // --------------------
-    // Player setup (single instance)
-    // --------------------
-    private fun setupPlayer() {
-        // Ensure previous player is fully released before creating a new one
+    private fun releasePlayer() {
         player?.let {
             try {
                 it.pause()
                 it.release()
-            } catch (t: Throwable) { /* ignore */ }
+            } catch (t: Throwable) {
+                Timber.w(t, "releasePlayer")
+            }
+        }
+        player = null
+    }
+
+    // --------------------
+    // ExoPlayer setup (single instance)
+    // --------------------
+    private fun setupPlayer() {
+        player?.let {
+            try { it.pause(); it.release() } catch (_: Throwable) {}
             player = null
         }
 
@@ -156,78 +189,114 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             .setReadTimeoutMs(30_000)
                             .setAllowCrossProtocolRedirects(true)
                     )
-                )
-                .build()
-                .also { exoPlayer ->
-                    binding.playerView.player = exoPlayer
+                ).build().also { exo ->
+                    binding.playerView.player = exo
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
-                    exoPlayer.setMediaItem(mediaItem)
-                    exoPlayer.prepare()
-                    exoPlayer.playWhenReady = true
-
-                    exoPlayer.addListener(object : Player.Listener {
-                        override fun onEvents(player: Player, events: Player.Events) {
-                            // no-op; keep for telemetry if needed
-                        }
-                    })
+                    exo.setMediaItem(mediaItem)
+                    exo.prepare()
+                    exo.playWhenReady = true
+                    exo.addListener(object : Player.Listener {})
                 }
         } catch (e: Exception) {
             Timber.e(e, "Error creating ExoPlayer")
         }
 
-        // Make PlayerView interactive and ensure controller is usable
         binding.playerView.apply {
             useController = true
             isClickable = true
             isFocusable = true
             requestFocus()
-            bringToFront()
             controllerShowTimeoutMs = 4000
+            bringToFront()
         }
 
-        // avoid parent intercepting touches
         binding.playerContainer.isClickable = false
         binding.playerContainer.isFocusable = false
     }
 
     // --------------------
-    // Controls wiring: back, play/pause, skip, mute, lock, pip, fullscreen
+    // Bind exactly the ids in your controller file
     // --------------------
-    private fun setupCustomControls() {
-        // Find PiP / fullscreen inside the PlayerView controller (IDs must match controller layout)
-        exoPip = binding.playerView.findViewById(R.id.exo_pip)
-        exoFullscreen = binding.playerView.findViewById(R.id.exo_fullscreen)
+    private fun bindControllerViewsExact() {
+        btnBack = binding.playerView.findViewById(R.id.exo_back)
+        btnPip = binding.playerView.findViewById(R.id.exo_pip)
+        btnSettings = binding.playerView.findViewById(R.id.exo_settings)
+        btnMute = binding.playerView.findViewById(R.id.exo_mute)
+        btnLock = binding.playerView.findViewById(R.id.exo_lock)
+        btnRewind = binding.playerView.findViewById(R.id.exo_rewind)
+        btnPlayPause = binding.playerView.findViewById(R.id.exo_play_pause)
+        btnForward = binding.playerView.findViewById(R.id.exo_forward)
+        btnFullscreen = binding.playerView.findViewById(R.id.exo_fullscreen)
 
-        // Look up common control IDs used in controller layouts:
-        val btnBack = binding.playerView.findViewById<ImageButton?>(R.id.exo_back)
-            ?: binding.playerView.findViewById(R.id.exo_back_button)
-        val btnPlay = binding.playerView.findViewById<ImageButton?>(R.id.exo_play)
-        val btnPause = binding.playerView.findViewById<ImageButton?>(R.id.exo_pause)
-        val btnRewind = binding.playerView.findViewById<ImageButton?>(R.id.exo_rew)
-            ?: binding.playerView.findViewById(R.id.exo_rewind)
-        val btnForward = binding.playerView.findViewById<ImageButton?>(R.id.exo_ffwd)
-            ?: binding.playerView.findViewById(R.id.exo_forward)
-        val btnMute = binding.playerView.findViewById<ImageButton?>(R.id.exo_mute)
-            ?: binding.playerView.findViewById(R.id.exo_volume)
-        val btnLock = binding.playerView.findViewById<ImageButton?>(R.id.exo_lock)
+        txtPosition = binding.playerView.findViewById(R.id.exo_position)
+        txtDuration = binding.playerView.findViewById(R.id.exo_duration)
+        timeBar = binding.playerView.findViewById(R.id.exo_progress)
 
-        // Back - finish
+        // set icons using the exact drawable names present in your repo
+        btnBack?.setImageResource(R.drawable.ic_arrow_back)
+        btnPip?.setImageResource(R.drawable.ic_pip)
+        btnSettings?.setImageResource(R.drawable.ic_settings)
+        btnMute?.setImageResource(R.drawable.ic_volume_up)
+        btnLock?.setImageResource(R.drawable.ic_lock_open)
+        btnRewind?.setImageResource(R.drawable.ic_skip_backward)
+        btnPlayPause?.setImageResource(R.drawable.ic_play)
+        btnForward?.setImageResource(R.drawable.ic_skip_forward)
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+
+        Timber.d(
+            "bindExact: back=%s pip=%s settings=%s mute=%s lock=%s rew=%s playpause=%s forward=%s fullscreen=%s timebar=%s",
+            btnBack != null, btnPip != null, btnSettings != null, btnMute != null, btnLock != null,
+            btnRewind != null, btnPlayPause != null, btnForward != null, btnFullscreen != null, timeBar != null
+        )
+    }
+
+    // --------------------
+    // Control listeners (wired to exact ids only)
+    // --------------------
+    private fun setupControlListenersExact() {
         btnBack?.setOnClickListener {
             if (isLocked) return@setOnClickListener
             finish()
         }
 
-        // Play / Pause
-        btnPlay?.setOnClickListener {
+        btnPip?.setOnClickListener {
             if (isLocked) return@setOnClickListener
-            player?.play()
-        }
-        btnPause?.setOnClickListener {
-            if (isLocked) return@setOnClickListener
-            player?.pause()
+            enterPipMode()
         }
 
-        // Rewind / Forward (seek)
+        btnSettings?.setOnClickListener {
+            if (isLocked) return@setOnClickListener
+            Timber.d("settings clicked")
+        }
+
+        btnMute?.setOnClickListener {
+            if (isLocked) return@setOnClickListener
+            player?.let {
+                val cur = it.volume
+                if (cur > 0f) {
+                    lastVolume = cur
+                    it.volume = 0f
+                    btnMute?.setImageResource(R.drawable.ic_volume_off)
+                } else {
+                    it.volume = lastVolume.takeIf { v -> v > 0f } ?: 1f
+                    btnMute?.setImageResource(R.drawable.ic_volume_up)
+                }
+            }
+        }
+
+        btnLock?.setOnClickListener {
+            isLocked = !isLocked
+            if (isLocked) {
+                binding.playerView.useController = false
+                binding.playerView.setOnTouchListener { _, _ -> true }
+                btnLock?.setImageResource(R.drawable.ic_lock_closed)
+            } else {
+                binding.playerView.useController = true
+                binding.playerView.setOnTouchListener(null)
+                btnLock?.setImageResource(R.drawable.ic_lock_open)
+            }
+        }
+
         btnRewind?.setOnClickListener {
             if (isLocked) return@setOnClickListener
             player?.let {
@@ -235,138 +304,104 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 it.seekTo((pos - skipMs).coerceAtLeast(0L))
             }
         }
+
+        btnPlayPause?.setOnClickListener {
+            if (isLocked) return@setOnClickListener
+            player?.let {
+                if (it.playWhenReady) {
+                    it.pause()
+                    btnPlayPause?.setImageResource(R.drawable.ic_play)
+                } else {
+                    it.play()
+                    btnPlayPause?.setImageResource(R.drawable.ic_pause)
+                }
+            }
+        }
+
         btnForward?.setOnClickListener {
             if (isLocked) return@setOnClickListener
             player?.let {
                 val pos = it.currentPosition
-                val duration = it.duration.takeIf { d -> d > 0 } ?: Long.MAX_VALUE
-                it.seekTo((pos + skipMs).coerceAtMost(duration))
+                val dur = it.duration.takeIf { d -> d > 0 } ?: Long.MAX_VALUE
+                it.seekTo((pos + skipMs).coerceAtMost(dur))
             }
         }
 
-        // Mute / Unmute toggle
-        btnMute?.setOnClickListener {
+        btnFullscreen?.setOnClickListener {
             if (isLocked) return@setOnClickListener
-            player?.let {
-                val currentVol = it.volume
-                if (currentVol > 0f) {
-                    lastVolume = currentVol
-                    it.volume = 0f
-                    btnMute.setImageResource(
-                        resources.getIdentifier("ic_volume_off", "drawable", packageName)
-                            .takeIf { id -> id != 0 } ?: R.drawable.ic_volume_off
-                    )
-                } else {
-                    it.volume = lastVolume.takeIf { v -> v > 0f } ?: 1f
-                    btnMute.setImageResource(
-                        resources.getIdentifier("ic_volume_up", "drawable", packageName)
-                            .takeIf { id -> id != 0 } ?: R.drawable.ic_volume_up
-                    )
-                }
-            }
-        }
-
-        // Lock / Unlock controls
-        btnLock?.setOnClickListener {
-            isLocked = !isLocked
-            if (isLocked) {
-                // disable controller and consume touches
-                binding.playerView.useController = false
-                binding.playerView.setOnTouchListener { _, _ -> true }
-                btnLock.setImageResource(
-                    resources.getIdentifier("ic_lock_on", "drawable", packageName)
-                        .takeIf { id -> id != 0 } ?: R.drawable.ic_lock
-                )
+            val isLandscape = resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT
+            if (!isLandscape) {
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                findAndHideRelatedRecycler()
+                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             } else {
-                binding.playerView.useController = true
-                binding.playerView.setOnTouchListener(null)
-                btnLock.setImageResource(
-                    resources.getIdentifier("ic_lock_off", "drawable", packageName)
-                        .takeIf { id -> id != 0 } ?: R.drawable.ic_unlock
-                )
+                requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                findAndShowRelatedRecycler()
+                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             }
         }
 
-        // PiP & Fullscreen wiring
-        exoPip?.setOnClickListener { enterPipMode() }
-        exoFullscreen?.setOnClickListener { toggleFullscreen() }
-
-        // Ensure visibility for wired buttons (if controller layout has them)
-        exoPip?.visibility = View.VISIBLE
-        exoFullscreen?.visibility = View.VISIBLE
-    }
-
-    // --------------------
-    // UI interactions
-    // --------------------
-    private fun setupUIInteractions() {
-        binding.playerView.setOnClickListener {
-            // toggle/show controller
-            if (!isLocked) binding.playerView.showController()
-        }
-
-        // Use explicit ControllerVisibilityListener to avoid overload ambiguity
-        binding.playerView.setControllerVisibilityListener(object :
-            PlayerView.ControllerVisibilityListener {
-            override fun onVisibilityChanged(visibility: Int) {
-                if (visibility == View.VISIBLE) {
-                    binding.playerView.bringToFront()
-                }
+        timeBar?.addListener(object : DefaultTimeBar.OnScrubListener {
+            override fun onScrubStart(timeBar: DefaultTimeBar, position: Long) {}
+            override fun onScrubMove(timeBar: DefaultTimeBar, position: Long) {}
+            override fun onScrubStop(timeBar: DefaultTimeBar, position: Long, canceled: Boolean) {
+                player?.seekTo(position)
             }
         })
     }
 
     // --------------------
-    // PiP behavior: hide non-video UI and prevent double playback
+    // PlayerView interactions
+    // --------------------
+    private fun setupPlayerViewInteractions() {
+        binding.playerView.setOnClickListener {
+            if (!isLocked) binding.playerView.showController()
+        }
+
+        binding.playerView.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
+            override fun onVisibilityChanged(visibility: Int) {
+                if (visibility == View.VISIBLE) binding.playerView.bringToFront()
+            }
+        })
+    }
+
+    // --------------------
+    // PiP handling
     // --------------------
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            Toast.makeText(this, getString(R.string.pip_not_supported), Toast.LENGTH_SHORT).show()
+            Timber.w("PiP not supported on this device (SDK < O)")
             return
         }
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-            Toast.makeText(this, getString(R.string.pip_not_supported), Toast.LENGTH_SHORT).show()
+            Timber.w("PiP feature not available")
             return
         }
 
-        // Build aspect ratio using the player container dimensions
+        // hide related & UI before entering PiP
+        findAndHideRelatedRecycler()
+        binding.playerView.useController = false
+
         val width = binding.playerContainer.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
         val height = binding.playerContainer.height.takeIf { it > 0 } ?: (width * 9 / 16)
-        val aspectRatio = Rational(width, height)
-
-        val params = PictureInPictureParams.Builder().setAspectRatio(aspectRatio).build()
+        val aspect = Rational(width, height)
+        val params = PictureInPictureParams.Builder().setAspectRatio(aspect).build()
         isInPipMode = true
-
-        // Hide non-video UI before entering PiP to ensure only video is shown in the PiP
-        try {
-            binding.relatedRecyclerView.visibility = View.GONE
-        } catch (t: Throwable) { /* ignore if not present */ }
-
-        binding.playerView.useController = false
         enterPictureInPictureMode(params)
     }
 
     override fun onUserLeaveHint() {
-        // if you want auto-PiP on home press, uncomment:
-        // if (!isInPipMode) enterPipMode()
         super.onUserLeaveHint()
     }
 
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode)
         isInPipMode = isInPictureInPictureMode
-
         if (isInPictureInPictureMode) {
-            // hide related UI / overlays when in PiP
-            try {
-                binding.relatedRecyclerView.visibility = View.GONE
-            } catch (t: Throwable) { /* ignore */ }
+            findAndHideRelatedRecycler()
             binding.playerView.useController = false
         } else {
-            // restore UI after leaving PiP
-            try {
-                binding.relatedRecyclerView.visibility = View.VISIBLE
-            } catch (t: Throwable) { /* ignore */ }
+            findAndShowRelatedRecycler()
             binding.playerView.useController = !isLocked
             binding.playerView.bringToFront()
             binding.playerView.requestFocus()
@@ -374,31 +409,45 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     // --------------------
-    // Fullscreen handling
+    // Helpers to find/hide/show related RecyclerView safely at runtime
+    // (no compile-time binding.relatedRecyclerView usage)
     // --------------------
-    private fun toggleFullscreen() {
-        isFullscreen = !isFullscreen
-        if (isFullscreen) {
-            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            try {
-                binding.relatedRecyclerView.visibility = View.GONE
-            } catch (t: Throwable) { /* ignore */ }
-        } else {
-            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            try {
-                binding.relatedRecyclerView.visibility = View.VISIBLE
-            } catch (t: Throwable) { /* ignore */ }
+    private fun findRelatedRecyclerView(): RecyclerView? {
+        val names = listOf("related_recycler_view", "relatedRecyclerView", "related_recycler", "related_list")
+        for (n in names) {
+            val id = resources.getIdentifier(n, "id", packageName)
+            if (id != 0) {
+                val v = try { findViewById<RecyclerView?>(id) } catch (_: Throwable) { null }
+                if (v != null) return v
+            }
         }
+        return null
+    }
 
-        // swap fullscreen icon if drawable exists
-        val drawableName = if (isFullscreen) "ic_fullscreen_exit" else "ic_fullscreen"
-        val drawableId = resources.getIdentifier(drawableName, "drawable", packageName)
-        if (drawableId != 0) exoFullscreen?.setImageResource(drawableId)
+    private fun findAndHideRelatedRecycler() {
+        try {
+            findRelatedRecyclerView()?.visibility = View.GONE
+        } catch (_: Throwable) { }
+    }
+
+    private fun findAndShowRelatedRecycler() {
+        try {
+            findRelatedRecyclerView()?.visibility = View.VISIBLE
+        } catch (_: Throwable) { }
     }
 
     // --------------------
-    // Utility
+    // Utilities
     // --------------------
+    private fun formatTime(millis: Long): String {
+        if (millis <= 0L) return "0:00"
+        val totalSeconds = (millis / 1000).toInt()
+        val seconds = totalSeconds % 60
+        val minutes = (totalSeconds / 60) % 60
+        val hours = totalSeconds / 3600
+        return if (hours > 0) String.format("%d:%02d:%02d", hours, minutes, seconds) else String.format("%d:%02d", minutes, seconds)
+    }
+
     private fun hideSystemUI() {
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
