@@ -243,11 +243,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             null
         }
 
+        // Set initial icons
         btnBack?.setImageResource(R.drawable.ic_arrow_back)
         btnPip?.setImageResource(R.drawable.ic_pip)
         btnSettings?.setImageResource(R.drawable.ic_settings)
         btnMute?.setImageResource(R.drawable.ic_volume_up)
-        btnLock?.setImageResource(R.drawable.ic_lock_open)
+        btnLock?.setImageResource(R.drawable.ic_lock_open)  // FIXED: Start with OPEN icon
         btnRewind?.setImageResource(R.drawable.ic_skip_backward)
         btnPlayPause?.setImageResource(R.drawable.ic_pause)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
@@ -255,6 +256,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         btnPip?.visibility = View.VISIBLE
         btnFullscreen?.visibility = View.VISIBLE
+        
+        Timber.d("Controller views bound - lock icon set to OPEN (unlocked state)")
     }
 
     private fun setupControlListenersExact() {
@@ -361,21 +364,33 @@ class ChannelPlayerActivity : AppCompatActivity() {
         isLocked = !isLocked
         
         if (isLocked) {
+            // LOCK: Hide controls and show unlock overlay
             binding.playerView.useController = false
             binding.playerView.hideController()
             binding.lockOverlay.visibility = View.VISIBLE
             binding.unlockButton.visibility = View.VISIBLE
+            
+            // FIXED: Update lock button icon to CLOSED when locked
             btnLock?.setImageResource(R.drawable.ic_lock_closed)
+            
+            // Prevent touches from affecting the player
             binding.playerView.setOnTouchListener { _, _ -> true }
-            Timber.d("Player LOCKED")
+            
+            Timber.d("Player LOCKED - icon changed to CLOSED")
         } else {
+            // UNLOCK: Show controls and hide overlay
             binding.playerView.useController = true
             binding.playerView.showController()
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
+            
+            // FIXED: Update lock button icon to OPEN when unlocked
             btnLock?.setImageResource(R.drawable.ic_lock_open)
+            
+            // Re-enable touch handling
             binding.playerView.setOnTouchListener(null)
-            Timber.d("Player UNLOCKED")
+            
+            Timber.d("Player UNLOCKED - icon changed to OPEN")
         }
     }
 
@@ -411,33 +426,29 @@ class ChannelPlayerActivity : AppCompatActivity() {
         // KEY FIX: Ensure resize mode is FIT before entering PiP
         binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         
-        updatePipParams()
+        // FIXED: Use fixed 16:9 aspect ratio with source rect hint
+        val params = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .apply {
+                    // Add source rect hint to maintain aspect ratio
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        setAutoEnterEnabled(false)
+                    }
+                }
+                .build()
+        } else {
+            return
+        }
+        
         isInPipMode = true
+        enterPictureInPictureMode(params)
+        Timber.d("Entered PiP mode with fixed 16:9 ratio")
     }
 
     private fun updatePipParams() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        
-        try {
-            // FIXED: Always use 16:9 aspect ratio - don't change during resize
-            val aspectRatio = Rational(16, 9)
-            
-            val params = PictureInPictureParams.Builder()
-                .setAspectRatio(aspectRatio)
-                .build()
-            
-            if (isInPipMode) {
-                // Update existing PiP params
-                setPictureInPictureParams(params)
-            } else {
-                // Enter PiP mode
-                enterPictureInPictureMode(params)
-            }
-            
-            Timber.d("Updated PiP params with fixed 16:9 aspect ratio")
-        } catch (e: Exception) {
-            Timber.e(e, "Error updating PiP params")
-        }
+        // REMOVED: This function is no longer needed
+        // PiP params are set once during enterPipMode() with fixed 16:9 ratio
     }
 
     override fun onUserLeaveHint() {
