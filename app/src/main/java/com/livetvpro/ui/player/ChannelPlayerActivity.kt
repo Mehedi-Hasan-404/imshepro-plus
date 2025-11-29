@@ -437,7 +437,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
         for (n in names) {
             val id = resources.getIdentifier(n, "id", packageName)
             if (id != 0) {
-                val v = try { findViewById<RecyclerView?>(id) } catch (_: Throwable) { null }
+                val v = try { 
+                    findViewById<RecyclerView>(id)
+                } catch (_: Throwable) { 
+                    null 
+                }
                 if (v != null) return v
             }
         }
