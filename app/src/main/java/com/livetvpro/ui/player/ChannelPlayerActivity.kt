@@ -34,7 +34,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.media3.ui.TrackSelectionDialogBuilder // Keep the import, but comment out usage
+import androidx.media3.ui.TrackSelectionDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
@@ -57,6 +57,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnPip: ImageButton? = null
     private var btnSettings: ImageButton? = null
     private var btnLock: ImageButton? = null
+    private var btnMute: ImageButton? = null // New mute button added
     private var btnRewind: ImageButton? = null
     private var btnPlayPause: ImageButton? = null
     private var btnForward: ImageButton? = null
@@ -109,9 +110,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Removed global setting of LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES here. 
-        // It is now handled in adjustLayoutForOrientation for landscape mode only.
-
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -121,20 +119,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), RECEIVER_NOT_EXPORTED)
         }
 
-        // Apply general fullscreen window flags
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            )
-        }
-
+        // Apply initial window flags based on startup orientation
         val currentOrientation = resources.configuration.orientation
-        adjustLayoutForOrientation(currentOrientation == Configuration.ORIENTATION_LANDSCAPE)
+        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        setWindowFlags(isLandscape)
+
+        adjustLayoutForOrientation(isLandscape)
 
         channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run {
             finish()
@@ -153,20 +143,26 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        setWindowFlags(isLandscape) // Re-apply window flags
         adjustLayoutForOrientation(isLandscape)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-apply window flags on resume to ensure system UI is hidden correctly
+        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            setWindowFlags(true)
+        }
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
 
         if (isLandscape) {
-            // FIX 1: Apply immersive mode AND Cutout Mode only in landscape
-            hideSystemUI(applyCutoutMode = true)
-
             binding.playerView.hideController()
             binding.playerView.controllerAutoShow = false
             
-            // FIX 2: Start from FILL as requested
+            // Start from FILL as requested
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
@@ -176,16 +172,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.relatedChannelsSection.visibility = View.GONE
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            // Restore System UI Visibility (Removes immersive and cutout flags)
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-            
-            // Reset cutout mode to default if needed (though it should be reset by V.S.U.I)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                window.attributes.layoutInDisplayCutoutMode = 
-                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_NEVER
-            }
-
             binding.playerView.controllerAutoShow = true
             
             // Force FIT in Portrait
@@ -201,11 +187,48 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.layoutParams = params
     }
 
-    override fun onResume() {
-        super.onResume()
-        // Re-apply immersive mode on resume if in landscape, using the corrected logic
-        if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-            hideSystemUI(applyCutoutMode = true)
+    /**
+     * Manages system UI visibility and display cutout mode based on orientation.
+     * This is the fix to ensure the cutout flag is only active in landscape.
+     */
+    private fun setWindowFlags(isLandscape: Boolean) {
+        if (isLandscape) {
+            // 1. Hide System Bars and enable Immersive Sticky mode
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+            )
+            
+            // 2. ONLY APPLY CUTOUT MODE IN LANDSCAPE (API 28+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode = 
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+            // 3. Ensure window draws over system bars (API 30+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
+            }
+        } else {
+            // Portrait mode: Restore system UI and default cutout behavior
+
+            // 1. Show System Bars
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            
+            // 2. Reset Cutout Mode (API 28+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode = 
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+            }
+            // 3. Reset decor fits (API 30+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(true)
+            }
         }
     }
 
@@ -306,6 +329,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnPip = findViewById(R.id.exo_pip)
             btnSettings = findViewById(R.id.exo_settings)
             btnLock = findViewById(R.id.exo_lock)
+            btnMute = findViewById(R.id.exo_mute) // New binding
             btnRewind = findViewById(R.id.exo_rewind)
             btnPlayPause = findViewById(R.id.exo_play_pause)
             btnForward = findViewById(R.id.exo_forward)
@@ -319,6 +343,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnPip?.setImageResource(R.drawable.ic_pip)
         btnSettings?.setImageResource(R.drawable.ic_settings)
         btnLock?.setImageResource(R.drawable.ic_lock_open)
+        btnMute?.setImageResource(R.drawable.ic_volume_up) // Set icon for mute button
         btnRewind?.setImageResource(R.drawable.ic_skip_backward)
         btnPlayPause?.setImageResource(R.drawable.ic_pause)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
@@ -357,6 +382,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         btnForward?.setOnClickListener { if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) + skipMs) }
         btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
+        
+        // No logic requested for btnMute, so no listener is added here.
     }
 
     private fun toggleAspectRatio() {
@@ -440,24 +467,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
-    
-    // Updated hideSystemUI function to conditionally apply cutout mode
-    private fun hideSystemUI(applyCutoutMode: Boolean) {
-        if (applyCutoutMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode = 
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-        
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                or View.SYSTEM_UI_FLAG_FULLSCREEN
-        )
-    }
 
     // PIP LOGIC 
     private fun enterPipMode() {
@@ -528,6 +537,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         } else {
             userRequestedPip = false
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            setWindowFlags(isLandscape) // Re-apply window flags when exiting PiP
             adjustLayoutForOrientation(isLandscape)
             
             if (isLocked) {
