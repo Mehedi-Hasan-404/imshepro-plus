@@ -231,7 +231,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         txtPosition = binding.playerView.findViewById(R.id.exo_position)
         txtDuration = binding.playerView.findViewById(R.id.exo_duration)
 
-        // runtime-safe lookup for timebar id (handles @id/exo_progress case)
+        // FIX: Remove nullable type parameter from findViewById
         val tbId = resources.getIdentifier("exo_progress", "id", packageName)
         timeBar = if (tbId != 0) {
             try { 
@@ -437,6 +437,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         for (n in names) {
             val id = resources.getIdentifier(n, "id", packageName)
             if (id != 0) {
+                // FIX: Remove nullable type parameter from findViewById
                 val v = try { 
                     findViewById<RecyclerView>(id)
                 } catch (_: Throwable) { 
