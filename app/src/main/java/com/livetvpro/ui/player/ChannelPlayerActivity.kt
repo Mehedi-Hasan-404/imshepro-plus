@@ -5,6 +5,7 @@ import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -23,6 +24,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TimeBar
 import androidx.recyclerview.widget.RecyclerView
@@ -42,7 +44,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private lateinit var channel: Channel
 
-    // exact controller ids from your controller XML
     private var btnBack: ImageButton? = null
     private var btnPip: ImageButton? = null
     private var btnSettings: ImageButton? = null
@@ -63,7 +64,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private val skipMs = 10_000L
 
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val updateIntervalMs = 1000L // Changed to 1 second to reduce flicker
+    private val updateIntervalMs = 1000L
     private var isUserScrubbing = false
     
     private val positionUpdater = object : Runnable {
@@ -74,7 +75,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     val pos = p.currentPosition
                     val dur = p.duration.takeIf { it > 0 } ?: 0L
                     
-                    // Only update text, don't touch the TimeBar to avoid flickering
                     txtPosition?.text = formatTime(pos)
                     txtDuration?.text = formatTime(dur)
                 }
@@ -101,12 +101,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Set 16:9 aspect ratio for player container
         val screenWidth = resources.displayMetrics.widthPixels
         val expected16by9Height = (screenWidth * 9f / 16f).toInt()
         val containerParams = binding.playerContainer.layoutParams
         if (containerParams is ConstraintLayout.LayoutParams) {
             containerParams.height = expected16by9Height
-            containerParams.dimensionRatio = null
+            containerParams.dimensionRatio = "16:9"
             containerParams.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             containerParams.topMargin = 0
             binding.playerContainer.layoutParams = containerParams
@@ -181,13 +182,16 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     )
                 ).build().also { exo ->
                     binding.playerView.player = exo
+                    
+                    // KEY FIX: Set resize mode to FIT to prevent black bars
+                    binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    
                     val mediaItem = MediaItem.fromUri(channel.streamUrl)
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
                     exo.playWhenReady = true
                     exo.addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
-                            // Update play/pause icon
                             when (playbackState) {
                                 Player.STATE_READY -> {
                                     if (exo.playWhenReady) {
@@ -196,6 +200,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                         btnPlayPause?.setImageResource(R.drawable.ic_play)
                                     }
                                 }
+                            }
+                        }
+                        
+                        override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                            // Update PiP aspect ratio when video size changes
+                            if (isInPipMode && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                updatePipParams()
                             }
                         }
                     })
@@ -208,9 +219,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             useController = true
             controllerAutoShow = true
             controllerShowTimeoutMs = 5000
-            setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
-                // Don't do anything special here, let ExoPlayer handle it
-            })
         }
 
         binding.playerContainer.isClickable = false
@@ -231,7 +239,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         txtPosition = binding.playerView.findViewById(R.id.exo_position)
         txtDuration = binding.playerView.findViewById(R.id.exo_duration)
 
-        // FIXED: Use non-generic findViewById and cast
         val tbId = resources.getIdentifier("exo_progress", "id", packageName)
         timeBar = if (tbId != 0) {
             try {
@@ -253,15 +260,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         
-        // Show PiP and Fullscreen buttons
         btnPip?.visibility = View.VISIBLE
         btnFullscreen?.visibility = View.VISIBLE
-
-        Timber.d(
-            "bindExact: back=%s pip=%s settings=%s mute=%s lock=%s rew=%s playpause=%s forward=%s fullscreen=%s timebar=%s",
-            btnBack != null, btnPip != null, btnSettings != null, btnMute != null, btnLock != null,
-            btnRewind != null, btnPlayPause != null, btnForward != null, btnFullscreen != null, timeBar != null
-        )
     }
 
     private fun setupControlListenersExact() {
@@ -334,14 +334,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             toggleFullscreen()
         }
 
-        // TimeBar scrubbing listener
         timeBar?.addListener(object : TimeBar.OnScrubListener {
             override fun onScrubStart(timeBar: TimeBar, position: Long) {
                 isUserScrubbing = true
             }
             
             override fun onScrubMove(timeBar: TimeBar, position: Long) {
-                // Update position text while scrubbing
                 txtPosition?.text = formatTime(position)
             }
             
@@ -355,16 +353,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayerViewInteractions() {
-        // Remove any existing click listeners
         binding.playerView.setOnClickListener(null)
-        
-        // Let ExoPlayer handle controller visibility automatically
         binding.playerView.controllerAutoShow = true
         binding.playerView.useController = true
     }
 
     private fun setupLockOverlay() {
-        // Setup unlock button
         binding.unlockButton.setOnClickListener {
             toggleLock()
         }
@@ -374,41 +368,31 @@ class ChannelPlayerActivity : AppCompatActivity() {
         isLocked = !isLocked
         
         if (isLocked) {
-            // Lock: Hide controls and show unlock overlay
             binding.playerView.useController = false
             binding.playerView.hideController()
             binding.lockOverlay.visibility = View.VISIBLE
             binding.unlockButton.visibility = View.VISIBLE
             btnLock?.setImageResource(R.drawable.ic_lock_closed)
-            
-            // Prevent touches from affecting the player
             binding.playerView.setOnTouchListener { _, _ -> true }
-            
             Timber.d("Player LOCKED")
         } else {
-            // Unlock: Show controls and hide overlay
             binding.playerView.useController = true
             binding.playerView.showController()
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
             btnLock?.setImageResource(R.drawable.ic_lock_open)
-            
-            // Re-enable touch handling
             binding.playerView.setOnTouchListener(null)
-            
             Timber.d("Player UNLOCKED")
         }
     }
 
     private fun toggleFullscreen() {
-        val isLandscape = resources.configuration.orientation != android.content.res.Configuration.ORIENTATION_PORTRAIT
+        val isLandscape = resources.configuration.orientation != Configuration.ORIENTATION_PORTRAIT
         if (!isLandscape) {
-            // Enter fullscreen - landscape
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             findAndHideRelatedRecycler()
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            // Exit fullscreen - portrait
             requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             findAndShowRelatedRecycler()
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
@@ -425,36 +409,86 @@ class ChannelPlayerActivity : AppCompatActivity() {
             return
         }
 
-        try { findAndHideRelatedRecycler() } catch (_: Throwable) {}
+        try { 
+            findAndHideRelatedRecycler() 
+        } catch (_: Throwable) {}
+        
         binding.playerView.useController = false
-
-        val width = binding.playerContainer.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
-        val height = binding.playerContainer.height.takeIf { it > 0 } ?: (width * 9 / 16)
-        val aspectRatio = Rational(width, height)
-
-        val params = PictureInPictureParams.Builder().setAspectRatio(aspectRatio).build()
+        
+        // KEY FIX: Ensure resize mode is FIT before entering PiP
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        
+        updatePipParams()
         isInPipMode = true
-        enterPictureInPictureMode(params)
+    }
+
+    private fun updatePipParams() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        
+        try {
+            // Get video aspect ratio from player
+            val videoFormat = player?.videoFormat
+            val videoWidth = videoFormat?.width ?: 16
+            val videoHeight = videoFormat?.height ?: 9
+            
+            // Use actual video aspect ratio if available, otherwise default to 16:9
+            val aspectRatio = if (videoWidth > 0 && videoHeight > 0) {
+                Rational(videoWidth, videoHeight)
+            } else {
+                Rational(16, 9)
+            }
+            
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(aspectRatio)
+                .build()
+            
+            if (isInPipMode) {
+                // Update existing PiP params
+                setPictureInPictureParams(params)
+            } else {
+                // Enter PiP mode
+                enterPictureInPictureMode(params)
+            }
+            
+            Timber.d("Updated PiP params with aspect ratio: ${aspectRatio.numerator}:${aspectRatio.denominator}")
+        } catch (e: Exception) {
+            Timber.e(e, "Error updating PiP params")
+        }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Auto-enter PiP when user presses home
         if (!isInPipMode && player?.isPlaying == true) {
             enterPipMode()
         }
     }
 
-    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode)
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
+        
         if (isInPictureInPictureMode) {
+            // Entering PiP mode
             findAndHideRelatedRecycler()
             binding.playerView.useController = false
+            
+            // KEY FIX: Ensure resize mode is FIT in PiP
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
+            Timber.d("Entered PiP mode")
         } else {
+            // Exiting PiP mode
             findAndShowRelatedRecycler()
             binding.playerView.useController = !isLocked
             binding.playerView.showController()
+            
+            // Restore resize mode
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
+            Timber.d("Exited PiP mode")
         }
     }
 
@@ -492,7 +526,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val seconds = totalSeconds % 60
         val minutes = (totalSeconds / 60) % 60
         val hours = totalSeconds / 3600
-        return if (hours > 0) String.format("%d:%02d:%02d", hours, minutes, seconds) else String.format("%d:%02d", minutes, seconds)
+        return if (hours > 0) String.format("%d:%02d:%02d", hours, minutes, seconds) 
+               else String.format("%d:%02d", minutes, seconds)
     }
 
     private fun hideSystemUI() {
