@@ -98,11 +98,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         Timber.d("PiP: Paused")
                         updatePipParams()
                     }
-                    CONTROL_TYPE_CLOSE -> {
-                        // ✅ FIX: Handle close action from PiP
-                        Timber.d("PiP: Close requested")
-                        finish()
-                    }
                 }
             }
         }
@@ -114,7 +109,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         private const val EXTRA_CONTROL_TYPE = "control_type"
         private const val CONTROL_TYPE_PLAY = 1
         private const val CONTROL_TYPE_PAUSE = 2
-        private const val CONTROL_TYPE_CLOSE = 3 // ✅ NEW: Close action
 
         fun start(context: Context, channel: Channel) {
             val intent = Intent(context, ChannelPlayerActivity::class.java).apply {
@@ -163,22 +157,16 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-apply settings on resume
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
     }
 
     /**
-     * ✅ FIX: Unified method to apply all orientation-based settings
+     * ✅ Unified method to apply all orientation-based settings
      */
     private fun applyOrientationSettings(isLandscape: Boolean) {
-        // 1. Window flags and system UI
         setWindowFlags(isLandscape)
-        
-        // 2. Layout adjustments
         adjustLayoutForOrientation(isLandscape)
-        
-        // 3. ✅ FIX: Force layout update to prevent flickering
         binding.playerContainer.requestLayout()
         binding.root.requestLayout()
     }
@@ -187,12 +175,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
 
         if (isLandscape) {
-            // ✅ FIX: Hide controller in landscape and disable auto-show
             binding.playerView.hideController()
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 3000
-            
-            // Start from FILL in landscape
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
@@ -202,11 +187,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.relatedChannelsSection.visibility = View.GONE
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            // ✅ FIX: Re-enable auto-show in portrait
             binding.playerView.controllerAutoShow = true
             binding.playerView.controllerShowTimeoutMs = 5000
-            
-            // Force FIT in Portrait
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
@@ -220,13 +202,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * ✅ FIX: Properly manage system UI visibility and cutout mode
+     * ✅ Properly manage system UI visibility and cutout mode
      */
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // LANDSCAPE: Hide system UI and enable cutout mode
-            
-            // 1. Hide System Bars (Immersive Sticky Mode)
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = (
                 View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -237,7 +216,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     or View.SYSTEM_UI_FLAG_FULLSCREEN
             )
             
-            // 2. ✅ ONLY apply cutout mode in LANDSCAPE (API 28+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = 
@@ -245,18 +223,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
             }
             
-            // 3. Window insets (API 30+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false)
             }
         } else {
-            // PORTRAIT: Show system UI and reset cutout mode
-            
-            // 1. Show System Bars
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             
-            // 2. ✅ Reset cutout mode to DEFAULT in portrait (API 28+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = 
@@ -264,7 +237,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
             }
             
-            // 3. Reset window insets (API 30+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(true)
             }
@@ -273,7 +245,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        // Pause playback when activity goes to background (unless in PiP)
         val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             isInPictureInPictureMode
         } else {
@@ -287,14 +258,20 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        // ✅ FIX: Only release player if NOT in PiP mode
-        if (!isInPipMode) {
-            releasePlayer()
-        }
+        
+        Timber.d("onStop() called - isInPipMode: $isInPipMode, isFinishing: $isFinishing")
+        
+        // ✅ ALWAYS release player when activity stops
+        // This ensures proper cleanup when:
+        // 1. User swipes away PiP
+        // 2. User clicks system close button in PiP
+        // 3. Activity is destroyed normally
+        releasePlayer()
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        Timber.d("onDestroy() called")
         releasePlayer()
         try {
             unregisterReceiver(pipReceiver)
@@ -307,6 +284,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun releasePlayer() {
         player?.let {
             try {
+                Timber.d("Releasing player")
                 it.stop()
                 it.release()
             } catch (t: Throwable) {
@@ -419,7 +397,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             tvChannelName = findViewById(R.id.exo_channel_name)
         }
 
-        // Set initial icons
         btnBack?.setImageResource(R.drawable.ic_arrow_back)
         btnPip?.setImageResource(R.drawable.ic_pip)
         btnSettings?.setImageResource(R.drawable.ic_settings)
@@ -448,7 +425,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // ✅ FIX: Settings button now functional
         btnSettings?.setOnClickListener { 
             if (!isLocked) showQualityDialog() 
         }
@@ -479,15 +455,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
             if (!isLocked) toggleFullscreen() 
         }
         
-        // ✅ FIX: Mute button now functional
         btnMute?.setOnClickListener {
             if (!isLocked) toggleMute()
         }
     }
 
-    /**
-     * ✅ FIX: Mute/Unmute functionality
-     */
     private fun toggleMute() {
         player?.let {
             isMuted = !isMuted
@@ -525,9 +497,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.resizeMode = currentResizeMode
     }
 
-    /**
-     * ✅ FIX: Quality dialog now functional
-     */
     private fun showQualityDialog() {
         if (trackSelector == null || player == null) {
             Toast.makeText(this, "Track selector not available", Toast.LENGTH_SHORT).show()
@@ -603,7 +572,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    // ✅ PIP LOGIC FIXES
+    // ========== PIP LOGIC ==========
+    
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             Toast.makeText(this, "PiP not supported", Toast.LENGTH_SHORT).show()
@@ -615,7 +585,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             return
         }
 
-        // Ensure player is playing
         player?.let {
             if (!it.isPlaying) {
                 it.play()
@@ -645,11 +614,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 val builder = PictureInPictureParams.Builder()
                 builder.setAspectRatio(ratio)
                 
-                // ✅ FIX: Add close button to PiP controls
+                // ✅ ONLY Play/Pause control (system provides close button)
                 val actions = ArrayList<RemoteAction>()
                 val isPlaying = player?.isPlaying == true
                 
-                // Play/Pause button
                 val playPauseIconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
                 val playPauseTitle = if (isPlaying) "Pause" else "Play"
                 val playPauseControlType = if (isPlaying) CONTROL_TYPE_PAUSE else CONTROL_TYPE_PLAY
@@ -668,22 +636,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 
                 val playPauseIcon = Icon.createWithResource(this, playPauseIconId)
                 actions.add(RemoteAction(playPauseIcon, playPauseTitle, playPauseTitle, playPausePendingIntent))
-                
-                // ✅ NEW: Close button
-                val closeIntent = Intent(ACTION_MEDIA_CONTROL).apply {
-                    setPackage(packageName)
-                    putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_CLOSE)
-                }
-                
-                val closePendingIntent = PendingIntent.getBroadcast(
-                    this,
-                    CONTROL_TYPE_CLOSE,
-                    closeIntent,
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-                
-                val closeIcon = Icon.createWithResource(this, R.drawable.ic_close)
-                actions.add(RemoteAction(closeIcon, "Close", "Close", closePendingIntent))
                 
                 builder.setActions(actions)
 
@@ -718,6 +670,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        
+        Timber.d("PiP mode changed: $isInPictureInPictureMode, isFinishing: $isFinishing")
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
@@ -727,18 +681,25 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            
-            // Hide all UI elements for clean PiP
             binding.playerView.hideController()
-        } else {
-            // ✅ FIX: Exiting PiP - properly restore state
-            userRequestedPip = false
-            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             
-            // Re-apply all orientation settings IMMEDIATELY (no delay)
+            Timber.d("Entered PiP mode")
+        } else {
+            // ✅ Exiting PiP
+            userRequestedPip = false
+            
+            // Check if activity is finishing (user closed PiP from system)
+            if (isFinishing) {
+                Timber.d("Activity is finishing - PiP was closed by user via system gesture/button")
+                // Player will be released in onStop() → Activity will close completely
+                return
+            }
+            
+            // Otherwise, user tapped to restore from PiP - restore normal UI
+            Timber.d("Exiting PiP - restoring UI")
+            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
             
-            // Restore lock state if needed
             if (isLocked) {
                 binding.playerView.useController = false
                 binding.lockOverlay.visibility = View.VISIBLE
@@ -746,10 +707,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             } else {
                 binding.playerView.useController = true
                 binding.lockOverlay.visibility = View.GONE
-                
-                // Force controller to show after brief delay
                 binding.playerView.postDelayed({
-                    if (!isInPipMode) { // Double check we're still not in PiP
+                    if (!isInPipMode) {
                         binding.playerView.showController()
                     }
                 }, 150)
@@ -759,31 +718,26 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // ✅ FIX: Auto-enter PiP only when playing and not already in PiP
+        // Auto-enter PiP when user presses home/recent apps (if playing)
         if (!isInPipMode && player?.isPlaying == true) {
+            Timber.d("User leaving app - auto-entering PiP")
             userRequestedPip = true
             enterPipMode()
         }
     }
 
     override fun finish() {
-        // ✅ FIX: Properly exit PiP mode before finishing
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
-            // Exit PiP mode first
-            try {
-                // Move task to back to exit PiP gracefully
-                moveTaskToBack(false)
-                
-                // Then release player and finish
-                releasePlayer()
-                super.finish()
-            } catch (e: Exception) {
-                Timber.e(e, "Error exiting PiP mode")
-                releasePlayer()
-                super.finish()
-            }
-        } else {
+        Timber.d("finish() called - isInPipMode: $isInPipMode, isFinishing: $isFinishing")
+        
+        // ✅ Simple, clean finish - just release and close
+        try {
             releasePlayer()
+            isInPipMode = false
+            userRequestedPip = false
+            super.finish()
+            Timber.d("Activity finished successfully")
+        } catch (e: Exception) {
+            Timber.e(e, "Error in finish()")
             super.finish()
         }
     }
