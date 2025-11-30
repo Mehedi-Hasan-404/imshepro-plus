@@ -91,17 +91,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     CONTROL_TYPE_PLAY -> {
                         player?.play()
                         Timber.d("PiP: Playing")
+                        // Update PiP params to show pause button
                         updatePipParams()
                     }
                     CONTROL_TYPE_PAUSE -> {
                         player?.pause()
                         Timber.d("PiP: Paused")
+                        // Update PiP params to show play button
                         updatePipParams()
-                    }
-                    CONTROL_TYPE_CLOSE -> {
-                        // ✅ FIX: Handle close action from PiP
-                        Timber.d("PiP: Close requested")
-                        finish()
                     }
                 }
             }
@@ -114,7 +111,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         private const val EXTRA_CONTROL_TYPE = "control_type"
         private const val CONTROL_TYPE_PLAY = 1
         private const val CONTROL_TYPE_PAUSE = 2
-        private const val CONTROL_TYPE_CLOSE = 3 // ✅ NEW: Close action
 
         fun start(context: Context, channel: Channel) {
             val intent = Intent(context, ChannelPlayerActivity::class.java).apply {
@@ -177,20 +173,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         // 2. Layout adjustments
         adjustLayoutForOrientation(isLandscape)
-        
-        // 3. ✅ FIX: Force layout update to prevent flickering
-        binding.playerContainer.requestLayout()
-        binding.root.requestLayout()
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
 
         if (isLandscape) {
-            // ✅ FIX: Hide controller in landscape and disable auto-show
             binding.playerView.hideController()
             binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 3000
             
             // Start from FILL in landscape
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
@@ -202,9 +192,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.relatedChannelsSection.visibility = View.GONE
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            // ✅ FIX: Re-enable auto-show in portrait
             binding.playerView.controllerAutoShow = true
-            binding.playerView.controllerShowTimeoutMs = 5000
             
             // Force FIT in Portrait
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -288,7 +276,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         // ✅ FIX: Only release player if NOT in PiP mode
-        if (!isInPipMode) {
+        val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            isInPictureInPictureMode
+        } else {
+            false
+        }
+        
+        if (!isPip) {
             releasePlayer()
         }
     }
@@ -307,7 +301,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun releasePlayer() {
         player?.let {
             try {
-                it.stop()
+                it.pause()
                 it.release()
             } catch (t: Throwable) {
                 Timber.w(t, "Error releasing player")
@@ -645,50 +639,33 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 val builder = PictureInPictureParams.Builder()
                 builder.setAspectRatio(ratio)
                 
-                // ✅ FIX: Add close button to PiP controls
+                // ✅ FIX: Working PiP controls with proper intents
                 val actions = ArrayList<RemoteAction>()
                 val isPlaying = player?.isPlaying == true
                 
-                // Play/Pause button
-                val playPauseIconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-                val playPauseTitle = if (isPlaying) "Pause" else "Play"
-                val playPauseControlType = if (isPlaying) CONTROL_TYPE_PAUSE else CONTROL_TYPE_PLAY
+                val iconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                val title = if (isPlaying) "Pause" else "Play"
+                val controlType = if (isPlaying) CONTROL_TYPE_PAUSE else CONTROL_TYPE_PLAY
                 
-                val playPauseIntent = Intent(ACTION_MEDIA_CONTROL).apply {
+                val intent = Intent(ACTION_MEDIA_CONTROL).apply {
                     setPackage(packageName)
-                    putExtra(EXTRA_CONTROL_TYPE, playPauseControlType)
+                    putExtra(EXTRA_CONTROL_TYPE, controlType)
                 }
                 
-                val playPausePendingIntent = PendingIntent.getBroadcast(
+                val pendingIntent = PendingIntent.getBroadcast(
                     this,
-                    playPauseControlType,
-                    playPauseIntent,
+                    controlType,
+                    intent,
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
                 
-                val playPauseIcon = Icon.createWithResource(this, playPauseIconId)
-                actions.add(RemoteAction(playPauseIcon, playPauseTitle, playPauseTitle, playPausePendingIntent))
-                
-                // ✅ NEW: Close button
-                val closeIntent = Intent(ACTION_MEDIA_CONTROL).apply {
-                    setPackage(packageName)
-                    putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_CLOSE)
-                }
-                
-                val closePendingIntent = PendingIntent.getBroadcast(
-                    this,
-                    CONTROL_TYPE_CLOSE,
-                    closeIntent,
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-                
-                val closeIcon = Icon.createWithResource(this, R.drawable.ic_close)
-                actions.add(RemoteAction(closeIcon, "Close", "Close", closePendingIntent))
+                val icon = Icon.createWithResource(this, iconId)
+                actions.add(RemoteAction(icon, title, title, pendingIntent))
                 
                 builder.setActions(actions)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    builder.setAutoEnterEnabled(false)
+                    builder.setAutoEnterEnabled(false) // Manual control only
                     builder.setSeamlessResizeEnabled(true)
                 }
                 
@@ -735,25 +712,25 @@ class ChannelPlayerActivity : AppCompatActivity() {
             userRequestedPip = false
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             
-            // Re-apply all orientation settings IMMEDIATELY (no delay)
-            applyOrientationSettings(isLandscape)
-            
-            // Restore lock state if needed
-            if (isLocked) {
-                binding.playerView.useController = false
-                binding.lockOverlay.visibility = View.VISIBLE
-                showUnlockButton()
-            } else {
-                binding.playerView.useController = true
-                binding.lockOverlay.visibility = View.GONE
+            // Small delay to ensure smooth transition
+            binding.playerView.postDelayed({
+                // Re-apply all orientation settings
+                applyOrientationSettings(isLandscape)
                 
-                // Force controller to show after brief delay
-                binding.playerView.postDelayed({
-                    if (!isInPipMode) { // Double check we're still not in PiP
+                // Restore lock state if needed
+                if (isLocked) {
+                    binding.playerView.useController = false
+                    binding.lockOverlay.visibility = View.VISIBLE
+                    showUnlockButton()
+                } else {
+                    binding.playerView.useController = true
+                    // Show controller after small delay
+                    binding.playerView.postDelayed({
                         binding.playerView.showController()
-                    }
-                }, 150)
-            }
+                    }, 100)
+                    binding.lockOverlay.visibility = View.GONE
+                }
+            }, 50)
         }
     }
 
@@ -767,24 +744,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     override fun finish() {
-        // ✅ FIX: Properly exit PiP mode before finishing
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
-            // Exit PiP mode first
-            try {
-                // Move task to back to exit PiP gracefully
-                moveTaskToBack(false)
-                
-                // Then release player and finish
-                releasePlayer()
-                super.finish()
-            } catch (e: Exception) {
-                Timber.e(e, "Error exiting PiP mode")
-                releasePlayer()
-                super.finish()
-            }
-        } else {
+        // ✅ FIX: Ensure player is released when closing from PiP
+        if (isInPipMode) {
             releasePlayer()
-            super.finish()
         }
+        super.finish()
     }
 }
