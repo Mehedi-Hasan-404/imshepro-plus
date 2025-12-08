@@ -1,8 +1,3 @@
-// ===================================
-// FILE: app/build.gradle.kts
-// ACTION: UPDATE - Add these configurations if missing
-// ===================================
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -55,14 +50,13 @@ android {
     kotlinOptions {
         jvmTarget = "17"
         
-        // ⬇️ ADD THIS: Fix for @UnstableApi annotation
         freeCompilerArgs += listOf(
             "-opt-in=androidx.media3.common.util.UnstableApi"
         )
     }
 
     buildFeatures {
-        viewBinding = true  // ⬅️ MAKE SURE THIS IS ENABLED
+        viewBinding = true
         buildConfig = true
     }
 
@@ -92,11 +86,13 @@ dependencies {
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
     implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
 
-    // ExoPlayer
+    // ✅ ExoPlayer with DRM support
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.2.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
+    // ✅ NEW: Add DRM module
+    implementation("androidx.media3:media3-exoplayer-drm:1.2.1")
 
     // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.2"))
