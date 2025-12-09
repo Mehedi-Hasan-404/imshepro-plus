@@ -302,9 +302,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         player = null
     }
 
-    /**
+  /**
      * Parse stream URL for DRM info and inline headers
-     * Format: url|drmScheme=clearkey&drmLicense=keyId:key|Referer=...
+     * Format: url|drmScheme=clearkey&drmLicense=keyId:key|Referer=...|Cookie=...
      */
     private data class StreamInfo(
         val url: String,
@@ -346,11 +346,16 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     val headerName = part.substring(0, separatorIndex).trim()
                     val headerValue = part.substring(separatorIndex + 1).trim()
                     
+                    // ✅ CRITICAL: Preserve exact header names and values
                     when (headerName.lowercase()) {
                         "referer", "referrer" -> headers["Referer"] = headerValue
                         "user-agent", "useragent" -> headers["User-Agent"] = headerValue
                         "origin" -> headers["Origin"] = headerValue
-                        "cookie" -> headers["Cookie"] = headerValue
+                        "cookie" -> {
+                            // ✅ Store cookie EXACTLY as provided (no parsing)
+                            headers["Cookie"] = headerValue
+                            Timber.d("🍪 Cookie: ${headerValue.take(80)}...")
+                        }
                         else -> headers[headerName] = headerValue
                     }
                 }
