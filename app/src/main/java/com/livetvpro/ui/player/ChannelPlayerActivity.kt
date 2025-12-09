@@ -14,6 +14,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.util.Rational
 import android.view.View
 import android.view.WindowManager
@@ -30,11 +31,11 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
-import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
 import androidx.media3.exoplayer.drm.FrameworkMediaDrm
 import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
@@ -272,7 +273,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         Timber.d("onStop() called - isInPipMode: $isInPipMode, isFinishing: $isFinishing")
-        
         // ALWAYS release player when activity stops
         releasePlayer()
     }
@@ -302,9 +302,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         player = null
     }
 
-  /**
-     * Parse stream URL for DRM info and inline headers
-     * Format: url|drmScheme=clearkey&drmLicense=keyId:key|Referer=...|Cookie=...
+    /**
+     * Data class to hold parsed stream information including DRM details
      */
     private data class StreamInfo(
         val url: String,
@@ -314,6 +313,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val drmKey: String?
     )
 
+    /**
+     * Parse stream URL for DRM info and inline headers
+     * Format: url|drmScheme=clearkey|drmLicense=keyId:key|Referer=...|Cookie=...
+     */
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
         val parts = streamUrl.split("|")
         val url = parts[0].trim()
@@ -325,40 +328,34 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         for (i in 1 until parts.size) {
             val part = parts[i].trim()
+            val eqIndex = part.indexOf('=')
+            if (eqIndex == -1) continue
+
+            val key = part.substring(0, eqIndex).trim()
+            val value = part.substring(eqIndex + 1).trim()
             
-            when {
-                part.startsWith("drmScheme=", ignoreCase = true) -> {
-                    drmScheme = part.substringAfter("=").lowercase()
+            when (key.lowercase()) {
+                "drmscheme" -> {
+                    drmScheme = value.lowercase()
                     Timber.d("🔌 DRM Scheme: $drmScheme")
                 }
-                part.startsWith("drmLicense=", ignoreCase = true) -> {
-                    val license = part.substringAfter("=")
-                    val licenseParts = license.split(":")
-                    if (licenseParts.size == 2) {
-                        drmKeyId = licenseParts[0].trim()
-                        drmKey = licenseParts[1].trim()
-                        Timber.d("🔑 DRM KeyID: ${drmKeyId?.take(16)}...")
-                        Timber.d("🔑 DRM Key: ${drmKey?.take(16)}...")
+                "drmlicense" -> {
+                    // Handle "keyId:key" format
+                    val keyParts = value.split(":")
+                    if (keyParts.size == 2) {
+                        drmKeyId = keyParts[0].trim()
+                        drmKey = keyParts[1].trim()
+                        Timber.d("🔑 DRM KeyID: ${drmKeyId?.take(8)}...")
                     }
                 }
-                part.contains("=") -> {
-                    val separatorIndex = part.indexOf('=')
-                    val headerName = part.substring(0, separatorIndex).trim()
-                    val headerValue = part.substring(separatorIndex + 1).trim()
-                    
-                    // ✅ CRITICAL: Preserve exact header names and values
-                    when (headerName.lowercase()) {
-                        "referer", "referrer" -> headers["Referer"] = headerValue
-                        "user-agent", "useragent" -> headers["User-Agent"] = headerValue
-                        "origin" -> headers["Origin"] = headerValue
-                        "cookie" -> {
-                            // ✅ Store cookie EXACTLY as provided (no parsing)
-                            headers["Cookie"] = headerValue
-                            Timber.d("🍪 Cookie: ${headerValue.take(80)}...")
-                        }
-                        else -> headers[headerName] = headerValue
-                    }
+                "referer", "referrer" -> headers["Referer"] = value
+                "user-agent", "useragent" -> headers["User-Agent"] = value
+                "origin" -> headers["Origin"] = value
+                "cookie" -> {
+                    headers["Cookie"] = value
+                    Timber.d("🍪 Cookie found")
                 }
+                else -> headers[key] = value
             }
         }
         
@@ -366,188 +363,162 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayer() {
-    player?.release()
-    trackSelector = DefaultTrackSelector(this)
-    
-    try {
-        val streamInfo = parseStreamUrl(channel.streamUrl)
+        player?.release()
+        trackSelector = DefaultTrackSelector(this)
         
-        Timber.d("╔═══════════════════════════════════════╗")
-        Timber.d("🎬 Setting up player for: ${channel.name}")
-        Timber.d("📺 Stream Type: ${if (streamInfo.url.contains(".mpd")) "DASH/MPD" else if (streamInfo.url.contains(".m3u8")) "HLS" else "UNKNOWN"}")
-        Timber.d("📺 URL: ${streamInfo.url}")
-        Timber.d("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
-        Timber.d("📡 Headers: ${streamInfo.headers.size}")
-        Timber.d("╚═══════════════════════════════════════╝")
-
-        val headers = streamInfo.headers.toMutableMap()
-        if (!headers.containsKey("User-Agent")) {
-            headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:101.0) Gecko/20100101 Firefox/101.0"
-        }
-
-        val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
-            .setDefaultRequestProperties(headers)
-            .setConnectTimeoutMs(30000)
-            .setReadTimeoutMs(30000)
-            .setAllowCrossProtocolRedirects(true)
-            .setKeepPostFor302Redirects(true)
-
-        val mediaSourceFactory = if (streamInfo.drmScheme != null && 
-                                     streamInfo.drmKeyId != null && 
-                                     streamInfo.drmKey != null) {
-            Timber.d("🔐 Setting up DRM protection...")
+        try {
+            val streamInfo = parseStreamUrl(channel.streamUrl)
             
-            val drmSessionManager = when (streamInfo.drmScheme.lowercase()) {
-                "clearkey" -> {
-                    createClearKeyDrmManager(
+            Timber.d("╔═══════════════════════════════════════╗")
+            Timber.d("🎬 Setting up player for: ${channel.name}")
+            Timber.d("📺 URL: ${streamInfo.url}")
+            Timber.d("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
+            Timber.d("╚═══════════════════════════════════════╝")
+
+            val headers = streamInfo.headers.toMutableMap()
+            if (!headers.containsKey("User-Agent")) {
+                headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:101.0) Gecko/20100101 Firefox/101.0"
+            }
+
+            val dataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
+                .setDefaultRequestProperties(headers)
+                .setConnectTimeoutMs(30000)
+                .setReadTimeoutMs(30000)
+                .setAllowCrossProtocolRedirects(true)
+                .setKeepPostFor302Redirects(true)
+
+            val mediaSourceFactory = if (streamInfo.drmScheme != null && 
+                                         streamInfo.drmKeyId != null && 
+                                         streamInfo.drmKey != null) {
+                
+                Timber.d("🔐 Setting up DRM protection...")
+                
+                // Create DRM Session Manager based on scheme
+                val drmSessionManager = if (streamInfo.drmScheme.equals("clearkey", ignoreCase = true)) {
+                     createClearKeyDrmManager(
                         streamInfo.drmKeyId,
                         streamInfo.drmKey,
                         dataSourceFactory
                     )
-                }
-                else -> {
+                } else {
                     Timber.e("❌ Unsupported DRM scheme: ${streamInfo.drmScheme}")
                     null
                 }
-            }
-            
-            if (drmSessionManager != null) {
-                Timber.d("✅ DRM manager created successfully")
-                DefaultMediaSourceFactory(this)
-                    .setDataSourceFactory(dataSourceFactory)
-                    .setDrmSessionManagerProvider { drmSessionManager }
-            } else {
-                DefaultMediaSourceFactory(this)
-                    .setDataSourceFactory(dataSourceFactory)
-            }
-        } else {
-            Timber.d("🔓 No DRM - regular stream")
-            DefaultMediaSourceFactory(this)
-                .setDataSourceFactory(dataSourceFactory)
-        }
-
-        player = ExoPlayer.Builder(this)
-            .setTrackSelector(trackSelector!!)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setSeekBackIncrementMs(skipMs)
-            .setSeekForwardIncrementMs(skipMs)
-            .setLoadControl(
-                androidx.media3.exoplayer.DefaultLoadControl.Builder()
-                    .setBufferDurationsMs(
-                        15000,
-                        50000,
-                        2500,
-                        5000
-                    )
-                    .build()
-            )
-            .build().also { exo ->
-                binding.playerView.player = exo
                 
-                val mediaItem = MediaItem.fromUri(streamInfo.url)
-                exo.setMediaItem(mediaItem)
-                exo.prepare()
-                exo.playWhenReady = true
+                if (drmSessionManager != null) {
+                    Timber.d("✅ DRM manager created successfully")
+                    DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(dataSourceFactory)
+                        .setDrmSessionManagerProvider { drmSessionManager }
+                } else {
+                    DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(dataSourceFactory)
+                }
+            } else {
+                Timber.d("🔓 No DRM - regular stream")
+                DefaultMediaSourceFactory(this)
+                    .setDataSourceFactory(dataSourceFactory)
+            }
 
-                exo.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_READY -> {
-                                updatePlayPauseIcon(exo.playWhenReady)
-                                binding.progressBar.visibility = View.GONE
-                                updatePipParams()
-                                Timber.d("✅ Player ready - PLAYING!")
-                            }
-                            Player.STATE_BUFFERING -> {
-                                binding.progressBar.visibility = View.VISIBLE
-                                Timber.d("⏳ Buffering...")
-                            }
-                            Player.STATE_ENDED -> {
-                                binding.progressBar.visibility = View.GONE
-                                Timber.d("⏹️ Playback ended")
-                            }
-                            Player.STATE_IDLE -> {
-                                Timber.d("💤 Player idle")
-                            }
-                        }
-                    }
+            player = ExoPlayer.Builder(this)
+                .setTrackSelector(trackSelector!!)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setSeekBackIncrementMs(skipMs)
+                .setSeekForwardIncrementMs(skipMs)
+                .setLoadControl(
+                    androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                        .setBufferDurationsMs(15000, 50000, 2500, 5000)
+                        .build()
+                )
+                .build().also { exo ->
+                    binding.playerView.player = exo
                     
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        updatePlayPauseIcon(isPlaying)
-                        Timber.d("▶️ Is playing: $isPlaying")
-                        if (isInPipMode) {
-                            updatePipParams()
-                        }
-                    }
-                    
-                    override fun onVideoSizeChanged(videoSize: VideoSize) {
-                        super.onVideoSizeChanged(videoSize)
-                        Timber.d("📐 Video size: ${videoSize.width}x${videoSize.height}")
-                        if (isInPipMode) {
-                            updatePipParams()
-                        }
-                    }
-                    
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        super.onPlayerError(error)
-                        Timber.e(error, "❌ PLAYBACK ERROR")
-                        Timber.e("Error Code: ${error.errorCode}")
-                        Timber.e("Error Message: ${error.message}")
-                        Timber.e("Cause: ${error.cause}")
-                        Timber.e("Stream URL: ${streamInfo.url}")
-                        binding.progressBar.visibility = View.GONE
-                        
-                        val errorMessage = when {
-                            error.message?.contains("drm", ignoreCase = true) == true -> 
-                                "DRM error: Unable to decrypt stream"
-                            error.message?.contains("clearkey", ignoreCase = true) == true -> 
-                                "ClearKey DRM error: Invalid license keys"
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
-                                val cause = error.cause
-                                if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
-                                    "HTTP ${cause.responseCode}: ${cause.responseMessage}"
-                                } else {
-                                    "Server error: Unable to connect"
+                    val mediaItem = MediaItem.fromUri(streamInfo.url)
+                    exo.setMediaItem(mediaItem)
+                    exo.prepare()
+                    exo.playWhenReady = true
+
+                    exo.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            when (playbackState) {
+                                Player.STATE_READY -> {
+                                    updatePlayPauseIcon(exo.playWhenReady)
+                                    binding.progressBar.visibility = View.GONE
+                                    updatePipParams()
+                                    Timber.d("✅ Player ready - PLAYING!")
+                                }
+                                Player.STATE_BUFFERING -> {
+                                    binding.progressBar.visibility = View.VISIBLE
+                                    Timber.d("⏳ Buffering...")
+                                }
+                                Player.STATE_ENDED -> {
+                                    binding.progressBar.visibility = View.GONE
+                                    Timber.d("⏹️ Playback ended")
+                                }
+                                Player.STATE_IDLE -> {
+                                    Timber.d("💤 Player idle")
                                 }
                             }
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                                "Network error: Check internet"
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
-                                "Connection timeout"
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ->
-                                "Invalid stream format"
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
-                                "Invalid MPD/M3U8 manifest"
-                            else -> 
-                                "Playback error: ${error.message}"
                         }
                         
-                        Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
-                        binding.errorView.visibility = View.VISIBLE
-                        binding.errorText.text = errorMessage
-                    }
-                })
-            }
-    } catch (e: Exception) {
-        Timber.e(e, "❌ Error creating ExoPlayer")
-        Toast.makeText(this, "Failed to initialize player", Toast.LENGTH_SHORT).show()
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            updatePlayPauseIcon(isPlaying)
+                            Timber.d("▶️ Is playing: $isPlaying")
+                            if (isInPipMode) {
+                                updatePipParams()
+                            }
+                        }
+                        
+                        override fun onVideoSizeChanged(videoSize: VideoSize) {
+                            super.onVideoSizeChanged(videoSize)
+                            Timber.d("📐 Video size: ${videoSize.width}x${videoSize.height}")
+                            if (isInPipMode) {
+                                updatePipParams()
+                            }
+                        }
+                        
+                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            super.onPlayerError(error)
+                            Timber.e(error, "❌ PLAYBACK ERROR")
+                            Timber.e("Stream URL: ${streamInfo.url}")
+                            binding.progressBar.visibility = View.GONE
+                            
+                            val errorMessage = when {
+                                error.message?.contains("drm", ignoreCase = true) == true -> 
+                                    "DRM error: Unable to decrypt stream"
+                                error.message?.contains("clearkey", ignoreCase = true) == true -> 
+                                    "ClearKey DRM error: Invalid license keys"
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> 
+                                    "Server error: Unable to connect"
+                                else -> "Playback error: ${error.message}"
+                            }
+                            
+                            Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
+                            binding.errorView.visibility = View.VISIBLE
+                            binding.errorText.text = errorMessage
+                        }
+                    })
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error creating ExoPlayer")
+            Toast.makeText(this, "Failed to initialize player", Toast.LENGTH_SHORT).show()
+        }
+        
+        binding.playerView.apply {
+            useController = true
+            controllerShowTimeoutMs = 5000
+            controllerHideOnTouch = true
+            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+        }
     }
-    
-    binding.playerView.apply {
-        useController = true
-        controllerShowTimeoutMs = 5000
-        controllerHideOnTouch = true
-        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-    }
-}
 
     /**
-     * Create ClearKey DRM Session Manager
+     * Create ClearKey DRM Session Manager using JWK format and Base64Url
      */
     private fun createClearKeyDrmManager(
-        keyId: String,
-        key: String,
+        keyIdHex: String,
+        keyHex: String,
         dataSourceFactory: DefaultHttpDataSource.Factory
     ): DefaultDrmSessionManager? {
         return try {
@@ -555,23 +526,33 @@ class ChannelPlayerActivity : AppCompatActivity() {
             val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
             
             Timber.d("🔐 Creating ClearKey DRM manager")
-            Timber.d("   KeyID: ${keyId.take(16)}...")
-            Timber.d("   Key: ${key.take(16)}...")
             
-            // Create a simple ClearKey license server (local JSON)
+            // Convert Hex to Base64Url (without padding, URL-safe)
+            val keyIdBase64 = hexToBase64Url(keyIdHex)
+            val keyBase64 = hexToBase64Url(keyHex)
+
+            // Construct JWK (JSON Web Key) Set for ClearKey
+            val jwkSet = """
+                {
+                  "keys": [
+                    {
+                      "kty": "oct",
+                      "k": "$keyBase64",
+                      "kid": "$keyIdBase64"
+                    }
+                  ]
+                }
+            """.trimIndent()
+            
+            // Encode the JWK set to a data URI
             val licenseUrl = "data:application/json;base64," + 
-                android.util.Base64.encodeToString(
-                    buildClearKeyLicense(keyId, key).toByteArray(),
-                    android.util.Base64.NO_WRAP
-                )
+                Base64.encodeToString(jwkSet.toByteArray(), Base64.NO_WRAP)
             
             val drmCallback = HttpMediaDrmCallback(licenseUrl, dataSourceFactory)
             
             DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(
-                    clearKeyUuid,
-                    FrameworkMediaDrm.DEFAULT_PROVIDER
-                )
+                .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .setMultiSession(false)
                 .build(drmCallback).also {
                     Timber.d("✅ ClearKey DRM manager created successfully")
                 }
@@ -582,32 +563,19 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * Build ClearKey license JSON
-     */
-    private fun buildClearKeyLicense(keyId: String, key: String): String {
-        val keyIdBase64 = hexToBase64Url(keyId)
-        val keyBase64 = hexToBase64Url(key)
-        
-        return """
-        {
-            "keys": [{
-                "kty": "oct",
-                "k": "$keyBase64",
-                "kid": "$keyIdBase64"
-            }]
-        }
-        """.trimIndent()
-    }
-
-    /**
      * Convert hex string to base64url (RFC 4648)
      */
     private fun hexToBase64Url(hex: String): String {
-        val bytes = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-        return android.util.Base64.encodeToString(
-            bytes, 
-            android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
-        )
+        try {
+            val bytes = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            return Base64.encodeToString(
+                bytes, 
+                Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
+            )
+        } catch (e: Exception) {
+            Timber.e(e, "Error converting hex to base64")
+            return ""
+        }
     }
 
     private fun updatePlayPauseIcon(isPlaying: Boolean) {
