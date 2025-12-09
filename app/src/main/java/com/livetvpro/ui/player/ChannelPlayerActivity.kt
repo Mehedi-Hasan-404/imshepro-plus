@@ -1,29 +1,32 @@
-// app/src/main/java/com/livetvpro/ui/player/ChannelPlayerActivity.kt
 package com.livetvpro.ui.player
 
+import android.app.PendingIntent
+import android.app.PictureInPictureParams
+import android.app.RemoteAction
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Color
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Rational
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
-import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
@@ -35,7 +38,6 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
-import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
@@ -44,28 +46,72 @@ import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
 
-@UnstableApi // Media3 is marked as unstable
+@UnstableApi
 @AndroidEntryPoint
 class ChannelPlayerActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityChannelPlayerBinding
+    private val viewModel: PlayerViewModel by viewModels()
+
     private var player: ExoPlayer? = null
+    private var trackSelector: DefaultTrackSelector? = null
     private lateinit var channel: Channel
-    private var trackSelector: DefaultTrackSelector? = null // Make nullable as per Channel Player 11
-    private var isLocked = false
-    private var isInPipMode = false
-    private var userRequestedPip = false // Track if PiP was initiated by the user
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val hideUnlockButtonRunnable = Runnable { hideUnlockButton() }
+    
+    // Related channels adapter
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
-    private val viewModel: PlayerViewModel by viewModels() // Use ViewModel for related channels
 
-    // State variables from Channel Player 11
-    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    // Controller Views
+    private var btnBack: ImageButton? = null
+    private var btnPip: ImageButton? = null
+    private var btnSettings: ImageButton? = null
+    private var btnLock: ImageButton? = null
+    private var btnMute: ImageButton? = null
+    private var btnRewind: ImageButton? = null
+    private var btnPlayPause: ImageButton? = null
+    private var btnForward: ImageButton? = null
+    private var btnFullscreen: ImageButton? = null
+    private var btnAspectRatio: ImageButton? = null
+    private var tvChannelName: TextView? = null
+
+    // State flags
+    private var isInPipMode = false
+    private var isLocked = false
     private var isMuted = false
-    private val skipMs = 10000L // 10 seconds for skip buttons, adjust as needed
+    private val skipMs = 10_000L
+    private var userRequestedPip = false
+    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
 
-    // PiP Action Constants
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val hideUnlockButtonRunnable = Runnable {
+        binding.unlockButton.visibility = View.GONE
+    }
+    
+    // PiP Action Receiver
+    private val pipReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Timber.d("PiP Receiver: ${intent?.action}")
+            
+            if (intent?.action == ACTION_MEDIA_CONTROL) {
+                val controlType = intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)
+                
+                Timber.d("PiP Control Type: $controlType")
+                
+                when (controlType) {
+                    CONTROL_TYPE_PLAY -> {
+                        player?.play()
+                        Timber.d("PiP: Playing")
+                        updatePipParams()
+                    }
+                    CONTROL_TYPE_PAUSE -> {
+                        player?.pause()
+                        Timber.d("PiP: Paused")
+                        updatePipParams()
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val ACTION_MEDIA_CONTROL = "media_control"
@@ -81,306 +127,634 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    // PiP Action Receiver
-    private val pipReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == ACTION_MEDIA_CONTROL) {
-                val controlType = intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)
-                when (controlType) {
-                    CONTROL_TYPE_PLAY -> {
-                        player?.play()
-                        Timber.d("PiP: Play command received")
-                        if (isInPipMode) updatePipParams() // Update actions in PiP
-                    }
-                    CONTROL_TYPE_PAUSE -> {
-                        player?.pause()
-                        Timber.d("PiP: Pause command received")
-                        if (isInPipMode) updatePipParams() // Update actions in PiP
-                    }
-                }
-            }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         // Register PiP control receiver
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), RECEIVER_NOT_EXPORTED)
         }
 
-        // Get channel data from intent
-        channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run {
-            Timber.e("No channel data provided")
-            Toast.makeText(this, "Channel data missing", Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-
-        // Make fullscreen and keep screen on
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-        // Apply initial orientation settings
+        // Get current orientation and apply initial settings
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
 
-        binding.progressBar.visibility = View.VISIBLE // Show initial loading indicator
+        channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run {
+            finish()
+            return
+        }
 
-        // Setup player with the logic from Channel Player 11
+        binding.progressBar.visibility = View.GONE
         setupPlayer()
-
-        // Setup other UI interactions and components
+        bindControllerViewsExact()
+        tvChannelName?.text = channel.name
+        setupControlListenersExact()
         setupPlayerViewInteractions()
         setupLockOverlay()
-        setupRelatedChannels() // Initialize adapter and view
-        loadRelatedChannels() // Load related channels after player setup
+        
+        // Setup related channels
+        setupRelatedChannels()
+        loadRelatedChannels()
     }
 
-    private fun hideSystemUI() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            window.insetsController?.let { controller ->
-                controller.hide(android.view.WindowInsets.Type.systemBars())
-                controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        applyOrientationSettings(isLandscape)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        applyOrientationSettings(isLandscape)
+    }
+
+    /**
+     * Unified method to apply all orientation-based settings
+     */
+    private fun applyOrientationSettings(isLandscape: Boolean) {
+        setWindowFlags(isLandscape)
+        adjustLayoutForOrientation(isLandscape)
+        binding.playerContainer.requestLayout()
+        binding.root.requestLayout()
+    }
+
+    private fun adjustLayoutForOrientation(isLandscape: Boolean) {
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+
+        if (isLandscape) {
+            binding.playerView.hideController()
+            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerShowTimeoutMs = 3000
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            
+            params.dimensionRatio = null
+            params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            binding.relatedChannelsSection.visibility = View.GONE
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+        } else {
+            binding.playerView.controllerAutoShow = true
+            binding.playerView.controllerShowTimeoutMs = 5000
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
+            params.dimensionRatio = "16:9"
+            params.height = 0
+            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            binding.relatedChannelsSection.visibility = View.VISIBLE
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        }
+        binding.playerContainer.layoutParams = params
+    }
+
+    /**
+     * Properly manage system UI visibility and cutout mode
+     */
+    private fun setWindowFlags(isLandscape: Boolean) {
+        if (isLandscape) {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_FULLSCREEN
+            )
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode = 
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
             }
         } else {
             @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_FULLSCREEN
-                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    )
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode = 
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                }
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(true)
+            }
         }
     }
 
-    // --- Player Setup from Channel Player 11 ---
-    private fun setupPlayer() {
-        player?.release() // Release any existing player instance
-        trackSelector = DefaultTrackSelector(this) // Initialize track selector
+    override fun onPause() {
+        super.onPause()
+        val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            isInPictureInPictureMode
+        } else {
+            false
+        }
+        
+        if (!isPip) {
+            player?.pause()
+        }
+    }
 
+    override fun onStop() {
+        super.onStop()
+        Timber.d("onStop() called - isInPipMode: $isInPipMode, isFinishing: $isFinishing")
+        
+        // ALWAYS release player when activity stops
+        releasePlayer()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Timber.d("onDestroy() called")
+        releasePlayer()
         try {
-            // Parse inline headers from stream URL
-            val (cleanUrl, inlineHeaders) = parseInlineHeaders(channel.streamUrl)
-
-            // Prepare headers map
-            val headers = mutableMapOf<String, String>()
-            headers.putAll(inlineHeaders)
-
-            // Add default user agent if not provided
-            if (!headers.containsKey("User-Agent")) {
-                headers["User-Agent"] = "LiveTVPro/1.0"
-            }
-
-            Timber.d("═══════════════════════════════════════")
-            Timber.d("🎬 Setting up player for: ${channel.name}")
-            Timber.d("📺 Clean URL: ${cleanUrl.take(100)}")
-            Timber.d("📡 Total Headers: ${headers.size}")
-            headers.forEach { (key, value) -> Timber.d(" → $key: ${value.take(80)}") }
-            Timber.d("═══════════════════════════════════════")
-
-            // Create DataSource with custom headers
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
-                .setDefaultRequestProperties(headers)
-                .setConnectTimeoutMs(30000)
-                .setReadTimeoutMs(30000)
-                .setAllowCrossProtocolRedirects(true)
-
-            // --- DRM Setup (ClearKey Example) ---
-            val drmSessionManager = if (!channel.drmLicenseUrl.isNullOrEmpty()) { // Assuming Channel model has drmLicenseUrl
-                val drmCallback = HttpMediaDrmCallback(channel.drmLicenseUrl!!, dataSourceFactory) // Use the same data source factory for license requests
-                DefaultDrmSessionManager.Builder()
-                    .setMultiSession(false)
-                    .setKeyRequestExecutor(drmCallback)
-                    .setUuidAndExoMediaDrmProvider(C.CLEARKEY_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
-                    .build()
-            } else {
-                null // No DRM
-            }
-
-            // Build the player
-            val playerBuilder = ExoPlayer.Builder(this)
-                .setTrackSelector(trackSelector!!)
-                .setMediaSourceFactory(
-                    DefaultMediaSourceFactory(this)
-                        .setDataSourceFactory(dataSourceFactory)
-                )
-                .setSeekBackIncrementMs(skipMs) // Set skip increment
-                .setSeekForwardIncrementMs(skipMs)
-
-            // Add DRM manager if needed
-            if (drmSessionManager != null) {
-                playerBuilder.setDrmSessionManager(drmSessionManager)
-            }
-
-            player = playerBuilder.build().also { exo ->
-                binding.playerView.player = exo
-                binding.playerView.controllerAutoShow = true
-                binding.playerView.controllerShowTimeoutMs = 5000 // Adjust timeout as needed
-                binding.playerView.setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS) // Optional: show buffering
-                binding.playerView.setShutterBackgroundColor(Color.BLACK) // Black background when loading
-                binding.playerView.useController = true // Ensure controller is enabled initially
-
-                // Use CLEAN URL (without inline headers) for MediaItem
-                val mediaItem = MediaItem.fromUri(cleanUrl)
-                exo.setMediaItem(mediaItem)
-                exo.prepare()
-                exo.playWhenReady = true // Start playing automatically
-
-                // Add listener for player events
-                exo.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_BUFFERING -> {
-                                Timber.d("Player: Buffering")
-                                binding.progressBar.visibility = View.VISIBLE
-                            }
-                            Player.STATE_READY -> {
-                                Timber.d("Player: Ready, playing: ${exo.isPlaying}")
-                                binding.progressBar.visibility = View.GONE
-                                if (!exo.isPlaying) {
-                                    // Potentially paused due to buffering or other reasons
-                                    // You might want to handle this differently
-                                }
-                            }
-                            Player.STATE_ENDED -> {
-                                Timber.d("Player: Ended")
-                                // Handle end of stream if needed
-                                Toast.makeText(this@ChannelPlayerActivity, "Stream ended", Toast.LENGTH_SHORT).show()
-                            }
-                            Player.STATE_IDLE -> {
-                                Timber.d("Player: Idle")
-                                binding.progressBar.visibility = View.GONE
-                            }
-                        }
-                    }
-
-                    override fun onPlayerError(error: PlaybackException) {
-                        Timber.e(error, "❌ Playback error for ${channel.name}")
-                        binding.progressBar.visibility = View.GONE
-                        val errorMessage = when (error.errorCode) {
-                            PlaybackException.ERROR_CODE_TIMEOUT -> "Connection timeout: Stream took too long to respond"
-                            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED -> "Network connection failed"
-                            PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE -> "Invalid stream format"
-                            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED -> "Invalid stream container"
-                            PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED -> "Invalid stream manifest"
-                            else -> {
-                                if (error.message?.contains("drm", ignoreCase = true) == true) {
-                                    "DRM error: Unable to decrypt stream"
-                                } else if (error.message?.contains("clearkey", ignoreCase = true) == true) {
-                                    "ClearKey DRM error: Invalid license keys"
-                                } else {
-                                    "Playback error: ${error.message}"
-                                }
-                            }
-                        }
-                        Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
-                    }
-
-                    override fun onTracksChanged(tracks: Tracks) {
-                        // Can be used to update UI based on available tracks
-                        // e.g., show/hide quality button if video tracks are available
-                        Timber.d("Tracks changed: ${tracks.groups.size} groups available")
-                    }
-
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        if (isPlaying) {
-                            Timber.d("Playback started")
-                        } else {
-                            Timber.d("Playback paused")
-                        }
-                        // Update PiP actions if needed
-                        if (isInPipMode) {
-                            updatePipParams()
-                        }
-                    }
-
-                    override fun onRenderedFirstFrame() {
-                        // First frame rendered, hide loading indicator if not already hidden
-                        binding.progressBar.visibility = View.GONE
-                    }
-                })
-            }
-
-            Timber.d("Player initialized successfully for channel: ${channel.name}, Clean URL: $cleanUrl")
-            // Update channel name display
-            binding.tvChannelName?.text = channel.name // Assuming tvChannelName exists in layout
-
+            unregisterReceiver(pipReceiver)
         } catch (e: Exception) {
-            Timber.e(e, "❌ Error creating ExoPlayer for ${channel.name}")
-            binding.progressBar.visibility = View.GONE
-            Toast.makeText(this, "Failed to initialize player: ${e.message}", Toast.LENGTH_LONG).show()
+            Timber.w(e, "Error unregistering PiP receiver")
         }
+        mainHandler.removeCallbacksAndMessages(null)
     }
 
-    // --- Inline Header Parsing from Channel Player 11 ---
-    private fun parseInlineHeaders(url: String): Pair<String, Map<String, String>> {
-        var streamUrl = url
+    private fun releasePlayer() {
+        player?.let {
+            try {
+                Timber.d("Releasing player")
+                it.stop()
+                it.release()
+            } catch (t: Throwable) {
+                Timber.w(t, "Error releasing player")
+            }
+        }
+        player = null
+    }
+
+    /**
+     * Parse stream URL for DRM info and inline headers
+     * Format: url|drmScheme=clearkey&drmLicense=keyId:key|Referer=...
+     */
+    private data class StreamInfo(
+        val url: String,
+        val headers: Map<String, String>,
+        val drmScheme: String?,
+        val drmKeyId: String?,
+        val drmKey: String?
+    )
+
+    private fun parseStreamUrl(streamUrl: String): StreamInfo {
+        val parts = streamUrl.split("|")
+        val url = parts[0].trim()
+        
         val headers = mutableMapOf<String, String>()
-
-        // Check for inline headers in the URL (e.g., #EXTVLCOPT:header=value)
-        val parts = streamUrl.split("#EXTVLCOPT:")
-        streamUrl = parts[0] // The actual stream URL is the first part
-
-        for (i in 1 until parts.size) { // Process header parts
-            val headerPart = parts[i].trim()
-            val separatorIndex = headerPart.indexOf('=')
-            if (separatorIndex > 0) {
-                val headerName = headerPart.substring(0, separatorIndex).trim().lowercase()
-                val headerValue = headerPart.substring(separatorIndex + 1).trim()
-
-                when (headerName) {
-                    "user-agent" -> {
-                        headers["User-Agent"] = headerValue
-                        Timber.d(" ✓ User-Agent: $headerValue")
+        var drmScheme: String? = null
+        var drmKeyId: String? = null
+        var drmKey: String? = null
+        
+        for (i in 1 until parts.size) {
+            val part = parts[i].trim()
+            
+            when {
+                part.startsWith("drmScheme=", ignoreCase = true) -> {
+                    drmScheme = part.substringAfter("=").lowercase()
+                    Timber.d("🔌 DRM Scheme: $drmScheme")
+                }
+                part.startsWith("drmLicense=", ignoreCase = true) -> {
+                    val license = part.substringAfter("=")
+                    val licenseParts = license.split(":")
+                    if (licenseParts.size == 2) {
+                        drmKeyId = licenseParts[0].trim()
+                        drmKey = licenseParts[1].trim()
+                        Timber.d("🔑 DRM KeyID: ${drmKeyId?.take(16)}...")
+                        Timber.d("🔑 DRM Key: ${drmKey?.take(16)}...")
                     }
-                    "referer" -> {
-                        headers["Referer"] = headerValue
-                        Timber.d(" ✓ Referer: $headerValue")
-                    }
-                    "cookie" -> {
-                        headers["Cookie"] = headerValue
-                        Timber.d(" ✓ Cookie: ${headerValue.take(50)}...")
-                    }
-                    else -> {
-                        headers[headerName] = headerValue
-                        Timber.d(" ✓ $headerName: ${headerValue.take(50)}...")
+                }
+                part.contains("=") -> {
+                    val separatorIndex = part.indexOf('=')
+                    val headerName = part.substring(0, separatorIndex).trim()
+                    val headerValue = part.substring(separatorIndex + 1).trim()
+                    
+                    when (headerName.lowercase()) {
+                        "referer", "referrer" -> headers["Referer"] = headerValue
+                        "user-agent", "useragent" -> headers["User-Agent"] = headerValue
+                        "origin" -> headers["Origin"] = headerValue
+                        "cookie" -> headers["Cookie"] = headerValue
+                        else -> headers[headerName] = headerValue
                     }
                 }
             }
         }
-
-        Timber.d("Extracted clean URL: ${streamUrl.take(100)}")
-        Timber.d("Parsed ${headers.size} inline headers")
-        return Pair(streamUrl, headers)
+        
+        return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey)
     }
 
+    private fun setupPlayer() {
+        player?.release()
+        trackSelector = DefaultTrackSelector(this)
+        
+        try {
+            val streamInfo = parseStreamUrl(channel.streamUrl)
+            
+            Timber.d("╔═══════════════════════════════════════╗")
+            Timber.d("🎬 Setting up player for: ${channel.name}")
+            Timber.d("📺 URL: ${streamInfo.url.take(100)}")
+            Timber.d("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
+            Timber.d("📡 Headers: ${streamInfo.headers.size}")
+            Timber.d("╚═══════════════════════════════════════╝")
 
-    // --- UI Interaction Setup ---
-    private fun setupPlayerViewInteractions() {
-        binding.playerView.setOnClickListener { toggleControllerVisibility() }
-        // Add other click listeners if needed based on your layout
-    }
+            // Add default user agent if not provided
+            val headers = streamInfo.headers.toMutableMap()
+            if (!headers.containsKey("User-Agent")) {
+                headers["User-Agent"] = "LiveTVPro/1.0"
+            }
 
-    private fun toggleControllerVisibility() {
-        if (isLocked) return // Don't toggle if locked
-        if (binding.playerView.isControllerVisible) {
-            binding.playerView.hideController()
-        } else {
-            binding.playerView.showController()
+            // Create DataSource with headers - CRITICAL FOR IPTV STREAMS
+            val dataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
+                .setDefaultRequestProperties(headers)
+                .setConnectTimeoutMs(30000)
+                .setReadTimeoutMs(30000)
+                .setAllowCrossProtocolRedirects(true)
+                .setKeepPostFor302Redirects(true)
+
+            // ✅ Setup DRM if present
+            val mediaSourceFactory = if (streamInfo.drmScheme != null && 
+                                         streamInfo.drmKeyId != null && 
+                                         streamInfo.drmKey != null) {
+                Timber.d("🔐 Setting up DRM protection...")
+                
+                val drmSessionManager = when (streamInfo.drmScheme.lowercase()) {
+                    "clearkey" -> {
+                        createClearKeyDrmManager(
+                            streamInfo.drmKeyId,
+                            streamInfo.drmKey,
+                            dataSourceFactory
+                        )
+                    }
+                    else -> {
+                        Timber.e("❌ Unsupported DRM scheme: ${streamInfo.drmScheme}")
+                        null
+                    }
+                }
+                
+                if (drmSessionManager != null) {
+                    DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(dataSourceFactory)
+                        .setDrmSessionManagerProvider { drmSessionManager }
+                } else {
+                    DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(dataSourceFactory)
+                }
+            } else {
+                Timber.d("🔓 No DRM - regular stream")
+                DefaultMediaSourceFactory(this)
+                    .setDataSourceFactory(dataSourceFactory)
+            }
+
+            // Create ExoPlayer with proper configuration for IPTV streams
+            player = ExoPlayer.Builder(this)
+                .setTrackSelector(trackSelector!!)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setSeekBackIncrementMs(skipMs)
+                .setSeekForwardIncrementMs(skipMs)
+                .setLoadControl(
+                    androidx.media3.exoplayer.DefaultLoadControl.Builder()
+                        .setBufferDurationsMs(
+                            15000, // Min buffer (15s)
+                            50000, // Max buffer (50s)
+                            2500,  // Playback buffer (2.5s)
+                            5000   // Playback after rebuffer (5s)
+                        )
+                        .build()
+                )
+                .build().also { exo ->
+                    binding.playerView.player = exo
+                    
+                    val mediaItem = MediaItem.fromUri(streamInfo.url)
+                    exo.setMediaItem(mediaItem)
+                    exo.prepare()
+                    exo.playWhenReady = true
+
+                    exo.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            when (playbackState) {
+                                Player.STATE_READY -> {
+                                    updatePlayPauseIcon(exo.playWhenReady)
+                                    binding.progressBar.visibility = View.GONE
+                                    updatePipParams()
+                                    Timber.d("✅ Player ready")
+                                }
+                                Player.STATE_BUFFERING -> {
+                                    binding.progressBar.visibility = View.VISIBLE
+                                }
+                                Player.STATE_ENDED -> {
+                                    binding.progressBar.visibility = View.GONE
+                                }
+                                Player.STATE_IDLE -> {}
+                            }
+                        }
+                        
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            updatePlayPauseIcon(isPlaying)
+                            if (isInPipMode) {
+                                updatePipParams()
+                            }
+                        }
+                        
+                        override fun onVideoSizeChanged(videoSize: VideoSize) {
+                            super.onVideoSizeChanged(videoSize)
+                            if (isInPipMode) {
+                                updatePipParams()
+                            }
+                        }
+                        
+                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            super.onPlayerError(error)
+                            Timber.e(error, "❌ Playback error")
+                            Timber.e("Error Code: ${error.errorCode}")
+                            Timber.e("Error Message: ${error.message}")
+                            Timber.e("Cause: ${error.cause}")
+                            binding.progressBar.visibility = View.GONE
+                            
+                            val errorMessage = when {
+                                error.message?.contains("drm", ignoreCase = true) == true -> 
+                                    "DRM error: Unable to decrypt stream"
+                                error.message?.contains("clearkey", ignoreCase = true) == true -> 
+                                    "ClearKey DRM error: Invalid license keys"
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
+                                    val cause = error.cause
+                                    if (cause is androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException) {
+                                        "HTTP ${cause.responseCode}: ${cause.responseMessage}\nURL: ${channel.streamUrl.take(100)}"
+                                    } else {
+                                        "Server error: Unable to connect to stream"
+                                    }
+                                }
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
+                                    "Network error: Check your internet connection"
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ->
+                                    "Connection timeout: Stream took too long to respond"
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ->
+                                    "Invalid stream format"
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ->
+                                    "Invalid stream manifest"
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_UNSPECIFIED ->
+                                    "Stream not accessible. May require authentication or special headers."
+                                else -> 
+                                    "Playback error: ${error.message}"
+                            }
+                            
+                            Toast.makeText(
+                                this@ChannelPlayerActivity,
+                                errorMessage,
+                                Toast.LENGTH_LONG
+                            ).show()
+                            
+                            // Show retry button
+                            binding.errorView.visibility = View.VISIBLE
+                            binding.errorText.text = errorMessage
+                        }
+                    })
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error creating ExoPlayer")
+            Toast.makeText(this, "Failed to initialize player", Toast.LENGTH_SHORT).show()
+        }
+        
+        binding.playerView.apply {
+            useController = true
+            controllerShowTimeoutMs = 5000
+            controllerHideOnTouch = true
+            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         }
     }
 
-    // --- Lock Overlay Setup ---
+    /**
+     * Create ClearKey DRM Session Manager
+     */
+    private fun createClearKeyDrmManager(
+        keyId: String,
+        key: String,
+        dataSourceFactory: DefaultHttpDataSource.Factory
+    ): DefaultDrmSessionManager? {
+        return try {
+            // ClearKey UUID (defined in MPEG-CENC spec)
+            val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
+            
+            Timber.d("🔐 Creating ClearKey DRM manager")
+            Timber.d("   KeyID: ${keyId.take(16)}...")
+            Timber.d("   Key: ${key.take(16)}...")
+            
+            // Create a simple ClearKey license server (local JSON)
+            val licenseUrl = "data:application/json;base64," + 
+                android.util.Base64.encodeToString(
+                    buildClearKeyLicense(keyId, key).toByteArray(),
+                    android.util.Base64.NO_WRAP
+                )
+            
+            val drmCallback = HttpMediaDrmCallback(licenseUrl, dataSourceFactory)
+            
+            DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(
+                    clearKeyUuid,
+                    FrameworkMediaDrm.DEFAULT_PROVIDER
+                )
+                .build(drmCallback).also {
+                    Timber.d("✅ ClearKey DRM manager created successfully")
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to create ClearKey DRM manager")
+            null
+        }
+    }
+
+    /**
+     * Build ClearKey license JSON
+     */
+    private fun buildClearKeyLicense(keyId: String, key: String): String {
+        val keyIdBase64 = hexToBase64Url(keyId)
+        val keyBase64 = hexToBase64Url(key)
+        
+        return """
+        {
+            "keys": [{
+                "kty": "oct",
+                "k": "$keyBase64",
+                "kid": "$keyIdBase64"
+            }]
+        }
+        """.trimIndent()
+    }
+
+    /**
+     * Convert hex string to base64url (RFC 4648)
+     */
+    private fun hexToBase64Url(hex: String): String {
+        val bytes = hex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        return android.util.Base64.encodeToString(
+            bytes, 
+            android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
+        )
+    }
+
+    private fun updatePlayPauseIcon(isPlaying: Boolean) {
+        btnPlayPause?.setImageResource(
+            if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+        )
+    }
+
+    private fun bindControllerViewsExact() {
+        with(binding.playerView) {
+            btnBack = findViewById(R.id.exo_back)
+            btnPip = findViewById(R.id.exo_pip)
+            btnSettings = findViewById(R.id.exo_settings)
+            btnLock = findViewById(R.id.exo_lock)
+            btnMute = findViewById(R.id.exo_mute)
+            btnRewind = findViewById(R.id.exo_rewind)
+            btnPlayPause = findViewById(R.id.exo_play_pause)
+            btnForward = findViewById(R.id.exo_forward)
+            btnFullscreen = findViewById(R.id.exo_fullscreen)
+            btnAspectRatio = findViewById(R.id.exo_aspect_ratio) 
+            tvChannelName = findViewById(R.id.exo_channel_name)
+        }
+
+        btnBack?.setImageResource(R.drawable.ic_arrow_back)
+        btnPip?.setImageResource(R.drawable.ic_pip)
+        btnSettings?.setImageResource(R.drawable.ic_settings)
+        btnLock?.setImageResource(R.drawable.ic_lock_open)
+        updateMuteIcon()
+        btnRewind?.setImageResource(R.drawable.ic_skip_backward)
+        btnPlayPause?.setImageResource(R.drawable.ic_pause)
+        btnForward?.setImageResource(R.drawable.ic_skip_forward)
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
+
+        btnAspectRatio?.visibility = View.VISIBLE
+        btnPip?.visibility = View.VISIBLE
+        btnFullscreen?.visibility = View.VISIBLE
+    }
+
+    private fun setupControlListenersExact() {
+        btnBack?.setOnClickListener { 
+            if (!isLocked) finish() 
+        }
+        
+        btnPip?.setOnClickListener { 
+            if (!isLocked) {
+                userRequestedPip = true
+                enterPipMode() 
+            }
+        }
+
+        btnSettings?.setOnClickListener { 
+            if (!isLocked) showQualityDialog() 
+        }
+        
+        btnAspectRatio?.setOnClickListener {
+            if (!isLocked) toggleAspectRatio()
+        }
+        
+        btnLock?.setOnClickListener { toggleLock() }
+        
+        btnRewind?.setOnClickListener { 
+            if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) - skipMs) 
+        }
+        
+        btnPlayPause?.setOnClickListener {
+            if (!isLocked) {
+                player?.let {
+                    if (it.isPlaying) it.pause() else it.play()
+                }
+            }
+        }
+        
+        btnForward?.setOnClickListener { 
+            if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) + skipMs) 
+        }
+        
+        btnFullscreen?.setOnClickListener { 
+            if (!isLocked) toggleFullscreen() 
+        }
+        
+        btnMute?.setOnClickListener {
+            if (!isLocked) toggleMute()
+        }
+    }
+
+    private fun toggleMute() {
+        player?.let {
+            isMuted = !isMuted
+            it.volume = if (isMuted) 0f else 1f
+            updateMuteIcon()
+            Toast.makeText(
+                this, 
+                if (isMuted) "Muted" else "Unmuted", 
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun updateMuteIcon() {
+        btnMute?.setImageResource(
+            if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+        )
+    }
+
+    private fun toggleAspectRatio() {
+        currentResizeMode = when (currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> {
+                Toast.makeText(this, "Zoom", Toast.LENGTH_SHORT).show()
+                AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            }
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> {
+                Toast.makeText(this, "Fit", Toast.LENGTH_SHORT).show()
+                AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+            else -> {
+                Toast.makeText(this, "Fill", Toast.LENGTH_SHORT).show()
+                AspectRatioFrameLayout.RESIZE_MODE_FILL
+            }
+        }
+        binding.playerView.resizeMode = currentResizeMode
+    }
+
+    private fun showQualityDialog() {
+        if (trackSelector == null || player == null) {
+            Toast.makeText(this, "Track selector not available", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        try {
+            TrackSelectionDialogBuilder(
+                this,
+                "Select Video Quality",
+                player!!,
+                C.TRACK_TYPE_VIDEO
+            ).build().show()
+        } catch (e: Exception) {
+            Timber.e(e, "Error showing quality dialog")
+            Toast.makeText(this, "Quality settings unavailable", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun setupPlayerViewInteractions() { 
+        binding.playerView.setOnClickListener(null) 
+    }
+    
     private fun setupLockOverlay() {
         binding.unlockButton.setOnClickListener { toggleLock() }
-        binding.lockOverlay.setOnClickListener {
+        binding.lockOverlay.setOnClickListener { 
             if (binding.unlockButton.visibility == View.VISIBLE) {
                 hideUnlockButton()
             } else {
@@ -389,6 +763,63 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
+        
+        // Setup retry button
+        binding.retryButton.setOnClickListener {
+            binding.errorView.visibility = View.GONE
+            binding.progressBar.visibility = View.VISIBLE
+            setupPlayer()
+        }
+    }
+
+    private fun setupRelatedChannels() {
+        relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel ->
+            switchChannel(relatedChannel)
+        }
+
+        binding.relatedChannelsRecycler.apply {
+            layoutManager = androidx.recyclerview.widget.GridLayoutManager(
+                this@ChannelPlayerActivity,
+                3 
+            )
+            adapter = relatedChannelsAdapter
+            setHasFixedSize(true)
+        }
+    }
+
+    private fun loadRelatedChannels() {
+        Timber.d("Starting to load related channels for: ${channel.name} (${channel.id})")
+        
+        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+        
+        viewModel.relatedChannels.removeObservers(this)
+        viewModel.relatedChannels.observe(this) { channels ->
+            Timber.d("✅ Received ${channels.size} related channels")
+            
+            binding.relatedCount.text = channels.size.toString()
+            relatedChannelsAdapter.submitList(channels)
+            
+            if (channels.isEmpty()) {
+                binding.relatedChannelsSection.visibility = View.GONE
+                Timber.w("No related channels available")
+            } else {
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+                Timber.d("Showing ${channels.size} related channels in 3-column grid")
+            }
+        }
+    }
+
+    private fun switchChannel(newChannel: Channel) {
+        Timber.d("Switching to channel: ${newChannel.name}")
+        
+        player?.release()
+        player = null
+        
+        channel = newChannel
+        tvChannelName?.text = channel.name
+        
+        setupPlayer()
+        loadRelatedChannels()
     }
 
     private fun showUnlockButton() {
@@ -408,284 +839,193 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.playerView.useController = false
             binding.playerView.hideController()
             binding.lockOverlay.visibility = View.VISIBLE
+            showUnlockButton()
+            btnLock?.setImageResource(R.drawable.ic_lock_closed)
+            binding.lockOverlay.isClickable = true
+            binding.lockOverlay.isFocusable = true
         } else {
             binding.playerView.useController = true
+            binding.playerView.showController()
             binding.lockOverlay.visibility = View.GONE
-            showUnlockButton() // Show unlock button temporarily after unlocking
+            hideUnlockButton()
+            btnLock?.setImageResource(R.drawable.ic_lock_open)
         }
     }
-
-    // --- Related Channels Setup (using ViewModel) ---
-    private fun setupRelatedChannels() {
-        relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel ->
-            switchChannel(relatedChannel)
-        }
-        binding.relatedChannelsRecycler.apply {
-            // Use GridLayoutManager with 3 columns as per Channel Player 11
-            layoutManager = GridLayoutManager(this@ChannelPlayerActivity, 3)
-            adapter = relatedChannelsAdapter
-            setHasFixedSize(true)
-        }
-    }
-
-    private fun loadRelatedChannels() {
-        // Observe related channels from ViewModel
-        viewModel.loadRelatedChannels(channel.categoryId, channel.id) // Pass current channel ID to exclude it
-        viewModel.relatedChannels.observe(this) { channels ->
-            Timber.d("Loaded ${channels.size} related channels from ViewModel")
-            updateRelatedChannelsUI(channels)
-        }
-    }
-
-    private fun updateRelatedChannelsUI(channels: List<Channel>) {
-        if (channels.isEmpty()) {
-            binding.relatedChannelsSection.visibility = View.GONE
-            Timber.w("No related channels available")
+    
+    private fun toggleFullscreen() {
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        requestedOrientation = if (isLandscape) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         } else {
-            relatedChannelsAdapter.submitList(channels)
-            binding.relatedChannelsSection.visibility = View.VISIBLE
-            Timber.d("Showing ${channels.size} related channels in 3-column grid")
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
 
-    // --- Switch Channel Logic ---
-    private fun switchChannel(newChannel: Channel) {
-        Timber.d("Switching to channel: ${newChannel.name}")
-        // Release current player
-        player?.release()
-        player = null
+    // ========== PIP LOGIC ==========
 
-        // Update current channel
-        channel = newChannel
-
-        // Update UI (e.g., channel name)
-        binding.tvChannelName?.text = channel.name
-
-        // Reinitialize player with new channel (using the updated setupPlayer logic)
-        setupPlayer()
-
-        // Reload related channels for the new channel
-        loadRelatedChannels()
-    }
-
-    // --- Aspect Ratio Control from Channel Player 11 ---
-    private fun toggleAspectRatio() {
-        currentResizeMode = when (currentResizeMode) {
-            AspectRatioFrameLayout.RESIZE_MODE_FILL -> {
-                Toast.makeText(this, "Zoom", Toast.LENGTH_SHORT).show()
-                AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            }
-            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> {
-                Toast.makeText(this, "Fit", Toast.LENGTH_SHORT).show()
-                AspectRatioFrameLayout.RESIZE_MODE_FIT
-            }
-            else -> { // Covers RESIZE_MODE_FIT
-                Toast.makeText(this, "Fill", Toast.LENGTH_SHORT).show()
-                AspectRatioFrameLayout.RESIZE_MODE_FILL
-            }
-        }
-        binding.playerView.resizeMode = currentResizeMode
-    }
-
-    // --- Mute Control from Channel Player 11 ---
-    private fun toggleMute() {
-        player?.let {
-            isMuted = !isMuted
-            it.volume = if (isMuted) 0f else 1f
-            updateMuteIcon()
-            Toast.makeText(this, if (isMuted) "Muted" else "Unmuted", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun updateMuteIcon() {
-        // Assuming you have a mute button in your layout
-        binding.btnMute?.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
-    }
-
-    // --- Quality Dialog from Channel Player 11 ---
-    private fun showQualityDialog() {
-        if (trackSelector == null || player == null) {
-            Toast.makeText(this, "Track selector not available", Toast.LENGTH_SHORT).show()
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Toast.makeText(this, "PiP not supported", Toast.LENGTH_SHORT).show()
             return
         }
-        try {
-            TrackSelectionDialogBuilder(
-                this,
-                "Select Video Quality",
-                player!!, // Use non-null assertion as checked above
-                C.TRACK_TYPE_VIDEO
-            ).build().show()
-        } catch (e: Exception) {
-            Timber.e(e, "Error showing quality dialog")
-            Toast.makeText(this, "Quality settings unavailable: ${e.message}", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // --- PiP Handling ---
-    private fun enterPipMode() {
+        
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             Toast.makeText(this, "PiP not available", Toast.LENGTH_SHORT).show()
             return
         }
-        userRequestedPip = true
-        player?.let { if (!it.isPlaying) it.play() } // Ensure playback starts in PiP
-        binding.relatedChannelsSection.visibility = View.GONE // Hide related channels in PiP
-        binding.playerView.useController = false // Hide controller in PiP
-        binding.lockOverlay.visibility = View.GONE // Hide lock overlay in PiP
-        binding.unlockButton.visibility = View.GONE // Hide unlock button in PiP
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val params = android.app.PictureInPictureParams.Builder().build()
-            enterPictureInPictureMode(params)
-        }
-    }
-
-    private fun updatePipParams() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
-            val isPlaying = player?.isPlaying == true
-            val actions = mutableListOf<android.app.RemoteAction>()
-
-            val playAction = android.app.RemoteAction(
-                android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_play),
-                "Play",
-                "Play",
-                PendingIntent.getBroadcast(
-                    this,
-                    CONTROL_TYPE_PLAY,
-                    Intent(ACTION_MEDIA_CONTROL).putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PLAY),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-            )
-
-            val pauseAction = android.app.RemoteAction(
-                android.graphics.drawable.Icon.createWithResource(this, R.drawable.ic_pause),
-                "Pause",
-                "Pause",
-                PendingIntent.getBroadcast(
-                    this,
-                    CONTROL_TYPE_PAUSE,
-                    Intent(ACTION_MEDIA_CONTROL).putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
-                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                )
-            )
-
-            // Add pause if playing, play if paused
-            if (isPlaying) {
-                actions.add(pauseAction)
-            } else {
-                actions.add(playAction)
+        player?.let {
+            if (!it.isPlaying) {
+                it.play()
             }
+        }
 
-            val params = android.app.PictureInPictureParams.Builder()
-                .setActions(actions)
-                .build()
-            setPictureInPictureParams(params)
+        binding.relatedChannelsSection.visibility = View.GONE
+        binding.playerView.useController = false
+        binding.lockOverlay.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
+
+        updatePipParams(enter = true)
+    }
+
+    private fun updatePipParams(enter: Boolean = false) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val format = player?.videoFormat
+                val width = format?.width ?: 16
+                val height = format?.height ?: 9
+                val ratio = if (width > 0 && height > 0) {
+                    Rational(width, height)
+                } else {
+                    Rational(16, 9)
+                }
+                
+                val builder = PictureInPictureParams.Builder()
+                builder.setAspectRatio(ratio)
+                
+                // ONLY Play/Pause control (system provides close button)
+                val actions = ArrayList<RemoteAction>()
+                val isPlaying = player?.isPlaying == true
+                
+                val playPauseIconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                val playPauseTitle = if (isPlaying) "Pause" else "Play"
+                val playPauseControlType = if (isPlaying) CONTROL_TYPE_PAUSE else CONTROL_TYPE_PLAY
+                
+                val playPauseIntent = Intent(ACTION_MEDIA_CONTROL).apply {
+                    setPackage(packageName)
+                    putExtra(EXTRA_CONTROL_TYPE, playPauseControlType)
+                }
+                
+                val playPausePendingIntent = PendingIntent.getBroadcast(
+                    this,
+                    playPauseControlType,
+                    playPauseIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+                
+                val playPauseIcon = Icon.createWithResource(this, playPauseIconId)
+                actions.add(RemoteAction(playPauseIcon, playPauseTitle, playPauseTitle, playPausePendingIntent))
+                
+                builder.setActions(actions)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    builder.setAutoEnterEnabled(false)
+                    builder.setSeamlessResizeEnabled(true)
+                }
+                
+                if (enter) {
+                    val success = enterPictureInPictureMode(builder.build())
+                    if (success) {
+                        isInPipMode = true
+                        Timber.d("Successfully entered PiP mode")
+                    } else {
+                        Timber.w("Failed to enter PiP mode")
+                        Toast.makeText(this, "Could not enter PiP", Toast.LENGTH_SHORT).show()
+                    }
+                } else if (isInPipMode) {
+                    setPictureInPictureParams(builder.build())
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "PiP Error")
+                if (enter) {
+                    Toast.makeText(this, "PiP error: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
-    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean, 
+        newConfig: Configuration
+    ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        
+        Timber.d("PiP mode changed: $isInPictureInPictureMode, isFinishing: $isFinishing")
         isInPipMode = isInPictureInPictureMode
-
-        if (isInPictureInPictureMode) {
-            Timber.d("Entered PiP mode")
-            // Adjust UI for PiP: hide controls, related channels, etc.
-            binding.playerView.useController = false
+        
+        if (isInPipMode) {
+            // Entering PiP
             binding.relatedChannelsSection.visibility = View.GONE
+            binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            updatePipParams() // Set initial PiP actions
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            binding.playerView.hideController()
+            
+            Timber.d("Entered PiP mode")
         } else {
-            Timber.d("Exited PiP mode")
-            // Restore UI when exiting PiP
-            // Check if it was user-requested or system-closed
-            if (userRequestedPip || !isFinishing) {
-                binding.playerView.useController = true
-                binding.relatedChannelsSection.visibility = View.VISIBLE
-                if (isLocked) {
-                    binding.lockOverlay.visibility = View.VISIBLE
-                } else {
-                    showUnlockButton() // Show unlock button temporarily
-                }
-                userRequestedPip = false // Reset flag
+            // Exiting PiP
+            userRequestedPip = false
+            
+            // Check if activity is finishing (user closed PiP from system)
+            if (isFinishing) {
+                Timber.d("Activity is finishing - PiP was closed by user via system gesture/button")
+                return
             }
-            // If isFinishing is true, the activity is closing, so we don't need to restore UI.
-        }
-    }
-
-    // --- Orientation Handling ---
-    private fun applyOrientationSettings(isLandscape: Boolean) {
-        requestedOrientation = if (isLandscape) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
-        // You might want to adjust UI elements based on orientation here if needed
-    }
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-        applyOrientationSettings(isLandscape)
-    }
-
-    // --- Lifecycle Methods ---
-    override fun onStart() {
-        super.onStart()
-        // Player is created in onCreate, so no need to recreate here unless destroyed
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (!isInPipMode) { // Only play if not in PiP
-            player?.play()
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        // Optionally pause playback when app is not in foreground (only if not in PiP)
-        if (!isInPipMode && player?.isPlaying == true) {
-            player?.pause()
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        // Release the player when the activity is stopped
-        // Only release if not in PiP mode, otherwise player continues in PiP
-        if (!isInPipMode) {
-            player?.release()
-            player = null
-        }
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // Ensure player is released if it wasn't already
-        player?.release()
-        player = null
-        // Remove any pending callbacks
-        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
-        // Unregister PiP receiver
-        try {
-            unregisterReceiver(pipReceiver)
-        } catch (e: IllegalArgumentException) {
-            // Receiver was not registered, ignore
-            Timber.w("PiP receiver was not registered or already unregistered.")
+            
+            // Otherwise, user tapped to restore from PiP - restore normal UI
+            Timber.d("Exiting PiP - restoring UI")
+            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+            
+            if (isLocked) {
+                binding.playerView.useController = false
+                binding.lockOverlay.visibility = View.VISIBLE
+                showUnlockButton()
+            } else {
+                binding.playerView.useController = true
+                binding.lockOverlay.visibility = View.GONE
+                binding.playerView.postDelayed({
+                    if (!isInPipMode) {
+                        binding.playerView.showController()
+                    }
+                }, 150)
+            }
         }
     }
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Optional: Enter PiP when user leaves the activity (e.g., presses home button)
-        // enterPipMode() // Uncomment if desired, but be careful about user expectations
+        // Auto-enter PiP when user presses home/recent apps (if playing)
+        if (!isInPipMode && player?.isPlaying == true) {
+            Timber.d("User leaving app - auto-entering PiP")
+            userRequestedPip = true
+            enterPipMode()
+        }
     }
 
-    // Override finish() to handle PiP exit correctly if needed
     override fun finish() {
-        // If exiting PiP, just call super.finish()
-        // The onStop lifecycle will handle player release if necessary
-        super.finish()
+        Timber.d("finish() called - isInPipMode: $isInPipMode, isFinishing: $isFinishing")
+        
+        try {
+            releasePlayer()
+            isInPipMode = false
+            userRequestedPip = false
+            super.finish()
+            Timber.d("Activity finished successfully")
+        } catch (e: Exception) {
+            Timber.e(e, "Error in finish()")
+            super.finish()
+        }
     }
 }
