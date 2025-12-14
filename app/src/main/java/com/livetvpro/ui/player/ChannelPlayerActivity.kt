@@ -295,9 +295,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     )
 
     /**
-     * ✅ MODIFIED: The function now correctly handles the pipe '|' delimiter and 
-     * normalizes the incorrect ampersand '&' delimiter to '|' for resilient parameter parsing.
-     * It extracts the base URL, custom headers, and DRM information (Key ID and Key).
+     * ✅ FIX APPLIED: The line cleaning the base URL (`.replace("?", "")`) was removed.
+     * This ensures that URLs which contain query parameters before the pipe (|) delimiter
+     * (like `https://nxtlive.net/stream.m3u8?id=123|referer=...`) are not corrupted.
+     * The function also normalizes '&' to '|' in parameters for resilience.
      */
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
         // 1. Check for the custom pipe-separated format
@@ -306,12 +307,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             return StreamInfo(streamUrl, mapOf(), null, null, null)
         }
 
-        // 2. Extract the base URL and clean up any trailing '?'
-        val url = streamUrl.substring(0, pipeIndex).trim().replace("?", "")
+        // 2. Extract the base URL up to the pipe character.
+        // The URL MUST include its query parameters (if any).
+        val url = streamUrl.substring(0, pipeIndex).trim()
         
         // 3. Normalize the parameter string: 
-        // CRUCIAL FIX: Replace '&' with '|' before splitting. 
-        // This handles streams where the user put `...|param1=value1&param2=value2`
+        // Replace common accidental '&' delimiters with the required '|' before splitting.
         val rawParams = streamUrl.substring(pipeIndex + 1).trim().replace("&", "|")
         val parts = rawParams.split("|")
 
