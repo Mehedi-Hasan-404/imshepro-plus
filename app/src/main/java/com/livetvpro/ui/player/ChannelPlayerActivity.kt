@@ -148,7 +148,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         bindControllerViewsExact()
         tvChannelName?.text = channel.name
         setupControlListenersExact()
-        setupPlayerViewInteractions()
+        configurePlayerInteractions() // ✅ NEW: Better control visibility handling
         setupLockOverlay()
         setupRelatedChannels()
         loadRelatedChannels()
@@ -264,7 +264,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         super.onDestroy()
         releasePlayer()
         try {
-            // Only attempt to unregister if PiP is supported and the receiver was registered
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 unregisterReceiver(pipReceiver)
             }
@@ -294,22 +293,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val drmKey: String?
     )
 
-    /**
-     * ✅ CORRECTED: Safely parses stream URL and metadata. 
-     * The URL now correctly includes query parameters (`?id=...`) if present.
-     */
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
-        // 1. Check for the custom pipe-separated format
         val pipeIndex = streamUrl.indexOf('|')
         if (pipeIndex == -1) {
             return StreamInfo(streamUrl, mapOf(), null, null, null)
         }
 
-        // 2. Extract the base URL up to the pipe character (preserving all query parameters).
         val url = streamUrl.substring(0, pipeIndex).trim()
-        
-        // 3. Normalize the parameter string: 
-        // Replace common accidental '&' delimiters with the required '|' before splitting.
         val rawParams = streamUrl.substring(pipeIndex + 1).trim().replace("&", "|")
         val parts = rawParams.split("|")
 
@@ -318,7 +308,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         var drmKeyId: String? = null
         var drmKey: String? = null
         
-        // 4. Process parameters
         for (part in parts) {
             val eqIndex = part.indexOf('=')
             if (eqIndex == -1) continue
@@ -332,10 +321,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     Timber.d("🔐 DRM Scheme: $drmScheme")
                 }
                 "drmlicense" -> {
-                    // This is the expected format: KeyID:Key
                     val keyParts = value.split(":")
                     if (keyParts.size == 2) {
-                        // Extract KeyID and Key
                         drmKeyId = keyParts[0].trim()
                         drmKey = keyParts[1].trim()
                         Timber.d("🔑 DRM Keys found")
@@ -381,7 +368,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setAllowCrossProtocolRedirects(true)
                 .setKeepPostFor302Redirects(true)
 
-            // Build MediaSourceFactory with DRM support if needed
             val mediaSourceFactory = if (streamInfo.drmScheme != null && 
                                          streamInfo.drmKeyId != null && 
                                          streamInfo.drmKey != null) {
@@ -489,35 +475,29 @@ class ChannelPlayerActivity : AppCompatActivity() {
             Toast.makeText(this, "Failed to initialize player", Toast.LENGTH_SHORT).show()
         }
         
+        // ✅ UPDATED: Better PlayerView configuration
         binding.playerView.apply {
             useController = true
             controllerShowTimeoutMs = 5000
-            controllerHideOnTouch = true
+            controllerHideOnTouch = true // ✅ Enable tap-to-hide
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         }
     }
 
-    /**
-     * Creates a ClearKey DRM Session Manager
-     * ClearKey is the simplest DRM scheme - keys are provided directly
-     */
     private fun createClearKeyDrmManager(
         keyIdHex: String,
         keyHex: String
     ): DefaultDrmSessionManager? {
         return try {
-            // ClearKey UUID as defined in MPEG-CENC spec
             val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
             
             Timber.d("🔐 Creating ClearKey DRM manager")
             Timber.d("🔑 KeyID: ${keyIdHex.take(8)}...")
             Timber.d("🔑 Key: ${keyHex.take(8)}...")
             
-            // Convert hex strings to byte arrays
             val keyIdBytes = hexToBytes(keyIdHex)
             val keyBytes = hexToBytes(keyHex)
             
-            // Create the ClearKey response in JWK format
             val keyIdBase64 = android.util.Base64.encodeToString(
                 keyIdBytes,
                 android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
@@ -527,7 +507,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
             )
             
-            // Build JWK (JSON Web Key) response for ClearKey
             val jwkResponse = """
                 {
                   "keys": [
@@ -542,10 +521,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             
             Timber.d("🔐 Generated JWK response for ClearKey")
             
-            // Create LocalMediaDrmCallback with the ClearKey license
             val drmCallback = LocalMediaDrmCallback(jwkResponse.toByteArray())
             
-            // Build and return the DRM Session Manager
             DefaultDrmSessionManager.Builder()
                 .setUuidAndExoMediaDrmProvider(
                     clearKeyUuid,
@@ -561,9 +538,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Convert hex string to byte array
-     */
     private fun hexToBytes(hex: String): ByteArray {
         val cleanHex = hex.replace(" ", "").replace("-", "")
         return cleanHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
@@ -601,6 +575,17 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
 
+        // ✅ NEW: Ensure all buttons have proper click effects
+        listOf(
+            btnBack, btnPip, btnSettings, btnLock, btnMute,
+            btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio
+        ).forEach { button ->
+            button?.apply {
+                isClickable = true
+                isFocusable = true
+            }
+        }
+
         btnAspectRatio?.visibility = View.VISIBLE
         btnPip?.visibility = View.VISIBLE
         btnFullscreen?.visibility = View.VISIBLE
@@ -608,10 +593,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun setupControlListenersExact() {
         btnBack?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) finish() 
         }
         
         btnPip?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) {
                 userRequestedPip = true
                 enterPipMode() 
@@ -619,36 +606,46 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         btnSettings?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) showQualityDialog() 
         }
         
         btnAspectRatio?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) toggleAspectRatio()
         }
         
-        btnLock?.setOnClickListener { toggleLock() }
+        btnLock?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            toggleLock() 
+        }
         
         btnRewind?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) - skipMs) 
         }
         
         btnPlayPause?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) {
-                player?.let {
-                    if (it.isPlaying) it.pause() else it.play()
+                player?.let { p ->
+                    if (p.isPlaying) p.pause() else p.play()
                 }
             }
         }
         
         btnForward?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) + skipMs) 
         }
         
         btnFullscreen?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) toggleFullscreen() 
         }
         
         btnMute?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) toggleMute()
         }
     }
@@ -709,8 +706,22 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupPlayerViewInteractions() { 
-        binding.playerView.setOnClickListener(null) 
+    // ✅ NEW: Better player interaction configuration
+    private fun configurePlayerInteractions() {
+        binding.playerView.apply {
+            // Show/hide controller visibility listener
+            setControllerVisibilityListener { visibility ->
+                when (visibility) {
+                    View.VISIBLE -> Timber.d("Controls shown")
+                    View.GONE -> Timber.d("Controls hidden")
+                }
+            }
+            
+            // Controller settings
+            setControllerHideDuringAds(false)
+            controllerShowTimeoutMs = 5000
+            controllerHideOnTouch = true
+        }
     }
     
     private fun setupLockOverlay() {
@@ -829,7 +840,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
         
-        // Hide UI elements before entering PiP
         binding.relatedChannelsSection.visibility = View.GONE
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
@@ -841,7 +851,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun updatePipParams(enter: Boolean = false) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
-                // Get video aspect ratio for PiP window size
                 val format = player?.videoFormat
                 val width = format?.width ?: 16
                 val height = format?.height ?: 9
@@ -854,7 +863,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 val builder = PictureInPictureParams.Builder()
                 builder.setAspectRatio(ratio)
 
-                // Build Remote Actions (Play/Pause)
                 val actions = ArrayList<RemoteAction>()
                 val isPlaying = player?.isPlaying == true
                 val playPauseIconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
@@ -877,9 +885,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 actions.add(RemoteAction(playPauseIcon, playPauseTitle, playPauseTitle, playPausePendingIntent))
                 builder.setActions(actions)
 
-                // Android S+ improvements
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    builder.setAutoEnterEnabled(false) // Only enter when requested
+                    builder.setAutoEnterEnabled(false)
                     builder.setSeamlessResizeEnabled(true)
                 }
 
@@ -905,7 +912,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // Entered PiP
             binding.relatedChannelsSection.visibility = View.GONE
             binding.playerView.useController = false
             binding.lockOverlay.visibility = View.GONE
@@ -913,13 +919,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
         } else {
-            // Exited PiP
             userRequestedPip = false
             if (isFinishing) {
                 return
             }
             
-            // Re-apply orientation settings and controls
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape) 
             
@@ -930,9 +934,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             } else {
                 binding.playerView.useController = true
                 binding.lockOverlay.visibility = View.GONE
-                // Delayed show controller to prevent flickering/timing issues
                 binding.playerView.postDelayed({
-                    if (!this.isInPipMode) { // Check again in case state changed
+                    if (!this.isInPipMode) {
                         binding.playerView.showController()
                     }
                 }, 150)
@@ -942,7 +945,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Automatically enter PiP when user presses home/recents button and video is playing
         if (!isInPipMode && player?.isPlaying == true) {
             userRequestedPip = true
             enterPipMode()
