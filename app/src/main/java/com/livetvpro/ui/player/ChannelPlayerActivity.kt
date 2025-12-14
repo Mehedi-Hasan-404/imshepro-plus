@@ -710,12 +710,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun configurePlayerInteractions() {
         binding.playerView.apply {
             // Show/hide controller visibility listener
-            setControllerVisibilityListener { visibility ->
+            setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
                 when (visibility) {
                     View.VISIBLE -> Timber.d("Controls shown")
                     View.GONE -> Timber.d("Controls hidden")
                 }
-            }
+            })
             
             // Controller settings
             setControllerHideDuringAds(false)
