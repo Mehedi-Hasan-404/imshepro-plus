@@ -19,7 +19,6 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
-import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -44,7 +43,7 @@ import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
-import androidx.media3.datasource.DefaultHttpDataSource 
+import androidx.media3.datasource.DefaultHttpDataSource
 import android.widget.FrameLayout // Required for controller root access
 
 @UnstableApi
@@ -72,7 +71,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnFullscreen: ImageButton? = null
     private var btnAspectRatio: ImageButton? = null
     private var tvChannelName: TextView? = null
-    private var controllerRootView: FrameLayout? = null // Added for potential future fixes
+    private var controllerRootView: FrameLayout? = null
 
     // State flags
     private var isInPipMode = false
@@ -153,7 +152,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         bindControllerViewsExact()
         tvChannelName?.text = channel.name
         setupControlListenersExact()
-        setupPlayerViewInteractions() // Updated to fix controller toggle
+        setupPlayerViewInteractions()
         setupLockOverlay()
         setupRelatedChannels()
         loadRelatedChannels()
@@ -712,10 +711,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayerViewInteractions() { 
-        // FIX: Explicitly set click listener on PlayerView to toggle controller visibility.
-        // This overrides any broken default touch handling.
+        // FIX for controller toggle on tap: 
+        // Changed isControllerVisible (property) to isControllerVisible() (method call)
         binding.playerView.setOnClickListener {
-            if (binding.playerView.isControllerVisible) {
+            if (binding.playerView.isControllerVisible()) { // ✅ FIXED: Method call
                 binding.playerView.hideController()
             } else {
                 binding.playerView.showController()
