@@ -28,8 +28,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.common.util.Util
-import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
 import androidx.media3.exoplayer.drm.FrameworkMediaDrm
@@ -46,6 +44,7 @@ import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
+import androidx.media3.datasource.DefaultHttpDataSource // Import added for clarity
 
 @UnstableApi
 @AndroidEntryPoint
@@ -295,17 +294,34 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val drmKey: String?
     )
 
+    /**
+     * ✅ MODIFIED: The function now correctly handles the pipe '|' delimiter and 
+     * normalizes the incorrect ampersand '&' delimiter to '|' for resilient parameter parsing.
+     * It extracts the base URL, custom headers, and DRM information (Key ID and Key).
+     */
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
-        val parts = streamUrl.split("|")
-        val url = parts[0].trim()
+        // 1. Check for the custom pipe-separated format
+        val pipeIndex = streamUrl.indexOf('|')
+        if (pipeIndex == -1) {
+            return StreamInfo(streamUrl, mapOf(), null, null, null)
+        }
+
+        // 2. Extract the base URL and clean up any trailing '?'
+        val url = streamUrl.substring(0, pipeIndex).trim().replace("?", "")
         
+        // 3. Normalize the parameter string: 
+        // CRUCIAL FIX: Replace '&' with '|' before splitting. 
+        // This handles streams where the user put `...|param1=value1&param2=value2`
+        val rawParams = streamUrl.substring(pipeIndex + 1).trim().replace("&", "|")
+        val parts = rawParams.split("|")
+
         val headers = mutableMapOf<String, String>()
         var drmScheme: String? = null
         var drmKeyId: String? = null
         var drmKey: String? = null
         
-        for (i in 1 until parts.size) {
-            val part = parts[i].trim()
+        // 4. Process parameters
+        for (part in parts) {
             val eqIndex = part.indexOf('=')
             if (eqIndex == -1) continue
 
@@ -318,8 +334,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     Timber.d("🔐 DRM Scheme: $drmScheme")
                 }
                 "drmlicense" -> {
+                    // This is the expected format: KeyID:Key
                     val keyParts = value.split(":")
                     if (keyParts.size == 2) {
+                        // Extract KeyID and Key
                         drmKeyId = keyParts[0].trim()
                         drmKey = keyParts[1].trim()
                         Timber.d("🔑 DRM Keys found")
