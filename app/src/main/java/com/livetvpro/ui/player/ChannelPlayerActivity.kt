@@ -19,6 +19,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
@@ -43,9 +44,7 @@ import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
-import androidx.media3.datasource.DefaultHttpDataSource
-import android.widget.FrameLayout // Required for controller root access
-import android.widget.Toast // Added for Toast
+import androidx.media3.datasource.DefaultHttpDataSource 
 
 @UnstableApi
 @AndroidEntryPoint
@@ -72,7 +71,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnFullscreen: ImageButton? = null
     private var btnAspectRatio: ImageButton? = null
     private var tvChannelName: TextView? = null
-    private var controllerRootView: FrameLayout? = null
 
     // State flags
     private var isInPipMode = false
@@ -81,9 +79,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private val skipMs = 10_000L
     private var userRequestedPip = false
     private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    
-    // Constant for 4-second hide timeout
-    private val controllerTimeoutMs = 4000 
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val hideUnlockButtonRunnable = Runnable {
@@ -184,7 +179,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         if (isLandscape) {
             binding.playerView.hideController()
             binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = controllerTimeoutMs // Fixed to 4000ms
+            binding.playerView.controllerShowTimeoutMs = 3000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
@@ -195,7 +190,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
             binding.playerView.controllerAutoShow = true
-            binding.playerView.controllerShowTimeoutMs = controllerTimeoutMs // Fixed to 4000ms
+            binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
@@ -300,7 +295,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     )
 
     /**
-     * Safely parses stream URL and metadata. 
+     * ✅ CORRECTED: Safely parses stream URL and metadata. 
+     * The URL now correctly includes query parameters (`?id=...`) if present.
      */
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
         // 1. Check for the custom pipe-separated format
@@ -495,14 +491,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         binding.playerView.apply {
             useController = true
-            controllerShowTimeoutMs = controllerTimeoutMs // Fixed to 4000ms
-            controllerHideOnTouch = false // Set to false to allow custom click handling to work
+            controllerShowTimeoutMs = 5000
+            controllerHideOnTouch = true
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
         }
     }
 
     /**
      * Creates a ClearKey DRM Session Manager
+     * ClearKey is the simplest DRM scheme - keys are provided directly
      */
     private fun createClearKeyDrmManager(
         keyIdHex: String,
@@ -513,6 +510,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
             
             Timber.d("🔐 Creating ClearKey DRM manager")
+            Timber.d("🔑 KeyID: ${keyIdHex.take(8)}...")
+            Timber.d("🔑 Key: ${keyHex.take(8)}...")
             
             // Convert hex strings to byte arrays
             val keyIdBytes = hexToBytes(keyIdHex)
@@ -589,7 +588,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnFullscreen = findViewById(R.id.exo_fullscreen)
             btnAspectRatio = findViewById(R.id.exo_aspect_ratio) 
             tvChannelName = findViewById(R.id.exo_channel_name)
-            controllerRootView = findViewById(R.id.exo_controller_root) // Bound the root view
         }
 
         btnBack?.setImageResource(R.drawable.ic_arrow_back)
@@ -712,14 +710,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayerViewInteractions() { 
-        binding.playerView.setOnClickListener {
-            // FIX: Using isControllerVisible() method call to avoid compilation error.
-            if (binding.playerView.isControllerVisible()) { 
-                binding.playerView.hideController()
-            } else {
-                binding.playerView.showController()
-            }
-        }
+        binding.playerView.setOnClickListener(null) 
     }
     
     private fun setupLockOverlay() {
