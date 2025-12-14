@@ -45,6 +45,7 @@ import timber.log.Timber
 import java.util.UUID
 import androidx.media3.datasource.DefaultHttpDataSource
 import android.widget.FrameLayout // Required for controller root access
+import android.widget.Toast // Added for Toast
 
 @UnstableApi
 @AndroidEntryPoint
@@ -711,10 +712,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayerViewInteractions() { 
-        // FIX for controller toggle on tap: 
-        // Changed isControllerVisible (property) to isControllerVisible() (method call)
+        // FIX: Changed isControllerVisible (property) to isControllerVisible() (method call) 
+        // to resolve the Unresolved reference error and ensure controller toggle works.
         binding.playerView.setOnClickListener {
-            if (binding.playerView.isControllerVisible()) { // ✅ FIXED: Method call
+            if (binding.playerView.isControllerVisible()) { 
                 binding.playerView.hideController()
             } else {
                 binding.playerView.showController()
