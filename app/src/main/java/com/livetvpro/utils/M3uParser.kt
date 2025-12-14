@@ -1,5 +1,6 @@
 package com.livetvpro.utils
 
+import com.livetvpro.data.models.Channel
 import org.json.JSONArray
 import timber.log.Timber
 import java.io.BufferedReader
@@ -7,7 +8,6 @@ import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
-import com.livetvpro.data.models.Channel
 
 object M3uParser {
 
@@ -118,11 +118,19 @@ object M3uParser {
 
             when {
                 trimmedLine.startsWith("#EXTINF:") -> {
+                    // Reset all data when a new channel starts
+                    currentUserAgent = null
+                    currentHeaders = mutableMapOf()
+                    currentDrmScheme = null
+                    currentDrmKeyId = null
+                    currentDrmKey = null
+                    
                     currentName = extractChannelName(trimmedLine)
                     currentLogo = extractAttribute(trimmedLine, "tvg-logo")
                     currentGroup = extractAttribute(trimmedLine, "group-title")
                 }
                 
+                // --- Custom Header Parsing (VLC options) ---
                 trimmedLine.startsWith("#EXTVLCOPT:http-user-agent=") -> {
                     currentUserAgent = trimmedLine.substringAfter("=").trim()
                 }
@@ -134,32 +142,53 @@ object M3uParser {
                 trimmedLine.startsWith("#EXTVLCOPT:http-referrer=") -> {
                     currentHeaders["Referer"] = trimmedLine.substringAfter("=").trim()
                 }
+
+                // ✅ FIX: Handle the #EXTHTTP:{"cookie":"VALUE"} format
+                trimmedLine.startsWith("#EXTHTTP:") -> {
+                    try {
+                        val jsonPart = trimmedLine.substringAfter("#EXTHTTP:").trim()
+                        // Use a regex to safely extract the cookie value
+                        val cookieMatch = Regex(""""cookie"\s*:\s*"([^"]+)"""").find(jsonPart) 
+                        val cookie = cookieMatch?.groups?.get(1)?.value
+                        
+                        if (cookie != null) {
+                            currentHeaders["Cookie"] = cookie
+                            Timber.d("🍪 Found M3U Cookie Header")
+                        }
+                    } catch (e: Exception) {
+                        Timber.e(e, "❌ Error parsing #EXTHTTP: cookie")
+                    }
+                }
                 
-                // ✅ FIX: Parse KODIPROP DRM info
+                // --- DRM Parsing (KODIPROP) ---
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_type=") -> {
-                    currentDrmScheme = trimmedLine.substringAfter("=").trim()
+                    // Capture license_type, usually 'clearkey'
+                    currentDrmScheme = trimmedLine.substringAfter("=").trim().lowercase()
                     Timber.d("🔐 Found DRM Scheme: $currentDrmScheme")
                 }
                 
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_key=") -> {
+                    // Capture license key in "KeyID:Key" format
                     val keyPair = trimmedLine.substringAfter("=").trim()
                     val parts = keyPair.split(":")
                     if (parts.size == 2) {
                         currentDrmKeyId = parts[0].trim()
                         currentDrmKey = parts[1].trim()
-                        Timber.d("🔑 Found DRM Keys: ${currentDrmKeyId?.take(8)}... : ${currentDrmKey?.take(8)}...")
+                        Timber.d("🔑 Found DRM Keys")
                     }
                 }
                 
                 !trimmedLine.startsWith("#") -> {
-                    // This is the URL line
+                    // This is the URL line - Process and commit channel
                     if (currentName.isNotEmpty()) {
+                        // Check if the URL line itself contains inline pipe-separated parameters
                         val (streamUrl, inlineHeaders, inlineDrmInfo) = parseInlineHeadersAndDrm(trimmedLine)
                         
+                        // Merge all headers (M3U tags + inline)
                         val finalHeaders = currentHeaders.toMutableMap()
                         finalHeaders.putAll(inlineHeaders)
                         
-                        // ✅ Use KODIPROP keys if available, otherwise inline
+                        // Use M3U tag DRM info if present, otherwise use inline info
                         val finalDrmScheme = currentDrmScheme ?: inlineDrmInfo.first
                         val finalDrmKeyId = currentDrmKeyId ?: inlineDrmInfo.second
                         val finalDrmKey = currentDrmKey ?: inlineDrmInfo.third
@@ -179,15 +208,7 @@ object M3uParser {
                         Timber.d("✅ Parsed channel: $currentName | DRM: $finalDrmScheme | URL: ${streamUrl.take(50)}...")
                     }
                     
-                    // Reset for next channel
-                    currentName = ""
-                    currentLogo = ""
-                    currentGroup = ""
-                    currentUserAgent = null
-                    currentHeaders = mutableMapOf()
-                    currentDrmScheme = null
-                    currentDrmKeyId = null
-                    currentDrmKey = null
+                    // Note: Since we reset at #EXTINF, no need to reset here.
                 }
             }
         }
@@ -223,7 +244,8 @@ object M3uParser {
 
         if (parts.size > 1) {
             for (i in 1 until parts.size) {
-                val part = parts[i]
+                // Normalize the delimiter in the parameters string only
+                val part = parts[i].replace("&", "|")
                 val eqIndex = part.indexOf('=')
                 if (eqIndex != -1) {
                     val key = part.substring(0, eqIndex).trim()
@@ -281,11 +303,17 @@ object M3uParser {
 
     private fun buildStreamUrlWithMetadata(m3u: M3uChannel): String {
         val parts = mutableListOf(m3u.streamUrl)
+        
+        // Add User-Agent if set
         m3u.userAgent?.let { parts.add("User-Agent=$it") }
+        
+        // Add all other HTTP headers
         m3u.httpHeaders.forEach { (k, v) -> parts.add("$k=$v") }
+        
+        // Add DRM Scheme
         m3u.drmScheme?.let { parts.add("drmScheme=$it") }
         
-        // ✅ FIX: Store both keyId and key
+        // Add DRM License (KeyID:Key)
         if (m3u.drmKeyId != null && m3u.drmKey != null) {
             parts.add("drmLicense=${m3u.drmKeyId}:${m3u.drmKey}")
         }
