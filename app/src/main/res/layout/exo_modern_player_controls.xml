@@ -3,10 +3,19 @@
     android:id="@+id/exo_controller_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:clipToPadding="false"
-    
-    android:clickable="true"
-    android:focusable="true">
+    android:clipToPadding="false">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_gravity="top"
+        android:background="@drawable/gradient_overlay_top" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/gradient_overlay_bottom" />
 
     <LinearLayout
         android:id="@+id/exo_top_bar"
@@ -22,9 +31,10 @@
 
         <ImageButton
             android:id="@+id/exo_back"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless" android:src="@drawable/ic_arrow_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_back"
             android:tint="@android:color/white"
             android:contentDescription="Back" />
 
@@ -43,8 +53,9 @@
 
         <ImageButton
             android:id="@+id/exo_pip"
-            android:layout_width="48dp" android:layout_height="48dp"
-            android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_pip"
             android:tint="@android:color/white"
             android:contentDescription="PiP"
@@ -52,25 +63,28 @@
 
         <ImageButton
             android:id="@+id/exo_settings"
-            android:layout_width="48dp" android:layout_height="48dp"
-            android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_settings"
             android:tint="@android:color/white"
             android:contentDescription="Settings" />
 
         <ImageButton
             android:id="@+id/exo_mute"
-            android:layout_width="48dp" android:layout_height="48dp"
-            android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_volume_up"
             android:tint="@android:color/white"
             android:contentDescription="Mute" />
 
         <ImageButton
             android:id="@+id/exo_lock"
-            android:layout_width="48dp" android:layout_height="48dp"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
             android:layout_marginStart="4dp"
-            android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@drawable/ic_lock_open"
             android:tint="@android:color/white"
             android:contentDescription="Lock" />
@@ -90,13 +104,49 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+
+            <TextView
+                android:id="@+id/exo_position"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="0:00"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:gravity="center" />
+
+            <androidx.media3.ui.DefaultTimeBar
+                android:id="@id/exo_progress"
+                android:layout_width="0dp"
+                android:layout_height="20dp"
+                android:layout_weight="1"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
+
+            <TextView
+                android:id="@+id/exo_duration"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="0:00"
+                android:textColor="@android:color/white"
+                android:textSize="12sp"
+                android:gravity="center" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
             android:gravity="center">
 
             <ImageButton
                 android:id="@+id/exo_aspect_ratio"
-                android:layout_width="48dp" android:layout_height="48dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:layout_marginEnd="12dp"
-                android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_aspect_ratio"
                 android:tint="@android:color/white"
                 android:contentDescription="Aspect ratio"
@@ -107,7 +157,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginEnd="16dp"
-                android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_skip_backward"
                 android:tint="@android:color/white"
                 android:contentDescription="Rewind" />
@@ -117,7 +167,7 @@
                 android:layout_width="64dp"
                 android:layout_height="64dp"
                 android:layout_marginEnd="16dp"
-                android:padding="16dp"  android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_play"
                 android:tint="@android:color/white"
                 android:contentDescription="Play/Pause" />
@@ -127,15 +177,16 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginEnd="12dp"
-                android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_skip_forward"
                 android:tint="@android:color/white"
                 android:contentDescription="Forward" />
 
             <ImageButton
                 android:id="@+id/exo_fullscreen"
-                android:layout_width="48dp" android:layout_height="48dp"
-                android:padding="8dp"  android:background="?attr/selectableItemBackgroundBorderless"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
                 android:src="@drawable/ic_fullscreen"
                 android:tint="@android:color/white"
                 android:contentDescription="Fullscreen" />
