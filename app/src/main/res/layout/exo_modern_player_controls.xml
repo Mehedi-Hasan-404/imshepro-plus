@@ -33,8 +33,7 @@
             android:id="@+id/exo_back"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless" 
-            android:src="@drawable/ic_arrow_back"
+            android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_arrow_back"
             android:tint="@android:color/white"
             android:contentDescription="Back" />
 
@@ -55,8 +54,7 @@
             android:id="@+id/exo_pip"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_pip"
+            android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_pip"
             android:tint="@android:color/white"
             android:contentDescription="PiP"
             android:visibility="gone" />
@@ -65,8 +63,7 @@
             android:id="@+id/exo_settings"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_settings"
+            android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_settings"
             android:tint="@android:color/white"
             android:contentDescription="Settings" />
 
@@ -74,8 +71,7 @@
             android:id="@+id/exo_mute"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_volume_up"
+            android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_volume_up"
             android:tint="@android:color/white"
             android:contentDescription="Mute" />
 
@@ -84,8 +80,7 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:layout_marginStart="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_lock_open"
+            android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_lock_open"
             android:tint="@android:color/white"
             android:contentDescription="Lock" />
     </LinearLayout>
@@ -146,8 +141,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginEnd="12dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_aspect_ratio"
+                android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_aspect_ratio"
                 android:tint="@android:color/white"
                 android:contentDescription="Aspect ratio"
                 android:visibility="gone" />
@@ -157,8 +151,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginEnd="16dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_skip_backward"
+                android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_skip_backward"
                 android:tint="@android:color/white"
                 android:contentDescription="Rewind" />
 
@@ -167,8 +160,7 @@
                 android:layout_width="64dp"
                 android:layout_height="64dp"
                 android:layout_marginEnd="16dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_play"
+                android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_play"
                 android:tint="@android:color/white"
                 android:contentDescription="Play/Pause" />
 
@@ -177,8 +169,7 @@
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginEnd="12dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_skip_forward"
+                android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_skip_forward"
                 android:tint="@android:color/white"
                 android:contentDescription="Forward" />
 
@@ -186,8 +177,7 @@
                 android:id="@+id/exo_fullscreen"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:src="@drawable/ic_fullscreen"
+                android:background="@drawable/ripple_white_borderless"  android:src="@drawable/ic_fullscreen"
                 android:tint="@android:color/white"
                 android:contentDescription="Fullscreen" />
         </LinearLayout>
