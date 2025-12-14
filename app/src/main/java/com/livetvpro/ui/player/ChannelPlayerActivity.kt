@@ -712,9 +712,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayerViewInteractions() { 
-        // FIX: Changed isControllerVisible (property) to isControllerVisible() (method call) 
-        // to resolve the Unresolved reference error and ensure controller toggle works.
         binding.playerView.setOnClickListener {
+            // FIX: Using isControllerVisible() method call to avoid compilation error.
             if (binding.playerView.isControllerVisible()) { 
                 binding.playerView.hideController()
             } else {
