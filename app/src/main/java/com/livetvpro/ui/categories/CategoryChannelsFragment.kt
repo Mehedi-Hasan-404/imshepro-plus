@@ -1,8 +1,3 @@
-// ===================================
-// FILE: app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
-// ACTION: UPDATE - Change PlayerActivity to ChannelPlayerActivity
-// ===================================
-
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
@@ -14,7 +9,7 @@ import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.databinding.FragmentCategoryChannelsBinding
 import com.livetvpro.ui.adapters.ChannelAdapter
-import com.livetvpro.ui.player.ChannelPlayerActivity  // ⬅️ CHANGED: Use ChannelPlayerActivity
+import com.livetvpro.ui.player.ChannelPlayerActivity
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 
@@ -45,7 +40,6 @@ class CategoryChannelsFragment : Fragment() {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                // ⬇️ CHANGED: Use ChannelPlayerActivity instead of PlayerActivity
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
