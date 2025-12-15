@@ -23,7 +23,7 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.lifecycle.Lifecycle // <-- FIX: Missing import added
+import androidx.lifecycle.Lifecycle // ✅ ADDED: For robust lifecycle checks
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -172,7 +172,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
-        // FIX: Removed call to applyOrientationSettings(isLandscape) to prevent flickering on resume.
+        // ✅ FLICKER FIX: Removed call to applyOrientationSettings(isLandscape) to prevent
+        // control bar layout flickering on resume.
         
         // Initialize player here for Android 23 or below, or if player is null
         if (Build.VERSION.SDK_INT <= 23 || player == null) {
@@ -629,12 +630,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupControlListenersExact() {
-        // Haptic feedback calls removed
         btnBack?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) finish() 
         }
         
         btnPip?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) {
                 userRequestedPip = true
                 enterPipMode() 
@@ -642,22 +644,27 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         btnSettings?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) showQualityDialog() 
         }
         
         btnAspectRatio?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) toggleAspectRatio()
         }
         
         btnLock?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             toggleLock() 
         }
         
         btnRewind?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) - skipMs) 
         }
         
         btnPlayPause?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) {
                 player?.let { p ->
                     if (p.isPlaying) p.pause() else p.play()
@@ -666,14 +673,30 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
         
         btnForward?.setOnClickListener { 
-            if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) + skipMs) 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) {
+                player?.let { p ->
+                    val newPosition = p.currentPosition + skipMs
+                    
+                    // ✅ LIVE SEEK FIX: Check if the stream is live and if the seek is past the available duration (live edge)
+                    if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
+                        // Snap directly to the live edge (p.duration)
+                        p.seekTo(p.duration)
+                    } else {
+                        // Perform the normal 10-second forward seek
+                        p.seekTo(newPosition)
+                    }
+                }
+            }
         }
         
         btnFullscreen?.setOnClickListener { 
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) toggleFullscreen() 
         }
         
         btnMute?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) toggleMute()
         }
     }
