@@ -145,7 +145,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         binding.progressBar.visibility = View.GONE
-        setupPlayer()
+        setupPlayer() // Initial setup
         bindControllerViewsExact()
         tvChannelName?.text = channel.name
         setupControlListenersExact()
@@ -161,10 +161,25 @@ class ChannelPlayerActivity : AppCompatActivity() {
         applyOrientationSettings(isLandscape)
     }
 
+    override fun onStart() {
+        super.onStart()
+        // ✅ Initialize player here for Android 24+ to ensure playback resumes after returning to app
+        if (Build.VERSION.SDK_INT > 23) {
+            setupPlayer()
+            binding.playerView.onResume()
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
+        
+        // ✅ Initialize player here for Android 23 or below, or if player is missing
+        if (Build.VERSION.SDK_INT <= 23 || player == null) {
+            setupPlayer()
+            binding.playerView.onResume()
+        }
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
@@ -252,13 +267,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
         
         if (!isPip) {
-            player?.pause()
+            // ✅ Improved lifecycle handling
+            if (Build.VERSION.SDK_INT <= 23) {
+                releasePlayer()
+            } else {
+                binding.playerView.onPause()
+                player?.pause()
+            }
         }
     }
 
     override fun onStop() {
         super.onStop()
-        releasePlayer()
+        // ✅ Improved lifecycle handling
+        if (Build.VERSION.SDK_INT > 23) {
+            releasePlayer()
+        }
+        
         // Ensure activity finishes if we stopped while in PiP (User closed PiP window)
         if (isInPipMode) {
             finish()
@@ -348,11 +373,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayer() {
-        player?.release()
-        
-        // Clear errors when setting up new player
+        // ✅ Prevent re-initialization if player already exists
+        if (player != null) return
+
+        [span_0](start_span)[span_1](start_span)// Clear errors and show loading when setting up new player[span_0](end_span)[span_1](end_span)
         binding.errorView.visibility = View.GONE
         binding.errorText.text = ""
+        binding.progressBar.visibility = View.VISIBLE
         
         trackSelector = DefaultTrackSelector(this)
         
@@ -425,7 +452,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                 Player.STATE_READY -> {
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
-                                    // Ensure error view is gone when content starts
+                                    // ✅ Ensure error view is gone when content starts
                                     binding.errorView.visibility = View.GONE
                                     updatePipParams()
                                     Timber.d("✅ Player ready - PLAYING!")
@@ -588,6 +615,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
 
         // Ensure buttons react to clicks visually (handled by XML selector/ripple)
+        [span_2](start_span)// ✅ isClickable set to true, but haptic feedback removed from listener below [cite: 85-86]
         listOf(
             btnBack, btnPip, btnSettings, btnLock, btnMute,
             btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio
@@ -604,7 +632,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupControlListenersExact() {
-        // Haptic feedback removed as requested
+        [cite_start]// ✅ Haptic feedback calls REMOVED as requested [cite: 87-93]
         btnBack?.setOnClickListener { 
             if (!isLocked) finish() 
         }
@@ -737,8 +765,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
         
         binding.retryButton.setOnClickListener {
+            [cite_start]// ✅ Hide errors when retrying[span_2](end_span)
             binding.errorView.visibility = View.GONE
             binding.progressBar.visibility = View.VISIBLE
+            // Reset player needs to clear existing instance first
+            player?.release()
+            player = null
             setupPlayer()
         }
     }
@@ -778,7 +810,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         player?.release()
         player = null
         
-        // Hide error view from previous channel if active
+        [span_3](start_span)// ✅ Hide error view from previous channel if active[span_3](end_span)
         binding.errorView.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
         
