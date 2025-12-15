@@ -169,11 +169,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.playerView.onResume()
         }
     }
-
+    
     override fun onResume() {
         super.onResume()
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        applyOrientationSettings(isLandscape)
+        // FIX: Removed call to applyOrientationSettings(isLandscape) to prevent flickering on resume.
         
         // Initialize player here for Android 23 or below, or if player is null
         if (Build.VERSION.SDK_INT <= 23 || player == null) {
@@ -630,7 +629,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupControlListenersExact() {
-        // Haptic feedback calls REMOVED
+        // Haptic feedback calls removed
         btnBack?.setOnClickListener { 
             if (!isLocked) finish() 
         }
@@ -953,7 +952,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
         } else {
-            // Check if we should close the activity (User closed PiP or didn't explicitly request PiP)
+            // Check if we should close the activity (User closed PiP window)
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
                  finish()
                  return
