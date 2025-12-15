@@ -23,7 +23,7 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.lifecycle.Lifecycle // ✅ ADDED: For robust lifecycle checks
+import androidx.lifecycle.Lifecycle
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -163,7 +163,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        // Initialize player here for Android 24+ (API 24, Nougat)
         if (Build.VERSION.SDK_INT > 23) {
             setupPlayer()
             binding.playerView.onResume()
@@ -172,10 +171,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
-        // ✅ FLICKER FIX: Removed call to applyOrientationSettings(isLandscape) to prevent
-        // control bar layout flickering on resume.
+        // FIX 1: Removed redundant call to applyOrientationSettings(isLandscape) to prevent control bar flickering on resume.
         
-        // Initialize player here for Android 23 or below, or if player is null
         if (Build.VERSION.SDK_INT <= 23 || player == null) {
             setupPlayer()
             binding.playerView.onResume()
@@ -660,7 +657,18 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         btnRewind?.setOnClickListener { 
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) player?.seekTo((player?.currentPosition ?: 0) - skipMs) 
+            if (!isLocked) {
+                player?.let { p ->
+                    val newPosition = p.currentPosition - skipMs
+                    
+                    // FIX 3: Check if seeking back goes before the start of the available content (0)
+                    if (newPosition < 0) {
+                        p.seekTo(0)
+                    } else {
+                        p.seekTo(newPosition)
+                    }
+                }
+            }
         }
         
         btnPlayPause?.setOnClickListener {
@@ -678,7 +686,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 player?.let { p ->
                     val newPosition = p.currentPosition + skipMs
                     
-                    // ✅ LIVE SEEK FIX: Check if the stream is live and if the seek is past the available duration (live edge)
+                    // FIX 2: Check if the stream is live and if the seek is past the available duration (live edge)
                     if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
                         // Snap directly to the live edge (p.duration)
                         p.seekTo(p.duration)
