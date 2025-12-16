@@ -31,6 +31,9 @@ class MainActivity : AppCompatActivity() {
     private var drawerToggle: ActionBarDrawerToggle? = null
     private var isSearchVisible = false
     private var lastSelectedView: View? = null 
+    
+    // NEW: Reference to the sliding indicator view
+    private val indicator by lazy { binding.bottomNavIndicator } 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,25 +99,23 @@ class MainActivity : AppCompatActivity() {
             R.id.contactFragment
         )
         
-        // Find the ID of the starting destination of the primary NavGraph
         val graphStartDestinationId = navController.graph.startDestinationId 
-
-        // FIX: Setup NavOptions for correct Multi-Stack state preservation
-        val navOptions = NavOptions.Builder()
-            // 1. Pop up to the graph's start destination *inclusively*. This clears all destinations 
-            //    in the current transient stack, but is necessary when using setRestoreState(true).
-            .setPopUpTo(graphStartDestinationId, true) 
-            // 2. Ensure only a single copy of the new destination is created.
-            .setLaunchSingleTop(true) 
-            // 3. CRUCIAL: Saves the stack state we're leaving and restores the stack state we're entering.
-            .setRestoreState(true) 
-            .build()
-        
 
         // Helper function for navigating to a top-level screen
         val navigateTopLevel = { destinationId: Int ->
-            if (navController.currentDestination?.id != destinationId) {
-                // Use the state-preserving NavOptions to navigate
+            val currentId = navController.currentDestination?.id ?: graphStartDestinationId
+            
+            if (currentId != destinationId) {
+                // The CRITICAL NavOptions for robust state preservation:
+                val navOptions = NavOptions.Builder()
+                    // 1. Pop up to the currently active destination *inclusively*. This clears the
+                    //    transient back stack of the tab we are leaving.
+                    .setPopUpTo(currentId, true) 
+                    .setLaunchSingleTop(true) 
+                    // 2. CRUCIAL: Saves the stack state we're leaving and restores the stack state we're entering.
+                    .setRestoreState(true) 
+                    .build()
+                
                 navController.navigate(destinationId, null, navOptions)
             }
         }
@@ -133,7 +134,7 @@ class MainActivity : AppCompatActivity() {
             if (menuItem.itemId in topLevelDestinations) {
                 navigateTopLevel(menuItem.itemId)
                 
-                // Trigger the scale and translation animation
+                // Trigger the enhanced animation (scale, translation, and indicator slide)
                 val selectedItemView = binding.bottomNavigation.findViewById<View>(menuItem.itemId)
                 animateBottomNavItem(selectedItemView)
                 
@@ -141,6 +142,10 @@ class MainActivity : AppCompatActivity() {
             }
             return@setOnItemSelectedListener false
         }
+        
+        // NEW: Setup initial indicator position after the view is drawn
+        binding.bottomNavigation.post { setupIndicator(navController.currentDestination?.id) }
+
 
         // MAIN NAVIGATION LOGIC (Icon/Lock/Title updates)
         navController.addOnDestinationChangedListener { _, destination, _ ->
@@ -176,7 +181,7 @@ class MainActivity : AppCompatActivity() {
                 // Sync Bottom Nav selection state
                 binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
                 
-                // Animate icon on first load or when popping back to top level
+                // Animate icon and indicator on destination change (e.g., via back button)
                 val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
                 animateBottomNavItem(currentView)
 
@@ -201,6 +206,8 @@ class MainActivity : AppCompatActivity() {
                         ?.start()
                     lastSelectedView = null
                 }
+                // Also hide the indicator when navigating to a non-top-level destination
+                indicator.animate().alpha(0f).setDuration(150).start()
             }
             
             // Hide search if open
@@ -215,6 +222,81 @@ class MainActivity : AppCompatActivity() {
             }
         }
     }
+
+    /**
+     * Initializes the indicator's position and size on startup.
+     */
+    private fun setupIndicator(destinationId: Int?) {
+        val initialItemId = destinationId ?: binding.bottomNavigation.menu.getItem(0).itemId 
+        val initialView = binding.bottomNavigation.findViewById<View>(initialItemId)
+
+        if (initialView != null) {
+            // Calculate starting position and size
+            val initialX = initialView.x + initialView.width * 0.25f // 25% margin from left
+            val initialWidth = initialView.width * 0.5f // Half the item width
+            
+            indicator.translationX = initialX
+            indicator.layoutParams.width = initialWidth.toInt()
+            indicator.requestLayout()
+            indicator.alpha = 1f // Ensure it's visible
+        }
+    }
+    
+    /**
+     * ENHANCED: Applies a sliding indicator animation, scaling, and vertical translation.
+     */
+    private fun animateBottomNavItem(newSelectedView: View?) {
+        // Do not animate if the view is null or the same view is selected
+        if (newSelectedView == null || lastSelectedView == newSelectedView) return
+        
+        val duration = 300L 
+        
+        // 1. Indicator Animation (Smooth Slide)
+        indicator.alpha = 1f // Ensure it becomes visible when returning to top level
+        
+        // Target position (centered pill)
+        val targetX = newSelectedView.x + newSelectedView.width * 0.25f 
+        val targetWidth = newSelectedView.width * 0.5f 
+
+        // Animate Indicator Position (TranslationX)
+        indicator.animate()
+            .translationX(targetX)
+            .setDuration(duration)
+            .start()
+
+        // Animate Indicator Width (more complex, requires ValueAnimator)
+        val widthAnimator = ValueAnimator.ofInt(indicator.width, targetWidth.toInt())
+        widthAnimator.addUpdateListener { animator ->
+            indicator.layoutParams.width = animator.animatedValue as Int
+            indicator.requestLayout()
+        }
+        widthAnimator.duration = duration
+        widthAnimator.start()
+
+
+        // 2. Icon Animation (Vertical translation + Scale)
+
+        // Descale and Translate Down the previously selected item (Reset to default)
+        lastSelectedView?.animate()
+            ?.scaleX(1.0f)
+            ?.scaleY(1.0f)
+            ?.translationY(0f) 
+            ?.setDuration(duration)
+            ?.start()
+
+        // Scale up and Translate Up the newly selected item (Highlight)
+        newSelectedView.animate()
+            ?.scaleX(1.15f) 
+            ?.scaleY(1.15f)
+            ?.translationY(-8f) // Move up slightly
+            ?.setDuration(duration)
+            ?.start()
+            
+        // 3. Update the reference
+        lastSelectedView = newSelectedView
+    }
+
+    // ... (setupSearch, showSearch, hideSearch, animateNavigationIcon remain the same) ...
 
     private fun setupSearch() {
         binding.searchView.visibility = View.GONE
@@ -317,35 +399,6 @@ class MainActivity : AppCompatActivity() {
         animator.interpolator = DecelerateInterpolator()
         animator.duration = 300
         animator.start()
-    }
-    
-    /**
-     * ENHANCED: Applies a scaling and vertical translation animation to the newly selected bottom navigation item.
-     */
-    private fun animateBottomNavItem(newSelectedView: View?) {
-        // Only run animation if a selection change occurred
-        if (lastSelectedView == newSelectedView) return
-        
-        val duration = 150L 
-
-        // 1. Descale and Translate Down the previously selected item (Reset to default)
-        lastSelectedView?.animate()
-            ?.scaleX(1.0f)
-            ?.scaleY(1.0f)
-            ?.translationY(0f) // Move back to original vertical position
-            ?.setDuration(duration)
-            ?.start()
-
-        // 2. Scale up and Translate Up the newly selected item (Highlight)
-        newSelectedView?.animate()
-            ?.scaleX(1.15f) // Scale up by 15%
-            ?.scaleY(1.15f)
-            ?.translationY(-8f) // Move up slightly (8 pixels)
-            ?.setDuration(duration)
-            ?.start()
-            
-        // 3. Update the reference
-        lastSelectedView = newSelectedView
     }
 
 
