@@ -28,7 +28,7 @@
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent">
-
+                    
                     <TextView
                         android:id="@+id/toolbar_title"
                         android:layout_width="0dp"
@@ -113,26 +113,42 @@
             android:layout_width="0dp"
             android:layout_height="0dp"
             app:defaultNavHost="true"
-            app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
+            app:layout_constraintBottom_toTopOf="@id/bottom_nav_container" 
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/app_bar_layout"
             app:navGraph="@navigation/nav_graph" />
 
-        <com.google.android.material.bottomnavigation.BottomNavigationView
-            android:id="@+id/bottom_navigation"
+        <FrameLayout
+            android:id="@+id/bottom_nav_container"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:background="?attr/colorSurface"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:menu="@menu/bottom_nav_menu"
-            app:labelVisibilityMode="labeled"
-            app:itemIconTint="@color/bottom_nav_colors" 
-            app:itemTextColor="@color/bottom_nav_colors" 
-            app:itemIconSize="28dp"
-            />
+            app:layout_constraintStart_toStartOf="parent">
+
+            <View
+                android:id="@+id/bottom_nav_indicator"
+                android:layout_width="0dp"
+                android:layout_height="4dp" 
+                android:layout_gravity="top|start"
+                android:layout_marginTop="0dp" 
+                android:background="@drawable/bottom_nav_indicator_background" />
+
+            <com.google.android.material.bottomnavigation.BottomNavigationView
+                android:id="@+id/bottom_navigation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/colorSurface"
+                android:paddingTop="4dp" 
+                app:itemIconTint="@color/bottom_nav_colors" 
+                app:itemTextColor="@color/bottom_nav_colors" 
+                app:itemIconSize="28dp"
+                app:labelVisibilityMode="labeled"
+                app:menu="@menu/bottom_nav_menu"
+                />
+        </FrameLayout>
+
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
