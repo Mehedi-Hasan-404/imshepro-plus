@@ -8,6 +8,7 @@ import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.view.GravityCompat
+import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.databinding.ActivityMainBinding
@@ -29,7 +30,6 @@ class MainActivity : AppCompatActivity() {
     
     private var drawerToggle: ActionBarDrawerToggle? = null
     private var isSearchVisible = false
-    // NEW: Variable to track the last selected Bottom Nav item for animation
     private var lastSelectedView: View? = null 
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -96,14 +96,33 @@ class MainActivity : AppCompatActivity() {
             R.id.liveEventsFragment,
             R.id.contactFragment
         )
+        
+        // Find the starting destination ID from the navigation graph
+        val graphStartDestination = navController.graph.startDestinationId
 
-        // FIX: Robust Top-Level Navigation Helper
+        // FIX: Setup NavOptions for state preservation (Multi-Stack Logic)
+        val navOptions = NavOptions.Builder()
+            // Clears the stack up to the graph's starting destination.
+            // inclusive=false means the starting destination's state is preserved.
+            .setPopUpTo(graphStartDestination, false) 
+            // Prevents multiple copies of the same destination when navigating quickly.
+            .setLaunchSingleTop(true) 
+            // CRUCIAL: Saves the state of the current destination (its back stack) and restores it 
+            // when navigating back to the previous top-level destination.
+            .setRestoreState(true) 
+            // Setting default animations (assuming these resources are available)
+            .setEnterAnim(androidx.navigation.ui.R.anim.nav_default_enter_anim)
+            .setExitAnim(androidx.navigation.ui.R.anim.nav_default_exit_anim)
+            .setPopEnterAnim(androidx.navigation.ui.R.anim.nav_default_pop_enter_anim)
+            .setPopExitAnim(androidx.navigation.ui.R.anim.nav_default_pop_exit_anim)
+            .build()
+        
+
+        // Helper function for navigating to a top-level screen
         val navigateTopLevel = { destinationId: Int ->
             if (navController.currentDestination?.id != destinationId) {
-                // Pop all destinations on the back stack until we reach the target, but DO NOT pop the target itself
-                if (!navController.popBackStack(destinationId, false)) {
-                    navController.navigate(destinationId)
-                }
+                // Use NavOptions to switch tabs while preserving state
+                navController.navigate(destinationId, null, navOptions)
             }
         }
 
@@ -121,7 +140,7 @@ class MainActivity : AppCompatActivity() {
             if (menuItem.itemId in topLevelDestinations) {
                 navigateTopLevel(menuItem.itemId)
                 
-                // NEW: Trigger the scale animation on the selected item
+                // Trigger the scale animation on the selected item
                 val selectedItemView = binding.bottomNavigation.findViewById<View>(menuItem.itemId)
                 animateBottomNavItem(selectedItemView)
                 
@@ -164,7 +183,7 @@ class MainActivity : AppCompatActivity() {
                 // Sync Bottom Nav selection state
                 binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
                 
-                // NEW: Animate icon on first load or when popping back to top level
+                // Animate icon on first load or when popping back to top level
                 val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
                 animateBottomNavItem(currentView)
 
@@ -179,7 +198,7 @@ class MainActivity : AppCompatActivity() {
                     onBackPressedDispatcher.onBackPressed()
                 }
                 
-                // NEW: Deselect and shrink bottom nav item when navigating away from top level
+                // Deselect and shrink bottom nav item when navigating away from top level
                 if (lastSelectedView != null) {
                     lastSelectedView?.animate()
                         ?.scaleX(1.0f)
@@ -204,7 +223,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupSearch() {
-        // ... (Search setup logic remains the same) ...
         binding.searchView.visibility = View.GONE
         
         binding.btnSearch.setOnClickListener {
@@ -237,7 +255,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSearch() {
-        // ... (Show search logic remains the same) ...
         isSearchVisible = true
         
         binding.toolbarTitle.visibility = View.GONE
@@ -256,7 +273,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hideSearch() {
-        // ... (Hide search logic remains the same) ...
         isSearchVisible = false
         
         binding.toolbarTitle.visibility = View.VISIBLE
@@ -310,7 +326,7 @@ class MainActivity : AppCompatActivity() {
     }
     
     /**
-     * NEW: Applies a scaling animation to the newly selected bottom navigation item.
+     * Applies a scaling animation to the newly selected bottom navigation item.
      */
     private fun animateBottomNavItem(newSelectedView: View?) {
         // Only run animation if a selection change occurred
