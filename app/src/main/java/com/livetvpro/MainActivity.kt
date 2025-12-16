@@ -97,31 +97,26 @@ class MainActivity : AppCompatActivity() {
             R.id.contactFragment
         )
         
-        // Find the starting destination ID from the navigation graph
-        val graphStartDestination = navController.graph.startDestinationId
+        // Find the ID of the starting destination of the primary NavGraph
+        val graphStartDestinationId = navController.graph.startDestinationId 
 
         // FIX: Setup NavOptions for state preservation (Multi-Stack Logic)
         val navOptions = NavOptions.Builder()
-            // Clears the stack up to the graph's starting destination.
-            // inclusive=false means the starting destination's state is preserved.
-            .setPopUpTo(graphStartDestination, false) 
-            // Prevents multiple copies of the same destination when navigating quickly.
+            // 1. Pop up to the main graph's start destination. Setting inclusive=false means the state of the 
+            //    start destination (R.id.homeFragment) is not cleared, allowing state preservation.
+            .setPopUpTo(graphStartDestinationId, false) 
+            // 2. Ensure only a single copy of the new destination is created.
             .setLaunchSingleTop(true) 
-            // CRUCIAL: Saves the state of the current destination (its back stack) and restores it 
-            // when navigating back to the previous top-level destination.
+            // 3. CRUCIAL: Saves the state of the current destination (its back stack) and restores it 
+            //    when navigating back to the previous top-level destination.
             .setRestoreState(true) 
-            // Setting default animations (assuming these resources are available)
-            .setEnterAnim(androidx.navigation.ui.R.anim.nav_default_enter_anim)
-            .setExitAnim(androidx.navigation.ui.R.anim.nav_default_exit_anim)
-            .setPopEnterAnim(androidx.navigation.ui.R.anim.nav_default_pop_enter_anim)
-            .setPopExitAnim(androidx.navigation.ui.R.anim.nav_default_pop_exit_anim)
             .build()
         
 
         // Helper function for navigating to a top-level screen
         val navigateTopLevel = { destinationId: Int ->
             if (navController.currentDestination?.id != destinationId) {
-                // Use NavOptions to switch tabs while preserving state
+                // Use the state-preserving NavOptions to navigate
                 navController.navigate(destinationId, null, navOptions)
             }
         }
