@@ -1,8 +1,10 @@
 package com.livetvpro
 
+import android.animation.ValueAnimator
 import android.os.Bundle
 import android.view.MenuItem
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
@@ -15,6 +17,11 @@ import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import javax.inject.Inject
 
+// Interface to pass search queries to fragments
+interface SearchableFragment {
+    fun onSearchQuery(query: String)
+}
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
 
@@ -24,7 +31,6 @@ class MainActivity : AppCompatActivity() {
     lateinit var preferencesManager: PreferencesManager
     
     private var drawerToggle: ActionBarDrawerToggle? = null
-    private var currentSearchQuery: String = ""
     private var isSearchVisible = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,114 +49,84 @@ class MainActivity : AppCompatActivity() {
             binding = ActivityMainBinding.inflate(layoutInflater)
             setContentView(binding.root)
             
-            Timber.d("Binding inflated successfully")
-
             setupToolbar()
+            setupDrawer() // Setup drawer first
             setupNavigation()
-            setupDrawer()
             setupSearch()
             
             Timber.d("MainActivity onCreate completed successfully")
         } catch (e: Exception) {
             Timber.e(e, "FATAL: Error in MainActivity onCreate")
             e.printStackTrace()
-            
-            Toast.makeText(
-                this,
-                "Error starting app: ${e.message}",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, "Error starting app: ${e.message}", Toast.LENGTH_LONG).show()
         }
     }
 
     private fun setupToolbar() {
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        supportActionBar?.setDisplayHomeAsUpEnabled(true)
+    }
+
+    private fun setupDrawer() {
         try {
-            setSupportActionBar(binding.toolbar)
-            supportActionBar?.setDisplayShowTitleEnabled(false)
-            supportActionBar?.setDisplayHomeAsUpEnabled(true)
-            Timber.d("Toolbar setup complete")
+            drawerToggle = ActionBarDrawerToggle(
+                this,
+                binding.drawerLayout,
+                binding.toolbar,
+                R.string.navigation_drawer_open,
+                R.string.navigation_drawer_close
+            )
+            // Note: We don't rely on syncState() here for the icon logic anymore
+            // because we are animating it manually in setupNavigation()
+            binding.drawerLayout.addDrawerListener(drawerToggle!!)
+            
+            Timber.d("Drawer setup complete")
         } catch (e: Exception) {
-            Timber.e(e, "Error setting up toolbar")
-            throw e
+            Timber.e(e, "Error setting up drawer")
         }
     }
 
     private fun setupNavigation() {
         try {
-            Timber.d("Setting up navigation")
             val navHostFragment = supportFragmentManager
                 .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
                 
             if (navHostFragment == null) {
                 Timber.e("NavHostFragment not found!")
-                Toast.makeText(this, "Navigation error - Fragment not found", Toast.LENGTH_LONG).show()
                 return
             }
             
             val navController = navHostFragment.navController
 
-            // Top-level destinations where hamburger menu should show
             val topLevelDestinations = setOf(
                 R.id.homeFragment,
                 R.id.liveEventsFragment,
                 R.id.contactFragment
             )
 
-            // Setup drawer navigation
+            // Drawer Item Click
             binding.navigationView.setNavigationItemSelectedListener { menuItem ->
-                when (menuItem.itemId) {
-                    R.id.homeFragment -> {
-                        if (navController.currentDestination?.id != R.id.homeFragment) {
-                            if (!navController.popBackStack(R.id.homeFragment, false)) {
-                                navController.navigate(R.id.homeFragment)
-                            }
-                        }
-                    }
-                    R.id.liveEventsFragment -> {
-                        if (navController.currentDestination?.id != R.id.liveEventsFragment) {
-                            navController.navigate(R.id.liveEventsFragment)
-                        }
-                    }
-                    R.id.contactFragment -> {
-                        if (navController.currentDestination?.id != R.id.contactFragment) {
-                            navController.navigate(R.id.contactFragment)
-                        }
-                    }
+                if (menuItem.itemId != navController.currentDestination?.id) {
+                    navController.navigate(menuItem.itemId)
                 }
                 binding.drawerLayout.closeDrawer(GravityCompat.START)
                 true
             }
 
-            // Setup bottom navigation
+            // Bottom Nav Click
             binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
-                when (menuItem.itemId) {
-                    R.id.homeFragment -> {
-                        if (navController.currentDestination?.id != R.id.homeFragment) {
-                            if (!navController.popBackStack(R.id.homeFragment, false)) {
-                                navController.navigate(R.id.homeFragment)
-                            }
-                        }
-                        true
-                    }
-                    R.id.liveEventsFragment -> {
-                        if (navController.currentDestination?.id != R.id.liveEventsFragment) {
-                            navController.navigate(R.id.liveEventsFragment)
-                        }
-                        true
-                    }
-                    R.id.contactFragment -> {
-                        if (navController.currentDestination?.id != R.id.contactFragment) {
-                            navController.navigate(R.id.contactFragment)
-                        }
-                        true
-                    }
-                    else -> false
+                if (menuItem.itemId != navController.currentDestination?.id) {
+                    // Simple navigation, avoiding complex stack logic for now to prevent bugs
+                    navController.navigate(menuItem.itemId)
                 }
+                true
             }
 
-            // ✅ FIXED: Update hamburger/back button based on destination
+            // NAVIGATION LISTENER: Handles Icon Animation and Toolbar Clicks
             navController.addOnDestinationChangedListener { _, destination, _ ->
-                val title = when (destination.id) {
+                // 1. Update Title
+                binding.toolbarTitle.text = when (destination.id) {
                     R.id.homeFragment -> "Categories"
                     R.id.categoryChannelsFragment -> "Channels"
                     R.id.liveEventsFragment -> "Live Events"
@@ -158,51 +134,41 @@ class MainActivity : AppCompatActivity() {
                     R.id.contactFragment -> "Contact"
                     else -> "Live TV Pro"
                 }
-                binding.toolbarTitle.text = title
                 
-                // Check if current destination is top-level
                 val isTopLevel = destination.id in topLevelDestinations
                 
-                // ✅ CRITICAL FIX: Properly sync drawer toggle state
+                // 2. Animate Hamburger (0f) <-> Back Arrow (1f)
+                val targetProgress = if (isTopLevel) 0f else 1f
+                animateNavigationIcon(targetProgress)
+                
+                // 3. Set Drawer Lock Mode and Navigation Listener
                 if (isTopLevel) {
-                    // Show hamburger menu (drawer indicator)
-                    drawerToggle?.isDrawerIndicatorEnabled = true
-                    drawerToggle?.syncState()
+                    // Unlock Drawer
+                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                     
-                    // Enable drawer swipe
-                    binding.drawerLayout.setDrawerLockMode(
-                        androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED
-                    )
+                    // Click opens Drawer
+                    binding.toolbar.setNavigationOnClickListener {
+                        if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                            binding.drawerLayout.closeDrawer(GravityCompat.START)
+                        } else {
+                            binding.drawerLayout.openDrawer(GravityCompat.START)
+                        }
+                    }
                     
-                    // Remove custom navigation click listener
-                    binding.toolbar.setNavigationOnClickListener(null)
+                    // Sync Bottom Nav
+                    binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
+
                 } else {
-                    // Show back arrow
-                    drawerToggle?.isDrawerIndicatorEnabled = false
-                    supportActionBar?.setDisplayHomeAsUpEnabled(true)
+                    // Lock Drawer Closed
+                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                     
-                    // Disable drawer swipe
-                    binding.drawerLayout.setDrawerLockMode(
-                        androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED
-                    )
-                    
-                    // ✅ Set custom back navigation
+                    // Click goes Back
                     binding.toolbar.setNavigationOnClickListener {
                         onBackPressedDispatcher.onBackPressed()
                     }
                 }
                 
-                // Update bottom navigation selection
-                if (isTopLevel) {
-                    binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
-                }
-                
-                // Close drawer after navigation
-                if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                }
-                
-                // Hide search when navigating
+                // 4. Reset Search if visible
                 if (isSearchVisible) {
                     hideSearch()
                 }
@@ -215,97 +181,73 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             
-            Timber.d("Navigation setup complete")
         } catch (e: Exception) {
             Timber.e(e, "Error setting up navigation")
-            Toast.makeText(this, "Navigation setup failed: ${e.message}", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun setupDrawer() {
-        try {
-            drawerToggle = ActionBarDrawerToggle(
-                this,
-                binding.drawerLayout,
-                binding.toolbar,
-                R.string.navigation_drawer_open,
-                R.string.navigation_drawer_close
-            ).apply {
-                isDrawerIndicatorEnabled = true
-                // ✅ Enable animated icon transformation
-                isDrawerSlideAnimationEnabled = true
-                syncState()
-            }
-            
-            drawerToggle?.let {
-                binding.drawerLayout.addDrawerListener(it)
-            }
-            
-            Timber.d("Drawer setup complete")
-        } catch (e: Exception) {
-            Timber.e(e, "Error setting up drawer")
-            Toast.makeText(this, "Drawer setup failed: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun setupSearch() {
-        try {
-            // ✅ Initially hide search view
-            binding.searchView.visibility = View.GONE
-            
-            // Search icon click - show search bar
-            binding.btnSearch.setOnClickListener {
-                showSearch()
+        binding.searchView.visibility = View.GONE
+        
+        // Open Search
+        binding.btnSearch.setOnClickListener {
+            showSearch()
+        }
+        
+        // Search Listeners
+        binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                binding.searchView.clearFocus()
+                return true
             }
-            
-            // Search view listeners
-            binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean {
-                    currentSearchQuery = query ?: ""
-                    // TODO: Implement search in current fragment
-                    return true
-                }
 
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    currentSearchQuery = newText ?: ""
-                    // TODO: Implement live search in current fragment
-                    return true
+            override fun onQueryTextChange(newText: String?): Boolean {
+                val query = newText ?: ""
+                
+                // Toggle 'X' button based on text
+                binding.btnSearchClear.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
+                
+                // Pass query to current fragment
+                val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+                val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
+                
+                if (currentFragment is SearchableFragment) {
+                    currentFragment.onSearchQuery(query)
                 }
-            })
-            
-            // Back button in search mode
-            binding.btnSearchBack.setOnClickListener {
-                hideSearch()
+                
+                return true
             }
-            
-            // Clear search text
-            binding.btnSearchClear.setOnClickListener {
-                binding.searchView.setQuery("", false)
-                currentSearchQuery = ""
-            }
-            
-            Timber.d("Search setup complete")
-        } catch (e: Exception) {
-            Timber.e(e, "Error setting up search")
+        })
+        
+        // Clear Button
+        binding.btnSearchClear.setOnClickListener {
+            binding.searchView.setQuery("", false)
         }
     }
 
     private fun showSearch() {
         isSearchVisible = true
         
-        // Hide normal toolbar items
+        // Hide standard items
         binding.toolbarTitle.visibility = View.GONE
         binding.btnSearch.visibility = View.GONE
         binding.btnFavorites.visibility = View.GONE
         
-        // Show search components
+        // Show search items
         binding.searchView.visibility = View.VISIBLE
-        binding.btnSearchBack.visibility = View.VISIBLE
-        binding.btnSearchClear.visibility = View.VISIBLE
+        // btnSearchClear is handled by text listener
         
-        // Focus and open keyboard
+        // Focus
         binding.searchView.isIconified = false
         binding.searchView.requestFocus()
+        
+        // Animate icon to Back Arrow (1f)
+        animateNavigationIcon(1f)
+        
+        // Override Back Navigation to Close Search
+        binding.toolbar.setNavigationOnClickListener {
+            hideSearch()
+        }
         
         Timber.d("Search mode activated")
     }
@@ -313,70 +255,71 @@ class MainActivity : AppCompatActivity() {
     private fun hideSearch() {
         isSearchVisible = false
         
-        // Show normal toolbar items
+        // Restore standard items
         binding.toolbarTitle.visibility = View.VISIBLE
         binding.btnSearch.visibility = View.VISIBLE
         binding.btnFavorites.visibility = View.VISIBLE
         
-        // Hide search components
+        // Hide search items
         binding.searchView.visibility = View.GONE
-        binding.btnSearchBack.visibility = View.GONE
         binding.btnSearchClear.visibility = View.GONE
         
-        // Clear search
+        // Clear query
         binding.searchView.setQuery("", false)
-        currentSearchQuery = ""
-        
-        // Close keyboard
         binding.searchView.clearFocus()
+        
+        // RESTORE NAVIGATION ICON AND LISTENER
+        val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+        val currentId = navHostFragment?.navController?.currentDestination?.id
+        
+        val topLevelDestinations = setOf(R.id.homeFragment, R.id.liveEventsFragment, R.id.contactFragment)
+        val isTopLevel = currentId in topLevelDestinations
+
+        // Animate back to Hamburger (0f) if top level, stay Arrow (1f) if deep
+        animateNavigationIcon(if (isTopLevel) 0f else 1f)
+
+        if (isTopLevel) {
+            binding.toolbar.setNavigationOnClickListener {
+                if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                } else {
+                    binding.drawerLayout.openDrawer(GravityCompat.START)
+                }
+            }
+        } else {
+            binding.toolbar.setNavigationOnClickListener {
+                onBackPressedDispatcher.onBackPressed()
+            }
+        }
         
         Timber.d("Search mode deactivated")
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        // ✅ FIXED: Let drawer toggle handle home button only if drawer is enabled
-        if (drawerToggle?.isDrawerIndicatorEnabled == true) {
-            if (drawerToggle?.onOptionsItemSelected(item) == true) {
-                return true
-            }
-        }
-        return super.onOptionsItemSelected(item)
-    }
+    /**
+     * Animates the Navigation Icon (Hamburger <-> Arrow)
+     * 0f = Hamburger
+     * 1f = Arrow
+     */
+    private fun animateNavigationIcon(endPosition: Float) {
+        val startPosition = drawerToggle?.drawerArrowDrawable?.progress ?: 0f
+        if (startPosition == endPosition) return
 
-    override fun onSupportNavigateUp(): Boolean {
-        val navHostFragment = supportFragmentManager
-            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
-        val navController = navHostFragment?.navController
-        return navController?.navigateUp() ?: false || super.onSupportNavigateUp()
+        val animator = ValueAnimator.ofFloat(startPosition, endPosition)
+        animator.addUpdateListener { valueAnimator ->
+            val slideOffset = valueAnimator.animatedValue as Float
+            drawerToggle?.drawerArrowDrawable?.progress = slideOffset
+        }
+        animator.interpolator = DecelerateInterpolator()
+        animator.duration = 300
+        animator.start()
     }
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         when {
-            // If search is visible, hide it first
-            isSearchVisible -> {
-                hideSearch()
-            }
-            // If drawer is open, close it
-            binding.drawerLayout.isDrawerOpen(GravityCompat.START) -> {
-                binding.drawerLayout.closeDrawer(GravityCompat.START)
-            }
-            // Otherwise, handle normal back
-            else -> {
-                super.onBackPressed()
-            }
+            isSearchVisible -> hideSearch()
+            binding.drawerLayout.isDrawerOpen(GravityCompat.START) -> binding.drawerLayout.closeDrawer(GravityCompat.START)
+            else -> super.onBackPressed()
         }
     }
-
-    override fun onPostCreate(savedInstanceState: Bundle?) {
-        super.onPostCreate(savedInstanceState)
-        drawerToggle?.syncState()
-    }
-
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
-        super.onConfigurationChanged(newConfig)
-        drawerToggle?.onConfigurationChanged(newConfig)
-    }
-
-    fun getSearchQuery(): String = currentSearchQuery
 }
