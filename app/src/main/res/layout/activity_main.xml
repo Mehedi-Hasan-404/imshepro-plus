@@ -6,12 +6,10 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Main content -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <!-- Toolbar -->
         <com.google.android.material.appbar.AppBarLayout
             android:id="@+id/app_bar_layout"
             android:layout_width="match_parent"
@@ -27,12 +25,10 @@
                 app:titleTextColor="@android:color/white"
                 app:popupTheme="@style/ThemeOverlay.AppCompat.Light">
 
-                <!-- ✅ FIXED: New toolbar layout with proper search -->
                 <androidx.constraintlayout.widget.ConstraintLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent">
 
-                    <!-- Normal Mode: Title + Search Icon + Favorites -->
                     <TextView
                         android:id="@+id/toolbar_title"
                         android:layout_width="0dp"
@@ -41,13 +37,12 @@
                         android:textColor="@android:color/white"
                         android:textSize="20sp"
                         android:textStyle="bold"
-                        android:layout_marginStart="16dp"
+                        android:layout_marginStart="0dp"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintEnd_toStartOf="@id/btn_search"
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintBottom_toBottomOf="parent" />
 
-                    <!-- Search icon button -->
                     <ImageButton
                         android:id="@+id/btn_search"
                         android:layout_width="48dp"
@@ -61,7 +56,6 @@
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintBottom_toBottomOf="parent" />
 
-                    <!-- Favorites icon button -->
                     <ImageButton
                         android:id="@+id/btn_favorites"
                         android:layout_width="48dp"
@@ -76,23 +70,6 @@
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintBottom_toBottomOf="parent" />
 
-                    <!-- Search Mode: Back + SearchView + Clear -->
-                    <!-- Back button in search mode -->
-                    <ImageButton
-                        android:id="@+id/btn_search_back"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:contentDescription="Back"
-                        android:src="@drawable/ic_arrow_back"
-                        android:tint="@android:color/white"
-                        android:padding="12dp"
-                        android:visibility="gone"
-                        app:layout_constraintStart_toStartOf="parent"
-                        app:layout_constraintTop_toTopOf="parent"
-                        app:layout_constraintBottom_toBottomOf="parent" />
-
-                    <!-- Search View (expandable) -->
                     <androidx.appcompat.widget.SearchView
                         android:id="@+id/search_view"
                         android:layout_width="0dp"
@@ -104,12 +81,11 @@
                         app:searchIcon="@null"
                         app:closeIcon="@null"
                         app:queryBackground="@android:color/transparent"
-                        app:layout_constraintStart_toEndOf="@id/btn_search_back"
+                        app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintEnd_toStartOf="@id/btn_search_clear"
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintBottom_toBottomOf="parent" />
 
-                    <!-- Clear search button -->
                     <ImageButton
                         android:id="@+id/btn_search_clear"
                         android:layout_width="48dp"
@@ -131,7 +107,6 @@
 
         </com.google.android.material.appbar.AppBarLayout>
 
-        <!-- Fragment container -->
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/nav_host_fragment"
             android:name="androidx.navigation.fragment.NavHostFragment"
@@ -144,7 +119,6 @@
             app:layout_constraintTop_toBottomOf="@id/app_bar_layout"
             app:navGraph="@navigation/nav_graph" />
 
-        <!-- Bottom Navigation -->
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_navigation"
             android:layout_width="0dp"
@@ -158,7 +132,6 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Navigation drawer -->
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/navigation_view"
         android:layout_width="wrap_content"
