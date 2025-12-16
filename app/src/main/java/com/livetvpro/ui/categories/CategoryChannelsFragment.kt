@@ -1,8 +1,3 @@
-// ===================================
-// FILE: app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
-// ACTION: UPDATE - Change PlayerActivity to ChannelPlayerActivity
-// ===================================
-
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
@@ -12,20 +7,26 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
+import com.livetvpro.SearchableFragment
 import com.livetvpro.databinding.FragmentCategoryChannelsBinding
 import com.livetvpro.ui.adapters.ChannelAdapter
-import com.livetvpro.ui.player.ChannelPlayerActivity  // ⬅️ CHANGED: Use ChannelPlayerActivity
+import com.livetvpro.ui.player.ChannelPlayerActivity
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 
 @AndroidEntryPoint
-class CategoryChannelsFragment : Fragment() {
+class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     private var _binding: FragmentCategoryChannelsBinding? = null
     private val binding get() = _binding!!
 
     private val viewModel: CategoryChannelsViewModel by viewModels()
     private lateinit var channelAdapter: ChannelAdapter
+
+    // ✅ IMPLEMENT INTERFACE
+    override fun onSearchQuery(query: String) {
+        viewModel.searchChannels(query)
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -45,12 +46,10 @@ class CategoryChannelsFragment : Fragment() {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                // ⬇️ CHANGED: Use ChannelPlayerActivity instead of PlayerActivity
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
                 viewModel.toggleFavorite(channel)
-                // Refresh only this specific item after a short delay
                 binding.root.postDelayed({
                     channelAdapter.refreshItem(channel.id)
                 }, 100)
@@ -71,8 +70,6 @@ class CategoryChannelsFragment : Fragment() {
         viewModel.filteredChannels.observe(viewLifecycleOwner) { channels ->
             channelAdapter.submitList(channels)
             binding.emptyView.visibility = if (channels.isEmpty()) View.VISIBLE else View.GONE
-            
-            Timber.d("Displaying ${channels.size} channels")
         }
 
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
@@ -91,7 +88,6 @@ class CategoryChannelsFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
-        // Refresh all items when returning to this fragment
         binding.root.postDelayed({
             channelAdapter.refreshAll()
         }, 50)
