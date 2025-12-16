@@ -59,7 +59,6 @@ class MainActivity : AppCompatActivity() {
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
-        // FIX: Removed supportActionBar?.setDisplayHomeAsUpEnabled(true)
     }
 
     private fun setupDrawer() {
@@ -100,15 +99,14 @@ class MainActivity : AppCompatActivity() {
         // Find the ID of the starting destination of the primary NavGraph
         val graphStartDestinationId = navController.graph.startDestinationId 
 
-        // FIX: Setup NavOptions for state preservation (Multi-Stack Logic)
+        // FIX: Setup NavOptions for correct Multi-Stack state preservation
         val navOptions = NavOptions.Builder()
-            // 1. Pop up to the main graph's start destination. Setting inclusive=false means the state of the 
-            //    start destination (R.id.homeFragment) is not cleared, allowing state preservation.
-            .setPopUpTo(graphStartDestinationId, false) 
+            // 1. Pop up to the graph's start destination *inclusively*. This clears all destinations 
+            //    in the current transient stack, but is necessary when using setRestoreState(true).
+            .setPopUpTo(graphStartDestinationId, true) 
             // 2. Ensure only a single copy of the new destination is created.
             .setLaunchSingleTop(true) 
-            // 3. CRUCIAL: Saves the state of the current destination (its back stack) and restores it 
-            //    when navigating back to the previous top-level destination.
+            // 3. CRUCIAL: Saves the stack state we're leaving and restores the stack state we're entering.
             .setRestoreState(true) 
             .build()
         
@@ -135,7 +133,7 @@ class MainActivity : AppCompatActivity() {
             if (menuItem.itemId in topLevelDestinations) {
                 navigateTopLevel(menuItem.itemId)
                 
-                // Trigger the scale animation on the selected item
+                // Trigger the scale and translation animation
                 val selectedItemView = binding.bottomNavigation.findViewById<View>(menuItem.itemId)
                 animateBottomNavItem(selectedItemView)
                 
@@ -198,6 +196,7 @@ class MainActivity : AppCompatActivity() {
                     lastSelectedView?.animate()
                         ?.scaleX(1.0f)
                         ?.scaleY(1.0f)
+                        ?.translationY(0f) // Reset translation
                         ?.setDuration(150)
                         ?.start()
                     lastSelectedView = null
@@ -321,24 +320,28 @@ class MainActivity : AppCompatActivity() {
     }
     
     /**
-     * Applies a scaling animation to the newly selected bottom navigation item.
+     * ENHANCED: Applies a scaling and vertical translation animation to the newly selected bottom navigation item.
      */
     private fun animateBottomNavItem(newSelectedView: View?) {
         // Only run animation if a selection change occurred
         if (lastSelectedView == newSelectedView) return
         
-        // 1. Descale the previously selected item
+        val duration = 150L 
+
+        // 1. Descale and Translate Down the previously selected item (Reset to default)
         lastSelectedView?.animate()
             ?.scaleX(1.0f)
             ?.scaleY(1.0f)
-            ?.setDuration(150)
+            ?.translationY(0f) // Move back to original vertical position
+            ?.setDuration(duration)
             ?.start()
 
-        // 2. Scale up the newly selected item
+        // 2. Scale up and Translate Up the newly selected item (Highlight)
         newSelectedView?.animate()
             ?.scaleX(1.15f) // Scale up by 15%
             ?.scaleY(1.15f)
-            ?.setDuration(150)
+            ?.translationY(-8f) // Move up slightly (8 pixels)
+            ?.setDuration(duration)
             ?.start()
             
         // 3. Update the reference
