@@ -57,8 +57,8 @@ class MainActivity : AppCompatActivity() {
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
-        // ✅ CRITICAL FIX: Removed supportActionBar?.setDisplayHomeAsUpEnabled(true)
-        // This ensures the custom DrawerArrowDrawable is used instead of the static back arrow.
+        // FIX: Do not call supportActionBar?.setDisplayHomeAsUpEnabled(true) here.
+        // Let the ActionBarDrawerToggle control the icon's visibility and appearance.
     }
 
     private fun setupDrawer() {
@@ -70,7 +70,7 @@ class MainActivity : AppCompatActivity() {
                 R.string.navigation_drawer_open,
                 R.string.navigation_drawer_close
             ).apply {
-                // Keep the indicator enabled so the animatable drawable is active
+                // Ensure the indicator (the morphing icon) is enabled
                 isDrawerIndicatorEnabled = true
                 isDrawerSlideAnimationEnabled = true
                 syncState()
@@ -91,18 +91,44 @@ class MainActivity : AppCompatActivity() {
             
         val navController = navHostFragment.navController
 
-        // Top-level destinations where Hamburger should show
         val topLevelDestinations = setOf(
             R.id.homeFragment,
             R.id.liveEventsFragment,
             R.id.contactFragment
         )
 
-        // ... (keep sidebar and bottom nav listeners)
+        // FIX: Robust Top-Level Navigation Helper
+        val navigateTopLevel = { destinationId: Int ->
+            if (navController.currentDestination?.id != destinationId) {
+                // Pop all destinations on the back stack until we reach the target, but DO NOT pop the target itself (inclusive=false)
+                // If the pop fails (target not on stack), navigate normally.
+                if (!navController.popBackStack(destinationId, false)) {
+                    navController.navigate(destinationId)
+                }
+            }
+        }
 
-        // MAIN NAVIGATION LOGIC
+        // Setup drawer navigation
+        binding.navigationView.setNavigationItemSelectedListener { menuItem ->
+            if (menuItem.itemId in topLevelDestinations) {
+                navigateTopLevel(menuItem.itemId)
+            }
+            binding.drawerLayout.closeDrawer(GravityCompat.START)
+            true
+        }
+
+        // Setup bottom navigation
+        binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
+            if (menuItem.itemId in topLevelDestinations) {
+                navigateTopLevel(menuItem.itemId)
+            }
+            true
+        }
+
+        // MAIN NAVIGATION LOGIC (Icon/Lock/Title updates)
         navController.addOnDestinationChangedListener { _, destination, _ ->
             
+            // Set Title
             binding.toolbarTitle.text = when (destination.id) {
                 R.id.homeFragment -> "Categories"
                 R.id.categoryChannelsFragment -> "Channels"
@@ -114,8 +140,9 @@ class MainActivity : AppCompatActivity() {
             
             val isTopLevel = destination.id in topLevelDestinations
             
-            // 1. Handle Drawer Lock State
+            // Handle Click Actions & Drawer Locking
             if (isTopLevel) {
+                // Top Level: Unlock drawer
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 
                 // Set the indicator progress to Hamburger (0f)
@@ -129,8 +156,12 @@ class MainActivity : AppCompatActivity() {
                         binding.drawerLayout.openDrawer(GravityCompat.START)
                     }
                 }
+                
+                // Sync Bottom Nav
+                binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
 
             } else {
+                // Deeper Level: Lock drawer closed
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
                 // Set the indicator progress to Arrow (1f)
@@ -140,11 +171,6 @@ class MainActivity : AppCompatActivity() {
                 binding.toolbar.setNavigationOnClickListener {
                     onBackPressedDispatcher.onBackPressed()
                 }
-            }
-            
-            // Sync Bottom Nav
-            if (isTopLevel) {
-                binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
             }
             
             // Hide search if open
@@ -175,8 +201,10 @@ class MainActivity : AppCompatActivity() {
 
             override fun onQueryTextChange(newText: String?): Boolean {
                 val query = newText ?: ""
+                // FIX: Cross icon visibility while typing
                 binding.btnSearchClear.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
                 
+                // Live search to fragment
                 val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
                 val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
                 
@@ -203,7 +231,7 @@ class MainActivity : AppCompatActivity() {
         binding.searchView.isIconified = false
         binding.searchView.requestFocus()
         
-        // Animate to Back Arrow (1f)
+        // Animate to Back Arrow
         animateNavigationIcon(1f)
         
         // Override click to close search
