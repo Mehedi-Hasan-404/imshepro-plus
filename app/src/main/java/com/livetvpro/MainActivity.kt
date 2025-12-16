@@ -29,6 +29,8 @@ class MainActivity : AppCompatActivity() {
     
     private var drawerToggle: ActionBarDrawerToggle? = null
     private var isSearchVisible = false
+    // NEW: Variable to track the last selected Bottom Nav item for animation
+    private var lastSelectedView: View? = null 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,8 +59,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
-        // FIX: Do not call supportActionBar?.setDisplayHomeAsUpEnabled(true) here.
-        // Let the ActionBarDrawerToggle control the icon's visibility and appearance.
+        // FIX: Removed supportActionBar?.setDisplayHomeAsUpEnabled(true)
     }
 
     private fun setupDrawer() {
@@ -70,7 +71,6 @@ class MainActivity : AppCompatActivity() {
                 R.string.navigation_drawer_open,
                 R.string.navigation_drawer_close
             ).apply {
-                // Ensure the indicator (the morphing icon) is enabled
                 isDrawerIndicatorEnabled = true
                 isDrawerSlideAnimationEnabled = true
                 syncState()
@@ -100,8 +100,7 @@ class MainActivity : AppCompatActivity() {
         // FIX: Robust Top-Level Navigation Helper
         val navigateTopLevel = { destinationId: Int ->
             if (navController.currentDestination?.id != destinationId) {
-                // Pop all destinations on the back stack until we reach the target, but DO NOT pop the target itself (inclusive=false)
-                // If the pop fails (target not on stack), navigate normally.
+                // Pop all destinations on the back stack until we reach the target, but DO NOT pop the target itself
                 if (!navController.popBackStack(destinationId, false)) {
                     navController.navigate(destinationId)
                 }
@@ -121,8 +120,14 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
             if (menuItem.itemId in topLevelDestinations) {
                 navigateTopLevel(menuItem.itemId)
+                
+                // NEW: Trigger the scale animation on the selected item
+                val selectedItemView = binding.bottomNavigation.findViewById<View>(menuItem.itemId)
+                animateBottomNavItem(selectedItemView)
+                
+                return@setOnItemSelectedListener true
             }
-            true
+            return@setOnItemSelectedListener false
         }
 
         // MAIN NAVIGATION LOGIC (Icon/Lock/Title updates)
@@ -142,7 +147,6 @@ class MainActivity : AppCompatActivity() {
             
             // Handle Click Actions & Drawer Locking
             if (isTopLevel) {
-                // Top Level: Unlock drawer
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 
                 // Set the indicator progress to Hamburger (0f)
@@ -157,11 +161,14 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 
-                // Sync Bottom Nav
+                // Sync Bottom Nav selection state
                 binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
+                
+                // NEW: Animate icon on first load or when popping back to top level
+                val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
+                animateBottomNavItem(currentView)
 
             } else {
-                // Deeper Level: Lock drawer closed
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
                 // Set the indicator progress to Arrow (1f)
@@ -170,6 +177,16 @@ class MainActivity : AppCompatActivity() {
                 // Click Action: Go Back
                 binding.toolbar.setNavigationOnClickListener {
                     onBackPressedDispatcher.onBackPressed()
+                }
+                
+                // NEW: Deselect and shrink bottom nav item when navigating away from top level
+                if (lastSelectedView != null) {
+                    lastSelectedView?.animate()
+                        ?.scaleX(1.0f)
+                        ?.scaleY(1.0f)
+                        ?.setDuration(150)
+                        ?.start()
+                    lastSelectedView = null
                 }
             }
             
@@ -187,6 +204,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupSearch() {
+        // ... (Search setup logic remains the same) ...
         binding.searchView.visibility = View.GONE
         
         binding.btnSearch.setOnClickListener {
@@ -201,10 +219,8 @@ class MainActivity : AppCompatActivity() {
 
             override fun onQueryTextChange(newText: String?): Boolean {
                 val query = newText ?: ""
-                // FIX: Cross icon visibility while typing
                 binding.btnSearchClear.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
                 
-                // Live search to fragment
                 val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
                 val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
                 
@@ -221,6 +237,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSearch() {
+        // ... (Show search logic remains the same) ...
         isSearchVisible = true
         
         binding.toolbarTitle.visibility = View.GONE
@@ -231,16 +248,15 @@ class MainActivity : AppCompatActivity() {
         binding.searchView.isIconified = false
         binding.searchView.requestFocus()
         
-        // Animate to Back Arrow
         animateNavigationIcon(1f)
         
-        // Override click to close search
         binding.toolbar.setNavigationOnClickListener {
             hideSearch()
         }
     }
 
     private fun hideSearch() {
+        // ... (Hide search logic remains the same) ...
         isSearchVisible = false
         
         binding.toolbarTitle.visibility = View.VISIBLE
@@ -259,10 +275,8 @@ class MainActivity : AppCompatActivity() {
         val topLevelDestinations = setOf(R.id.homeFragment, R.id.liveEventsFragment, R.id.contactFragment)
         val isTopLevel = currentId in topLevelDestinations
 
-        // Restore correct icon state (Hamburger or Arrow)
         animateNavigationIcon(if (isTopLevel) 0f else 1f)
 
-        // Restore correct listener
         if (isTopLevel) {
             binding.toolbar.setNavigationOnClickListener {
                 if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
@@ -278,6 +292,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Animates the Navigation Icon (Hamburger <-> Arrow)
+     */
     private fun animateNavigationIcon(endPosition: Float) {
         val startPosition = drawerToggle?.drawerArrowDrawable?.progress ?: 0f
         if (startPosition == endPosition) return
@@ -291,6 +308,32 @@ class MainActivity : AppCompatActivity() {
         animator.duration = 300
         animator.start()
     }
+    
+    /**
+     * NEW: Applies a scaling animation to the newly selected bottom navigation item.
+     */
+    private fun animateBottomNavItem(newSelectedView: View?) {
+        // Only run animation if a selection change occurred
+        if (lastSelectedView == newSelectedView) return
+        
+        // 1. Descale the previously selected item
+        lastSelectedView?.animate()
+            ?.scaleX(1.0f)
+            ?.scaleY(1.0f)
+            ?.setDuration(150)
+            ?.start()
+
+        // 2. Scale up the newly selected item
+        newSelectedView?.animate()
+            ?.scaleX(1.15f) // Scale up by 15%
+            ?.scaleY(1.15f)
+            ?.setDuration(150)
+            ?.start()
+            
+        // 3. Update the reference
+        lastSelectedView = newSelectedView
+    }
+
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
