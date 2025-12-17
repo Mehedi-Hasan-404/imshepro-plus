@@ -5,8 +5,11 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
-    app:cardCornerRadius="8dp"
-    app:cardElevation="2dp"
+    app:cardCornerRadius="12dp"
+    app:cardElevation="0dp"
+    app:strokeColor="#2A2A2A"
+    app:strokeWidth="1dp"
+    app:cardBackgroundColor="#1A1A1A"
     android:foreground="?attr/selectableItemBackground">
 
     <RelativeLayout
@@ -16,19 +19,18 @@
         <ImageView
             android:id="@+id/channel_logo"
             android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:background="@color/card_background"
+            android:layout_height="80dp"
+            android:background="@android:color/transparent"
             android:contentDescription="Channel logo"
-            android:padding="16dp"
+            android:padding="12dp"
             android:scaleType="fitCenter" />
 
-        <!-- Small favorite indicator badge (non-clickable) -->
         <ImageView
             android:id="@+id/favorite_indicator"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
             android:layout_alignParentEnd="true"
-            android:layout_margin="8dp"
+            android:layout_margin="6dp"
             android:contentDescription="Favorite indicator"
             android:src="@drawable/ic_star_filled"
             android:visibility="gone"
@@ -40,26 +42,28 @@
             android:layout_height="wrap_content"
             android:layout_below="@id/channel_logo"
             android:orientation="vertical"
-            android:padding="8dp">
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="12dp"
+            android:gravity="center">
 
             <TextView
                 android:id="@+id/channel_name"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:ellipsize="end"
-                android:maxLines="1"
+                android:textColor="@android:color/white"
                 android:textSize="14sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:gravity="center"
+                android:textAlignment="center"
+                android:singleLine="true"
+                android:ellipsize="marquee"
+                android:marqueeRepeatLimit="marquee_forever"
+                android:scrollHorizontally="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:freezesText="true"/>
 
-            <TextView
-                android:id="@+id/channel_category"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textSize="12sp"
-                android:alpha="0.7" />
         </LinearLayout>
 
     </RelativeLayout>
