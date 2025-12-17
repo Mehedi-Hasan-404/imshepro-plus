@@ -33,7 +33,7 @@ class FavoritesViewModel @Inject constructor(
                 id = channel.id,
                 name = channel.name,
                 logoUrl = channel.logoUrl,
-                streamUrl = channel.streamUrl, // Fix: transfers URL to favorites
+                streamUrl = channel.streamUrl, // Pass streamUrl to model
                 categoryId = channel.categoryId,
                 categoryName = channel.categoryName
             )
@@ -44,11 +44,6 @@ class FavoritesViewModel @Inject constructor(
 
     fun removeFavorite(channelId: String) {
         favoritesRepository.removeFavorite(channelId)
-        loadFavorites()
-    }
-
-    fun clearAll() {
-        favoritesRepository.clearAll()
         loadFavorites()
     }
 }
