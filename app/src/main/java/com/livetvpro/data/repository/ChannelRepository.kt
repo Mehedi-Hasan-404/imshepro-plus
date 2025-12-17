@@ -16,22 +16,24 @@ class ChannelRepository @Inject constructor(
     private val firestore: FirebaseFirestore
 ) {
     /**
-     * Updated: Now fetches BOTH Firestore channels and M3U channels 
-     * by first looking up the category's M3U URL.
+     * Fetches both manual Firestore channels and M3U channels.
+     * It looks up the category document first to find the m3uUrl.
      */
     suspend fun getChannelsByCategory(categoryId: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
+            Timber.d("Starting load for category: $categoryId")
+
             // 1. Fetch manual channels from Firestore
-            val manualChannelsTask = firestore.collection("channels")
+            val manualTask = firestore.collection("channels")
                 .whereEqualTo("categoryId", categoryId)
                 .get()
 
-            // 2. Fetch Category details to see if it has an M3U URL
+            // 2. Fetch Category details for M3U URL discovery
             val categoryTask = firestore.collection("categories")
                 .document(categoryId)
                 .get()
 
-            val manualSnapshot = manualChannelsTask.await()
+            val manualSnapshot = manualTask.await()
             val categorySnapshot = categoryTask.await()
 
             val manualChannels = manualSnapshot.documents.mapNotNull { 
@@ -42,16 +44,17 @@ class ChannelRepository @Inject constructor(
             val m3uUrl = category?.m3uUrl
             val categoryName = category?.name ?: "Unknown"
 
-            // 3. If M3U URL exists, parse and merge
+            // 3. Merge M3U channels if URL is present
             if (!m3uUrl.isNullOrEmpty()) {
+                Timber.d("M3U URL found: $m3uUrl. Parsing...")
                 val m3uChannels = getChannelsFromM3u(m3uUrl, categoryId, categoryName)
-                Timber.d("Merged ${manualChannels.size} manual + ${m3uChannels.size} M3U channels for $categoryId")
                 manualChannels + m3uChannels
             } else {
+                Timber.d("No M3U URL found for category $categoryId")
                 manualChannels
             }
         } catch (e: Exception) {
-            Timber.e(e, "Error loading combined channels for category: $categoryId")
+            Timber.e(e, "Error loading channels for category: $categoryId")
             emptyList()
         }
     }
@@ -63,11 +66,8 @@ class ChannelRepository @Inject constructor(
     ): List<Channel> {
         return withContext(Dispatchers.IO) {
             try {
-                Timber.d("Fetching channels from M3U: $m3uUrl")
                 val m3uChannels = M3uParser.parseM3uFromUrl(m3uUrl)
-                val channels = M3uParser.convertToChannels(m3uChannels, categoryId, categoryName)
-                Timber.d("Fetched ${channels.size} channels from M3U")
-                channels
+                M3uParser.convertToChannels(m3uChannels, categoryId, categoryName)
             } catch (e: Exception) {
                 Timber.e(e, "Error fetching channels from M3U: $m3uUrl")
                 emptyList()
