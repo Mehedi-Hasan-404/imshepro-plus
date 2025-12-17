@@ -41,40 +41,40 @@ class FavoritesFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        // Refresh list whenever user returns to this screen
         viewModel.loadFavorites()
     }
 
     private fun setupRecyclerView() {
-        // Updated to match the parameter names in FavoriteAdapter: 
-        // onChannelClick and onFavoriteToggle
         favoriteAdapter = FavoriteAdapter(
             onChannelClick = { favChannel ->
-                // Map FavoriteChannel back to Channel for the Player
-                // We use the streamUrl directly from the favorite object
+                // Convert Favorite back to regular Channel for the player
                 val channel = Channel(
                     id = favChannel.id,
                     name = favChannel.name,
                     logoUrl = favChannel.logoUrl,
-                    streamUrl = favChannel.streamUrl, 
+                    streamUrl = favChannel.streamUrl, // streamUrl must be in the model
                     categoryId = favChannel.categoryId,
                     categoryName = favChannel.categoryName
                 )
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { favChannel ->
-                // This replaces the old onRemoveClick to match your Adapter
+                // Action triggered by the Cross button
                 viewModel.removeFavorite(favChannel.id)
             }
         )
 
         binding.recyclerViewFavorites.apply {
-            layoutManager = GridLayoutManager(context, 3) // 3 columns for better grid look
+            // Using 3 columns as requested previously for grid view
+            layoutManager = GridLayoutManager(context, 3)
             adapter = favoriteAdapter
             setHasFixedSize(true)
         }
     }
 
     private fun setupButtons() {
+        // "Clear All" logic
         binding.clearAllButton.setOnClickListener {
             showClearAllDialog()
         }
@@ -95,7 +95,7 @@ class FavoritesFragment : Fragment() {
         viewModel.favorites.observe(viewLifecycleOwner) { favorites ->
             favoriteAdapter.submitList(favorites)
 
-            // UI Visibility logic
+            // UI Visibility logic based on if list is empty
             val isEmpty = favorites.isEmpty()
             binding.emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
             binding.recyclerViewFavorites.visibility = if (isEmpty) View.GONE else View.VISIBLE
