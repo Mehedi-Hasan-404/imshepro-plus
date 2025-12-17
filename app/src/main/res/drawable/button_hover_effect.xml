@@ -3,22 +3,25 @@
     
     <!-- Pressed state - darker overlay -->
     <item android:state_pressed="true">
-        <shape android:shape="oval">
+        <shape android:shape="rectangle">
             <solid android:color="#40FFFFFF" />
+            <corners android:radius="8dp" />
         </shape>
     </item>
     
     <!-- Focused state - slight overlay -->
     <item android:state_focused="true">
-        <shape android:shape="oval">
+        <shape android:shape="rectangle">
             <solid android:color="#20FFFFFF" />
+            <corners android:radius="8dp" />
         </shape>
     </item>
     
     <!-- Default state - transparent -->
     <item>
-        <shape android:shape="oval">
+        <shape android:shape="rectangle">
             <solid android:color="#00FFFFFF" />
+            <corners android:radius="8dp" />
         </shape>
     </item>
     
