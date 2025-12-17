@@ -2,6 +2,7 @@ package com.livetvpro.data.repository
 
 import com.google.firebase.firestore.FirebaseFirestore
 import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.Category
 import com.livetvpro.utils.M3uParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
@@ -14,16 +15,43 @@ import javax.inject.Singleton
 class ChannelRepository @Inject constructor(
     private val firestore: FirebaseFirestore
 ) {
-    suspend fun getChannelsByCategory(categoryId: String): List<Channel> {
-        return try {
-            firestore.collection("channels")
+    /**
+     * Updated: Now fetches BOTH Firestore channels and M3U channels 
+     * by first looking up the category's M3U URL.
+     */
+    suspend fun getChannelsByCategory(categoryId: String): List<Channel> = withContext(Dispatchers.IO) {
+        try {
+            // 1. Fetch manual channels from Firestore
+            val manualChannelsTask = firestore.collection("channels")
                 .whereEqualTo("categoryId", categoryId)
                 .get()
-                .await()
-                .documents
-                .mapNotNull { it.toObject(Channel::class.java)?.copy(id = it.id) }
+
+            // 2. Fetch Category details to see if it has an M3U URL
+            val categoryTask = firestore.collection("categories")
+                .document(categoryId)
+                .get()
+
+            val manualSnapshot = manualChannelsTask.await()
+            val categorySnapshot = categoryTask.await()
+
+            val manualChannels = manualSnapshot.documents.mapNotNull { 
+                it.toObject(Channel::class.java)?.copy(id = it.id) 
+            }
+
+            val category = categorySnapshot.toObject(Category::class.java)
+            val m3uUrl = category?.m3uUrl
+            val categoryName = category?.name ?: "Unknown"
+
+            // 3. If M3U URL exists, parse and merge
+            if (!m3uUrl.isNullOrEmpty()) {
+                val m3uChannels = getChannelsFromM3u(m3uUrl, categoryId, categoryName)
+                Timber.d("Merged ${manualChannels.size} manual + ${m3uChannels.size} M3U channels for $categoryId")
+                manualChannels + m3uChannels
+            } else {
+                manualChannels
+            }
         } catch (e: Exception) {
-            Timber.e(e, "Error loading channels for category: $categoryId")
+            Timber.e(e, "Error loading combined channels for category: $categoryId")
             emptyList()
         }
     }
@@ -47,20 +75,6 @@ class ChannelRepository @Inject constructor(
         }
     }
 
-    suspend fun getAllChannels(categoryId: String, m3uUrl: String?, categoryName: String): List<Channel> {
-        // First, get manually added channels from Firestore
-        val manualChannels = getChannelsByCategory(categoryId)
-        
-        // If M3U URL is provided, fetch and merge M3U channels
-        return if (!m3uUrl.isNullOrEmpty()) {
-            val m3uChannels = getChannelsFromM3u(m3uUrl, categoryId, categoryName)
-            Timber.d("Merged ${manualChannels.size} manual + ${m3uChannels.size} M3U channels")
-            manualChannels + m3uChannels
-        } else {
-            manualChannels
-        }
-    }
-
     suspend fun getChannelById(channelId: String): Channel? {
         return try {
             firestore.collection("channels")
@@ -75,3 +89,4 @@ class ChannelRepository @Inject constructor(
         }
     }
 }
+
