@@ -28,7 +28,7 @@ data class FavoriteChannel(
     val id: String = "",
     val name: String = "",
     val logoUrl: String = "",
-    val streamUrl: String = "", // Crucial fix: stores the link
+    val streamUrl: String = "", // Added to fix "Stream not available"
     val categoryId: String = "",
     val categoryName: String = "",
     val addedAt: Long = System.currentTimeMillis()
