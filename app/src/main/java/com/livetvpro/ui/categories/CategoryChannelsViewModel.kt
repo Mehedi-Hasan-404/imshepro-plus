@@ -1,7 +1,10 @@
 package com.livetvpro.ui.categories
 
+import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.FavoriteChannel
@@ -9,7 +12,10 @@ import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -26,17 +32,17 @@ class CategoryChannelsViewModel @Inject constructor(
     
     val categoryName: String = savedStateHandle.get<String>("categoryName") ?: "Channels"
 
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    private val _isLoading = MutableLiveData<Boolean>(false)
+    val isLoading: LiveData<Boolean> = _isLoading
 
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    private val _error = MutableLiveData<String?>(null)
+    val error: LiveData<String?> = _error
 
-    // This fixes the "Unresolved reference: filteredChannels" error
-    val filteredChannels: StateFlow<List<Channel>> = combine(_channels, _searchQuery) { list, query ->
+    // This converts the flow to LiveData so CategoryChannelsFragment.kt can use .observe()
+    val filteredChannels: LiveData<List<Channel>> = combine(_channels, _searchQuery) { list, query ->
         if (query.isEmpty()) list
         else list.filter { it.name.contains(query, ignoreCase = true) }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    }.asLiveData(viewModelScope.context)
 
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
@@ -51,7 +57,6 @@ class CategoryChannelsViewModel @Inject constructor(
         }
     }
 
-    // This fixes the "Unresolved reference: searchChannels" error
     fun searchChannels(query: String) {
         _searchQuery.value = query
     }
@@ -61,7 +66,7 @@ class CategoryChannelsViewModel @Inject constructor(
             id = channel.id,
             name = channel.name,
             logoUrl = channel.logoUrl,
-            streamUrl = channel.streamUrl, // Fixes playback from favorites
+            streamUrl = channel.streamUrl,
             categoryId = channel.categoryId,
             categoryName = channel.categoryName
         )
