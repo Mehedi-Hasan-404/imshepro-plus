@@ -8,7 +8,6 @@
     android:layout_height="match_parent"
     tools:context="com.livetvpro.ui.player.ChannelPlayerActivity">
 
-    <!-- █▓▒░ TOP PLAYER AREA ░▒▓█ -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -18,7 +17,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintDimensionRatio="16:9">
 
-        <!-- 🎬 MEDIA3 PlayerView -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/playerView"
             android:layout_width="0dp"
@@ -32,7 +30,6 @@
             app:use_controller="true"
             app:controller_layout_id="@layout/exo_modern_player_controls" />
 
-        <!-- ⏳ BUFFERING SPINNER -->
         <ProgressBar
             android:id="@+id/progressBar"
             style="?android:attr/progressBarStyleLarge"
@@ -44,7 +41,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
-        <!-- 🔒 LOCK OVERLAY -->
         <FrameLayout
             android:id="@+id/lockOverlay"
             android:layout_width="match_parent"
@@ -62,7 +58,6 @@
                 android:visibility="gone"/>
         </FrameLayout>
 
-        <!-- ❌ ERROR VIEW -->
         <LinearLayout
             android:id="@+id/errorView"
             android:layout_width="wrap_content"
@@ -93,7 +88,6 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- █▓▒░ RELATED CHANNELS SECTION BELOW PLAYER ░▒▓█ -->
     <LinearLayout
         android:id="@+id/related_channels_section"
         android:layout_width="0dp"
@@ -106,7 +100,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <!-- Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -137,7 +130,14 @@
                 android:layout_marginStart="8dp"/>
         </LinearLayout>
 
-        <!-- ✅ 3-COLUMN GRID RecyclerView -->
+        <ProgressBar
+            android:id="@+id/related_loading_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="100dp"
+            android:layout_gravity="center"
+            android:indeterminateTint="?attr/colorPrimary"
+            android:visibility="visible" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/relatedChannelsRecycler"
             android:layout_width="match_parent"
@@ -145,6 +145,8 @@
             android:layout_weight="1"
             android:clipToPadding="false"
             android:paddingBottom="8dp"
+            android:visibility="gone"
+            tools:visibility="visible"
             tools:listitem="@layout/item_related_channel_modern"
             tools:itemCount="9" />
 
