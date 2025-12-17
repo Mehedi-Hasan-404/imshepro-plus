@@ -13,9 +13,7 @@ import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -38,11 +36,11 @@ class CategoryChannelsViewModel @Inject constructor(
     private val _error = MutableLiveData<String?>(null)
     val error: LiveData<String?> = _error
 
-    // This converts the flow to LiveData so CategoryChannelsFragment.kt can use .observe()
+    // FIXED: Removed .context to resolve the compilation error
     val filteredChannels: LiveData<List<Channel>> = combine(_channels, _searchQuery) { list, query ->
         if (query.isEmpty()) list
         else list.filter { it.name.contains(query, ignoreCase = true) }
-    }.asLiveData(viewModelScope.context)
+    }.asLiveData()
 
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
