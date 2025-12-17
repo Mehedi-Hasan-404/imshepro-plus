@@ -5,7 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.FavoriteChannel
-import com.livetvpro.data.repository.FavoritesRepository
+import com.livetvpro.data.repository.FavoritesRepository // CRITICAL IMPORT
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -27,12 +27,12 @@ class FavoritesViewModel @Inject constructor(
         if (favoritesRepository.isFavorite(channel.id)) {
             favoritesRepository.removeFavorite(channel.id)
         } else {
-            // Mapping Channel to FavoriteChannel INCLUDING the URL
             val fav = FavoriteChannel(
                 id = channel.id,
                 name = channel.name,
-                url = channel.url, 
                 logoUrl = channel.logoUrl,
+                streamUrl = channel.streamUrl, // Map the URL here
+                categoryId = channel.categoryId,
                 categoryName = channel.categoryName
             )
             favoritesRepository.addFavorite(fav)
@@ -45,3 +45,4 @@ class FavoritesViewModel @Inject constructor(
         loadFavorites()
     }
 }
+
