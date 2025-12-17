@@ -1,18 +1,17 @@
 package com.livetvpro.ui.categories
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livetvpro.data.models.Channel
-import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
@@ -20,85 +19,42 @@ class CategoryChannelsViewModel @Inject constructor(
     private val channelRepository: ChannelRepository,
     private val categoryRepository: CategoryRepository,
     private val favoritesRepository: FavoritesRepository,
-    savedStateHandle: SavedStateHandle
+    private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val categoryId: String = savedStateHandle.get<String>("categoryId") ?: ""
-    val categoryName: String = savedStateHandle.get<String>("categoryName") ?: ""
+    private val _channels = MutableStateFlow<List<Channel>>(emptyList())
+    val channels: StateFlow<List<Channel>> = _channels.asStateFlow()
 
-    private val _channels = MutableLiveData<List<Channel>>()
-    val channels: LiveData<List<Channel>> = _channels
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _filteredChannels = MutableLiveData<List<Channel>>()
-    val filteredChannels: LiveData<List<Channel>> = _filteredChannels
-
-    private val _isLoading = MutableLiveData<Boolean>()
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _error = MutableLiveData<String?>()
-    val error: LiveData<String?> = _error
-
-    private var currentSearchQuery = ""
-
-    init {
-        loadChannels()
-    }
-
-    fun loadChannels() {
+    fun loadChannels(categoryId: String) {
         viewModelScope.launch {
+            _isLoading.value = true
             try {
-                _isLoading.value = true
-                _error.value = null
-                
-                // Get category to check for M3U URL
-                val category = categoryRepository.getCategoryBySlug(categoryId) 
-                    ?: categoryRepository.getCategories().find { it.id == categoryId }
-                
-                val channels = if (category?.m3uUrl?.isNotEmpty() == true) {
-                    Timber.d("Loading channels from M3U: ${category.m3uUrl}")
-                    channelRepository.getAllChannels(categoryId, category.m3uUrl, categoryName)
-                } else {
-                    Timber.d("Loading channels from Firestore for category: $categoryId")
-                    channelRepository.getChannelsByCategory(categoryId)
-                }
-                
-                _channels.value = channels
-                searchChannels(currentSearchQuery) // Apply current search
-                Timber.d("Loaded ${channels.size} channels for category $categoryId")
+                _channels.value = channelRepository.getChannelsByCategory(categoryId)
             } catch (e: Exception) {
-                Timber.e(e, "Error loading channels")
-                _error.value = "Failed to load channels: ${e.message}"
+                _channels.value = emptyList()
             } finally {
                 _isLoading.value = false
             }
         }
     }
 
-    fun searchChannels(query: String) {
-        currentSearchQuery = query
-        val allChannels = _channels.value ?: return
-
-        if (query.isBlank()) {
-            _filteredChannels.value = allChannels
-        } else {
-            _filteredChannels.value = allChannels.filter {
-                it.name.contains(query, ignoreCase = true)
-            }
-        }
-    }
-
     fun toggleFavorite(channel: Channel) {
+        val favoriteChannel = com.livetvpro.data.models.FavoriteChannel(
+            id = channel.id,
+            name = channel.name,
+            logoUrl = channel.logoUrl,
+            streamUrl = channel.streamUrl,
+            categoryId = channel.categoryId,
+            categoryName = channel.categoryName
+        )
+        
         if (favoritesRepository.isFavorite(channel.id)) {
             favoritesRepository.removeFavorite(channel.id)
         } else {
-            val favorite = FavoriteChannel(
-                id = channel.id,
-                name = channel.name,
-                logoUrl = channel.logoUrl,
-                categoryId = channel.categoryId,
-                categoryName = channel.categoryName
-            )
-            favoritesRepository.addFavorite(favorite)
+            favoritesRepository.addFavorite(favoriteChannel)
         }
     }
 
@@ -106,3 +62,4 @@ class CategoryChannelsViewModel @Inject constructor(
         return favoritesRepository.isFavorite(channelId)
     }
 }
+
