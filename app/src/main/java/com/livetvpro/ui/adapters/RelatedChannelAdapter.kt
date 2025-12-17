@@ -42,6 +42,9 @@ class RelatedChannelAdapter(
 
         fun bind(channel: Channel) {
             binding.channelName.text = channel.name
+            
+            // CRITICAL FIX: Enable marquee scrolling
+            binding.channelName.isSelected = true
 
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
