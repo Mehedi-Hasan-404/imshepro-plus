@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
@@ -42,7 +43,7 @@ class CategoryChannelsViewModel @Inject constructor(
     }
 
     fun toggleFavorite(channel: Channel) {
-        val favoriteChannel = com.livetvpro.data.models.FavoriteChannel(
+        val favoriteChannel = FavoriteChannel(
             id = channel.id,
             name = channel.name,
             logoUrl = channel.logoUrl,
