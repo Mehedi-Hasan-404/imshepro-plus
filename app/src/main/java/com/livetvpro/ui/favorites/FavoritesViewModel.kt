@@ -46,5 +46,11 @@ class FavoritesViewModel @Inject constructor(
         favoritesRepository.removeFavorite(channelId)
         loadFavorites()
     }
+
+    // ADDED THIS: Fixes the "Unresolved reference: clearAll" in FavoritesFragment
+    fun clearAll() {
+        favoritesRepository.clearAll()
+        loadFavorites()
+    }
 }
 
