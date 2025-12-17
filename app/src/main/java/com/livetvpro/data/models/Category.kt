@@ -28,6 +28,7 @@ data class FavoriteChannel(
     val id: String = "",
     val name: String = "",
     val logoUrl: String = "",
+    val streamUrl: String = "", // Added to fix the "Stream not available" issue
     val categoryId: String = "",
     val categoryName: String = "",
     val addedAt: Long = System.currentTimeMillis()
@@ -81,3 +82,4 @@ data class LiveEventLink(
 enum class EventStatus {
     LIVE, UPCOMING, RECENT
 }
+
