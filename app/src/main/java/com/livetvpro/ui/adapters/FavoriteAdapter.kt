@@ -1,7 +1,6 @@
 package com.livetvpro.ui.adapters
 
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -9,48 +8,65 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.livetvpro.R
 import com.livetvpro.data.models.FavoriteChannel
-import com.livetvpro.databinding.ItemChannelBinding
+import com.livetvpro.databinding.ItemFavoriteBinding
 
 class FavoriteAdapter(
     private val onChannelClick: (FavoriteChannel) -> Unit,
     private val onFavoriteToggle: (FavoriteChannel) -> Unit
-) : ListAdapter<FavoriteChannel, FavoriteAdapter.FavoriteViewHolder>(FavoriteDiffCallback()) {
+) : ListAdapter<FavoriteChannel, FavoriteAdapter.ViewHolder>(FavoriteDiffCallback()) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FavoriteViewHolder {
-        val binding = ItemChannelBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-        return FavoriteViewHolder(binding)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val binding = ItemFavoriteBinding.inflate(
+            LayoutInflater.from(parent.context),
+            parent,
+            false
+        )
+        return ViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: FavoriteViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
 
-    inner class FavoriteViewHolder(private val binding: ItemChannelBinding) : RecyclerView.ViewHolder(binding.root) {
-        fun bind(channel: FavoriteChannel) {
-            binding.channelName.text = channel.name
-            
-            // Fix 1: Enable Marquee Scrolling
-            binding.channelName.isSelected = true 
-            
-            // Fix 2: Design consistency (3 channels in line)
-            binding.favoriteIndicator.visibility = View.VISIBLE
+    inner class ViewHolder(private val binding: ItemFavoriteBinding) :
+        RecyclerView.ViewHolder(binding.root) {
 
-            Glide.with(binding.channelLogo)
-                .load(channel.logoUrl)
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .centerInside()
-                .into(binding.channelLogo)
+        fun bind(favorite: FavoriteChannel) {
+            binding.apply {
+                // Set channel name
+                tvName.text = favorite.name
+                
+                // Set category name
+                tvCategory.text = favorite.categoryName
 
-            binding.root.setOnClickListener { onChannelClick(channel) }
-            binding.root.setOnLongClickListener {
-                onFavoriteToggle(channel)
-                true
+                // Load logo
+                Glide.with(root.context)
+                    .load(favorite.logoUrl)
+                    .placeholder(R.drawable.ic_channel_placeholder)
+                    .error(R.drawable.ic_channel_placeholder)
+                    .into(imgLogo)
+
+                // Handle the Remove (Cross) button click
+                removeButton.setOnClickListener {
+                    onFavoriteToggle(favorite)
+                }
+
+                // Handle clicking the whole card to play
+                root.setOnClickListener {
+                    onChannelClick(favorite)
+                }
             }
         }
     }
 
     class FavoriteDiffCallback : DiffUtil.ItemCallback<FavoriteChannel>() {
-        override fun areItemsTheSame(old: FavoriteChannel, new: FavoriteChannel) = old.id == new.id
-        override fun areContentsTheSame(old: FavoriteChannel, new: FavoriteChannel) = old == new
+        override fun areItemsTheSame(oldItem: FavoriteChannel, newItem: FavoriteChannel): Boolean {
+            return oldItem.id == newItem.id
+        }
+
+        override fun areContentsTheSame(oldItem: FavoriteChannel, newItem: FavoriteChannel): Boolean {
+            return oldItem == newItem
+        }
     }
 }
+
