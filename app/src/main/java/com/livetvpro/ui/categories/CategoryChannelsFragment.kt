@@ -40,6 +40,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
+        // Set Toolbar Title
         try {
             val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
             if (viewModel.categoryName.isNotEmpty()) {
@@ -51,7 +52,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
         setupRecyclerView()
         observeViewModel()
-        
+
         arguments?.getString("categoryId")?.let {
             viewModel.loadChannels(it)
         }
@@ -83,11 +84,13 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun observeViewModel() {
         viewModel.filteredChannels.observe(viewLifecycleOwner) { channels ->
             channelAdapter.submitList(channels)
-            binding.emptyView.visibility = if (channels.isEmpty()) View.VISIBLE else View.GONE
+            updateUiState(channels.isEmpty(), viewModel.isLoading.value ?: false)
         }
 
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+            val isEmpty = viewModel.filteredChannels.value?.isEmpty() ?: true
+            updateUiState(isEmpty, isLoading)
         }
 
         viewModel.error.observe(viewLifecycleOwner) { error ->
@@ -97,6 +100,18 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             } else {
                 binding.errorView.visibility = View.GONE
             }
+        }
+    }
+
+    /**
+     * Fixes the overlapping issue. 
+     * Only shows Empty View if not loading and list is empty.
+     */
+    private fun updateUiState(isListEmpty: Boolean, isLoading: Boolean) {
+        if (isLoading) {
+            binding.emptyView.visibility = View.GONE
+        } else {
+            binding.emptyView.visibility = if (isListEmpty) View.VISIBLE else View.GONE
         }
     }
 
