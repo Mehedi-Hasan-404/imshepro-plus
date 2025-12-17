@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    
+    <!-- Pressed state - darker overlay -->
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <solid android:color="#40FFFFFF" />
+        </shape>
+    </item>
+    
+    <!-- Focused state - slight overlay -->
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <solid android:color="#20FFFFFF" />
+        </shape>
+    </item>
+    
+    <!-- Default state - transparent -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#00FFFFFF" />
+        </shape>
+    </item>
+    
+</selector>
