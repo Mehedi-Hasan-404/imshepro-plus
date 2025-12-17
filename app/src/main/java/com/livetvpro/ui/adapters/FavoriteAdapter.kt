@@ -1,6 +1,7 @@
 package com.livetvpro.ui.adapters
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -27,9 +28,12 @@ class FavoriteAdapter(
     inner class FavoriteViewHolder(private val binding: ItemChannelBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(channel: FavoriteChannel) {
             binding.channelName.text = channel.name
-            binding.channelName.isSelected = true // Enable Marquee
             
-            binding.favoriteIndicator.visibility = android.view.View.VISIBLE
+            // Fix 1: Enable Marquee Scrolling
+            binding.channelName.isSelected = true 
+            
+            // Fix 2: Design consistency (3 channels in line)
+            binding.favoriteIndicator.visibility = View.VISIBLE
 
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
