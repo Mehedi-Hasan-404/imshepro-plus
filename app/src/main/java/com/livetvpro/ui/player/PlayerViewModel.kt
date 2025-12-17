@@ -24,112 +24,96 @@ class PlayerViewModel @Inject constructor(
     private val _relatedChannels = MutableLiveData<List<Channel>>()
     val relatedChannels: LiveData<List<Channel>> = _relatedChannels
 
-    fun isFavorite(channelId: String): LiveData<Boolean> {
-        val liveData = MutableLiveData<Boolean>()
-        liveData.value = favoritesRepository.isFavorite(channelId)
-        return liveData
+    private val _isFavorite = MutableLiveData<Boolean>()
+    val isFavorite: LiveData<Boolean> = _isFavorite
+
+    /**
+     * Checks if the current channel is in the user's favorites
+     */
+    fun checkFavoriteStatus(channelId: String) {
+        _isFavorite.value = favoritesRepository.isFavorite(channelId)
     }
 
+    /**
+     * Toggles favorite status. 
+     * IMPORTANT: We now include the streamUrl so that favorites play correctly.
+     */
     fun toggleFavorite(channel: Channel) {
-        if (favoritesRepository.isFavorite(channel.id)) {
+        val currentStatus = favoritesRepository.isFavorite(channel.id)
+        if (currentStatus) {
             favoritesRepository.removeFavorite(channel.id)
+            _isFavorite.value = false
         } else {
             val favorite = FavoriteChannel(
                 id = channel.id,
                 name = channel.name,
                 logoUrl = channel.logoUrl,
+                streamUrl = channel.streamUrl, // Added to fix playback from favorites
                 categoryId = channel.categoryId,
                 categoryName = channel.categoryName
             )
             favoritesRepository.addFavorite(favorite)
+            _isFavorite.value = true
         }
     }
 
     /**
-     * ✅ UPDATED: Load related channels from the same category
-     * - Gets ALL channels (Firestore + M3U)
-     * - Filters out current channel IMMEDIATELY
-     * - Gets 9 channels: 4 before + 5 after the current channel (if possible)
-     * - Falls back to random 9 if position-based selection isn't possible
+     * Loads related channels from the same category.
+     * Uses the updated repository which handles the merging logic automatically.
      */
     fun loadRelatedChannels(categoryId: String, currentChannelId: String) {
         viewModelScope.launch {
             try {
-                Timber.d("Loading related channels for category: $categoryId, current channel: $currentChannelId")
+                Timber.d("Loading related channels for category: $categoryId")
                 
-                // Get category to check for M3U URL
-                val category = categoryRepository.getCategoryBySlug(categoryId) 
-                    ?: categoryRepository.getCategories().find { it.id == categoryId }
+                // Use the updated repository method that merges Firestore and M3U
+                // This resolves the "Unresolved reference: getAllChannels" error
+                val allChannels = channelRepository.getChannelsByCategory(categoryId)
                 
-                // Get ALL channels (manual + M3U)
-                val allChannels = if (category?.m3uUrl?.isNotEmpty() == true) {
-                    Timber.d("Loading channels from M3U: ${category.m3uUrl}")
-                    channelRepository.getAllChannels(categoryId, category.m3uUrl, category.name)
-                } else {
-                    Timber.d("Loading channels from Firestore for category: $categoryId")
-                    channelRepository.getChannelsByCategory(categoryId)
-                }
+                Timber.d("Total channels loaded for relation: ${allChannels.size}")
                 
-                Timber.d("Total channels loaded: ${allChannels.size}")
-                
-                // ✅ FIX: Filter out current channel FIRST
+                // Filter out the channel currently playing
                 val availableChannels = allChannels.filter { it.id != currentChannelId }
                 
                 if (availableChannels.isEmpty()) {
-                    Timber.w("No other channels available in this category")
-                    _relatedChannels.value = emptyList()
+                    _relatedChannels.postValue(emptyList())
                     return@launch
                 }
                 
-                // Find the index of the current channel in the original list
+                // Logic to select channels around the current position
                 val currentIndex = allChannels.indexOfFirst { it.id == currentChannelId }
                 
-                val related = if (currentIndex != -1 && availableChannels.size > 0) {
-                    // ✅ Position-based selection: Get 4 before + 5 after
+                val related = if (currentIndex != -1) {
                     val beforeCount = 4
                     val afterCount = 5
+                    val relatedList = mutableListOf<Channel>()
                     
-                    val relatedChannels = mutableListOf<Channel>()
-                    
-                    // Add channels before current (from available channels)
+                    // Grab channels appearing before the current one
                     val beforeStart = maxOf(0, currentIndex - beforeCount)
                     for (i in beforeStart until currentIndex) {
-                        if (i < allChannels.size && allChannels[i].id != currentChannelId) {
-                            relatedChannels.add(allChannels[i])
-                        }
+                        if (allChannels[i].id != currentChannelId) relatedList.add(allChannels[i])
                     }
                     
-                    // Add channels after current (from available channels)
+                    // Grab channels appearing after the current one
                     val afterEnd = minOf(allChannels.size - 1, currentIndex + afterCount)
                     for (i in (currentIndex + 1)..afterEnd) {
-                        if (i < allChannels.size && allChannels[i].id != currentChannelId) {
-                            relatedChannels.add(allChannels[i])
-                        }
+                        if (allChannels[i].id != currentChannelId) relatedList.add(allChannels[i])
                     }
                     
-                    Timber.d("Position-based: Selected ${relatedChannels.size} channels around index $currentIndex")
-                    
-                    // If we have less than 9, add random channels to fill up
-                    if (relatedChannels.size < 9 && availableChannels.size > relatedChannels.size) {
-                        val remaining = availableChannels
-                            .filter { !relatedChannels.contains(it) }
+                    // Fill with randoms if we haven't reached 9 yet
+                    if (relatedList.size < 9 && availableChannels.size > relatedList.size) {
+                        val extra = availableChannels
+                            .filter { it !in relatedList }
                             .shuffled()
-                            .take(9 - relatedChannels.size)
-                        relatedChannels.addAll(remaining)
-                        Timber.d("Added ${remaining.size} random channels to fill up to ${relatedChannels.size}")
+                            .take(9 - relatedList.size)
+                        relatedList.addAll(extra)
                     }
-                    
-                    relatedChannels.take(9) // Ensure max 9 channels
+                    relatedList.take(9)
                 } else {
-                    // ✅ Fallback: Random 9 channels (already filtered)
-                    Timber.d("Using fallback random selection from ${availableChannels.size} channels")
-                    availableChannels
-                        .shuffled()
-                        .take(9)
+                    availableChannels.shuffled().take(9)
                 }
                 
                 _relatedChannels.postValue(related)
-                Timber.d("✅ Successfully loaded ${related.size} related channels")
             } catch (e: Exception) {
                 Timber.e(e, "Error loading related channels")
                 _relatedChannels.postValue(emptyList())
@@ -137,3 +121,4 @@ class PlayerViewModel @Inject constructor(
         }
     }
 }
+
