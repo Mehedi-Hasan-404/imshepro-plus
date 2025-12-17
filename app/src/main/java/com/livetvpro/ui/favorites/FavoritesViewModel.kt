@@ -5,7 +5,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.FavoriteChannel
-import com.livetvpro.data.repository.FavoritesRepository // CRITICAL IMPORT
+import com.livetvpro.data.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 
@@ -17,7 +17,9 @@ class FavoritesViewModel @Inject constructor(
     private val _favorites = MutableLiveData<List<FavoriteChannel>>()
     val favorites: LiveData<List<FavoriteChannel>> = _favorites
 
-    init { loadFavorites() }
+    init {
+        loadFavorites()
+    }
 
     fun loadFavorites() {
         _favorites.value = favoritesRepository.getFavorites()
@@ -31,7 +33,7 @@ class FavoritesViewModel @Inject constructor(
                 id = channel.id,
                 name = channel.name,
                 logoUrl = channel.logoUrl,
-                streamUrl = channel.streamUrl, // Map the URL here
+                streamUrl = channel.streamUrl, // Fix: transfers URL to favorites
                 categoryId = channel.categoryId,
                 categoryName = channel.categoryName
             )
@@ -42,6 +44,11 @@ class FavoritesViewModel @Inject constructor(
 
     fun removeFavorite(channelId: String) {
         favoritesRepository.removeFavorite(channelId)
+        loadFavorites()
+    }
+
+    fun clearAll() {
+        favoritesRepository.clearAll()
         loadFavorites()
     }
 }
