@@ -18,6 +18,7 @@ import android.util.Rational
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
@@ -171,8 +172,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     
     override fun onResume() {
         super.onResume()
-        // FIX 1: Removed redundant call to applyOrientationSettings(isLandscape) to prevent control bar flickering on resume.
-        
         if (Build.VERSION.SDK_INT <= 23 || player == null) {
             setupPlayer()
             binding.playerView.onResume()
@@ -275,12 +274,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        // Release player for Android 24+ when activity is no longer visible
         if (Build.VERSION.SDK_INT > 23) {
             releasePlayer()
         }
         
-        // Ensure activity finishes if we stopped while in PiP (User closed PiP window)
         if (isInPipMode) {
             finish()
         }
@@ -369,10 +366,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayer() {
-        // Only initialize if player is currently null (i.e., it was released)
         if (player != null) return
 
-        // Clear errors and show loading when setting up new player
         binding.errorView.visibility = View.GONE
         binding.errorText.text = ""
         binding.progressBar.visibility = View.VISIBLE
@@ -448,7 +443,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                 Player.STATE_READY -> {
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
-                                    // Ensure error view is gone when content starts
                                     binding.errorView.visibility = View.GONE
                                     updatePipParams()
                                     Timber.d("✅ Player ready - PLAYING!")
@@ -610,7 +604,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
 
-        // Ensure buttons react to clicks visually (handled by XML selector/ripple)
+        // Ensure buttons react to clicks visually
         listOf(
             btnBack, btnPip, btnSettings, btnLock, btnMute,
             btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio
@@ -660,8 +654,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             if (!isLocked) {
                 player?.let { p ->
                     val newPosition = p.currentPosition - skipMs
-                    
-                    // FIX 3: Check if seeking back goes before the start of the available content (0)
                     if (newPosition < 0) {
                         p.seekTo(0)
                     } else {
@@ -685,13 +677,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
             if (!isLocked) {
                 player?.let { p ->
                     val newPosition = p.currentPosition + skipMs
-                    
-                    // FIX 2: Check if the stream is live and if the seek is past the available duration (live edge)
                     if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
-                        // Snap directly to the live edge (p.duration)
                         p.seekTo(p.duration)
                     } else {
-                        // Perform the normal 10-second forward seek
                         p.seekTo(newPosition)
                     }
                 }
@@ -793,10 +781,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
         
         binding.retryButton.setOnClickListener {
-            // Hide errors when retrying
             binding.errorView.visibility = View.GONE
             binding.progressBar.visibility = View.VISIBLE
-            // Reset player needs to clear existing instance first
             player?.release()
             player = null
             setupPlayer()
@@ -819,12 +805,21 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun loadRelatedChannels() {
+        // Show loader, hide recycler initially to prevent empty space
+        binding.relatedChannelsRecycler.visibility = View.GONE
+        // Ensure the loader added to XML is found by ID: related_loading_progress
+        binding.relatedChannelsSection.findViewById<View>(R.id.related_loading_progress)?.visibility = View.VISIBLE
+
         viewModel.loadRelatedChannels(channel.categoryId, channel.id)
         
         viewModel.relatedChannels.removeObservers(this)
         viewModel.relatedChannels.observe(this) { channels ->
             binding.relatedCount.text = channels.size.toString()
             relatedChannelsAdapter.submitList(channels)
+            
+            // Hide loader, show content
+            binding.relatedChannelsSection.findViewById<View>(R.id.related_loading_progress)?.visibility = View.GONE
+            binding.relatedChannelsRecycler.visibility = View.VISIBLE
             
             if (channels.isEmpty()) {
                 binding.relatedChannelsSection.visibility = View.GONE
@@ -838,7 +833,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         player?.release()
         player = null
         
-        // Hide error view from previous channel if active
         binding.errorView.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
         
@@ -983,7 +977,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
         } else {
-            // Check if we should close the activity (User closed PiP window)
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
                  finish()
                  return
