@@ -4,15 +4,16 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
+import com.livetvpro.R
 import com.livetvpro.SearchableFragment
 import com.livetvpro.databinding.FragmentCategoryChannelsBinding
 import com.livetvpro.ui.adapters.ChannelAdapter
 import com.livetvpro.ui.player.ChannelPlayerActivity
 import dagger.hilt.android.AndroidEntryPoint
-import timber.log.Timber
 
 @AndroidEntryPoint
 class CategoryChannelsFragment : Fragment(), SearchableFragment {
@@ -23,7 +24,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private val viewModel: CategoryChannelsViewModel by viewModels()
     private lateinit var channelAdapter: ChannelAdapter
 
-    // ✅ IMPLEMENT INTERFACE
     override fun onSearchQuery(query: String) {
         viewModel.searchChannels(query)
     }
@@ -39,6 +39,17 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        // Set Toolbar Title
+        try {
+            val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
+            if (viewModel.categoryName.isNotEmpty()) {
+                toolbarTitle?.text = viewModel.categoryName
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         setupRecyclerView()
         observeViewModel()
     }
@@ -60,7 +71,8 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         )
 
         binding.recyclerViewChannels.apply {
-            layoutManager = GridLayoutManager(context, 2)
+            // CHANGED: Span count set to 3 for 3 channels in a line
+            layoutManager = GridLayoutManager(context, 3)
             adapter = channelAdapter
             setHasFixedSize(true)
         }
