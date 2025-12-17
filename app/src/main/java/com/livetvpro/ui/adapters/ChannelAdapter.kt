@@ -35,7 +35,6 @@ class ChannelAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         init {
-            // Regular click - play channel
             binding.root.setOnClickListener {
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
@@ -43,7 +42,6 @@ class ChannelAdapter(
                 }
             }
 
-            // Long click - add/remove favorite
             binding.root.setOnLongClickListener {
                 val position = bindingAdapterPosition
                 if (position != RecyclerView.NO_POSITION) {
@@ -78,9 +76,10 @@ class ChannelAdapter(
 
         fun bind(channel: Channel) {
             binding.channelName.text = channel.name
-            binding.channelCategory.text = channel.categoryName
+            
+            // CRITICAL: Enable marquee scrolling
+            binding.channelName.isSelected = true
 
-            // Show favorite indicator (small badge) but no clickable button
             val isFav = isFavorite(channel.id)
             binding.favoriteIndicator.visibility = if (isFav) {
                 android.view.View.VISIBLE
@@ -88,7 +87,6 @@ class ChannelAdapter(
                 android.view.View.GONE
             }
 
-            // Load channel logo
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
                 .placeholder(R.drawable.ic_channel_placeholder)
@@ -108,7 +106,6 @@ class ChannelAdapter(
         }
     }
 
-    // Public method to refresh a single item
     fun refreshItem(channelId: String) {
         val position = currentList.indexOfFirst { it.id == channelId }
         if (position != -1) {
@@ -116,7 +113,6 @@ class ChannelAdapter(
         }
     }
 
-    // Public method to refresh all items
     fun refreshAll() {
         notifyDataSetChanged()
     }
