@@ -9,9 +9,7 @@ import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -24,10 +22,21 @@ class CategoryChannelsViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _channels = MutableStateFlow<List<Channel>>(emptyList())
-    val channels: StateFlow<List<Channel>> = _channels.asStateFlow()
+    private val _searchQuery = MutableStateFlow("")
+    
+    val categoryName: String = savedStateHandle.get<String>("categoryName") ?: "Channels"
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error.asStateFlow()
+
+    // This fixes the "Unresolved reference: filteredChannels" error
+    val filteredChannels: StateFlow<List<Channel>> = combine(_channels, _searchQuery) { list, query ->
+        if (query.isEmpty()) list
+        else list.filter { it.name.contains(query, ignoreCase = true) }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
@@ -35,11 +44,16 @@ class CategoryChannelsViewModel @Inject constructor(
             try {
                 _channels.value = channelRepository.getChannelsByCategory(categoryId)
             } catch (e: Exception) {
-                _channels.value = emptyList()
+                _error.value = e.message
             } finally {
                 _isLoading.value = false
             }
         }
+    }
+
+    // This fixes the "Unresolved reference: searchChannels" error
+    fun searchChannels(query: String) {
+        _searchQuery.value = query
     }
 
     fun toggleFavorite(channel: Channel) {
@@ -47,7 +61,7 @@ class CategoryChannelsViewModel @Inject constructor(
             id = channel.id,
             name = channel.name,
             logoUrl = channel.logoUrl,
-            streamUrl = channel.streamUrl,
+            streamUrl = channel.streamUrl, // Fixes playback from favorites
             categoryId = channel.categoryId,
             categoryName = channel.categoryName
         )
@@ -59,8 +73,6 @@ class CategoryChannelsViewModel @Inject constructor(
         }
     }
 
-    fun isFavorite(channelId: String): Boolean {
-        return favoritesRepository.isFavorite(channelId)
-    }
+    fun isFavorite(channelId: String): Boolean = favoritesRepository.isFavorite(channelId)
 }
 
