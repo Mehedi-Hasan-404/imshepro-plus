@@ -824,10 +824,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val qualityItems = mutableListOf<QualityItem>()
         val isAutoSelected = player?.trackSelectionParameters?.overrides?.isEmpty() ?: true
 
-        // Find the currently applied video override, if any
-        val videoOverride = player?.trackSelectionParameters?.overrides?.values?.find { 
-            it.trackType == C.TRACK_TYPE_VIDEO 
-        }
+        // FIX: Directly retrieve the video override using the track type key
+        // The override map key IS the track type (C.TRACK_TYPE_VIDEO)
+        val videoOverride = player?.trackSelectionParameters?.overrides?.get(C.TRACK_TYPE_VIDEO)
 
         // Add "Auto" first (Radio Button/Ball)
         qualityItems.add(QualityItem("Auto", isAutoSelected, true, null, 0))
@@ -844,13 +843,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 val height = format.height
                 val label = if (height > 0) "${height}p" else "Unknown Quality"
                 
-                // --- FIX: Correct way to check if this specific track is selected ---
-                // We check if Auto is NOT selected AND if the current track matches the override
+                // Correct way to check if this specific track is selected
+                // Check if Auto is NOT selected AND if the current track matches the override
                 val isTrackSelected = !isAutoSelected && 
                     videoOverride != null && 
                     videoOverride.mediaTrackGroup.equals(mediaTrackGroup) && 
                     videoOverride.trackIndices.contains(i)
-                // --- END FIX ---
                 
                 qualityItems.add(QualityItem(
                     label = label,
