@@ -699,8 +699,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val options = mutableListOf<SettingOption>()
         options.add(SettingOption("none", "None", SelectionType.NONE))
         val currentParams = trackSelector?.parameters
-        val isAutoActive = currentParams?.maxVideoHeight == Integer.MAX_VALUE && currentParams?.isTrackTypeDisabled(C.TRACK_TYPE_VIDEO) == false
+        // In ExoPlayer 1.2.1, check disabled state using disabledTrackTypes
+        val isVideoDisabled = currentParams?.disabledTrackTypes?.contains(C.TRACK_TYPE_VIDEO) == true
+        val isAutoActive = !isVideoDisabled && currentParams?.maxVideoHeight == Integer.MAX_VALUE
         options.add(SettingOption("auto", "Auto", SelectionType.AUTO, isSelected = isAutoActive))
+
         val mappedTrackInfo = trackSelector?.currentMappedTrackInfo
         if (mappedTrackInfo != null) {
             for (i in 0 until mappedTrackInfo.rendererCount) {
@@ -715,7 +718,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         }
                     }
                     heights.sortedDescending().forEach { h ->
-                        val isSelected = !isAutoActive && currentParams?.maxVideoHeight == h
+                        val isSelected = !isAutoActive && !isVideoDisabled && currentParams?.maxVideoHeight == h
                         options.add(SettingOption(h.toString(), "${h}p", SelectionType.QUALITY, isSelected = isSelected, height = h))
                     }
                 }
@@ -727,14 +730,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
     private fun handleHybridSelection(options: List<SettingOption>, clicked: SettingOption) {
         when (clicked.type) {
-            SelectionType.NONE -> options.forEach { it.isSelected = (it.type == SelectionType.NONE) }
-            SelectionType.AUTO -> options.forEach { it.isSelected = (it.type == SelectionType.AUTO) }
+            SelectionType.NONE -> {
+                // Disable video tracks
+                options.forEach { it.isSelected = (it.type == SelectionType.NONE) }
+            }
+            SelectionType.AUTO -> {
+                // Enable auto selection
+                options.forEach { it.isSelected = (it.type == SelectionType.AUTO) }
+            }
             SelectionType.QUALITY -> {
+                // Deselect NONE and AUTO if selecting a quality
                 options.find { it.type == SelectionType.NONE }?.isSelected = false
                 options.find { it.type == SelectionType.AUTO }?.isSelected = false
-                clicked.isSelected = !clicked.isSelected
-                // Ensure at least one selection if QUALITY is interacted with
-                if (options.none { it.isSelected }) options.find { it.type == SelectionType.AUTO }?.isSelected = true
+                clicked.isSelected = !clicked.isSelected // Toggle the clicked quality
+                // Ensure at least one selection remains, fallback to AUTO if needed
+                if (options.none { it.isSelected }) {
+                    options.find { it.type == SelectionType.AUTO }?.isSelected = true
+                }
             }
         }
     }
@@ -742,23 +754,29 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val builder = trackSelector?.buildUponParameters() ?: return
         val selectedNone = options.find { it.type == SelectionType.NONE }?.isSelected == true
         val selectedAuto = options.find { it.type == SelectionType.AUTO }?.isSelected == true
+
         if (selectedNone) {
-            builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
-            builder.clearVideoSizeConstraints() // Clear constraints when disabling
-        } else if (selectedAuto) {
-            builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
-            builder.clearVideoSizeConstraints() // Clear constraints to enable auto selection logic
+            // Disable video track type
+            builder.setDisabledTrackTypes(setOf(C.TRACK_TYPE_VIDEO))
         } else {
-            val qualities = options.filter { it.isSelected && it.type == SelectionType.QUALITY }
-            if (qualities.isNotEmpty()) {
-                val maxHeight = qualities.maxOf { it.height }
-                builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
-                // Set max video size constraints to enforce selection. Width is MAX to only constrain by height
-                builder.setMaxVideoSize(Integer.MAX_VALUE, maxHeight)
+            // Re-enable video track type
+            val currentDisabledTypes = trackSelector?.parameters?.disabledTrackTypes?.toMutableSet() ?: mutableSetOf()
+            currentDisabledTypes.remove(C.TRACK_TYPE_VIDEO)
+            builder.setDisabledTrackTypes(currentDisabledTypes)
+
+            if (selectedAuto) {
+                // Clear size constraints to allow auto-selection
+                builder.setMaxVideoSize(Integer.MAX_VALUE, Integer.MAX_VALUE)
             } else {
-                // Fallback to auto if all quality tracks are deselected
-                builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
-                builder.clearVideoSizeConstraints()
+                // Apply specific height constraint based on selected qualities
+                val qualities = options.filter { it.isSelected && it.type == SelectionType.QUALITY }
+                if (qualities.isNotEmpty()) {
+                    val maxHeight = qualities.maxOf { it.height }
+                    builder.setMaxVideoSize(Integer.MAX_VALUE, maxHeight)
+                } else {
+                    // Fallback to auto if no specific quality is selected after deselection
+                    builder.setMaxVideoSize(Integer.MAX_VALUE, Integer.MAX_VALUE)
+                }
             }
         }
         trackSelector?.setParameters(builder)
