@@ -4,10 +4,10 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.databinding.FragmentFavoritesBinding
@@ -40,15 +40,9 @@ class FavoritesFragment : Fragment() {
         observeViewModel()
     }
 
-    override fun onResume() {
-        super.onResume()
-        viewModel.loadFavorites()
-    }
-
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
             onChannelClick = { favChannel ->
-                // Play the channel
                 val channel = Channel(
                     id = favChannel.id,
                     name = favChannel.name,
@@ -60,7 +54,6 @@ class FavoritesFragment : Fragment() {
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { favChannel ->
-                // CHANGED: Instead of removing immediately, show confirmation dialog
                 showRemoveConfirmation(favChannel)
             }
         )
@@ -68,7 +61,6 @@ class FavoritesFragment : Fragment() {
         binding.recyclerViewFavorites.apply {
             layoutManager = GridLayoutManager(context, 3)
             adapter = favoriteAdapter
-            setHasFixedSize(true)
         }
     }
 
@@ -79,14 +71,13 @@ class FavoritesFragment : Fragment() {
     }
 
     /**
-     * Shows a confirmation dialog for removing a SINGLE item
+     * ✅ Material Design Confirmation for Single Item
      */
     private fun showRemoveConfirmation(favorite: FavoriteChannel) {
-        AlertDialog.Builder(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle("Remove Favorite")
-            .setMessage("Are you sure you want to remove '${favorite.name}' from favorites?")
+            .setMessage("Remove '${favorite.name}' from your favorites list?")
             .setPositiveButton("Remove") { _, _ ->
-                // Only remove if user clicks "Remove"
                 viewModel.removeFavorite(favorite.id)
             }
             .setNegativeButton("Cancel", null)
@@ -94,12 +85,12 @@ class FavoritesFragment : Fragment() {
     }
 
     /**
-     * Shows a confirmation dialog for clearing ALL items
+     * ✅ Material Design Confirmation for All Items
      */
     private fun showClearAllDialog() {
-        AlertDialog.Builder(requireContext())
+        MaterialAlertDialogBuilder(requireContext())
             .setTitle("Clear All Favorites")
-            .setMessage("Are you sure you want to remove ALL channels from your favorites?")
+            .setMessage("This will remove all channels from your list. This action cannot be undone.")
             .setPositiveButton("Clear All") { _, _ ->
                 viewModel.clearAll()
             }
@@ -110,7 +101,6 @@ class FavoritesFragment : Fragment() {
     private fun observeViewModel() {
         viewModel.favorites.observe(viewLifecycleOwner) { favorites ->
             favoriteAdapter.submitList(favorites)
-
             val isEmpty = favorites.isEmpty()
             binding.emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
             binding.recyclerViewFavorites.visibility = if (isEmpty) View.GONE else View.VISIBLE
