@@ -17,11 +17,8 @@ import android.os.Looper
 import android.util.Rational
 import android.view.View
 import android.view.WindowManager
-import android.widget.CheckBox
 import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.ProgressBar
-import android.widget.RadioButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
@@ -232,7 +229,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    layoutInDisplayCutoutMode = 
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
                 }
             }
             
@@ -245,7 +243,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                    layoutInDisplayCutoutMode = 
+                        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
                 }
             }
             
@@ -736,211 +735,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun showQualityDialog() {
-        if (player == null) {
-            Toast.makeText(this, "Player not available", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        try {
-            showModernSettingsDialog()
-        } catch (e: Exception) {
-            Timber.e(e, "Error showing settings dialog")
-            Toast.makeText(this, "Settings unavailable", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun showModernSettingsDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_player_settings, null)
-        
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setView(dialogView)
-            .create()
-        
-        val qualitySection = dialogView.findViewById<ConstraintLayout>(R.id.quality_section)
-        val speedSection = dialogView.findViewById<ConstraintLayout>(R.id.speed_section)
-        val audioSection = dialogView.findViewById<ConstraintLayout>(R.id.audio_section)
-        val subtitleSection = dialogView.findViewById<ConstraintLayout>(R.id.subtitle_section)
-        
-        qualitySection.setOnClickListener {
-            dialog.dismiss()
-            showQualitySelectionDialog()
-        }
-        
-        speedSection.setOnClickListener {
-            dialog.dismiss()
-            showSpeedSelectionDialog()
-        }
-        
-        audioSection.setOnClickListener {
-            dialog.dismiss()
-            showAudioTrackDialog()
-        }
-        
-        subtitleSection.setOnClickListener {
-            dialog.dismiss()
-            showSubtitleTrackDialog()
-        }
-        
-        dialog.show()
-    }
-
-    private fun showQualitySelectionDialog() {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_quality_selection, null)
-        val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setView(dialogView)
-            .setNegativeButton("Close", null)
-            .create()
-        
-        val container = dialogView.findViewById<LinearLayout>(R.id.quality_container)
-        
-        // Add Auto option with radio button
-        val autoLayout = layoutInflater.inflate(R.layout.item_quality_auto, container, false)
-        val autoRadio = autoLayout.findViewById<RadioButton>(R.id.quality_radio)
-        autoRadio.isChecked = true // Default to auto
-        container.addView(autoLayout)
-        
-        // Get available video tracks
-        player?.let { exo ->
-            val trackGroups = exo.currentTracks.groups
-            val videoTracks = mutableListOf<Pair<String, Int>>()
-            
-            for (trackGroup in trackGroups) {
-                if (trackGroup.type == C.TRACK_TYPE_VIDEO) {
-                    for (i in 0 until trackGroup.length) {
-                        val format = trackGroup.getTrackFormat(i)
-                        val height = format.height
-                        val width = format.width
-                        val bitrate = format.bitrate / 1000 // Convert to Kbps
-                        val label = "${width}x${height}, ${bitrate} Kbps"
-                        videoTracks.add(Pair(label, height))
-                    }
-                }
-            }
-            
-            // Sort by height descending
-            videoTracks.sortByDescending { it.second }
-            
-            // Add quality options with checkboxes
-            videoTracks.forEach { (quality, height) ->
-                val qualityLayout = layoutInflater.inflate(R.layout.item_quality_option, container, false)
-                val checkbox = qualityLayout.findViewById<CheckBox>(R.id.quality_checkbox)
-                checkbox.text = quality
-                
-                checkbox.setOnCheckedChangeListener { _, isChecked ->
-                    if (isChecked) {
-                        // Uncheck auto when manual quality is selected
-                        autoRadio.isChecked = false
-                        
-                        // Uncheck all other checkboxes
-                        for (i in 1 until container.childCount) {
-                            val child = container.getChildAt(i)
-                            val otherCheckbox = child.findViewById<CheckBox>(R.id.quality_checkbox)
-                            if (otherCheckbox != checkbox) {
-                                otherCheckbox.isChecked = false
-                            }
-                        }
-                        
-                        // Apply selected quality
-                        trackSelector?.parameters = DefaultTrackSelector.ParametersBuilder(this)
-                            .setMaxVideoSize(Int.MAX_VALUE, height)
-                            .setMinVideoSize(0, height)
-                            .build()
-                        
-                        dialog.dismiss()
-                        Toast.makeText(this, "Quality: $quality", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                
-                container.addView(qualityLayout)
-            }
-        }
-        
-        autoRadio.setOnCheckedChangeListener { _, isChecked ->
-            if (isChecked) {
-                // Uncheck all quality checkboxes when auto is selected
-                for (i in 1 until container.childCount) {
-                    val child = container.getChildAt(i)
-                    val checkbox = child.findViewById<CheckBox>(R.id.quality_checkbox)
-                    checkbox?.isChecked = false
-                }
-                
-                // Reset to auto quality
-                trackSelector?.parameters = DefaultTrackSelector.ParametersBuilder(this)
-                    .clearVideoSizeConstraints()
-                    .build()
-                
-                dialog.dismiss()
-                Toast.makeText(this, "Quality: Auto", Toast.LENGTH_SHORT).show()
-            }
-        }
-        
-        dialog.show()
-    }
-
-    private fun showSpeedSelectionDialog() {
-        val speeds = arrayOf("0.25x", "0.5x", "0.75x", "Normal", "1.25x", "1.5x", "1.75x", "2x")
-        val speedValues = floatArrayOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f)
-        val currentSpeed = player?.playbackParameters?.speed ?: 1.0f
-        
-        // Find closest speed index to display properly
-        var currentIndex = 3 // Default to Normal (1.0f)
-        var minDiff = Float.MAX_VALUE
-        speedValues.forEachIndexed { index, value ->
-            val diff = kotlin.math.abs(value - currentSpeed)
-            if (diff < minDiff) {
-                minDiff = diff
-                currentIndex = index
-            }
-        }
-        
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Playback Speed")
-            .setSingleChoiceItems(speeds, currentIndex) { dialog, which ->
-                player?.setPlaybackSpeed(speedValues[which])
-                dialog.dismiss()
-                Toast.makeText(this, "Speed: ${speeds[which]}", Toast.LENGTH_SHORT).show()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun showAudioTrackDialog() {
         if (trackSelector == null || player == null) {
-            Toast.makeText(this, "Audio tracks not available", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Track selector not available", Toast.LENGTH_SHORT).show()
             return
         }
         
         try {
             TrackSelectionDialogBuilder(
                 this,
-                "Select Audio Track",
+                "Select Video Quality",
                 player!!,
-                C.TRACK_TYPE_AUDIO
+                C.TRACK_TYPE_VIDEO
             ).build().show()
         } catch (e: Exception) {
-            Timber.e(e, "Error showing audio dialog")
-            Toast.makeText(this, "Audio settings unavailable", Toast.LENGTH_SHORT).show()
+            Timber.e(e, "Error showing quality dialog")
+            Toast.makeText(this, "Quality settings unavailable", Toast.LENGTH_SHORT).show()
         }
     }
-
-    private fun showSubtitleTrackDialog() {
-        if (trackSelector == null || player == null) {
-            Toast.makeText(this, "Subtitle tracks not available", Toast.LENGTH_SHORT).show()
-            return
-        }
-        
-        try {
-            TrackSelectionDialogBuilder(
-                this,
-                "Select Subtitle",
-                player!!,
-                C.TRACK_TYPE_TEXT
-            ).build().show()
-        } catch (e: Exception) {
-            Timber.e(e, "Error showing subtitle dialog")
-            Toast.makeText(this, "Subtitle settings unavailable", Toast.LENGTH_SHORT).show()
-        }
-    } 
 
     private fun configurePlayerInteractions() {
         binding.playerView.apply {
