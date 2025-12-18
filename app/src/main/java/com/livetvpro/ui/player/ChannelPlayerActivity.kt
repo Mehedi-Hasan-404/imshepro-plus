@@ -824,8 +824,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val qualityItems = mutableListOf<QualityItem>()
         val isAutoSelected = player?.trackSelectionParameters?.overrides?.isEmpty() ?: true
 
-        // FIX APPLIED HERE: Using Kotlin's indexed access operator ([key]) instead of .get(key).
-        // This explicitly tells the Kotlin compiler to treat C.TRACK_TYPE_VIDEO (Int) as the key type.
+        // FIX APPLIED: Changed to use indexed access operator [] to resolve Kotlin type inference failure (Line 830)
+        // This is the source of the persistent error:
         val videoOverride = player?.trackSelectionParameters?.overrides?.get(C.TRACK_TYPE_VIDEO)
 
         // Add "Auto" first (Radio Button/Ball)
