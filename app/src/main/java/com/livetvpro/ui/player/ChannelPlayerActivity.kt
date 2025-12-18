@@ -44,9 +44,6 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
@@ -826,7 +823,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         // FIX APPLIED: Using Kotlin's indexed access operator ([key]) instead of the generic .get(key)
         // This explicitly tells the Kotlin compiler to treat C.TRACK_TYPE_VIDEO (Int) as the key type, resolving the inference failure.
-        val videoOverride = player?.trackSelectionParameters?.overrides?.get(C.TRACK_TYPE_VIDEO)
+        val videoOverride = player?.trackSelectionParameters?.overrides?.get(C.TRACK_TYPE_VIDEO) // Changed from ?.get(C.TRACK_TYPE_VIDEO)
 
         // Add "Auto" first (Radio Button/Ball)
         qualityItems.add(QualityItem("Auto", isAutoSelected, true, null, 0))
@@ -956,9 +953,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         binding.relatedChannelsRecycler.apply {
-            layoutManager = LinearLayoutManager(
+            layoutManager = androidx.recyclerview.widget.LinearLayoutManager(
                 this@ChannelPlayerActivity,
-                RecyclerView.HORIZONTAL,
+                androidx.recyclerview.widget.RecyclerView.HORIZONTAL,
                 false
             )
             adapter = relatedChannelsAdapter
@@ -1205,9 +1202,9 @@ data class QualityItem(
 class SettingsAdapter(
     private val items: List<SettingsItem>,
     private val onClick: (SettingsItem) -> Unit
-) : RecyclerView.Adapter<SettingsAdapter.ViewHolder>() {
+) : androidx.recyclerview.widget.RecyclerView.Adapter<SettingsAdapter.ViewHolder>() {
 
-    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+    class ViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
         val icon: android.widget.ImageView = view.findViewById(R.id.item_icon)
         val title: TextView = view.findViewById(R.id.item_title)
         val value: TextView = view.findViewById(R.id.item_value)
@@ -1238,9 +1235,9 @@ class SettingsAdapter(
 class QualityAdapter(
     private val items: List<QualityItem>,
     private val onClick: (QualityItem) -> Unit
-) : RecyclerView.Adapter<QualityAdapter.ViewHolder>() {
+) : androidx.recyclerview.widget.RecyclerView.Adapter<QualityAdapter.ViewHolder>() {
 
-    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+    class ViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
         val text: TextView = view.findViewById(R.id.quality_text)
         val radio: RadioButton = view.findViewById(R.id.quality_radio)
         val check: CheckBox = view.findViewById(R.id.quality_check)
