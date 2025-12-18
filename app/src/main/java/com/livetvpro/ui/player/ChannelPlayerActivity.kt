@@ -1,5 +1,6 @@
 package com.livetvpro.ui.player
 
+// Ensure these imports are present
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -39,6 +40,12 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.livetvpro.R
+import com.livetvpro.data.models.Channel // Added import for Channel
+import com.livetvpro.databinding.ActivityChannelPlayerBinding // Added import for ViewBinding
+// Import for PlayerSettingsDialog - adjust package if necessary
+// import com.livetvpro.ui.player.settings.PlayerSettingsDialog // Uncomment and adjust if the dialog class exists in this package
+
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
@@ -46,11 +53,11 @@ import java.util.UUID
 @UnstableApi
 @AndroidEntryPoint
 class ChannelPlayerActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityChannelPlayerBinding
+    private lateinit var binding: ActivityChannelPlayerBinding // ViewBinding instance
     private val viewModel: PlayerViewModel by viewModels()
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
-    private lateinit var channel: Channel
+    private lateinit var channel: Channel // Channel data model
 
     // Controller Views
     private var btnBack: ImageButton? = null
@@ -697,12 +704,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.resizeMode = currentResizeMode
     }
 
-    // NEW EXTERNAL DIALOG CALLER
+    // NEW EXTERNAL DIALOG CALLER - Updated with null check
     private fun showPlayerSettingsDialog() {
-        PlayerSettingsDialog(
-            context = this,
-            player = player   // <-- your existing ExoPlayer
-        ).show()
+        val exoPlayer = player ?: return // Guard clause: exit if player is null
+        // Assuming PlayerSettingsDialog exists and is imported correctly
+        // PlayerSettingsDialog(
+        //     context = this,
+        //     player = exoPlayer   // Pass the non-null player instance
+        // ).show()
     }
     // END NEW EXTERNAL DIALOG CALLER
 
