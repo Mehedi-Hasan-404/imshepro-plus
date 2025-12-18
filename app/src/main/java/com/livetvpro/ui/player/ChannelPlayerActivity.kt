@@ -21,7 +21,6 @@ import android.view.WindowManager
 import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.RadioButton
-import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
@@ -645,7 +644,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         // <<< UPDATED SETTINGS LISTENER >>>
         btnSettings?.setOnClickListener { 
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) showSettingsBottomSheet() // Call the new main sheet
+            if (!isLocked) showSettingsBottomSheet() 
         }
         // <<< END UPDATED SETTINGS LISTENER >>>
         
@@ -744,8 +743,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.resizeMode = currentResizeMode
     }
 
-    // <<< REPLACEMENT FOR showQualityDialog() STARTS HERE >>>
-
     // 1. Main Settings Menu (Entry Point)
     private fun showSettingsBottomSheet() {
         val dialog = BottomSheetDialog(this)
@@ -768,16 +765,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val speedLabel = if (currentSpeed % 1.0f == 0f) "${currentSpeed.toInt()}x" else "${currentSpeed}x"
         menuItems.add(SettingsItem(R.drawable.ic_play, "Playback Speed", speedLabel))
         
-        // -- Audio Track Item (NEW) --
+        // -- Audio Track Item --
         val audioTracks = tracks.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
         if (audioTracks.isNotEmpty()) {
             menuItems.add(SettingsItem(R.drawable.ic_volume_up, "Audio", "Default")) 
         }
         
-        // -- Captions/Subtitles Item (NEW) --
+        // -- Captions/Subtitles Item --
         val textTracks = tracks.filter { it.type == C.TRACK_TYPE_TEXT && it.isSupported }
         if (textTracks.isNotEmpty()) {
-            // Note: ExoPlayer handles selecting "Off" by default if no track is selected.
             menuItems.add(SettingsItem(R.drawable.ic_live, "Captions", "Off")) 
         }
 
@@ -828,6 +824,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val qualityItems = mutableListOf<QualityItem>()
         val isAutoSelected = player?.trackSelectionParameters?.overrides?.isEmpty() ?: true
 
+        // Find the currently applied video override, if any
+        val videoOverride = player?.trackSelectionParameters?.overrides?.values?.find { 
+            it.trackType == C.TRACK_TYPE_VIDEO 
+        }
+
         // Add "Auto" first (Radio Button/Ball)
         qualityItems.add(QualityItem("Auto", isAutoSelected, true, null, 0))
 
@@ -837,19 +838,26 @@ class ChannelPlayerActivity : AppCompatActivity() {
         } ?: emptyList()
 
         for (group in videoGroups) {
+            val mediaTrackGroup = group.mediaTrackGroup // Get the underlying TrackGroup for comparison
             for (i in 0 until group.length) {
                 val format = group.getTrackFormat(i)
                 val height = format.height
                 val label = if (height > 0) "${height}p" else "Unknown Quality"
                 
-                // Check if this specific track is currently selected in overrides
-                val isTrackSelected = !isAutoSelected && group.isSelected(i)
+                // --- FIX: Correct way to check if this specific track is selected ---
+                // We check if Auto is NOT selected AND if the current track matches the override
+                val isTrackSelected = !isAutoSelected && 
+                    videoOverride != null && 
+                    videoOverride.mediaTrackGroup.equals(mediaTrackGroup) && 
+                    videoOverride.trackIndices.contains(i)
+                // --- END FIX ---
                 
                 qualityItems.add(QualityItem(
                     label = label,
-                    isSelected = isTrackSelected,
+                    // Pass the correct selection status
+                    isSelected = isTrackSelected, 
                     isAuto = false,
-                    group = group.mediaTrackGroup,
+                    group = mediaTrackGroup, // Pass mediaTrackGroup here
                     trackIndex = i
                 ))
             }
@@ -908,8 +916,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    // <<< REPLACEMENT FOR showQualityDialog() ENDS HERE >>>
-
     private fun configurePlayerInteractions() {
         binding.playerView.apply {
             setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
@@ -921,7 +927,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             
             setControllerHideDuringAds(false)
             controllerShowTimeoutMs = 5000
-            controllerHideOnTouch = true
+            controllerHideOnTouch = true 
         }
     }
     
