@@ -16,8 +16,11 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Rational
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
+import android.widget.CheckBox
 import android.widget.ImageButton
+import android.widget.RadioButton
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -28,6 +31,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.TrackGroup
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -40,6 +45,9 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TrackSelectionDialogBuilder
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
@@ -477,7 +485,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                 updatePipParams()
                             }
                         }
-                        
+                      
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                             super.onPlayerError(error)
                             Timber.e(error, "❌ PLAYBACK ERROR")
@@ -634,10 +642,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
+        // <<< UPDATED SETTINGS LISTENER >>>
         btnSettings?.setOnClickListener { 
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) showQualityDialog() 
+            if (!isLocked) showSettingsBottomSheet() // Call the new main sheet
         }
+        // <<< END UPDATED SETTINGS LISTENER >>>
         
         btnAspectRatio?.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
@@ -734,24 +744,171 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.resizeMode = currentResizeMode
     }
 
-    private fun showQualityDialog() {
-        if (trackSelector == null || player == null) {
-            Toast.makeText(this, "Track selector not available", Toast.LENGTH_SHORT).show()
-            return
+    // <<< REPLACEMENT FOR showQualityDialog() STARTS HERE >>>
+
+    // 1. Main Settings Menu (Entry Point)
+    private fun showSettingsBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.dialog_player_settings, null)
+        dialog.setContentView(view)
+
+        val recyclerView = view.findViewById<RecyclerView>(R.id.settings_list)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+
+        val menuItems = mutableListOf<SettingsItem>()
+        val tracks = player?.currentTracks?.groups ?: emptyList()
+
+        // -- Quality Item --
+        val isAuto = player?.trackSelectionParameters?.overrides?.isEmpty() ?: true
+        val qualityLabel = if (isAuto) "Auto" else "Manual"
+        menuItems.add(SettingsItem(R.drawable.ic_settings, "Quality", qualityLabel))
+
+        // -- Speed Item --
+        val currentSpeed = player?.playbackParameters?.speed ?: 1.0f
+        val speedLabel = if (currentSpeed % 1.0f == 0f) "${currentSpeed.toInt()}x" else "${currentSpeed}x"
+        menuItems.add(SettingsItem(R.drawable.ic_play, "Playback Speed", speedLabel))
+        
+        // -- Audio Track Item (NEW) --
+        val audioTracks = tracks.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
+        if (audioTracks.isNotEmpty()) {
+            menuItems.add(SettingsItem(R.drawable.ic_volume_up, "Audio", "Default")) 
         }
         
-        try {
-            TrackSelectionDialogBuilder(
-                this,
-                "Select Video Quality",
-                player!!,
-                C.TRACK_TYPE_VIDEO
-            ).build().show()
-        } catch (e: Exception) {
-            Timber.e(e, "Error showing quality dialog")
-            Toast.makeText(this, "Quality settings unavailable", Toast.LENGTH_SHORT).show()
+        // -- Captions/Subtitles Item (NEW) --
+        val textTracks = tracks.filter { it.type == C.TRACK_TYPE_TEXT && it.isSupported }
+        if (textTracks.isNotEmpty()) {
+            // Note: ExoPlayer handles selecting "Off" by default if no track is selected.
+            menuItems.add(SettingsItem(R.drawable.ic_live, "Captions", "Off")) 
         }
+
+        recyclerView.adapter = SettingsAdapter(menuItems) { item ->
+            dialog.dismiss()
+            when (item.title) {
+                "Quality" -> showQualitySelectionBottomSheet()
+                "Playback Speed" -> showSpeedSelectionBottomSheet()
+                
+                "Audio" -> {
+                    // Use the standard ExoPlayer TrackSelectionDialogBuilder for track selection
+                    player?.let {
+                        TrackSelectionDialogBuilder(
+                            this, 
+                            "Select Audio Track", 
+                            it, 
+                            C.TRACK_TYPE_AUDIO
+                        ).build().show()
+                    }
+                }
+                
+                "Captions" -> {
+                    // Use the standard ExoPlayer TrackSelectionDialogBuilder for text selection
+                    player?.let {
+                        TrackSelectionDialogBuilder(
+                            this, 
+                            "Select Captions/Subtitles", 
+                            it, 
+                            C.TRACK_TYPE_TEXT
+                        ).build().show()
+                    }
+                }
+            }
+        }
+        dialog.show()
     }
+
+    // 2. Quality Selection Menu (Handles Auto/Manual video track selection)
+    private fun showQualitySelectionBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.dialog_player_settings, null)
+        dialog.setContentView(view)
+        
+        view.findViewById<TextView>(R.id.sheet_title).text = "Quality"
+        val recyclerView = view.findViewById<RecyclerView>(R.id.settings_list)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+
+        val qualityItems = mutableListOf<QualityItem>()
+        val isAutoSelected = player?.trackSelectionParameters?.overrides?.isEmpty() ?: true
+
+        // Add "Auto" first (Radio Button/Ball)
+        qualityItems.add(QualityItem("Auto", isAutoSelected, true, null, 0))
+
+        // Add Video Tracks (Checkbox Type)
+        val videoGroups = player?.currentTracks?.groups?.filter { 
+            it.type == C.TRACK_TYPE_VIDEO && it.isSupported 
+        } ?: emptyList()
+
+        for (group in videoGroups) {
+            for (i in 0 until group.length) {
+                val format = group.getTrackFormat(i)
+                val height = format.height
+                val label = if (height > 0) "${height}p" else "Unknown Quality"
+                
+                // Check if this specific track is currently selected in overrides
+                val isTrackSelected = !isAutoSelected && group.isSelected(i)
+                
+                qualityItems.add(QualityItem(
+                    label = label,
+                    isSelected = isTrackSelected,
+                    isAuto = false,
+                    group = group.mediaTrackGroup,
+                    trackIndex = i
+                ))
+            }
+        }
+
+        // Filter to ensure distinct quality labels (e.g., if multiple tracks are 1080p)
+        val distinctItems = qualityItems.distinctBy { it.label }
+
+        recyclerView.adapter = QualityAdapter(distinctItems) { selectedItem ->
+            dialog.dismiss()
+            
+            val newParams = player?.trackSelectionParameters?.buildUpon() ?: return@QualityAdapter
+
+            if (selectedItem.isAuto) {
+                // Clear overrides to switch back to Auto
+                newParams.clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+            } else {
+                // Set override for the specific track
+                selectedItem.group?.let { group ->
+                    newParams.setOverrideForType(
+                        TrackSelectionOverride(group, selectedItem.trackIndex)
+                    )
+                }
+            }
+            player?.trackSelectionParameters = newParams.build()
+        }
+        dialog.show()
+    }
+
+
+    // 3. Speed Selection Menu
+    private fun showSpeedSelectionBottomSheet() {
+        val dialog = BottomSheetDialog(this)
+        val view = layoutInflater.inflate(R.layout.dialog_player_settings, null)
+        dialog.setContentView(view)
+        
+        view.findViewById<TextView>(R.id.sheet_title).text = "Playback Speed"
+        val recyclerView = view.findViewById<RecyclerView>(R.id.settings_list)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+
+        val speeds = listOf(0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f)
+        val currentSpeed = player?.playbackParameters?.speed ?: 1.0f
+
+        val speedItems = speeds.map { speed ->
+            val label = if (speed % 1.0f == 0f) "${speed.toInt()}x" else "${speed}x"
+            val status = if (speed == currentSpeed) "Active" else ""
+            // Icon 0 is used as a placeholder/no icon to indicate this is a speed menu item
+            SettingsItem(0, label, status) 
+        }
+
+        recyclerView.adapter = SettingsAdapter(speedItems) { item ->
+            val newSpeed = item.title.replace("x", "").toFloatOrNull() ?: 1.0f
+            player?.setPlaybackSpeed(newSpeed)
+            dialog.dismiss()
+        }
+        dialog.show()
+    }
+
+    // <<< REPLACEMENT FOR showQualityDialog() ENDS HERE >>>
 
     private fun configurePlayerInteractions() {
         binding.playerView.apply {
@@ -795,9 +952,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         binding.relatedChannelsRecycler.apply {
-            layoutManager = androidx.recyclerview.widget.GridLayoutManager(
+            layoutManager = LinearLayoutManager(
                 this@ChannelPlayerActivity,
-                3 
+                RecyclerView.HORIZONTAL,
+                false
             )
             adapter = relatedChannelsAdapter
             setHasFixedSize(true)
@@ -816,7 +974,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         viewModel.relatedChannels.observe(this) { channels ->
             binding.relatedCount.text = channels.size.toString()
             relatedChannelsAdapter.submitList(channels)
-            
+          
             // Hide loader, show content
             binding.relatedChannelsSection.findViewById<View>(R.id.related_loading_progress)?.visibility = View.GONE
             binding.relatedChannelsRecycler.visibility = View.VISIBLE
@@ -1026,3 +1184,88 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     } 
 }
+
+
+// --- Data Models (Outside the Activity Class) ---
+data class SettingsItem(val iconRes: Int, val title: String, val value: String)
+data class QualityItem(
+    val label: String, 
+    val isSelected: Boolean, 
+    val isAuto: Boolean, 
+    val group: TrackGroup?, 
+    val trackIndex: Int
+)
+
+// --- Adapters (Outside the Activity Class) ---
+
+class SettingsAdapter(
+    private val items: List<SettingsItem>,
+    private val onClick: (SettingsItem) -> Unit
+) : RecyclerView.Adapter<SettingsAdapter.ViewHolder>() {
+
+    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val icon: android.widget.ImageView = view.findViewById(R.id.item_icon)
+        val title: TextView = view.findViewById(R.id.item_title)
+        val value: TextView = view.findViewById(R.id.item_value)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = android.view.LayoutInflater.from(parent.context).inflate(R.layout.item_settings_menu, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val item = items[position]
+        if (item.iconRes != 0) {
+            holder.icon.setImageResource(item.iconRes) 
+            holder.icon.visibility = View.VISIBLE
+        } else {
+            holder.icon.visibility = View.INVISIBLE 
+        }
+        
+        holder.title.text = item.title
+        holder.value.text = item.value
+        
+        holder.itemView.setOnClickListener { onClick(item) }
+    }
+    override fun getItemCount() = items.size
+}
+
+class QualityAdapter(
+    private val items: List<QualityItem>,
+    private val onClick: (QualityItem) -> Unit
+) : RecyclerView.Adapter<QualityAdapter.ViewHolder>() {
+
+    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val text: TextView = view.findViewById(R.id.quality_text)
+        val radio: RadioButton = view.findViewById(R.id.quality_radio)
+        val check: CheckBox = view.findViewById(R.id.quality_check)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = android.view.LayoutInflater.from(parent.context).inflate(R.layout.item_quality_selection, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val item = items[position]
+        holder.text.text = item.label
+        
+        // --- KEY LOGIC: Material Selector Control ---
+        if (item.isAuto) {
+            // Show Radio Button (Ball) for Auto
+            holder.radio.visibility = View.VISIBLE
+            holder.check.visibility = View.GONE
+            holder.radio.isChecked = item.isSelected
+        } else {
+            // Show Checkbox for manual resolutions
+            holder.radio.visibility = View.GONE
+            holder.check.visibility = View.VISIBLE
+            holder.check.isChecked = item.isSelected
+        }
+        
+        holder.itemView.setOnClickListener { onClick(item) }
+    }
+    override fun getItemCount() = items.size
+}
+
