@@ -812,78 +812,77 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     // 2. Quality Selection Menu (Handles Auto/Manual video track selection)
-    private fun showQualitySelectionBottomSheet() {
-        val dialog = BottomSheetDialog(this)
-        val view = layoutInflater.inflate(R.layout.dialog_player_settings, null)
-        dialog.setContentView(view)
-        
-        view.findViewById<TextView>(R.id.sheet_title).text = "Quality"
-        val recyclerView = view.findViewById<RecyclerView>(R.id.settings_list)
-        recyclerView.layoutManager = LinearLayoutManager(this)
+private fun showQualitySelectionBottomSheet() {
+    val dialog = BottomSheetDialog(this)
+    val view = layoutInflater.inflate(R.layout.dialog_player_settings, null)
+    dialog.setContentView(view)
+    
+    view.findViewById<TextView>(R.id.sheet_title).text = "Quality"
+    val recyclerView = view.findViewById<RecyclerView>(R.id.settings_list)
+    recyclerView.layoutManager = LinearLayoutManager(this)
 
-        val qualityItems = mutableListOf<QualityItem>()
-        val isAutoSelected = player?.trackSelectionParameters?.overrides?.isEmpty() ?: true
+    val qualityItems = mutableListOf<QualityItem>()
+    val isAutoSelected = player?.trackSelectionParameters?.overrides?.isEmpty() ?: true
 
-        // FIX APPLIED: Using Kotlin's indexed access operator ([key]) instead of the generic .get(key)
-        // This explicitly tells the Kotlin compiler to treat C.TRACK_TYPE_VIDEO (Int) as the key type, resolving the inference failure.
-        val videoOverride = player?.trackSelectionParameters?.overrides?.get(C.TRACK_TYPE_VIDEO) // Changed from ?.get(C.TRACK_TYPE_VIDEO)
-
-        // Add "Auto" first (Radio Button/Ball)
-        qualityItems.add(QualityItem("Auto", isAutoSelected, true, null, 0))
-
-        // Add Video Tracks (Checkbox Type)
-        val videoGroups = player?.currentTracks?.groups?.filter { 
-            it.type == C.TRACK_TYPE_VIDEO && it.isSupported 
-        } ?: emptyList()
-
-        for (group in videoGroups) {
-            val mediaTrackGroup = group.mediaTrackGroup // Get the underlying TrackGroup for comparison
-            for (i in 0 until group.length) {
-                val format = group.getTrackFormat(i)
-                val height = format.height
-                val label = if (height > 0) "${height}p" else "Unknown Quality"
-                
-                // Correct way to check if this specific track is selected
-                // Check if Auto is NOT selected AND if the current track matches the override
-                val isTrackSelected = !isAutoSelected && 
-                    videoOverride != null && 
-                    videoOverride.mediaTrackGroup.equals(mediaTrackGroup) && 
-                    videoOverride.trackIndices.contains(i)
-                
-                qualityItems.add(QualityItem(
-                    label = label,
-                    // Pass the correct selection status
-                    isSelected = isTrackSelected, 
-                    isAuto = false,
-                    group = mediaTrackGroup, // Pass mediaTrackGroup here
-                    trackIndex = i
-                ))
-            }
-        }
-
-        // Filter to ensure distinct quality labels (e.g., if multiple tracks are 1080p)
-        val distinctItems = qualityItems.distinctBy { it.label }
-
-        recyclerView.adapter = QualityAdapter(distinctItems) { selectedItem ->
-            dialog.dismiss()
-            
-            val newParams = player?.trackSelectionParameters?.buildUpon() ?: return@QualityAdapter
-
-            if (selectedItem.isAuto) {
-                // Clear overrides to switch back to Auto
-                newParams.clearOverridesOfType(C.TRACK_TYPE_VIDEO)
-            } else {
-                // Set override for the specific track
-                selectedItem.group?.let { group ->
-                    newParams.setOverrideForType(
-                        TrackSelectionOverride(group, selectedItem.trackIndex)
-                    )
-                }
-            }
-            player?.trackSelectionParameters = newParams.build()
-        }
-        dialog.show()
+    // Get video override by filtering the override values
+    val videoOverride = player?.trackSelectionParameters?.overrides?.values?.firstOrNull { override ->
+        override.mediaTrackGroup.type == C.TRACK_TYPE_VIDEO
     }
+
+    // Add "Auto" first (Radio Button/Ball)
+    qualityItems.add(QualityItem("Auto", isAutoSelected, true, null, 0))
+
+    // Add Video Tracks (Checkbox Type)
+    val videoGroups = player?.currentTracks?.groups?.filter { 
+        it.type == C.TRACK_TYPE_VIDEO && it.isSupported 
+    } ?: emptyList()
+
+    for (group in videoGroups) {
+        val mediaTrackGroup = group.mediaTrackGroup // Get the underlying TrackGroup for comparison
+        for (i in 0 until group.length) {
+            val format = group.getTrackFormat(i)
+            val height = format.height
+            val label = if (height > 0) "${height}p" else "Unknown Quality"
+            
+            // Check if this specific track is selected
+            val isTrackSelected = !isAutoSelected && 
+                videoOverride != null && 
+                videoOverride.mediaTrackGroup == mediaTrackGroup && 
+                videoOverride.trackIndices.contains(i)
+            
+            qualityItems.add(QualityItem(
+                label = label,
+                isSelected = isTrackSelected, 
+                isAuto = false,
+                group = mediaTrackGroup,
+                trackIndex = i
+            ))
+        }
+    }
+
+    // Filter to ensure distinct quality labels (e.g., if multiple tracks are 1080p)
+    val distinctItems = qualityItems.distinctBy { it.label }
+
+    recyclerView.adapter = QualityAdapter(distinctItems) { selectedItem ->
+        dialog.dismiss()
+        
+        val newParams = player?.trackSelectionParameters?.buildUpon() ?: return@QualityAdapter
+
+        if (selectedItem.isAuto) {
+            // Clear overrides to switch back to Auto
+            newParams.clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+        } else {
+            // Set override for the specific track
+            selectedItem.group?.let { group ->
+                newParams.setOverrideForType(
+                    TrackSelectionOverride(group, selectedItem.trackIndex)
+                )
+            }
+        }
+        player?.trackSelectionParameters = newParams.build()
+    }
+    dialog.show()
+}
 
 
     // 3. Speed Selection Menu
@@ -1272,4 +1271,5 @@ class QualityAdapter(
     }
     override fun getItemCount() = items.size
 }
+
 
