@@ -44,7 +44,7 @@ import com.livetvpro.R
 import com.livetvpro.data.models.Channel // Added import for Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding // Added import for ViewBinding
 // Import for PlayerSettingsDialog - adjust package if necessary
-import com.livetvpro.ui.player.settings.PlayerSettingsDialog // Uncomment and adjust if the dialog class exists in this package
+//import com.livetvpro.ui.player.settings.PlayerSettingsDialog // Uncomment and adjust if the dialog class exists in this package
 
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
