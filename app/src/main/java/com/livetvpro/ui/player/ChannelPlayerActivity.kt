@@ -1,6 +1,5 @@
 package com.livetvpro.ui.player
 
-// Ensure these imports are present
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -41,11 +40,8 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.livetvpro.R
-import com.livetvpro.data.models.Channel // Added import for Channel
-import com.livetvpro.databinding.ActivityChannelPlayerBinding // Added import for ViewBinding
-// Import for PlayerSettingsDialog - adjust package if necessary
-//import com.livetvpro.ui.player.settings.PlayerSettingsDialog // Uncomment and adjust if the dialog class exists in this package
-
+import com.livetvpro.data.models.Channel
+import com.livetvpro.databinding.ActivityChannelPlayerBinding
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
@@ -53,11 +49,11 @@ import java.util.UUID
 @UnstableApi
 @AndroidEntryPoint
 class ChannelPlayerActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityChannelPlayerBinding // ViewBinding instance
+    private lateinit var binding: ActivityChannelPlayerBinding
     private val viewModel: PlayerViewModel by viewModels()
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
-    private lateinit var channel: Channel // Channel data model
+    private lateinit var channel: Channel
 
     // Controller Views
     private var btnBack: ImageButton? = null
@@ -208,13 +204,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
         if (isLandscape) {
             @Suppress("DEPRECATION")
             window.decorView.systemUiVisibility = (
-                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN
-                )
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_FULLSCREEN
+                    )
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -372,7 +368,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
             val mediaSourceFactory = if (streamInfo.drmScheme != null &&
                 streamInfo.drmKeyId != null &&
-                streamInfo.drmKey != null) {
+                streamInfo.drmKey != null
+            ) {
                 Timber.d("🔐 Setting up DRM protection...")
                 val drmSessionManager = if (streamInfo.drmScheme.equals("clearkey", ignoreCase = true)) {
                     createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
@@ -603,10 +600,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // UPDATED CALL: Use the new external dialog function
+        // FIXED: Uncomment and update this section
         btnSettings?.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) showPlayerSettingsDialog()
+            if (!isLocked) {
+                showPlayerSettingsDialog()
+            }
         }
 
         btnAspectRatio?.setOnClickListener {
@@ -704,16 +703,21 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.resizeMode = currentResizeMode
     }
 
-    // NEW EXTERNAL DIALOG CALLER - Updated with null check
+    // UPDATED: Using full class path and error handling
     private fun showPlayerSettingsDialog() {
         val exoPlayer = player ?: return // Guard clause: exit if player is null
-        // Assuming PlayerSettingsDialog exists and is imported correctly
-        // PlayerSettingsDialog(
-        //     context = this,
-        //     player = exoPlayer   // Pass the non-null player instance
-        // ).show()
+
+        try {
+            val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(
+                context = this,
+                player = exoPlayer
+            )
+            dialog.show()
+        } catch (e: Exception) {
+            Timber.e(e, "Error showing player settings dialog")
+            Toast.makeText(this, "Unable to open settings", Toast.LENGTH_SHORT).show()
+        }
     }
-    // END NEW EXTERNAL DIALOG CALLER
 
     private fun configurePlayerInteractions() {
         binding.playerView.apply {
@@ -930,3 +934,4 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 }
+
