@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Bundle
 import android.view.ViewGroup
 import android.view.Window
+import android.widget.ImageButton
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -17,18 +18,18 @@ class PlayerSettingsDialog(
     context: Context,
     private val player: ExoPlayer
 ) : Dialog(context) {
-    
+
     private lateinit var recyclerView: RecyclerView
     private lateinit var tabLayout: TabLayout
-    private lateinit var btnClose: MaterialButton
+    // btnClose property removed as it is now handled locally in initViews
     private lateinit var btnCancel: MaterialButton
     private lateinit var btnApply: MaterialButton
-    
+
     // Store current selections
     private var selectedVideo: TrackUiModel.Video? = null
     private var selectedAudio: TrackUiModel.Audio? = null
     private var selectedText: TrackUiModel.Text? = null
-    
+
     // Track lists
     private var videoTracks = listOf<TrackUiModel.Video>()
     private var audioTracks = listOf<TrackUiModel.Audio>()
@@ -37,7 +38,7 @@ class PlayerSettingsDialog(
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
-        
+
         setContentView(R.layout.dialog_player_settings)
 
         // Configure dialog window
@@ -56,7 +57,11 @@ class PlayerSettingsDialog(
     private fun initViews() {
         recyclerView = findViewById(R.id.recyclerView)
         tabLayout = findViewById(R.id.tabLayout)
-        btnClose = findViewById(R.id.btnClose)
+
+        // Use ImageButton instead of MaterialButton
+        val btnCloseImage: ImageButton = findViewById(R.id.btnClose)
+        btnCloseImage.setOnClickListener { dismiss() }
+
         btnCancel = findViewById(R.id.btnCancel)
         btnApply = findViewById(R.id.btnApply)
     }
@@ -64,9 +69,6 @@ class PlayerSettingsDialog(
     private fun setupViews() {
         // Setup RecyclerView
         recyclerView.layoutManager = LinearLayoutManager(context)
-        
-        // Close button
-        btnClose.setOnClickListener { dismiss() }
 
         // Tab selection listener
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
@@ -103,7 +105,7 @@ class PlayerSettingsDialog(
             selectedVideo = videoTracks.firstOrNull { it.isSelected }
             selectedAudio = audioTracks.firstOrNull { it.isSelected }
             selectedText = textTracks.firstOrNull { it.isSelected }
-            
+
             Timber.d("Loaded ${videoTracks.size} video, ${audioTracks.size} audio, ${textTracks.size} text tracks")
         } catch (e: Exception) {
             Timber.e(e, "Error loading tracks")
@@ -115,17 +117,17 @@ class PlayerSettingsDialog(
             Timber.w("No video tracks available")
             return
         }
-        
+
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
             selectedVideo = selected
             showVideoTracks() // Refresh to update radio buttons
         }
-        
+
         // Update selection state
         val updatedTracks = videoTracks.map { track ->
             track.copy(isSelected = track == selectedVideo)
         }
-        
+
         adapter.submit(updatedTracks)
         recyclerView.adapter = adapter
     }
@@ -135,16 +137,16 @@ class PlayerSettingsDialog(
             Timber.w("No audio tracks available")
             return
         }
-        
+
         val adapter = TrackAdapter<TrackUiModel.Audio> { selected ->
             selectedAudio = selected
             showAudioTracks() // Refresh
         }
-        
+
         val updatedTracks = audioTracks.map { track ->
             track.copy(isSelected = track == selectedAudio)
         }
-        
+
         adapter.submit(updatedTracks)
         recyclerView.adapter = adapter
     }
@@ -154,16 +156,16 @@ class PlayerSettingsDialog(
             Timber.w("No text tracks available")
             return
         }
-        
+
         val adapter = TrackAdapter<TrackUiModel.Text> { selected ->
             selectedText = selected
             showTextTracks() // Refresh
         }
-        
+
         val updatedTracks = textTracks.map { track ->
             track.copy(isSelected = track == selectedText)
         }
-        
+
         adapter.submit(updatedTracks)
         recyclerView.adapter = adapter
     }
@@ -182,3 +184,4 @@ class PlayerSettingsDialog(
         }
     }
 }
+
