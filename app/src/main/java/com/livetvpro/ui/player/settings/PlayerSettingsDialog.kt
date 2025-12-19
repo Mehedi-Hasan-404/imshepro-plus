@@ -7,16 +7,22 @@ import android.view.ViewGroup
 import android.view.Window
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.tabs.TabLayout
-import com.livetvpro.databinding.DialogPlayerSettingsBinding
+import com.livetvpro.R
 import timber.log.Timber
 
 class PlayerSettingsDialog(
     context: Context,
     private val player: ExoPlayer
 ) : Dialog(context) {
-
-    private lateinit var binding: DialogPlayerSettingsBinding
+    
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var tabLayout: TabLayout
+    private lateinit var btnClose: MaterialButton
+    private lateinit var btnCancel: MaterialButton
+    private lateinit var btnApply: MaterialButton
     
     // Store current selections
     private var selectedVideo: TrackUiModel.Video? = null
@@ -32,8 +38,7 @@ class PlayerSettingsDialog(
         super.onCreate(savedInstanceState)
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         
-        binding = DialogPlayerSettingsBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        setContentView(R.layout.dialog_player_settings)
 
         // Configure dialog window
         window?.setLayout(
@@ -42,25 +47,29 @@ class PlayerSettingsDialog(
         )
         window?.setBackgroundDrawableResource(android.R.color.transparent)
 
+        initViews()
         setupViews()
         loadTracks()
         showVideoTracks() // Show video tracks by default
     }
 
+    private fun initViews() {
+        recyclerView = findViewById(R.id.recyclerView)
+        tabLayout = findViewById(R.id.tabLayout)
+        btnClose = findViewById(R.id.btnClose)
+        btnCancel = findViewById(R.id.btnCancel)
+        btnApply = findViewById(R.id.btnApply)
+    }
+
     private fun setupViews() {
         // Setup RecyclerView
-        binding.recyclerView.layoutManager = LinearLayoutManager(context)
+        recyclerView.layoutManager = LinearLayoutManager(context)
         
         // Close button
-        binding.btnClose.setOnClickListener { dismiss() }
-
-        // Setup tabs
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Video"))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Audio"))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Text"))
+        btnClose.setOnClickListener { dismiss() }
 
         // Tab selection listener
-        binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 when (tab?.position) {
                     0 -> showVideoTracks()
@@ -74,10 +83,10 @@ class PlayerSettingsDialog(
         })
 
         // Cancel button
-        binding.btnCancel.setOnClickListener { dismiss() }
+        btnCancel.setOnClickListener { dismiss() }
 
         // Apply button
-        binding.btnApply.setOnClickListener {
+        btnApply.setOnClickListener {
             applySelections()
             dismiss()
         }
@@ -118,7 +127,7 @@ class PlayerSettingsDialog(
         }
         
         adapter.submit(updatedTracks)
-        binding.recyclerView.adapter = adapter
+        recyclerView.adapter = adapter
     }
 
     private fun showAudioTracks() {
@@ -137,7 +146,7 @@ class PlayerSettingsDialog(
         }
         
         adapter.submit(updatedTracks)
-        binding.recyclerView.adapter = adapter
+        recyclerView.adapter = adapter
     }
 
     private fun showTextTracks() {
@@ -156,7 +165,7 @@ class PlayerSettingsDialog(
         }
         
         adapter.submit(updatedTracks)
-        binding.recyclerView.adapter = adapter
+        recyclerView.adapter = adapter
     }
 
     private fun applySelections() {
