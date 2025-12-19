@@ -6,12 +6,13 @@
     android:orientation="horizontal"
     android:paddingStart="20dp"
     android:paddingEnd="20dp"
-    android:paddingTop="12dp"
-    android:paddingBottom="12dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="10dp"
     android:background="?attr/selectableItemBackground"
     android:clickable="true"
     android:focusable="true"
-    android:gravity="center_vertical">
+    android:gravity="center_vertical"
+    android:minHeight="48dp">
 
     <LinearLayout
         android:layout_width="0dp"
@@ -25,22 +26,23 @@
             android:layout_height="wrap_content"
             android:text="1920 × 1080"
             android:textColor="@android:color/white"
-            android:textSize="16sp" />
+            android:textSize="15sp"
+            android:fontFamily="sans-serif-medium" />
 
         <TextView
             android:id="@+id/tvSecondary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="8.20 Mbps"
-            android:textColor="#B3FFFFFF"
-            android:textSize="14sp"
+            android:textColor="#999999"
+            android:textSize="13sp"
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
     <RadioButton
         android:id="@+id/radioButton"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
         android:buttonTint="@android:color/white"
         android:clickable="false"
         android:focusable="false" />
