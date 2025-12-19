@@ -43,7 +43,7 @@ import androidx.recyclerview.widget.GridLayoutManager // Added Import
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
-import com.livetvpro.ui.player.related.RelatedChannelAdapter // Assumed Import Path
+import com.livetvpro.ui.adapters.RelatedChannelAdapter // Assumed Import Path
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
