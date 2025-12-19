@@ -1,3 +1,5 @@
+package com.livetvpro.ui.player.settings
+
 sealed class TrackUiModel {
     abstract val isSelected: Boolean
 
