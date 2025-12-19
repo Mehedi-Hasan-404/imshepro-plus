@@ -38,8 +38,9 @@ class PlayerSettingsDialog(
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         setContentView(R.layout.dialog_player_settings)
 
+        // Set dialog size to 85% width (better for landscape)
         window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
+            (context.resources.displayMetrics.widthPixels * 0.85).toInt(),
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
         window?.setBackgroundDrawableResource(android.R.color.transparent)
@@ -47,6 +48,8 @@ class PlayerSettingsDialog(
         initViews()
         setupViews()
         loadTracks()
+        
+        // Show video tab by default
         showVideoTracks()
     }
 
@@ -63,6 +66,15 @@ class PlayerSettingsDialog(
 
     private fun setupViews() {
         recyclerView.layoutManager = LinearLayoutManager(context)
+
+        // Setup tabs with "Video", "Audio", "Text"
+        tabLayout.addTab(tabLayout.newTab().setText("Video"))
+        tabLayout.addTab(tabLayout.newTab().setText("Audio"))
+        
+        // Only add Text tab if text tracks are available
+        if (textTracks.isNotEmpty()) {
+            tabLayout.addTab(tabLayout.newTab().setText("Text"))
+        }
 
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
@@ -100,6 +112,13 @@ class PlayerSettingsDialog(
                         "${audioTracks.size} audio, " +
                         "${textTracks.size} text tracks"
             )
+            
+            // Update tabs after loading tracks
+            if (textTracks.isEmpty() && tabLayout.tabCount > 2) {
+                tabLayout.removeTabAt(2)
+            } else if (textTracks.isNotEmpty() && tabLayout.tabCount < 3) {
+                tabLayout.addTab(tabLayout.newTab().setText("Text"))
+            }
         } catch (e: Exception) {
             Timber.e(e, "Error loading tracks")
         }
