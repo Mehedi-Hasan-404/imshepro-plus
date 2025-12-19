@@ -1,3 +1,10 @@
+package com.livetvpro.ui.player.settings
+
+import android.view.LayoutInflater
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
+import com.livetvpro.databinding.ItemTrackOptionBinding
+
 class TrackAdapter<T : TrackUiModel>(
     private val onSelect: (T) -> Unit
 ) : RecyclerView.Adapter<TrackAdapter<T>.VH>() {
