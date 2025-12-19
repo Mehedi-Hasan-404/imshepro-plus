@@ -2,15 +2,17 @@ package com.livetvpro.ui.player.settings
 
 import android.app.Dialog
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
+import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import android.widget.Button
 import android.widget.ImageButton
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.tabs.TabLayout
 import com.livetvpro.R
 import timber.log.Timber
 
@@ -19,163 +21,121 @@ class PlayerSettingsDialog(
     private val player: ExoPlayer
 ) : Dialog(context) {
 
-    private lateinit var recyclerView: RecyclerView
-    private lateinit var tabLayout: TabLayout
-    private lateinit var btnCancel: MaterialButton
-    private lateinit var btnApply: MaterialButton
+    private lateinit var recyclerVideo: RecyclerView
+    private lateinit var recyclerAudio: RecyclerView
+    private lateinit var recyclerText: RecyclerView
+    private lateinit var columnText: View
+    private lateinit var dividerText: View
+    private lateinit var btnApply: Button
+    private lateinit var btnClose: ImageButton
 
     private var selectedVideo: TrackUiModel.Video? = null
     private var selectedAudio: TrackUiModel.Audio? = null
     private var selectedText: TrackUiModel.Text? = null
 
-    private var videoTracks = listOf<TrackUiModel.Video>()
-    private var audioTracks = listOf<TrackUiModel.Audio>()
-    private var textTracks = listOf<TrackUiModel.Text>()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         setContentView(R.layout.dialog_player_settings)
 
+        // Make dialog background transparent to show our CardView rounded corners
+        window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        
+        // MAXIMIZE WIDTH: Critical for Landscape mode 3-column layout
         window?.setLayout(
-            ViewGroup.LayoutParams.MATCH_PARENT,
+            (context.resources.displayMetrics.widthPixels * 0.90).toInt(), // 90% Width
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
-        window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         initViews()
-        setupViews()
-        loadTracks()
-        showVideoTracks()
+        loadAndBindTracks()
     }
 
     private fun initViews() {
-        recyclerView = findViewById(R.id.recyclerView)
-        tabLayout = findViewById(R.id.tabLayout)
-
-        val btnCloseImage: ImageButton = findViewById(R.id.btnClose)
-        btnCloseImage.setOnClickListener { dismiss() }
-
-        btnCancel = findViewById(R.id.btnCancel)
+        recyclerVideo = findViewById(R.id.recyclerVideo)
+        recyclerAudio = findViewById(R.id.recyclerAudio)
+        recyclerText = findViewById(R.id.recyclerText)
+        
+        columnText = findViewById(R.id.columnText)
+        dividerText = findViewById(R.id.dividerText)
+        
         btnApply = findViewById(R.id.btnApply)
-    }
+        btnClose = findViewById(R.id.btnClose)
 
-    private fun setupViews() {
-        recyclerView.layoutManager = LinearLayoutManager(context)
+        recyclerVideo.layoutManager = LinearLayoutManager(context)
+        recyclerAudio.layoutManager = LinearLayoutManager(context)
+        recyclerText.layoutManager = LinearLayoutManager(context)
 
-        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab?) {
-                when (tab?.position) {
-                    0 -> showVideoTracks()
-                    1 -> showAudioTracks()
-                    2 -> showTextTracks()
-                }
-            }
-
-            override fun onTabUnselected(tab: TabLayout.Tab?) = Unit
-            override fun onTabReselected(tab: TabLayout.Tab?) = Unit
-        })
-
-        btnCancel.setOnClickListener { dismiss() }
-
+        btnClose.setOnClickListener { dismiss() }
         btnApply.setOnClickListener {
             applySelections()
             dismiss()
         }
     }
 
-    private fun loadTracks() {
+    private fun loadAndBindTracks() {
         try {
-            videoTracks = PlayerTrackMapper.videoTracks(player)
-            audioTracks = PlayerTrackMapper.audioTracks(player)
-            textTracks = PlayerTrackMapper.textTracks(player)
+            // 1. Load Data
+            val videoTracks = PlayerTrackMapper.videoTracks(player)
+            val audioTracks = PlayerTrackMapper.audioTracks(player)
+            val textTracks = PlayerTrackMapper.textTracks(player)
 
+            // 2. Set Initial Selections
             selectedVideo = videoTracks.firstOrNull { it.isSelected }
             selectedAudio = audioTracks.firstOrNull { it.isSelected }
             selectedText = textTracks.firstOrNull { it.isSelected }
 
-            Timber.d(
-                "Loaded ${videoTracks.size} video, " +
-                        "${audioTracks.size} audio, " +
-                        "${textTracks.size} text tracks"
-            )
+            // 3. Bind Video Adapter
+            val videoAdapter = TrackAdapter<TrackUiModel.Video> { selected ->
+                selectedVideo = selected
+                // Refresh list to update radio button UI
+                (recyclerVideo.adapter as TrackAdapter<TrackUiModel.Video>).submit(
+                    videoTracks.map { it.copy(isSelected = it == selected) }
+                )
+            }
+            videoAdapter.submit(videoTracks)
+            recyclerVideo.adapter = videoAdapter
+
+            // 4. Bind Audio Adapter
+            val audioAdapter = TrackAdapter<TrackUiModel.Audio> { selected ->
+                selectedAudio = selected
+                (recyclerAudio.adapter as TrackAdapter<TrackUiModel.Audio>).submit(
+                    audioTracks.map { it.copy(isSelected = it == selected) }
+                )
+            }
+            audioAdapter.submit(audioTracks)
+            recyclerAudio.adapter = audioAdapter
+
+            // 5. Bind Text Adapter (Conditional)
+            if (textTracks.isNotEmpty() && textTracks.any { it.language != "Off" }) {
+                columnText.visibility = View.VISIBLE
+                dividerText.visibility = View.VISIBLE
+                
+                val textAdapter = TrackAdapter<TrackUiModel.Text> { selected ->
+                    selectedText = selected
+                    (recyclerText.adapter as TrackAdapter<TrackUiModel.Text>).submit(
+                        textTracks.map { it.copy(isSelected = it == selected) }
+                    )
+                }
+                textAdapter.submit(textTracks)
+                recyclerText.adapter = textAdapter
+            } else {
+                columnText.visibility = View.GONE
+                dividerText.visibility = View.GONE
+            }
+
         } catch (e: Exception) {
-            Timber.e(e, "Error loading tracks")
+            Timber.e(e, "Error loading tracks in settings dialog")
         }
-    }
-
-    private fun showVideoTracks() {
-        if (videoTracks.isEmpty()) {
-            Timber.w("No video tracks available")
-            return
-        }
-
-        val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
-            selectedVideo = selected
-            showVideoTracks()
-        }
-
-        adapter.submit(
-            videoTracks.map { track ->
-                track.copy(isSelected = track == selectedVideo)
-            }
-        )
-
-        recyclerView.adapter = adapter
-    }
-
-    private fun showAudioTracks() {
-        if (audioTracks.isEmpty()) {
-            Timber.w("No audio tracks available")
-            return
-        }
-
-        val adapter = TrackAdapter<TrackUiModel.Audio> { selected ->
-            selectedAudio = selected
-            showAudioTracks()
-        }
-
-        adapter.submit(
-            audioTracks.map { track ->
-                track.copy(isSelected = track == selectedAudio)
-            }
-        )
-
-        recyclerView.adapter = adapter
-    }
-
-    private fun showTextTracks() {
-        if (textTracks.isEmpty()) {
-            Timber.w("No text tracks available")
-            return
-        }
-
-        val adapter = TrackAdapter<TrackUiModel.Text> { selected ->
-            selectedText = selected
-            showTextTracks()
-        }
-
-        adapter.submit(
-            textTracks.map { track ->
-                track.copy(isSelected = track == selectedText)
-            }
-        )
-
-        recyclerView.adapter = adapter
     }
 
     private fun applySelections() {
-        try {
-            TrackSelectionApplier.apply(
-                player = player,
-                video = selectedVideo,
-                audio = selectedAudio,
-                text = selectedText
-            )
-            Timber.d("Applied track selections successfully")
-        } catch (e: Exception) {
-            Timber.e(e, "Error applying track selections")
-        }
+        TrackSelectionApplier.apply(
+            player = player,
+            video = selectedVideo,
+            audio = selectedAudio,
+            text = selectedText
+        )
     }
 }
+
