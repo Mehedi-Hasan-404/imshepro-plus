@@ -2,6 +2,7 @@ package com.livetvpro.ui.player.settings
 
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.TrackSelectionParameters
 
 object TrackSelectionApplier {
@@ -19,7 +20,7 @@ object TrackSelectionApplier {
             builder.clearOverridesOfType(C.TRACK_TYPE_VIDEO)
         } else {
             builder.setOverrideForType(
-                TrackSelectionParameters.TrackSelectionOverride(
+                TrackSelectionOverride(
                     player.currentTracks.groups[video.groupIndex].mediaTrackGroup,
                     listOf(video.trackIndex)
                 )
@@ -29,7 +30,7 @@ object TrackSelectionApplier {
         // AUDIO
         audio?.let {
             builder.setOverrideForType(
-                TrackSelectionParameters.TrackSelectionOverride(
+                TrackSelectionOverride(
                     player.currentTracks.groups[it.groupIndex].mediaTrackGroup,
                     listOf(it.trackIndex)
                 )
@@ -42,7 +43,7 @@ object TrackSelectionApplier {
         } else {
             builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
             builder.setOverrideForType(
-                TrackSelectionParameters.TrackSelectionOverride(
+                TrackSelectionOverride(
                     player.currentTracks.groups[text.groupIndex].mediaTrackGroup,
                     listOf(text.trackIndex!!)
                 )
