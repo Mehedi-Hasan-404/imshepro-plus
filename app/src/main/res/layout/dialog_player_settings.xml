@@ -6,7 +6,6 @@
     android:layout_height="wrap_content"
     android:padding="0dp">
 
-    <!-- Dialog Surface -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/dialogCard"
         android:layout_width="0dp"
@@ -41,12 +40,12 @@
                     android:text="Video Settings"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
-                <com.google.android.material.iconbutton.MaterialIconButton
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnClose"
+                    style="@style/Widget.Material3.Button.TextButton"
                     android:layout_width="40dp"
                     android:layout_height="40dp"
-                    app:icon="@drawable/ic_close"
-                    app:iconTint="?attr/colorOnSurface" />
+                    android:text="✕" />
             </LinearLayout>
 
             <com.google.android.material.divider.MaterialDivider
@@ -61,23 +60,15 @@
                 app:tabIndicatorFullWidth="false"
                 app:tabIndicatorColor="?attr/colorPrimary"
                 app:tabSelectedTextColor="?attr/colorPrimary"
-                app:tabTextColor="?attr/colorOnSurfaceVariant">
+                app:tabTextColor="?attr/colorOnSurfaceVariant" />
 
-                <com.google.android.material.tabs.TabItem
-                    android:text="Video" />
-
-                <com.google.android.material.tabs.TabItem
-                    android:text="Audio" />
-
-                <com.google.android.material.tabs.TabItem
-                    android:text="Text" />
-            </com.google.android.material.tabs.TabLayout>
-
-            <!-- Content -->
-            <androidx.viewpager2.widget.ViewPager2
-                android:id="@+id/viewPager"
+            <!-- RecyclerView for tracks -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerView"
                 android:layout_width="match_parent"
-                android:layout_height="320dp" />
+                android:layout_height="320dp"
+                android:paddingVertical="8dp"
+                android:clipToPadding="false" />
 
             <com.google.android.material.divider.MaterialDivider
                 android:layout_width="match_parent"
@@ -94,11 +85,15 @@
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnCancel"
                     style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:text="CANCEL" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnApply"
                     style="?attr/materialButtonStyle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
                     android:layout_marginStart="12dp"
                     android:text="APPLY" />
             </LinearLayout>
