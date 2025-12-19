@@ -39,9 +39,11 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import androidx.recyclerview.widget.GridLayoutManager // Added Import
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
+import com.livetvpro.ui.player.related.RelatedChannelAdapter // Assumed Import Path
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
@@ -54,6 +56,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
     private lateinit var channel: Channel
+    
+    // NEW: Related Channels Properties
+    private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
+    private var relatedChannels = listOf<Channel>()
 
     // Controller Views
     private var btnBack: ImageButton? = null
@@ -144,6 +150,74 @@ class ChannelPlayerActivity : AppCompatActivity() {
         setupControlListenersExact()
         configurePlayerInteractions()
         setupLockOverlay()
+
+        // NEW: Setup Related Channels
+        setupRelatedChannels()
+        loadRelatedChannels()
+    }
+
+    // NEW: Function to setup RecyclerView
+    private fun setupRelatedChannels() {
+        relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel ->
+            // Switch to the selected channel
+            switchToChannel(relatedChannel)
+        }
+
+        val recyclerView = binding.relatedChannelsRecycler
+        // Using 3 columns for grid
+        recyclerView.layoutManager = GridLayoutManager(this, 3)
+        recyclerView.adapter = relatedChannelsAdapter
+        recyclerView.setHasFixedSize(true)
+    }
+
+    // NEW: Function to load data from ViewModel
+    private fun loadRelatedChannels() {
+        // Assuming loadRelatedChannels exists in ViewModel taking (categoryId, currentChannelId)
+        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+
+        viewModel.relatedChannels.observe(this) { channels ->
+            relatedChannels = channels
+            relatedChannelsAdapter.submitList(channels)
+
+            // Update UI visibility
+            binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
+
+            // Hide loading, show recycler
+            binding.relatedLoadingProgress.visibility = View.GONE
+            binding.relatedChannelsRecycler.visibility = View.VISIBLE
+
+            // Update count
+            binding.relatedCount.text = channels.size.toString()
+
+            Timber.d("Loaded ${channels.size} related channels")
+        }
+    }
+
+    // NEW: Function to switch channel without restarting activity
+    private fun switchToChannel(newChannel: Channel) {
+        Timber.d("Switching to channel: ${newChannel.name}")
+
+        // Release current player
+        releasePlayer()
+
+        // Update current channel
+        channel = newChannel
+
+        // Update UI
+        tvChannelName?.text = channel.name
+
+        // Reinitialize player with new channel
+        setupPlayer()
+
+        // Reload related channels for the new channel
+        // Reset loading state for visual feedback
+        binding.relatedLoadingProgress.visibility = View.VISIBLE
+        binding.relatedChannelsRecycler.visibility = View.GONE
+        loadRelatedChannels()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -187,6 +261,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+            
+            // NEW: Hide related channels in landscape for immersion
+            binding.relatedChannelsSection.visibility = View.GONE
         } else {
             binding.playerView.controllerAutoShow = true
             binding.playerView.controllerShowTimeoutMs = 5000
@@ -196,6 +273,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+            
+            // NEW: Show related channels in portrait if we have data
+            if (relatedChannels.isNotEmpty()) {
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+            }
         }
         binding.playerContainer.layoutParams = params
     }
@@ -600,7 +682,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // FIXED: Uncomment and update this section
         btnSettings?.setOnClickListener {
             it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) {
@@ -703,9 +784,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.resizeMode = currentResizeMode
     }
 
-    // UPDATED: Using full class path and error handling
     private fun showPlayerSettingsDialog() {
-        val exoPlayer = player ?: return // Guard clause: exit if player is null
+        val exoPlayer = player ?: return 
 
         try {
             val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(
@@ -886,6 +966,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.unlockButton.visibility = View.GONE
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
+            binding.relatedChannelsSection.visibility = View.GONE // Hide related in PiP
         } else {
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
                 finish()
