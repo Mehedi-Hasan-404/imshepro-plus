@@ -2,7 +2,9 @@ package com.livetvpro.ui.player.settings
 
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import android.widget.ImageView
 import androidx.recyclerview.widget.RecyclerView
+import com.livetvpro.R
 import com.livetvpro.databinding.ItemTrackOptionBinding
 
 class TrackAdapter<T : TrackUiModel>(
@@ -21,8 +23,14 @@ class TrackAdapter<T : TrackUiModel>(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: T) {
-            // Set radio button state
-            binding.radioButton.isChecked = item.isSelected
+            // Update radio icon
+            val radioIcon = binding.root.findViewById<ImageView>(R.id.radioIcon)
+            
+            if (item.isSelected) {
+                radioIcon.setImageResource(R.drawable.radio_checked)
+            } else {
+                radioIcon.setImageResource(R.drawable.radio_unchecked)
+            }
 
             when (item) {
                 is TrackUiModel.Video -> {
@@ -58,9 +66,6 @@ class TrackAdapter<T : TrackUiModel>(
             }
 
             binding.root.setOnClickListener { 
-                onSelect(item)
-            }
-            binding.radioButton.setOnClickListener { 
                 onSelect(item)
             }
         }
