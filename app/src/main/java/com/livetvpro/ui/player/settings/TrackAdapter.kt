@@ -19,6 +19,30 @@ class TrackAdapter<T : TrackUiModel>(
         notifyDataSetChanged()
     }
 
+    // Update selection without recreating the adapter
+    fun updateSelection(selectedItem: T) {
+        items.forEachIndexed { index, item ->
+            val wasSelected = item.isSelected
+            val isSelected = item == selectedItem
+            
+            // Use type-safe copying
+            @Suppress("UNCHECKED_CAST")
+            val updatedItem = when (item) {
+                is TrackUiModel.Video -> (item as TrackUiModel.Video).copy(isSelected = isSelected)
+                is TrackUiModel.Audio -> (item as TrackUiModel.Audio).copy(isSelected = isSelected)
+                is TrackUiModel.Text -> (item as TrackUiModel.Text).copy(isSelected = isSelected)
+                else -> item
+            } as T
+            
+            items[index] = updatedItem
+            
+            // Only refresh changed items
+            if (wasSelected != isSelected) {
+                notifyItemChanged(index)
+            }
+        }
+    }
+
     inner class VH(val binding: ItemTrackOptionBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
@@ -34,33 +58,101 @@ class TrackAdapter<T : TrackUiModel>(
 
             when (item) {
                 is TrackUiModel.Video -> {
-                    if (item.groupIndex == -1) {
-                        // Auto option
-                        binding.tvPrimary.text = "Auto"
-                        binding.tvSecondary.text = "Automatic quality selection"
-                    } else {
-                        binding.tvPrimary.text = "${item.width} × ${item.height}"
-                        binding.tvSecondary.text = "${"%.2f".format(item.bitrate / 1_000_000f)} Mbps"
+                    when {
+                        item.groupIndex == -1 -> {
+                            // Auto option
+                            binding.tvPrimary.text = "Auto"
+                            binding.tvSecondary.text = "Automatic quality"
+                        }
+                        item.groupIndex == -2 -> {
+                            // None option
+                            binding.tvPrimary.text = "None"
+                            binding.tvSecondary.text = "No video"
+                        }
+                        else -> {
+                            // Quality
+                            val quality = if (item.width > 0 && item.height > 0) {
+                                "${item.width} × ${item.height}"
+                            } else {
+                                "Unknown quality"
+                            }
+                            
+                            // Bitrate
+                            val bitrate = if (item.bitrate > 0) {
+                                "${"%.2f".format(item.bitrate / 1_000_000f)} Mbps"
+                            } else {
+                                "Unknown bitrate"
+                            }
+                            
+                            binding.tvPrimary.text = quality
+                            binding.tvSecondary.text = bitrate
+                        }
                     }
                 }
 
                 is TrackUiModel.Audio -> {
-                    if (item.groupIndex == -1) {
-                        // Auto option
-                        binding.tvPrimary.text = "Auto"
-                        binding.tvSecondary.text = "Automatic audio selection"
-                    } else {
-                        binding.tvPrimary.text = "${item.language.uppercase()} • ${item.channels}ch"
-                        binding.tvSecondary.text = "${item.bitrate / 1000} kbps"
+                    when {
+                        item.groupIndex == -1 -> {
+                            // Auto option
+                            binding.tvPrimary.text = "Auto"
+                            binding.tvSecondary.text = "Automatic audio"
+                        }
+                        item.groupIndex == -2 -> {
+                            // None option
+                            binding.tvPrimary.text = "None"
+                            binding.tvSecondary.text = "No audio"
+                        }
+                        else -> {
+                            // Language
+                            val language = if (item.language.isNotEmpty() && item.language != "und") {
+                                item.language.uppercase()
+                            } else {
+                                "Unknown"
+                            }
+                            
+                            // Channels
+                            val channels = if (item.channels > 0) {
+                                " • ${item.channels}ch"
+                            } else {
+                                ""
+                            }
+                            
+                            // Bitrate
+                            val bitrate = if (item.bitrate > 0) {
+                                "${item.bitrate / 1000} kbps"
+                            } else {
+                                "Unknown bitrate"
+                            }
+                            
+                            binding.tvPrimary.text = "$language$channels"
+                            binding.tvSecondary.text = bitrate
+                        }
                     }
                 }
 
                 is TrackUiModel.Text -> {
-                    binding.tvPrimary.text = item.language
-                    binding.tvSecondary.text = if (item.groupIndex == null) {
-                        "Subtitles off"
-                    } else {
-                        "Subtitles"
+                    when {
+                        item.groupIndex == null && item.language == "Off" -> {
+                            // Off option
+                            binding.tvPrimary.text = "Off"
+                            binding.tvSecondary.text = "No subtitles"
+                        }
+                        item.groupIndex == -1 -> {
+                            // Auto option
+                            binding.tvPrimary.text = "Auto"
+                            binding.tvSecondary.text = "Automatic subtitles"
+                        }
+                        else -> {
+                            // Language
+                            val language = if (item.language.isNotEmpty() && item.language != "und") {
+                                item.language.uppercase()
+                            } else {
+                                "Unknown"
+                            }
+                            
+                            binding.tvPrimary.text = language
+                            binding.tvSecondary.text = "Subtitles"
+                        }
                     }
                 }
             }
