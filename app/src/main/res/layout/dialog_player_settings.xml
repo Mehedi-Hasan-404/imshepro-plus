@@ -70,17 +70,18 @@
                 app:tabGravity="fill"
                 app:tabTextAppearance="@style/TabTextStyle" />
 
-            <!-- Compact RecyclerView for tracks -->
+            <!-- Fixed Height RecyclerView with Scrolling -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recyclerView"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxHeight="280dp"
+                android:layout_height="320dp"
                 android:background="#1F1F1F"
-                android:paddingTop="8dp"
-                android:paddingBottom="8dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
                 android:clipToPadding="false"
-                android:scrollbars="vertical" />
+                android:scrollbars="vertical"
+                android:scrollbarStyle="outsideOverlay"
+                android:overScrollMode="ifContentScrolls" />
 
             <!-- Divider -->
             <View
