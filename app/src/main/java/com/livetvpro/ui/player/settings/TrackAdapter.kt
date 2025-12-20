@@ -21,30 +21,48 @@ class TrackAdapter<T : TrackUiModel>(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: T) {
+            // Set radio button state
             binding.radioButton.isChecked = item.isSelected
 
             when (item) {
                 is TrackUiModel.Video -> {
-                    binding.tvPrimary.text = "${item.width} × ${item.height}"
-                    binding.tvSecondary.text =
-                        "${"%.2f".format(item.bitrate / 1_000_000f)} Mbps"
+                    if (item.groupIndex == -1) {
+                        // Auto option
+                        binding.tvPrimary.text = "Auto"
+                        binding.tvSecondary.text = "Automatic quality selection"
+                    } else {
+                        binding.tvPrimary.text = "${item.width} × ${item.height}"
+                        binding.tvSecondary.text = "${"%.2f".format(item.bitrate / 1_000_000f)} Mbps"
+                    }
                 }
 
                 is TrackUiModel.Audio -> {
-                    binding.tvPrimary.text =
-                        "${item.language.uppercase()} • ${item.channels}ch"
-                    binding.tvSecondary.text =
-                        "${item.bitrate / 1000} kbps"
+                    if (item.groupIndex == -1) {
+                        // Auto option
+                        binding.tvPrimary.text = "Auto"
+                        binding.tvSecondary.text = "Automatic audio selection"
+                    } else {
+                        binding.tvPrimary.text = "${item.language.uppercase()} • ${item.channels}ch"
+                        binding.tvSecondary.text = "${item.bitrate / 1000} kbps"
+                    }
                 }
 
                 is TrackUiModel.Text -> {
                     binding.tvPrimary.text = item.language
-                    binding.tvSecondary.text = ""
+                    binding.tvSecondary.text = if (item.groupIndex == null) {
+                        "Subtitles off"
+                    } else {
+                        "Subtitles"
+                    }
                 }
             }
 
-            binding.root.setOnClickListener { onSelect(item) }
-            binding.radioButton.setOnClickListener { onSelect(item) }
+            binding.root.setOnClickListener { 
+                onSelect(item)
+            }
+            binding.radioButton.setOnClickListener { 
+                onSelect(item)
+            }
         }
     }
 
