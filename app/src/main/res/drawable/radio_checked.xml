@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Save as: app/src/main/res/drawable/radio_checked.xml -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Outer red circle -->
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#EF4444"/>
+            <size android:width="24dp" android:height="24dp"/>
+        </shape>
+    </item>
+    <!-- Inner white dot -->
+    <item 
+        android:top="7dp" 
+        android:bottom="7dp" 
+        android:left="7dp" 
+        android:right="7dp">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF"/>
+        </shape>
+    </item>
+</layer-list>
