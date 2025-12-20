@@ -133,17 +133,31 @@ class PlayerSettingsDialog(
             return
         }
 
+        // Add "Auto" option at the beginning
+        val tracksWithAuto = mutableListOf<TrackUiModel.Video>()
+        
+        // Create Auto option (no specific track selected)
+        val autoOption = TrackUiModel.Video(
+            groupIndex = -1,
+            trackIndex = -1,
+            width = 0,
+            height = 0,
+            bitrate = 0,
+            isSelected = selectedVideo == null
+        )
+        tracksWithAuto.add(autoOption)
+        
+        // Add all actual video tracks
+        tracksWithAuto.addAll(videoTracks.map { track ->
+            track.copy(isSelected = track == selectedVideo)
+        })
+
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
-            selectedVideo = selected
+            selectedVideo = if (selected.groupIndex == -1) null else selected
             showVideoTracks()
         }
 
-        adapter.submit(
-            videoTracks.map { track ->
-                track.copy(isSelected = track == selectedVideo)
-            }
-        )
-
+        adapter.submit(tracksWithAuto)
         recyclerView.adapter = adapter
     }
 
@@ -153,17 +167,29 @@ class PlayerSettingsDialog(
             return
         }
 
+        // Add "Auto" option at the beginning
+        val tracksWithAuto = mutableListOf<TrackUiModel.Audio>()
+        
+        val autoOption = TrackUiModel.Audio(
+            groupIndex = -1,
+            trackIndex = -1,
+            language = "Auto",
+            channels = 0,
+            bitrate = 0,
+            isSelected = selectedAudio == null
+        )
+        tracksWithAuto.add(autoOption)
+        
+        tracksWithAuto.addAll(audioTracks.map { track ->
+            track.copy(isSelected = track == selectedAudio)
+        })
+
         val adapter = TrackAdapter<TrackUiModel.Audio> { selected ->
-            selectedAudio = selected
+            selectedAudio = if (selected.groupIndex == -1) null else selected
             showAudioTracks()
         }
 
-        adapter.submit(
-            audioTracks.map { track ->
-                track.copy(isSelected = track == selectedAudio)
-            }
-        )
-
+        adapter.submit(tracksWithAuto)
         recyclerView.adapter = adapter
     }
 
