@@ -40,13 +40,13 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <RadioButton
-        android:id="@+id/radioButton"
+    <!-- ImageView-based Radio Button (Most Reliable) -->
+    <ImageView
+        android:id="@+id/radioIcon"
         android:layout_width="24dp"
         android:layout_height="24dp"
-        android:button="@drawable/radio_button_red"
-        android:clickable="false"
-        android:focusable="false"
-        android:layout_gravity="center_vertical" />
+        android:layout_gravity="center_vertical"
+        android:src="@drawable/radio_unchecked"
+        android:contentDescription="Selection indicator" />
 
 </LinearLayout>
