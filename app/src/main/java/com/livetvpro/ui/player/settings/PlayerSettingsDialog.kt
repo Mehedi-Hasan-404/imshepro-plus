@@ -38,9 +38,12 @@ class PlayerSettingsDialog(
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         setContentView(R.layout.dialog_player_settings)
 
-        // Set dialog size to 85% width (better for landscape)
+        // Set dialog size - Fixed width and wrap height
+        val displayMetrics = context.resources.displayMetrics
+        val dialogWidth = (displayMetrics.widthPixels * 0.85).toInt()
+        
         window?.setLayout(
-            (context.resources.displayMetrics.widthPixels * 0.85).toInt(),
+            dialogWidth,
             ViewGroup.LayoutParams.WRAP_CONTENT
         )
         window?.setBackgroundDrawableResource(android.R.color.transparent)
