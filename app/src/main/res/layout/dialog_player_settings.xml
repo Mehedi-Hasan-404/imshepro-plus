@@ -70,11 +70,11 @@
                 app:tabGravity="fill"
                 app:tabTextAppearance="@style/TabTextStyle" />
 
-            <!-- Fixed Height RecyclerView with Scrolling -->
+            <!-- Fixed Height RecyclerView with Scrolling (Smaller for landscape) -->
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recyclerView"
                 android:layout_width="match_parent"
-                android:layout_height="320dp"
+                android:layout_height="240dp"
                 android:background="#1F1F1F"
                 android:paddingTop="4dp"
                 android:paddingBottom="4dp"
