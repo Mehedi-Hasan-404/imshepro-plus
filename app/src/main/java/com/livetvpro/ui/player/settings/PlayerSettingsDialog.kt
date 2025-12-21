@@ -3,135 +3,386 @@ package com.livetvpro.ui.player.settings
 import android.app.Dialog
 import android.content.Context
 import android.os.Bundle
-import android.view.LayoutInflater
 import android.view.ViewGroup
-import androidx.media3.common.Player
+import android.view.Window
+import android.widget.ImageButton
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.tabs.TabLayout
 import com.livetvpro.R
-import com.livetvpro.databinding.DialogPlayerSettingsBinding
+import timber.log.Timber
 
 class PlayerSettingsDialog(
     context: Context,
-    private val player: Player
-) : Dialog(context, R.style.Theme_LiveTVPro) {
+    private val player: ExoPlayer
+) : Dialog(context) {
 
-    private lateinit var binding: DialogPlayerSettingsBinding
-    
+    private lateinit var recyclerView: RecyclerView
+    private lateinit var tabLayout: TabLayout
+    private lateinit var btnCancel: MaterialButton
+    private lateinit var btnApply: MaterialButton
+
     private var selectedVideo: TrackUiModel.Video? = null
     private var selectedAudio: TrackUiModel.Audio? = null
     private var selectedText: TrackUiModel.Text? = null
+    private var selectedSpeed: Float = 1.0f
+    
+    private var isVideoNone = false
+    private var isAudioNone = false
+    private var isTextNone = true  // Default to None for subtitles
+
+    private var videoTracks = listOf<TrackUiModel.Video>()
+    private var audioTracks = listOf<TrackUiModel.Audio>()
+    private var textTracks = listOf<TrackUiModel.Text>()
+    
+    private var currentAdapter: TrackAdapter<*>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = DialogPlayerSettingsBinding.inflate(LayoutInflater.from(context))
-        setContentView(binding.root)
 
-        setupTabs()
-        setupButtons()
+        requestWindowFeature(Window.FEATURE_NO_TITLE)
+        setContentView(R.layout.dialog_player_settings)
+
+        val displayMetrics = context.resources.displayMetrics
+        val dialogWidth = (displayMetrics.widthPixels * 0.85).toInt()
         
-        // Show Video tab by default
-        showVideoTracks()
+        window?.setLayout(
+            dialogWidth,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        initViews()
+        loadTracks()  // Load tracks FIRST
+        setupViews()  // Then setup tabs based on available tracks
+        
+        // Show first available tab
+        showFirstAvailableTab()
     }
 
-    private fun setupTabs() {
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Quality"))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Audio"))
-        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Subtitles"))
+    private fun initViews() {
+        recyclerView = findViewById(R.id.recyclerView)
+        tabLayout = findViewById(R.id.tabLayout)
 
-        binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab) {
-                when (tab.position) {
-                    0 -> showVideoTracks()
-                    1 -> showAudioTracks()
-                    2 -> showTextTracks()
+        val btnCloseImage: ImageButton = findViewById(R.id.btnClose)
+        btnCloseImage.setOnClickListener { dismiss() }
+
+        btnCancel = findViewById(R.id.btnCancel)
+        btnApply = findViewById(R.id.btnApply)
+    }
+
+    private fun setupViews() {
+        recyclerView.layoutManager = LinearLayoutManager(context)
+
+        // CRITICAL: Only add tabs if tracks actually exist
+        val hasVideoTracks = videoTracks.isNotEmpty()
+        val hasAudioTracks = audioTracks.isNotEmpty()
+        val hasTextTracks = textTracks.isNotEmpty()
+        
+        Timber.d("Setting up tabs - Video: $hasVideoTracks (${videoTracks.size}), Audio: $hasAudioTracks (${audioTracks.size}), Text: $hasTextTracks (${textTracks.size})")
+        
+        if (hasVideoTracks) {
+            tabLayout.addTab(tabLayout.newTab().setText("Video"))
+            Timber.d("Added Video tab")
+        }
+        if (hasAudioTracks) {
+            tabLayout.addTab(tabLayout.newTab().setText("Audio"))
+            Timber.d("Added Audio tab")
+        }
+        if (hasTextTracks) {
+            tabLayout.addTab(tabLayout.newTab().setText("Text"))
+            Timber.d("Added Text tab")
+        }
+        
+        // Always add Speed tab
+        tabLayout.addTab(tabLayout.newTab().setText("Speed"))
+        Timber.d("Added Speed tab")
+
+        Timber.d("Total tabs created: ${tabLayout.tabCount}")
+
+        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                val tabText = tab?.text?.toString() ?: return
+                Timber.d("Tab selected: $tabText")
+                when (tabText) {
+                    "Video" -> showVideoTracks()
+                    "Audio" -> showAudioTracks()
+                    "Text" -> showTextTracks()
+                    "Speed" -> showSpeedOptions()
                 }
             }
-            override fun onTabUnselected(tab: TabLayout.Tab) {}
-            override fun onTabReselected(tab: TabLayout.Tab) {}
-        })
-    }
 
-    private fun setupButtons() {
-        binding.btnClose.setOnClickListener { dismiss() }
-        binding.btnCancel.setOnClickListener { dismiss() }
-        binding.btnApply.setOnClickListener {
-            applySelection()
+            override fun onTabUnselected(tab: TabLayout.Tab?) = Unit
+            override fun onTabReselected(tab: TabLayout.Tab?) = Unit
+        })
+
+        btnCancel.setOnClickListener { dismiss() }
+        btnApply.setOnClickListener {
+            applySelections()
             dismiss()
         }
     }
 
+    private fun loadTracks() {
+        try {
+            // Load tracks from player
+            videoTracks = PlayerTrackMapper.videoTracks(player)
+            audioTracks = PlayerTrackMapper.audioTracks(player)
+            textTracks = PlayerTrackMapper.textTracks(player)
+
+            // Check current selections
+            selectedVideo = videoTracks.firstOrNull { it.isSelected }
+            selectedAudio = audioTracks.firstOrNull { it.isSelected }
+            selectedText = textTracks.firstOrNull { it.isSelected }
+            
+            // Get current playback speed
+            selectedSpeed = player.playbackParameters.speed
+            
+            // Check if text is currently disabled
+            isTextNone = !player.currentTracks.isTypeSelected(androidx.media3.common.C.TRACK_TYPE_TEXT)
+
+            Timber.d("Video tracks: ${videoTracks.size}, Audio tracks: ${audioTracks.size}, Text tracks: ${textTracks.size}, Speed: ${selectedSpeed}x")
+            
+            // Log track availability
+            val hasVideo = player.currentTracks.isTypeSupported(androidx.media3.common.C.TRACK_TYPE_VIDEO)
+            val hasAudio = player.currentTracks.isTypeSupported(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+            val hasText = player.currentTracks.isTypeSupported(androidx.media3.common.C.TRACK_TYPE_TEXT)
+            Timber.d("Player supports - Video: $hasVideo, Audio: $hasAudio, Text: $hasText")
+        } catch (e: Exception) {
+            Timber.e(e, "Error loading tracks")
+        }
+    }
+
+    private fun showFirstAvailableTab() {
+        Timber.d("Showing first available tab")
+        when {
+            videoTracks.isNotEmpty() -> {
+                Timber.d("Showing Video tab")
+                showVideoTracks()
+            }
+            audioTracks.isNotEmpty() -> {
+                Timber.d("Showing Audio tab")
+                showAudioTracks()
+            }
+            textTracks.isNotEmpty() -> {
+                Timber.d("Showing Text tab")
+                showTextTracks()
+            }
+            else -> {
+                Timber.d("No tracks available, showing Speed tab")
+                showSpeedOptions()
+            }
+        }
+    }
+
     private fun showVideoTracks() {
-        val tracks = PlayerTrackMapper.videoTracks(player)
+        if (videoTracks.isEmpty()) return
+
+        val tracksWithOptions = mutableListOf<TrackUiModel.Video>()
         
-        // Add "Auto" option
-        val autoOption = TrackUiModel.Video(
+        // Auto option
+        tracksWithOptions.add(TrackUiModel.Video(
             groupIndex = -1,
             trackIndex = -1,
             width = 0,
             height = 0,
             bitrate = 0,
-            isSelected = selectedVideo == null
-        )
+            isSelected = selectedVideo == null && !isVideoNone
+        ))
         
-        val allTracks = listOf(autoOption) + tracks
+        // None option
+        tracksWithOptions.add(TrackUiModel.Video(
+            groupIndex = -2,
+            trackIndex = -2,
+            width = 0,
+            height = 0,
+            bitrate = 0,
+            isSelected = isVideoNone
+        ))
         
+        // Actual tracks
+        tracksWithOptions.addAll(videoTracks.map { track ->
+            track.copy(isSelected = track == selectedVideo && !isVideoNone)
+        })
+
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
-            selectedVideo = if (selected.groupIndex == -1) null else selected
-            (binding.recyclerView.adapter as? TrackAdapter<TrackUiModel.Video>)?.updateSelection(selected)
+            when (selected.groupIndex) {
+                -1 -> {
+                    // Auto
+                    selectedVideo = null
+                    isVideoNone = false
+                }
+                -2 -> {
+                    // None
+                    selectedVideo = null
+                    isVideoNone = true
+                }
+                else -> {
+                    // Specific track
+                    selectedVideo = selected
+                    isVideoNone = false
+                }
+            }
+            (currentAdapter as? TrackAdapter<TrackUiModel.Video>)?.updateSelection(selected)
         }
-        
-        binding.recyclerView.layoutManager = LinearLayoutManager(context)
-        binding.recyclerView.adapter = adapter
-        adapter.submit(allTracks)
+
+        adapter.submit(tracksWithOptions)
+        recyclerView.adapter = adapter
+        currentAdapter = adapter
     }
 
     private fun showAudioTracks() {
-        val tracks = PlayerTrackMapper.audioTracks(player)
+        if (audioTracks.isEmpty()) return
+
+        val tracksWithOptions = mutableListOf<TrackUiModel.Audio>()
         
-        // Add "Auto" option
-        val autoOption = TrackUiModel.Audio(
+        // Auto option
+        tracksWithOptions.add(TrackUiModel.Audio(
             groupIndex = -1,
             trackIndex = -1,
             language = "Auto",
             channels = 0,
             bitrate = 0,
-            isSelected = selectedAudio == null
-        )
+            isSelected = selectedAudio == null && !isAudioNone
+        ))
         
-        val allTracks = listOf(autoOption) + tracks
+        // None option
+        tracksWithOptions.add(TrackUiModel.Audio(
+            groupIndex = -2,
+            trackIndex = -2,
+            language = "None",
+            channels = 0,
+            bitrate = 0,
+            isSelected = isAudioNone
+        ))
         
+        // Actual tracks
+        tracksWithOptions.addAll(audioTracks.map { track ->
+            track.copy(isSelected = track == selectedAudio && !isAudioNone)
+        })
+
         val adapter = TrackAdapter<TrackUiModel.Audio> { selected ->
-            selectedAudio = if (selected.groupIndex == -1) null else selected
-            (binding.recyclerView.adapter as? TrackAdapter<TrackUiModel.Audio>)?.updateSelection(selected)
+            when (selected.groupIndex) {
+                -1 -> {
+                    // Auto
+                    selectedAudio = null
+                    isAudioNone = false
+                }
+                -2 -> {
+                    // None
+                    selectedAudio = null
+                    isAudioNone = true
+                }
+                else -> {
+                    // Specific track
+                    selectedAudio = selected
+                    isAudioNone = false
+                }
+            }
+            (currentAdapter as? TrackAdapter<TrackUiModel.Audio>)?.updateSelection(selected)
         }
-        
-        binding.recyclerView.layoutManager = LinearLayoutManager(context)
-        binding.recyclerView.adapter = adapter
-        adapter.submit(allTracks)
+
+        adapter.submit(tracksWithOptions)
+        recyclerView.adapter = adapter
+        currentAdapter = adapter
     }
 
     private fun showTextTracks() {
-        val tracks = PlayerTrackMapper.textTracks(player)
+        if (textTracks.isEmpty()) return
+
+        val tracksWithOptions = mutableListOf<TrackUiModel.Text>()
         
+        // Auto option
+        tracksWithOptions.add(TrackUiModel.Text(
+            groupIndex = -1,
+            trackIndex = -1,
+            language = "Auto",
+            isSelected = selectedText != null && !isTextNone
+        ))
+        
+        // None option (replaces "Off")
+        tracksWithOptions.add(TrackUiModel.Text(
+            groupIndex = -2,
+            trackIndex = -2,
+            language = "None",
+            isSelected = isTextNone
+        ))
+        
+        // Actual tracks (skip the old "Off" option from mapper)
+        tracksWithOptions.addAll(textTracks.filter { it.language != "Off" }.map { track ->
+            track.copy(isSelected = track == selectedText && !isTextNone)
+        })
+
         val adapter = TrackAdapter<TrackUiModel.Text> { selected ->
-            selectedText = if (selected.language == "Off") null else selected
-            (binding.recyclerView.adapter as? TrackAdapter<TrackUiModel.Text>)?.updateSelection(selected)
+            when (selected.groupIndex) {
+                -1 -> {
+                    // Auto - select first available subtitle
+                    selectedText = textTracks.firstOrNull { it.groupIndex != null }
+                    isTextNone = false
+                }
+                -2 -> {
+                    // None
+                    selectedText = null
+                    isTextNone = true
+                }
+                else -> {
+                    // Specific track
+                    selectedText = selected
+                    isTextNone = false
+                }
+            }
+            (currentAdapter as? TrackAdapter<TrackUiModel.Text>)?.updateSelection(selected)
         }
-        
-        binding.recyclerView.layoutManager = LinearLayoutManager(context)
-        binding.recyclerView.adapter = adapter
-        adapter.submit(tracks)
+
+        adapter.submit(tracksWithOptions)
+        recyclerView.adapter = adapter
+        currentAdapter = adapter
     }
 
-    private fun applySelection() {
-        TrackSelectionApplier.apply(
-            player = player,
-            video = selectedVideo,
-            audio = selectedAudio,
-            text = selectedText,
-            disableText = selectedText == null
+    private fun applySelections() {
+        try {
+            // Apply track selections
+            TrackSelectionApplier.apply(
+                player = player,
+                video = selectedVideo,
+                audio = selectedAudio,
+                text = selectedText,
+                disableVideo = isVideoNone,
+                disableAudio = isAudioNone,
+                disableText = isTextNone
+            )
+            
+            // Apply playback speed
+            player.setPlaybackSpeed(selectedSpeed)
+            
+            Timber.d("Applied track selections and speed: ${selectedSpeed}x")
+        } catch (e: Exception) {
+            Timber.e(e, "Error applying selections")
+        }
+    }
+    
+    private fun showSpeedOptions() {
+        val speedOptions = listOf(
+            0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f
         )
+        
+        val speedModels = speedOptions.map { speed ->
+            TrackUiModel.Speed(
+                speed = speed,
+                isSelected = speed == selectedSpeed
+            )
+        }
+        
+        val adapter = TrackAdapter<TrackUiModel.Speed> { selected ->
+            selectedSpeed = selected.speed
+            (currentAdapter as? TrackAdapter<TrackUiModel.Speed>)?.updateSelection(selected)
+        }
+        
+        adapter.submit(speedModels)
+        recyclerView.adapter = adapter
+        currentAdapter = adapter
     }
 }
+
