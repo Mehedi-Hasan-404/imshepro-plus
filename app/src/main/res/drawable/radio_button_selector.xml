@@ -1,34 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Save as: app/src/main/res/drawable/radio_button_selector.xml -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    
-    <!-- Checked state - Red filled circle with white inner dot -->
+    <!-- Checked state -->
     <item android:state_checked="true">
-        <layer-list>
-            <!-- Outer red circle -->
-            <item>
-                <shape android:shape="oval">
-                    <size android:width="24dp" android:height="24dp"/>
-                    <solid android:color="#EF4444"/>
-                </shape>
-            </item>
-            <!-- Inner white dot -->
-            <item android:top="7dp" android:bottom="7dp" 
-                  android:left="7dp" android:right="7dp">
-                <shape android:shape="oval">
-                    <solid android:color="#FFFFFF"/>
-                </shape>
-            </item>
-        </layer-list>
-    </item>
-    
-    <!-- Unchecked state - Gray circle outline -->
-    <item android:state_checked="false">
         <shape android:shape="oval">
-            <size android:width="24dp" android:height="24dp"/>
-            <stroke android:width="2dp" android:color="#999999"/>
-            <solid android:color="@android:color/transparent"/>
+            <size android:width="24dp" android:height="24dp" />
+            <solid android:color="#FF6200EE" />
+            <stroke android:width="2dp" android:color="#FF6200EE" />
         </shape>
     </item>
     
+    <!-- Unchecked state -->
+    <item android:state_checked="false">
+        <shape android:shape="oval">
+            <size android:width="24dp" android:height="24dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="2dp" android:color="#666666" />
+        </shape>
+    </item>
+    
+    <!-- Default state -->
+    <item>
+        <shape android:shape="oval">
+            <size android:width="24dp" android:height="24dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="2dp" android:color="#666666" />
+        </shape>
+    </item>
 </selector>
