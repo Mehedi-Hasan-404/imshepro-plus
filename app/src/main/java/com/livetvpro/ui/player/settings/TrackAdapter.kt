@@ -47,14 +47,9 @@ class TrackAdapter<T : TrackUiModel>(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: T) {
-            // Update radio icon
-            val radioIcon = binding.root.findViewById<ImageView>(R.id.radioIcon)
-            
-            if (item.isSelected) {
-                radioIcon.setImageResource(R.drawable.radio_checked)
-            } else {
-                radioIcon.setImageResource(R.drawable.radio_unchecked)
-            }
+            // Update radio button
+            val radioButton = binding.root.findViewById<android.widget.RadioButton>(com.livetvpro.R.id.radioButton)
+            radioButton.isChecked = item.isSelected
 
             when (item) {
                 is TrackUiModel.Video -> {
