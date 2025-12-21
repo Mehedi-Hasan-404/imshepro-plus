@@ -50,11 +50,7 @@ class TrackAdapter<T : TrackUiModel>(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: T) {
-            // RED COLOR for radio and checkbox
-            val redColor = ContextCompat.getColor(binding.root.context, R.color.accent)
-            val redColorStateList = ColorStateList.valueOf(redColor)
-            
-            // Update radio button or checkbox based on isRadio flag
+            // Get the radio button and checkbox
             val radioButton = binding.root.findViewById<android.widget.RadioButton>(R.id.radioButton)
             val checkBox = binding.root.findViewById<android.widget.CheckBox>(R.id.checkBox)
             
@@ -63,13 +59,15 @@ class TrackAdapter<T : TrackUiModel>(
                 radioButton.visibility = View.VISIBLE
                 checkBox.visibility = View.GONE
                 radioButton.isChecked = item.isSelected
-                radioButton.buttonTintList = redColorStateList
+                // Don't use tint - let the drawable handle colors
+                radioButton.buttonTintList = null
             } else {
                 // Show checkbox, hide radio button
                 radioButton.visibility = View.GONE
                 checkBox.visibility = View.VISIBLE
                 checkBox.isChecked = item.isSelected
-                checkBox.buttonTintList = redColorStateList
+                // Don't use tint - let the drawable handle colors
+                checkBox.buttonTintList = null
             }
 
             when (item) {
