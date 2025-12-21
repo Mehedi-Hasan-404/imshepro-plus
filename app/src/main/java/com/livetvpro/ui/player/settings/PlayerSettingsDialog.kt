@@ -25,7 +25,9 @@ class PlayerSettingsDialog(
     private lateinit var btnCancel: MaterialButton
     private lateinit var btnApply: MaterialButton
 
-    private var selectedVideo: TrackUiModel.Video? = null
+    // For video: support multiple selections (checkboxes)
+    private var selectedVideos = mutableListOf<TrackUiModel.Video>()
+    // For audio/text: single selection (radio buttons)
     private var selectedAudio: TrackUiModel.Audio? = null
     private var selectedText: TrackUiModel.Text? = null
     private var selectedSpeed: Float = 1.0f
@@ -138,8 +140,14 @@ class PlayerSettingsDialog(
             val hasAudioSelection = audioTracks.any { it.isSelected }
             val hasTextSelection = textTracks.any { it.isSelected }
             
-            // If no specific track is selected, default to Auto (null)
-            selectedVideo = if (hasVideoSelection) videoTracks.firstOrNull { it.isSelected } else null
+            // Video: can have multiple selections (checkboxes)
+            selectedVideos.clear()
+            if (hasVideoSelection) {
+                selectedVideos.addAll(videoTracks.filter { it.isSelected })
+            }
+            // If no selection, Auto is the default (empty list means Auto)
+            
+            // Audio/Text: single selection (radio buttons)
             selectedAudio = if (hasAudioSelection) audioTracks.firstOrNull { it.isSelected } else null
             selectedText = if (hasTextSelection) textTracks.firstOrNull { it.isSelected } else null
             
@@ -152,7 +160,7 @@ class PlayerSettingsDialog(
             isTextNone = !player.currentTracks.isTypeSelected(C.TRACK_TYPE_TEXT)
 
             Timber.d("Video tracks: ${videoTracks.size}, Audio tracks: ${audioTracks.size}, Text tracks: ${textTracks.size}, Speed: ${selectedSpeed}x")
-            Timber.d("Selected - Video: ${selectedVideo != null}, Audio: ${selectedAudio != null}, Text: ${selectedText != null}")
+            Timber.d("Selected - Videos: ${selectedVideos.size}, Audio: ${selectedAudio != null}, Text: ${selectedText != null}")
             Timber.d("isVideoNone: $isVideoNone, isAudioNone: $isAudioNone, isTextNone: $isTextNone")
             
         } catch (e: Exception) {
@@ -187,14 +195,14 @@ class PlayerSettingsDialog(
 
         val tracksWithOptions = mutableListOf<TrackUiModel.Video>()
 
-        // Auto option
+        // Auto option (selected when no specific tracks are selected)
         tracksWithOptions.add(TrackUiModel.Video(
             groupIndex = -1,
             trackIndex = -1,
             width = 0,
             height = 0,
             bitrate = 0,
-            isSelected = selectedVideo == null && !isVideoNone
+            isSelected = selectedVideos.isEmpty() && !isVideoNone
         ))
 
         // None option
@@ -207,27 +215,38 @@ class PlayerSettingsDialog(
             isSelected = isVideoNone
         ))
 
-        // Actual tracks
+        // Actual tracks - mark as selected if in selectedVideos list
         tracksWithOptions.addAll(videoTracks.map { track ->
-            track.copy(isSelected = track == selectedVideo && !isVideoNone)
+            track.copy(isSelected = selectedVideos.any { 
+                it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex 
+            })
         })
 
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
             when (selected.groupIndex) {
                 -1 -> {
-                    // Auto
-                    selectedVideo = null
+                    // Auto - clear all specific selections
+                    selectedVideos.clear()
                     isVideoNone = false
                 }
                 -2 -> {
                     // None
-                    selectedVideo = null
+                    selectedVideos.clear()
                     isVideoNone = true
                 }
                 else -> {
-                    // Specific track
-                    selectedVideo = selected
+                    // Specific track - toggle it in the list
                     isVideoNone = false
+                    val existingIndex = selectedVideos.indexOfFirst { 
+                        it.groupIndex == selected.groupIndex && it.trackIndex == selected.trackIndex 
+                    }
+                    if (existingIndex >= 0) {
+                        // Remove if already selected
+                        selectedVideos.removeAt(existingIndex)
+                    } else {
+                        // Add if not selected
+                        selectedVideos.add(selected)
+                    }
                 }
             }
             (currentAdapter as? TrackAdapter<TrackUiModel.Video>)?.updateSelection(selected)
@@ -349,9 +368,12 @@ class PlayerSettingsDialog(
     private fun applySelections() {
         try {
             // Apply track selections
+            // For video: pass the list of selected tracks (or null for Auto)
+            val videoToApply = if (selectedVideos.isNotEmpty()) selectedVideos.first() else null
+            
             TrackSelectionApplier.apply(
                 player = player,
-                video = selectedVideo,
+                video = videoToApply,
                 audio = selectedAudio,
                 text = selectedText,
                 disableVideo = isVideoNone,
