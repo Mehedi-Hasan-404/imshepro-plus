@@ -11,7 +11,8 @@ sealed class TrackUiModel {
         val height: Int,
         val bitrate: Int,
         override val isSelected: Boolean,
-        override val isRadio: Boolean = false  // CHECKBOXES for multiple quality selection
+        // Auto (-1) and None (-2) use radio buttons, quality tracks use checkboxes
+        override val isRadio: Boolean = (groupIndex < 0)
     ) : TrackUiModel()
 
     data class Audio(
@@ -21,7 +22,7 @@ sealed class TrackUiModel {
         val channels: Int,
         val bitrate: Int,
         override val isSelected: Boolean,
-        override val isRadio: Boolean = true  // RADIO BUTTONS for single audio track
+        override val isRadio: Boolean = true  // Always radio buttons
     ) : TrackUiModel()
 
     data class Text(
@@ -29,12 +30,12 @@ sealed class TrackUiModel {
         val trackIndex: Int?,
         val language: String,
         override val isSelected: Boolean,
-        override val isRadio: Boolean = true  // RADIO BUTTONS for single subtitle track
+        override val isRadio: Boolean = true  // Always radio buttons
     ) : TrackUiModel()
 
     data class Speed(
         val speed: Float,
         override val isSelected: Boolean,
-        override val isRadio: Boolean = true  // RADIO BUTTONS for single speed selection
+        override val isRadio: Boolean = true  // Always radio buttons
     ) : TrackUiModel()
 }
