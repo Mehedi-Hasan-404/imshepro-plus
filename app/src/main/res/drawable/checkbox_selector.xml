@@ -1,49 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Checked state - RED filled square with checkmark -->
+    <!-- Checked state - Solid filled square -->
     <item android:state_checked="true">
-        <layer-list>
-            <!-- Background square -->
-            <item>
-                <shape android:shape="rectangle">
-                    <size android:width="20dp" android:height="20dp" />
-                    <solid android:color="#FF0000" />
-                    <corners android:radius="3dp" />
-                </shape>
-            </item>
-            <!-- White checkmark (simple approach - filled square in corner) -->
-            <item android:top="6dp" android:bottom="8dp" android:left="5dp" android:right="9dp">
-                <rotate
-                    android:fromDegrees="45"
-                    android:pivotX="0%"
-                    android:pivotY="100%">
-                    <shape android:shape="rectangle">
-                        <size android:width="2dp" android:height="8dp"/>
-                        <solid android:color="@android:color/white" />
-                    </shape>
-                </rotate>
-            </item>
-            <item android:top="9dp" android:bottom="6dp" android:left="8dp" android:right="5dp">
-                <rotate
-                    android:fromDegrees="-45"
-                    android:pivotX="100%"
-                    android:pivotY="100%">
-                    <shape android:shape="rectangle">
-                        <size android:width="2dp" android:height="12dp"/>
-                        <solid android:color="@android:color/white" />
-                    </shape>
-                </rotate>
-            </item>
-        </layer-list>
+        <shape android:shape="rectangle">
+            <size android:width="20dp" android:height="20dp" />
+            <solid android:color="#FF0000" />
+            <corners android:radius="4dp" />
+            <stroke android:width="2dp" android:color="#FF0000" />
+        </shape>
     </item>
     
-    <!-- Unchecked state - gray square -->
+    <!-- Unchecked state - Empty square with gray border -->
     <item android:state_checked="false">
         <shape android:shape="rectangle">
             <size android:width="20dp" android:height="20dp" />
             <solid android:color="@android:color/transparent" />
             <stroke android:width="2dp" android:color="#666666" />
-            <corners android:radius="3dp" />
+            <corners android:radius="4dp" />
         </shape>
     </item>
     
@@ -53,7 +26,7 @@
             <size android:width="20dp" android:height="20dp" />
             <solid android:color="@android:color/transparent" />
             <stroke android:width="2dp" android:color="#666666" />
-            <corners android:radius="3dp" />
+            <corners android:radius="4dp" />
         </shape>
     </item>
 </selector>
