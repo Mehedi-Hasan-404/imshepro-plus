@@ -1,10 +1,8 @@
 package com.livetvpro.ui.player.settings
 
-import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
 import com.livetvpro.databinding.ItemTrackOptionBinding
@@ -21,11 +19,23 @@ class TrackAdapter<T : TrackUiModel>(
         notifyDataSetChanged()
     }
 
-    // Update selection without recreating the adapter
+    // Update selection - handles both radio (single) and checkbox (multiple) behavior
     fun updateSelection(selectedItem: T) {
         items.forEachIndexed { index, item ->
             val wasSelected = item.isSelected
-            val isSelected = item == selectedItem
+            
+            // Determine new selection state based on type
+            val isSelected = if (selectedItem.isRadio) {
+                // Radio button behavior: only the clicked item is selected
+                item == selectedItem
+            } else {
+                // Checkbox behavior: toggle the clicked item, keep others as-is
+                if (item == selectedItem) {
+                    !item.isSelected // Toggle
+                } else {
+                    item.isSelected // Keep current state
+                }
+            }
             
             // Use type-safe copying
             @Suppress("UNCHECKED_CAST")
