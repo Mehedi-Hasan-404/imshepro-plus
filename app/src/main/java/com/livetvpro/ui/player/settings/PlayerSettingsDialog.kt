@@ -132,15 +132,23 @@ class PlayerSettingsDialog(
             audioTracks = PlayerTrackMapper.audioTracks(player)
             textTracks = PlayerTrackMapper.textTracks(player)
 
-            // Check current selections
+            // Check current selections - DEFAULT TO AUTO (null) if nothing selected
             selectedVideo = videoTracks.firstOrNull { it.isSelected }
             selectedAudio = audioTracks.firstOrNull { it.isSelected }
             selectedText = textTracks.firstOrNull { it.isSelected }
             
+            // If nothing is selected, default to Auto (null)
+            if (selectedVideo == null && !isVideoNone) {
+                // Auto is selected by default
+            }
+            if (selectedAudio == null && !isAudioNone) {
+                // Auto is selected by default
+            }
+            
             // Get current playback speed
             selectedSpeed = player.playbackParameters.speed
             
-            // Check if text is currently disabled
+            // Check if text is currently disabled - default to None (true)
             isTextNone = !player.currentTracks.isTypeSelected(androidx.media3.common.C.TRACK_TYPE_TEXT)
 
             Timber.d("Video tracks: ${videoTracks.size}, Audio tracks: ${audioTracks.size}, Text tracks: ${textTracks.size}, Speed: ${selectedSpeed}x")
@@ -385,4 +393,5 @@ class PlayerSettingsDialog(
         currentAdapter = adapter
     }
 }
+
 
