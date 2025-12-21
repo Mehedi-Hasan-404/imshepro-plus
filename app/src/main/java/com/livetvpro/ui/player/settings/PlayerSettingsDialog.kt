@@ -27,6 +27,10 @@ class PlayerSettingsDialog(
     private var selectedVideo: TrackUiModel.Video? = null
     private var selectedAudio: TrackUiModel.Audio? = null
     private var selectedText: TrackUiModel.Text? = null
+    
+    private var isVideoNone = false
+    private var isAudioNone = false
+    private var isTextNone = true  // Default to None for subtitles
 
     private var videoTracks = listOf<TrackUiModel.Video>()
     private var audioTracks = listOf<TrackUiModel.Audio>()
@@ -82,6 +86,13 @@ class PlayerSettingsDialog(
             tabLayout.addTab(tabLayout.newTab().setText("Text"))
         }
 
+        // If no tabs available, show error
+        if (tabLayout.tabCount == 0) {
+            Timber.e("No tracks available!")
+            dismiss()
+            return
+        }
+
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 val tabText = tab?.text?.toString() ?: return
@@ -109,9 +120,13 @@ class PlayerSettingsDialog(
             audioTracks = PlayerTrackMapper.audioTracks(player)
             textTracks = PlayerTrackMapper.textTracks(player)
 
+            // Check current selections
             selectedVideo = videoTracks.firstOrNull { it.isSelected }
             selectedAudio = audioTracks.firstOrNull { it.isSelected }
             selectedText = textTracks.firstOrNull { it.isSelected }
+            
+            // Check if text is currently disabled
+            isTextNone = !player.currentTracks.isTypeSelected(androidx.media3.common.C.TRACK_TYPE_TEXT)
 
             Timber.d("Loaded ${videoTracks.size} video, ${audioTracks.size} audio, ${textTracks.size} text tracks")
         } catch (e: Exception) {
@@ -139,7 +154,7 @@ class PlayerSettingsDialog(
             width = 0,
             height = 0,
             bitrate = 0,
-            isSelected = selectedVideo == null
+            isSelected = selectedVideo == null && !isVideoNone
         ))
         
         // None option
@@ -149,21 +164,32 @@ class PlayerSettingsDialog(
             width = 0,
             height = 0,
             bitrate = 0,
-            isSelected = false
+            isSelected = isVideoNone
         ))
         
         // Actual tracks
         tracksWithOptions.addAll(videoTracks.map { track ->
-            track.copy(isSelected = track == selectedVideo)
+            track.copy(isSelected = track == selectedVideo && !isVideoNone)
         })
 
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
-            selectedVideo = when (selected.groupIndex) {
-                -1 -> null  // Auto
-                -2 -> null  // None (could be handled differently if needed)
-                else -> selected
+            when (selected.groupIndex) {
+                -1 -> {
+                    // Auto
+                    selectedVideo = null
+                    isVideoNone = false
+                }
+                -2 -> {
+                    // None
+                    selectedVideo = null
+                    isVideoNone = true
+                }
+                else -> {
+                    // Specific track
+                    selectedVideo = selected
+                    isVideoNone = false
+                }
             }
-            // Update selection without recreating adapter
             (currentAdapter as? TrackAdapter<TrackUiModel.Video>)?.updateSelection(selected)
         }
 
@@ -184,7 +210,7 @@ class PlayerSettingsDialog(
             language = "Auto",
             channels = 0,
             bitrate = 0,
-            isSelected = selectedAudio == null
+            isSelected = selectedAudio == null && !isAudioNone
         ))
         
         // None option
@@ -194,19 +220,31 @@ class PlayerSettingsDialog(
             language = "None",
             channels = 0,
             bitrate = 0,
-            isSelected = false
+            isSelected = isAudioNone
         ))
         
         // Actual tracks
         tracksWithOptions.addAll(audioTracks.map { track ->
-            track.copy(isSelected = track == selectedAudio)
+            track.copy(isSelected = track == selectedAudio && !isAudioNone)
         })
 
         val adapter = TrackAdapter<TrackUiModel.Audio> { selected ->
-            selectedAudio = when (selected.groupIndex) {
-                -1 -> null  // Auto
-                -2 -> null  // None
-                else -> selected
+            when (selected.groupIndex) {
+                -1 -> {
+                    // Auto
+                    selectedAudio = null
+                    isAudioNone = false
+                }
+                -2 -> {
+                    // None
+                    selectedAudio = null
+                    isAudioNone = true
+                }
+                else -> {
+                    // Specific track
+                    selectedAudio = selected
+                    isAudioNone = false
+                }
             }
             (currentAdapter as? TrackAdapter<TrackUiModel.Audio>)?.updateSelection(selected)
         }
@@ -226,19 +264,39 @@ class PlayerSettingsDialog(
             groupIndex = -1,
             trackIndex = -1,
             language = "Auto",
-            isSelected = false
+            isSelected = selectedText != null && !isTextNone
         ))
         
-        // Actual tracks (including Off option from mapper)
-        tracksWithOptions.addAll(textTracks.map { track ->
-            track.copy(isSelected = track == selectedText)
+        // None option (replaces "Off")
+        tracksWithOptions.add(TrackUiModel.Text(
+            groupIndex = -2,
+            trackIndex = -2,
+            language = "None",
+            isSelected = isTextNone
+        ))
+        
+        // Actual tracks (skip the old "Off" option from mapper)
+        tracksWithOptions.addAll(textTracks.filter { it.language != "Off" }.map { track ->
+            track.copy(isSelected = track == selectedText && !isTextNone)
         })
 
         val adapter = TrackAdapter<TrackUiModel.Text> { selected ->
-            selectedText = when {
-                selected.groupIndex == -1 -> null  // Auto
-                selected.language == "Off" -> selected  // Off
-                else -> selected
+            when (selected.groupIndex) {
+                -1 -> {
+                    // Auto - select first available subtitle
+                    selectedText = textTracks.firstOrNull { it.groupIndex != null }
+                    isTextNone = false
+                }
+                -2 -> {
+                    // None
+                    selectedText = null
+                    isTextNone = true
+                }
+                else -> {
+                    // Specific track
+                    selectedText = selected
+                    isTextNone = false
+                }
             }
             (currentAdapter as? TrackAdapter<TrackUiModel.Text>)?.updateSelection(selected)
         }
@@ -254,7 +312,10 @@ class PlayerSettingsDialog(
                 player = player,
                 video = selectedVideo,
                 audio = selectedAudio,
-                text = selectedText
+                text = selectedText,
+                disableVideo = isVideoNone,
+                disableAudio = isAudioNone,
+                disableText = isTextNone
             )
             Timber.d("Applied track selections successfully")
         } catch (e: Exception) {
