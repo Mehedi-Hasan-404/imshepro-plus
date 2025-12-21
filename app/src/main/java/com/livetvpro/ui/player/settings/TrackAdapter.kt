@@ -54,6 +54,8 @@ class TrackAdapter<T : TrackUiModel>(
             val radioButton = binding.root.findViewById<android.widget.RadioButton>(R.id.radioButton)
             val checkBox = binding.root.findViewById<android.widget.CheckBox>(R.id.checkBox)
             
+            timber.log.Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
+            
             if (item.isRadio) {
                 // Show radio button, hide checkbox
                 radioButton.visibility = View.VISIBLE
@@ -61,6 +63,7 @@ class TrackAdapter<T : TrackUiModel>(
                 radioButton.isChecked = item.isSelected
                 // Don't use tint - let the drawable handle colors
                 radioButton.buttonTintList = null
+                timber.log.Timber.d("Showing RADIO button")
             } else {
                 // Show checkbox, hide radio button
                 radioButton.visibility = View.GONE
@@ -68,6 +71,7 @@ class TrackAdapter<T : TrackUiModel>(
                 checkBox.isChecked = item.isSelected
                 // Don't use tint - let the drawable handle colors
                 checkBox.buttonTintList = null
+                timber.log.Timber.d("Showing CHECKBOX")
             }
 
             when (item) {
