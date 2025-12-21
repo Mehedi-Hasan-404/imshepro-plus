@@ -27,6 +27,7 @@ class PlayerSettingsDialog(
     private var selectedVideo: TrackUiModel.Video? = null
     private var selectedAudio: TrackUiModel.Audio? = null
     private var selectedText: TrackUiModel.Text? = null
+    private var selectedSpeed: Float = 1.0f
     
     private var isVideoNone = false
     private var isAudioNone = false
@@ -54,8 +55,8 @@ class PlayerSettingsDialog(
         window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         initViews()
-        loadTracks()
-        setupViews()
+        loadTracks()  // Load tracks FIRST
+        setupViews()  // Then setup tabs based on available tracks
         
         // Show first available tab
         showFirstAvailableTab()
@@ -75,31 +76,41 @@ class PlayerSettingsDialog(
     private fun setupViews() {
         recyclerView.layoutManager = LinearLayoutManager(context)
 
-        // Only add tabs for available content
-        if (videoTracks.isNotEmpty()) {
+        // CRITICAL: Only add tabs if tracks actually exist
+        val hasVideoTracks = videoTracks.isNotEmpty()
+        val hasAudioTracks = audioTracks.isNotEmpty()
+        val hasTextTracks = textTracks.isNotEmpty()
+        
+        Timber.d("Setting up tabs - Video: $hasVideoTracks (${videoTracks.size}), Audio: $hasAudioTracks (${audioTracks.size}), Text: $hasTextTracks (${textTracks.size})")
+        
+        if (hasVideoTracks) {
             tabLayout.addTab(tabLayout.newTab().setText("Video"))
+            Timber.d("Added Video tab")
         }
-        if (audioTracks.isNotEmpty()) {
+        if (hasAudioTracks) {
             tabLayout.addTab(tabLayout.newTab().setText("Audio"))
+            Timber.d("Added Audio tab")
         }
-        if (textTracks.isNotEmpty()) {
+        if (hasTextTracks) {
             tabLayout.addTab(tabLayout.newTab().setText("Text"))
+            Timber.d("Added Text tab")
         }
+        
+        // Always add Speed tab
+        tabLayout.addTab(tabLayout.newTab().setText("Speed"))
+        Timber.d("Added Speed tab")
 
-        // If no tabs available, show error
-        if (tabLayout.tabCount == 0) {
-            Timber.e("No tracks available!")
-            dismiss()
-            return
-        }
+        Timber.d("Total tabs created: ${tabLayout.tabCount}")
 
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
                 val tabText = tab?.text?.toString() ?: return
+                Timber.d("Tab selected: $tabText")
                 when (tabText) {
                     "Video" -> showVideoTracks()
                     "Audio" -> showAudioTracks()
                     "Text" -> showTextTracks()
+                    "Speed" -> showSpeedOptions()
                 }
             }
 
@@ -116,6 +127,7 @@ class PlayerSettingsDialog(
 
     private fun loadTracks() {
         try {
+            // Load tracks from player
             videoTracks = PlayerTrackMapper.videoTracks(player)
             audioTracks = PlayerTrackMapper.audioTracks(player)
             textTracks = PlayerTrackMapper.textTracks(player)
@@ -125,20 +137,43 @@ class PlayerSettingsDialog(
             selectedAudio = audioTracks.firstOrNull { it.isSelected }
             selectedText = textTracks.firstOrNull { it.isSelected }
             
+            // Get current playback speed
+            selectedSpeed = player.playbackParameters.speed
+            
             // Check if text is currently disabled
             isTextNone = !player.currentTracks.isTypeSelected(androidx.media3.common.C.TRACK_TYPE_TEXT)
 
-            Timber.d("Loaded ${videoTracks.size} video, ${audioTracks.size} audio, ${textTracks.size} text tracks")
+            Timber.d("Video tracks: ${videoTracks.size}, Audio tracks: ${audioTracks.size}, Text tracks: ${textTracks.size}, Speed: ${selectedSpeed}x")
+            
+            // Log track availability
+            val hasVideo = player.currentTracks.isTypeSupported(androidx.media3.common.C.TRACK_TYPE_VIDEO)
+            val hasAudio = player.currentTracks.isTypeSupported(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+            val hasText = player.currentTracks.isTypeSupported(androidx.media3.common.C.TRACK_TYPE_TEXT)
+            Timber.d("Player supports - Video: $hasVideo, Audio: $hasAudio, Text: $hasText")
         } catch (e: Exception) {
             Timber.e(e, "Error loading tracks")
         }
     }
 
     private fun showFirstAvailableTab() {
+        Timber.d("Showing first available tab")
         when {
-            videoTracks.isNotEmpty() -> showVideoTracks()
-            audioTracks.isNotEmpty() -> showAudioTracks()
-            textTracks.isNotEmpty() -> showTextTracks()
+            videoTracks.isNotEmpty() -> {
+                Timber.d("Showing Video tab")
+                showVideoTracks()
+            }
+            audioTracks.isNotEmpty() -> {
+                Timber.d("Showing Audio tab")
+                showAudioTracks()
+            }
+            textTracks.isNotEmpty() -> {
+                Timber.d("Showing Text tab")
+                showTextTracks()
+            }
+            else -> {
+                Timber.d("No tracks available, showing Speed tab")
+                showSpeedOptions()
+            }
         }
     }
 
@@ -308,6 +343,7 @@ class PlayerSettingsDialog(
 
     private fun applySelections() {
         try {
+            // Apply track selections
             TrackSelectionApplier.apply(
                 player = player,
                 video = selectedVideo,
@@ -317,9 +353,35 @@ class PlayerSettingsDialog(
                 disableAudio = isAudioNone,
                 disableText = isTextNone
             )
-            Timber.d("Applied track selections successfully")
+            
+            // Apply playback speed
+            player.setPlaybackSpeed(selectedSpeed)
+            
+            Timber.d("Applied track selections and speed: ${selectedSpeed}x")
         } catch (e: Exception) {
-            Timber.e(e, "Error applying track selections")
+            Timber.e(e, "Error applying selections")
         }
+    }
+    
+    private fun showSpeedOptions() {
+        val speedOptions = listOf(
+            0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f
+        )
+        
+        val speedModels = speedOptions.map { speed ->
+            TrackUiModel.Speed(
+                speed = speed,
+                isSelected = speed == selectedSpeed
+            )
+        }
+        
+        val adapter = TrackAdapter<TrackUiModel.Speed> { selected ->
+            selectedSpeed = selected.speed
+            (currentAdapter as? TrackAdapter<TrackUiModel.Speed>)?.updateSelection(selected)
+        }
+        
+        adapter.submit(speedModels)
+        recyclerView.adapter = adapter
+        currentAdapter = adapter
     }
 }
