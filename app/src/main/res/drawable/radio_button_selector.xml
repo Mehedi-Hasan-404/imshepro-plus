@@ -2,22 +2,19 @@
 <!-- Save as: app/src/main/res/drawable/radio_button_selector.xml -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- Checked state -->
+    <!-- Checked state - Red filled circle with white inner dot -->
     <item android:state_checked="true">
         <layer-list>
             <!-- Outer red circle -->
             <item>
                 <shape android:shape="oval">
+                    <size android:width="24dp" android:height="24dp"/>
                     <solid android:color="#EF4444"/>
-                    <size android:width="22dp" android:height="22dp"/>
                 </shape>
             </item>
             <!-- Inner white dot -->
-            <item 
-                android:top="7dp" 
-                android:bottom="7dp" 
-                android:left="7dp" 
-                android:right="7dp">
+            <item android:top="7dp" android:bottom="7dp" 
+                  android:left="7dp" android:right="7dp">
                 <shape android:shape="oval">
                     <solid android:color="#FFFFFF"/>
                 </shape>
@@ -25,16 +22,12 @@
         </layer-list>
     </item>
     
-    <!-- Unchecked state -->
+    <!-- Unchecked state - Gray circle outline -->
     <item android:state_checked="false">
         <shape android:shape="oval">
-            <stroke 
-                android:width="2.5dp" 
-                android:color="#666666" />
-            <solid android:color="@android:color/transparent" />
-            <size 
-                android:width="22dp" 
-                android:height="22dp" />
+            <size android:width="24dp" android:height="24dp"/>
+            <stroke android:width="2dp" android:color="#999999"/>
+            <solid android:color="@android:color/transparent"/>
         </shape>
     </item>
     
