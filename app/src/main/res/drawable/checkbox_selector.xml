@@ -2,23 +2,28 @@
 <!-- Save as: app/src/main/res/drawable/checkbox_selector.xml -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- Checked state - Red checkmark -->
+    <!-- Checked state - Red square with white checkmark -->
     <item android:state_checked="true">
         <layer-list>
-            <!-- Outer red square -->
+            <!-- Red background square -->
             <item>
                 <shape android:shape="rectangle">
                     <solid android:color="#EF4444"/>
-                    <corners android:radius="4dp"/>
-                    <size android:width="22dp" android:height="22dp"/>
+                    <corners android:radius="3dp"/>
+                    <size android:width="24dp" android:height="24dp"/>
                 </shape>
             </item>
-            <!-- White checkmark -->
-            <item android:top="4dp" android:bottom="4dp" android:left="4dp" android:right="4dp">
-                <shape android:shape="rectangle">
-                    <!-- This is a simplified checkmark representation -->
-                    <solid android:color="#FFFFFF"/>
-                </shape>
+            <!-- White checkmark path -->
+            <item android:width="24dp" android:height="24dp">
+                <vector
+                    android:width="24dp"
+                    android:height="24dp"
+                    android:viewportWidth="24"
+                    android:viewportHeight="24">
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z"/>
+                </vector>
             </item>
         </layer-list>
     </item>
@@ -26,10 +31,10 @@
     <!-- Unchecked state - Gray square outline -->
     <item android:state_checked="false">
         <shape android:shape="rectangle">
-            <stroke android:width="2.5dp" android:color="#666666"/>
-            <corners android:radius="4dp"/>
+            <stroke android:width="2dp" android:color="#999999"/>
+            <corners android:radius="3dp"/>
             <solid android:color="@android:color/transparent"/>
-            <size android:width="22dp" android:height="22dp"/>
+            <size android:width="24dp" android:height="24dp"/>
         </shape>
     </item>
     
