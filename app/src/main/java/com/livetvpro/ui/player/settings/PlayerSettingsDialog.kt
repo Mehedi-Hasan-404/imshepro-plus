@@ -25,7 +25,7 @@ class PlayerSettingsDialog(
     private lateinit var btnCancel: MaterialButton
     private lateinit var btnApply: MaterialButton
 
-    // For video: support multiple selections (checkboxes)
+    // For video: support multiple selections for quality tracks
     private var selectedVideos = mutableListOf<TrackUiModel.Video>()
     // For audio/text: single selection (radio buttons)
     private var selectedAudio: TrackUiModel.Audio? = null
@@ -135,12 +135,12 @@ class PlayerSettingsDialog(
             audioTracks = PlayerTrackMapper.audioTracks(player)
             textTracks = PlayerTrackMapper.textTracks(player)
 
-            // Check if ANY specific track is selected
+            // Check if ANY specific track is selected (not counting Auto/None)
             val hasVideoSelection = videoTracks.any { it.isSelected }
             val hasAudioSelection = audioTracks.any { it.isSelected }
             val hasTextSelection = textTracks.any { it.isSelected }
             
-            // Video: can have multiple selections (checkboxes)
+            // Video: can have multiple quality selections (checkboxes)
             selectedVideos.clear()
             if (hasVideoSelection) {
                 selectedVideos.addAll(videoTracks.filter { it.isSelected })
@@ -195,17 +195,17 @@ class PlayerSettingsDialog(
 
         val tracksWithOptions = mutableListOf<TrackUiModel.Video>()
 
-        // Auto option (selected when no specific tracks are selected)
+        // Auto option - RADIO BUTTON (groupIndex = -1)
         tracksWithOptions.add(TrackUiModel.Video(
             groupIndex = -1,
             trackIndex = -1,
             width = 0,
             height = 0,
             bitrate = 0,
-            isSelected = selectedVideos.isEmpty() && !isVideoNone
+            isSelected = selectedVideos.isEmpty() && !isVideoNone  // Selected when no quality tracks selected
         ))
 
-        // None option
+        // None option - RADIO BUTTON (groupIndex = -2)
         tracksWithOptions.add(TrackUiModel.Video(
             groupIndex = -2,
             trackIndex = -2,
@@ -215,7 +215,7 @@ class PlayerSettingsDialog(
             isSelected = isVideoNone
         ))
 
-        // Actual tracks - mark as selected if in selectedVideos list
+        // Actual quality tracks - CHECKBOXES (groupIndex >= 0)
         tracksWithOptions.addAll(videoTracks.map { track ->
             track.copy(isSelected = selectedVideos.any { 
                 it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex 
@@ -235,7 +235,7 @@ class PlayerSettingsDialog(
                     isVideoNone = true
                 }
                 else -> {
-                    // Specific track - toggle it in the list
+                    // Specific quality track - toggle it in the list (checkbox behavior)
                     isVideoNone = false
                     val existingIndex = selectedVideos.indexOfFirst { 
                         it.groupIndex == selected.groupIndex && it.trackIndex == selected.trackIndex 
@@ -249,7 +249,8 @@ class PlayerSettingsDialog(
                     }
                 }
             }
-            (currentAdapter as? TrackAdapter<TrackUiModel.Video>)?.updateSelection(selected)
+            // Refresh the list
+            showVideoTracks()
         }
 
         adapter.submit(tracksWithOptions)
@@ -334,7 +335,7 @@ class PlayerSettingsDialog(
             isSelected = isTextNone
         ))
 
-        // Actual tracks (skip the old "Off" option from mapper)
+        // Actual tracks (skip the old "Off" option from mapper if any)
         tracksWithOptions.addAll(textTracks.filter { it.language != "Off" }.map { track ->
             track.copy(isSelected = track == selectedText && !isTextNone)
         })
@@ -368,7 +369,7 @@ class PlayerSettingsDialog(
     private fun applySelections() {
         try {
             // Apply track selections
-            // For video: pass the list of selected tracks (or null for Auto)
+            // For video: pass the first selected track (or null for Auto)
             val videoToApply = if (selectedVideos.isNotEmpty()) selectedVideos.first() else null
             
             TrackSelectionApplier.apply(
