@@ -131,6 +131,9 @@ class PlayerSettingsDialog(
             videoTracks = PlayerTrackMapper.videoTracks(player)
             audioTracks = PlayerTrackMapper.audioTracks(player)
             textTracks = PlayerTrackMapper.textTracks(player)
+            
+            // Filter out the "Off" option from text tracks if it exists
+            textTracks = textTracks.filter { it.language != "Off" }
 
             // Check current selections
             selectedVideo = videoTracks.firstOrNull { it.isSelected }
@@ -182,16 +185,7 @@ class PlayerSettingsDialog(
 
         val tracksWithOptions = mutableListOf<TrackUiModel.Video>()
         
-        // Auto option
-        tracksWithOptions.add(TrackUiModel.Video(
-            groupIndex = -1,
-            trackIndex = -1,
-            width = 0,
-            height = 0,
-            bitrate = 0,
-            isSelected = selectedVideo == null && !isVideoNone
-        ))
-        
+        // Order: None, Auto, then tracks
         // None option
         tracksWithOptions.add(TrackUiModel.Video(
             groupIndex = -2,
@@ -200,6 +194,16 @@ class PlayerSettingsDialog(
             height = 0,
             bitrate = 0,
             isSelected = isVideoNone
+        ))
+        
+        // Auto option (default)
+        tracksWithOptions.add(TrackUiModel.Video(
+            groupIndex = -1,
+            trackIndex = -1,
+            width = 0,
+            height = 0,
+            bitrate = 0,
+            isSelected = !isVideoNone && selectedVideo == null
         ))
         
         // Actual tracks
@@ -238,16 +242,7 @@ class PlayerSettingsDialog(
 
         val tracksWithOptions = mutableListOf<TrackUiModel.Audio>()
         
-        // Auto option
-        tracksWithOptions.add(TrackUiModel.Audio(
-            groupIndex = -1,
-            trackIndex = -1,
-            language = "Auto",
-            channels = 0,
-            bitrate = 0,
-            isSelected = selectedAudio == null && !isAudioNone
-        ))
-        
+        // Order: None, Auto, then tracks
         // None option
         tracksWithOptions.add(TrackUiModel.Audio(
             groupIndex = -2,
@@ -256,6 +251,16 @@ class PlayerSettingsDialog(
             channels = 0,
             bitrate = 0,
             isSelected = isAudioNone
+        ))
+        
+        // Auto option (default)
+        tracksWithOptions.add(TrackUiModel.Audio(
+            groupIndex = -1,
+            trackIndex = -1,
+            language = "Auto",
+            channels = 0,
+            bitrate = 0,
+            isSelected = !isAudioNone && selectedAudio == null
         ))
         
         // Actual tracks
@@ -294,15 +299,8 @@ class PlayerSettingsDialog(
 
         val tracksWithOptions = mutableListOf<TrackUiModel.Text>()
         
-        // Auto option
-        tracksWithOptions.add(TrackUiModel.Text(
-            groupIndex = -1,
-            trackIndex = -1,
-            language = "Auto",
-            isSelected = selectedText != null && !isTextNone
-        ))
-        
-        // None option (replaces "Off")
+        // Order: None, Auto, then tracks
+        // None option (default for subtitles)
         tracksWithOptions.add(TrackUiModel.Text(
             groupIndex = -2,
             trackIndex = -2,
@@ -310,8 +308,16 @@ class PlayerSettingsDialog(
             isSelected = isTextNone
         ))
         
-        // Actual tracks (skip the old "Off" option from mapper)
-        tracksWithOptions.addAll(textTracks.filter { it.language != "Off" }.map { track ->
+        // Auto option
+        tracksWithOptions.add(TrackUiModel.Text(
+            groupIndex = -1,
+            trackIndex = -1,
+            language = "Auto",
+            isSelected = !isTextNone && selectedText != null
+        ))
+        
+        // Actual tracks
+        tracksWithOptions.addAll(textTracks.map { track ->
             track.copy(isSelected = track == selectedText && !isTextNone)
         })
 
