@@ -11,14 +11,24 @@ object TrackSelectionApplier {
         player: Player,
         video: TrackUiModel.Video?,
         audio: TrackUiModel.Audio?,
-        text: TrackUiModel.Text?
+        text: TrackUiModel.Text?,
+        disableVideo: Boolean = false,
+        disableAudio: Boolean = false,
+        disableText: Boolean = true
     ) {
         val builder = player.trackSelectionParameters.buildUpon()
 
         // VIDEO
-        if (video == null) {
+        if (disableVideo) {
+            // Disable video track
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true)
+        } else if (video == null) {
+            // Auto - clear overrides and enable
             builder.clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
         } else {
+            // Specific track
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false)
             builder.setOverrideForType(
                 TrackSelectionOverride(
                     player.currentTracks.groups[video.groupIndex].mediaTrackGroup,
@@ -28,24 +38,39 @@ object TrackSelectionApplier {
         }
 
         // AUDIO
-        audio?.let {
+        if (disableAudio) {
+            // Disable audio track
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+        } else if (audio == null) {
+            // Auto - clear overrides and enable
+            builder.clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+        } else {
+            // Specific track
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
             builder.setOverrideForType(
                 TrackSelectionOverride(
-                    player.currentTracks.groups[it.groupIndex].mediaTrackGroup,
-                    listOf(it.trackIndex)
+                    player.currentTracks.groups[audio.groupIndex].mediaTrackGroup,
+                    listOf(audio.trackIndex)
                 )
             )
         }
 
         // TEXT
-        if (text?.groupIndex == null) {
+        if (disableText) {
+            // Disable text track (None)
             builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
-        } else {
+        } else if (text == null) {
+            // Auto - enable but don't force a specific track
+            builder.clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+        } else if (text.groupIndex != null && text.trackIndex != null) {
+            // Specific track
             builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
             builder.setOverrideForType(
                 TrackSelectionOverride(
                     player.currentTracks.groups[text.groupIndex].mediaTrackGroup,
-                    listOf(text.trackIndex!!)
+                    listOf(text.trackIndex)
                 )
             )
         }
