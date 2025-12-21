@@ -1,8 +1,10 @@
 package com.livetvpro.ui.player.settings
 
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
 import com.livetvpro.databinding.ItemTrackOptionBinding
@@ -31,6 +33,7 @@ class TrackAdapter<T : TrackUiModel>(
                 is TrackUiModel.Video -> (item as TrackUiModel.Video).copy(isSelected = isSelected)
                 is TrackUiModel.Audio -> (item as TrackUiModel.Audio).copy(isSelected = isSelected)
                 is TrackUiModel.Text -> (item as TrackUiModel.Text).copy(isSelected = isSelected)
+                is TrackUiModel.Speed -> (item as TrackUiModel.Speed).copy(isSelected = isSelected)
                 else -> item
             } as T
             
@@ -47,22 +50,40 @@ class TrackAdapter<T : TrackUiModel>(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: T) {
-            // Update radio button
-            val radioButton = binding.root.findViewById<android.widget.RadioButton>(com.livetvpro.R.id.radioButton)
-            radioButton.isChecked = item.isSelected
+            // RED COLOR for radio and checkbox
+            val redColor = ContextCompat.getColor(binding.root.context, R.color.accent)
+            val redColorStateList = ColorStateList.valueOf(redColor)
+            
+            // Update radio button or checkbox based on isRadio flag
+            val radioButton = binding.root.findViewById<android.widget.RadioButton>(R.id.radioButton)
+            val checkBox = binding.root.findViewById<android.widget.CheckBox>(R.id.checkBox)
+            
+            if (item.isRadio) {
+                // Show radio button, hide checkbox
+                radioButton.visibility = View.VISIBLE
+                checkBox.visibility = View.GONE
+                radioButton.isChecked = item.isSelected
+                radioButton.buttonTintList = redColorStateList
+            } else {
+                // Show checkbox, hide radio button
+                radioButton.visibility = View.GONE
+                checkBox.visibility = View.VISIBLE
+                checkBox.isChecked = item.isSelected
+                checkBox.buttonTintList = redColorStateList
+            }
 
             when (item) {
                 is TrackUiModel.Video -> {
                     when {
-                        item.groupIndex == -1 -> {
-                            // Auto option
-                            binding.tvPrimary.text = "Auto"
-                            binding.tvSecondary.text = "Automatic quality"
-                        }
                         item.groupIndex == -2 -> {
                             // None option
                             binding.tvPrimary.text = "None"
                             binding.tvSecondary.text = "No video"
+                        }
+                        item.groupIndex == -1 -> {
+                            // Auto option
+                            binding.tvPrimary.text = "Auto"
+                            binding.tvSecondary.text = "Automatic quality"
                         }
                         else -> {
                             // Quality
@@ -87,15 +108,15 @@ class TrackAdapter<T : TrackUiModel>(
 
                 is TrackUiModel.Audio -> {
                     when {
-                        item.groupIndex == -1 -> {
-                            // Auto option
-                            binding.tvPrimary.text = "Auto"
-                            binding.tvSecondary.text = "Automatic audio"
-                        }
                         item.groupIndex == -2 -> {
                             // None option
                             binding.tvPrimary.text = "None"
                             binding.tvSecondary.text = "No audio"
+                        }
+                        item.groupIndex == -1 -> {
+                            // Auto option
+                            binding.tvPrimary.text = "Auto"
+                            binding.tvSecondary.text = "Automatic audio"
                         }
                         else -> {
                             // Language
@@ -127,15 +148,15 @@ class TrackAdapter<T : TrackUiModel>(
 
                 is TrackUiModel.Text -> {
                     when {
-                        item.groupIndex == -1 -> {
-                            // Auto option
-                            binding.tvPrimary.text = "Auto"
-                            binding.tvSecondary.text = "Automatic subtitles"
-                        }
                         item.groupIndex == -2 -> {
                             // None option
                             binding.tvPrimary.text = "None"
                             binding.tvSecondary.text = "No subtitles"
+                        }
+                        item.groupIndex == -1 -> {
+                            // Auto option
+                            binding.tvPrimary.text = "Auto"
+                            binding.tvSecondary.text = "Automatic subtitles"
                         }
                         else -> {
                             // Language
@@ -149,6 +170,12 @@ class TrackAdapter<T : TrackUiModel>(
                             binding.tvSecondary.text = "Subtitles"
                         }
                     }
+                }
+
+                is TrackUiModel.Speed -> {
+                    // SHOW ACTUAL SPEED VALUE
+                    binding.tvPrimary.text = "${item.speed}x"
+                    binding.tvSecondary.text = "Playback speed"
                 }
             }
 
@@ -170,4 +197,3 @@ class TrackAdapter<T : TrackUiModel>(
 
     override fun getItemCount() = items.size
 }
-
