@@ -1,172 +1,137 @@
 package com.livetvpro.ui.player.settings
 
+import android.app.Dialog
+import android.content.Context
+import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import android.widget.ImageView
+import androidx.media3.common.Player
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.tabs.TabLayout
 import com.livetvpro.R
-import com.livetvpro.databinding.ItemTrackOptionBinding
+import com.livetvpro.databinding.DialogPlayerSettingsBinding
 
-class TrackAdapter<T : TrackUiModel>(
-    private val onSelect: (T) -> Unit
-) : RecyclerView.Adapter<TrackAdapter<T>.VH>() {
+class PlayerSettingsDialog(
+    context: Context,
+    private val player: Player
+) : Dialog(context, R.style.Theme_LiveTVPro) {
 
-    private val items = mutableListOf<T>()
+    private lateinit var binding: DialogPlayerSettingsBinding
+    
+    private var selectedVideo: TrackUiModel.Video? = null
+    private var selectedAudio: TrackUiModel.Audio? = null
+    private var selectedText: TrackUiModel.Text? = null
 
-    fun submit(list: List<T>) {
-        items.clear()
-        items.addAll(list)
-        notifyDataSetChanged()
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = DialogPlayerSettingsBinding.inflate(LayoutInflater.from(context))
+        setContentView(binding.root)
+
+        setupTabs()
+        setupButtons()
+        
+        // Show Video tab by default
+        showVideoTracks()
     }
 
-    // Update selection without recreating the adapter
-    fun updateSelection(selectedItem: T) {
-        items.forEachIndexed { index, item ->
-            val wasSelected = item.isSelected
-            val isSelected = item == selectedItem
-            
-            // Use type-safe copying
-            @Suppress("UNCHECKED_CAST")
-            val updatedItem = when (item) {
-                is TrackUiModel.Video -> (item as TrackUiModel.Video).copy(isSelected = isSelected)
-                is TrackUiModel.Audio -> (item as TrackUiModel.Audio).copy(isSelected = isSelected)
-                is TrackUiModel.Text -> (item as TrackUiModel.Text).copy(isSelected = isSelected)
-                else -> item
-            } as T
-            
-            items[index] = updatedItem
-            
-            // Only refresh changed items
-            if (wasSelected != isSelected) {
-                notifyItemChanged(index)
+    private fun setupTabs() {
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Quality"))
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Audio"))
+        binding.tabLayout.addTab(binding.tabLayout.newTab().setText("Subtitles"))
+
+        binding.tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                when (tab.position) {
+                    0 -> showVideoTracks()
+                    1 -> showAudioTracks()
+                    2 -> showTextTracks()
+                }
             }
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
+    }
+
+    private fun setupButtons() {
+        binding.btnClose.setOnClickListener { dismiss() }
+        binding.btnCancel.setOnClickListener { dismiss() }
+        binding.btnApply.setOnClickListener {
+            applySelection()
+            dismiss()
         }
     }
 
-    inner class VH(val binding: ItemTrackOptionBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(item: T) {
-            // Update radio button
-            val radioButton = binding.root.findViewById<android.widget.RadioButton>(com.livetvpro.R.id.radioButton)
-            radioButton.isChecked = item.isSelected
-
-            when (item) {
-                is TrackUiModel.Video -> {
-                    when {
-                        item.groupIndex == -1 -> {
-                            // Auto option
-                            binding.tvPrimary.text = "Auto"
-                            binding.tvSecondary.text = "Automatic quality"
-                        }
-                        item.groupIndex == -2 -> {
-                            // None option
-                            binding.tvPrimary.text = "None"
-                            binding.tvSecondary.text = "No video"
-                        }
-                        else -> {
-                            // Quality
-                            val quality = if (item.width > 0 && item.height > 0) {
-                                "${item.width} × ${item.height}"
-                            } else {
-                                "Unknown quality"
-                            }
-                            
-                            // Bitrate
-                            val bitrate = if (item.bitrate > 0) {
-                                "${"%.2f".format(item.bitrate / 1_000_000f)} Mbps"
-                            } else {
-                                "Unknown bitrate"
-                            }
-                            
-                            binding.tvPrimary.text = quality
-                            binding.tvSecondary.text = bitrate
-                        }
-                    }
-                }
-
-                is TrackUiModel.Audio -> {
-                    when {
-                        item.groupIndex == -1 -> {
-                            // Auto option
-                            binding.tvPrimary.text = "Auto"
-                            binding.tvSecondary.text = "Automatic audio"
-                        }
-                        item.groupIndex == -2 -> {
-                            // None option
-                            binding.tvPrimary.text = "None"
-                            binding.tvSecondary.text = "No audio"
-                        }
-                        else -> {
-                            // Language
-                            val language = if (item.language.isNotEmpty() && item.language != "und") {
-                                item.language.uppercase()
-                            } else {
-                                "Unknown"
-                            }
-                            
-                            // Channels
-                            val channels = if (item.channels > 0) {
-                                " • ${item.channels}ch"
-                            } else {
-                                ""
-                            }
-                            
-                            // Bitrate
-                            val bitrate = if (item.bitrate > 0) {
-                                "${item.bitrate / 1000} kbps"
-                            } else {
-                                "Unknown bitrate"
-                            }
-                            
-                            binding.tvPrimary.text = "$language$channels"
-                            binding.tvSecondary.text = bitrate
-                        }
-                    }
-                }
-
-                is TrackUiModel.Text -> {
-                    when {
-                        item.groupIndex == -1 -> {
-                            // Auto option
-                            binding.tvPrimary.text = "Auto"
-                            binding.tvSecondary.text = "Automatic subtitles"
-                        }
-                        item.groupIndex == -2 -> {
-                            // None option
-                            binding.tvPrimary.text = "None"
-                            binding.tvSecondary.text = "No subtitles"
-                        }
-                        else -> {
-                            // Language
-                            val language = if (item.language.isNotEmpty() && item.language != "und") {
-                                item.language.uppercase()
-                            } else {
-                                "Unknown"
-                            }
-                            
-                            binding.tvPrimary.text = language
-                            binding.tvSecondary.text = "Subtitles"
-                        }
-                    }
-                }
-            }
-
-            binding.root.setOnClickListener { 
-                onSelect(item)
-            }
-        }
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
-        val binding = ItemTrackOptionBinding.inflate(
-            LayoutInflater.from(parent.context), parent, false
+    private fun showVideoTracks() {
+        val tracks = PlayerTrackMapper.videoTracks(player)
+        
+        // Add "Auto" option
+        val autoOption = TrackUiModel.Video(
+            groupIndex = -1,
+            trackIndex = -1,
+            width = 0,
+            height = 0,
+            bitrate = 0,
+            isSelected = selectedVideo == null
         )
-        return VH(binding)
+        
+        val allTracks = listOf(autoOption) + tracks
+        
+        val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
+            selectedVideo = if (selected.groupIndex == -1) null else selected
+            (binding.recyclerView.adapter as? TrackAdapter<TrackUiModel.Video>)?.updateSelection(selected)
+        }
+        
+        binding.recyclerView.layoutManager = LinearLayoutManager(context)
+        binding.recyclerView.adapter = adapter
+        adapter.submit(allTracks)
     }
 
-    override fun onBindViewHolder(holder: VH, position: Int) =
-        holder.bind(items[position])
+    private fun showAudioTracks() {
+        val tracks = PlayerTrackMapper.audioTracks(player)
+        
+        // Add "Auto" option
+        val autoOption = TrackUiModel.Audio(
+            groupIndex = -1,
+            trackIndex = -1,
+            language = "Auto",
+            channels = 0,
+            bitrate = 0,
+            isSelected = selectedAudio == null
+        )
+        
+        val allTracks = listOf(autoOption) + tracks
+        
+        val adapter = TrackAdapter<TrackUiModel.Audio> { selected ->
+            selectedAudio = if (selected.groupIndex == -1) null else selected
+            (binding.recyclerView.adapter as? TrackAdapter<TrackUiModel.Audio>)?.updateSelection(selected)
+        }
+        
+        binding.recyclerView.layoutManager = LinearLayoutManager(context)
+        binding.recyclerView.adapter = adapter
+        adapter.submit(allTracks)
+    }
 
-    override fun getItemCount() = items.size
+    private fun showTextTracks() {
+        val tracks = PlayerTrackMapper.textTracks(player)
+        
+        val adapter = TrackAdapter<TrackUiModel.Text> { selected ->
+            selectedText = if (selected.language == "Off") null else selected
+            (binding.recyclerView.adapter as? TrackAdapter<TrackUiModel.Text>)?.updateSelection(selected)
+        }
+        
+        binding.recyclerView.layoutManager = LinearLayoutManager(context)
+        binding.recyclerView.adapter = adapter
+        adapter.submit(tracks)
+    }
+
+    private fun applySelection() {
+        TrackSelectionApplier.apply(
+            player = player,
+            video = selectedVideo,
+            audio = selectedAudio,
+            text = selectedText,
+            disableText = selectedText == null
+        )
+    }
 }
