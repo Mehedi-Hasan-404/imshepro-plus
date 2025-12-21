@@ -132,15 +132,15 @@ class TrackAdapter<T : TrackUiModel>(
 
                 is TrackUiModel.Text -> {
                     when {
-                        item.groupIndex == null && item.language == "Off" -> {
-                            // Off option
-                            binding.tvPrimary.text = "Off"
-                            binding.tvSecondary.text = "No subtitles"
-                        }
                         item.groupIndex == -1 -> {
                             // Auto option
                             binding.tvPrimary.text = "Auto"
                             binding.tvSecondary.text = "Automatic subtitles"
+                        }
+                        item.groupIndex == -2 -> {
+                            // None option
+                            binding.tvPrimary.text = "None"
+                            binding.tvSecondary.text = "No subtitles"
                         }
                         else -> {
                             // Language
