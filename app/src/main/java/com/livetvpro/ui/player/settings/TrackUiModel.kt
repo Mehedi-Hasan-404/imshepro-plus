@@ -27,4 +27,9 @@ sealed class TrackUiModel {
         val language: String,
         override val isSelected: Boolean
     ) : TrackUiModel()
+
+    data class Speed(
+        val speed: Float,
+        override val isSelected: Boolean
+    ) : TrackUiModel()
 }
