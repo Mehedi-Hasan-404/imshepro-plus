@@ -21,7 +21,8 @@ object PlayerTrackMapper {
                         width = format.width,
                         height = format.height,
                         bitrate = format.bitrate,
-                        isSelected = group.isTrackSelected(i)
+                        isSelected = group.isTrackSelected(i),
+                        isRadio = false // Quality tracks typically use checkmarks/list style
                     )
                 )
             }
@@ -44,12 +45,13 @@ object PlayerTrackMapper {
 
                 result.add(
                     TrackUiModel.Audio(
-                        groupIndex,
-                        i,
+                        groupIndex = groupIndex,
+                        trackIndex = i,
                         language = format.language ?: "Unknown",
                         channels = format.channelCount,
                         bitrate = format.bitrate,
-                        isSelected = group.isTrackSelected(i)
+                        isSelected = group.isTrackSelected(i),
+                        isRadio = true // Audio tracks usually use radio buttons
                     )
                 )
             }
@@ -61,13 +63,14 @@ object PlayerTrackMapper {
     fun textTracks(player: Player): List<TrackUiModel.Text> {
         val result = mutableListOf<TrackUiModel.Text>()
 
-        // OFF option
+        // Add the initial "Off" option based on current player state
         result.add(
             TrackUiModel.Text(
                 groupIndex = null,
                 trackIndex = null,
                 language = "Off",
-                isSelected = !player.currentTracks.isTypeSelected(C.TRACK_TYPE_TEXT)
+                isSelected = !player.currentTracks.isTypeSelected(C.TRACK_TYPE_TEXT),
+                isRadio = true
             )
         )
 
@@ -79,10 +82,11 @@ object PlayerTrackMapper {
 
                 result.add(
                     TrackUiModel.Text(
-                        groupIndex,
-                        i,
+                        groupIndex = groupIndex,
+                        trackIndex = i,
                         language = format.language ?: "Unknown",
-                        isSelected = group.isTrackSelected(i)
+                        isSelected = group.isTrackSelected(i),
+                        isRadio = true
                     )
                 )
             }
