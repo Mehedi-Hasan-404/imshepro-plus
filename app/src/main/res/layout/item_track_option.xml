@@ -40,26 +40,33 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- RadioButton - Right aligned, realistic style -->
-    <RadioButton
-        android:id="@+id/radioButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical"
-        android:button="@drawable/radio_button_selector"
-        android:clickable="false"
-        android:focusable="false"
-        android:visibility="visible" />
+    <!-- Container for RadioButton and CheckBox - FIXED WIDTH for alignment -->
+    <FrameLayout
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="center_vertical">
 
-    <!-- CheckBox - Right aligned, realistic style -->
-    <CheckBox
-        android:id="@+id/checkBox"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="center_vertical"
-        android:button="@drawable/checkbox_selector"
-        android:clickable="false"
-        android:focusable="false"
-        android:visibility="gone" />
+        <!-- RadioButton - Centered in container -->
+        <RadioButton
+            android:id="@+id/radioButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:button="@drawable/radio_button_selector"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="visible" />
+
+        <!-- CheckBox - Centered in container -->
+        <CheckBox
+            android:id="@+id/checkBox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:button="@drawable/checkbox_selector"
+            android:clickable="false"
+            android:focusable="false"
+            android:visibility="gone" />
+    </FrameLayout>
 
 </LinearLayout>
