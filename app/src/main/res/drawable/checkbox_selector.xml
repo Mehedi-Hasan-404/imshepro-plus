@@ -1,23 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Save as: app/src/main/res/drawable/checkbox_selector.xml -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     
-    <!-- Checked state - Red square with white checkmark -->
     <item android:state_checked="true">
         <layer-list>
-            <!-- Red background square -->
             <item>
                 <shape android:shape="rectangle">
                     <solid android:color="#EF4444"/>
-                    <corners android:radius="3dp"/>
+                    <corners android:radius="4dp"/>
                     <size android:width="24dp" android:height="24dp"/>
                 </shape>
             </item>
-            <!-- White checkmark path -->
-            <item android:width="24dp" android:height="24dp">
+            <item android:gravity="center">
                 <vector
-                    android:width="24dp"
-                    android:height="24dp"
+                    android:width="18dp"
+                    android:height="18dp"
                     android:viewportWidth="24"
                     android:viewportHeight="24">
                     <path
@@ -28,11 +24,10 @@
         </layer-list>
     </item>
     
-    <!-- Unchecked state - Gray square outline -->
     <item android:state_checked="false">
         <shape android:shape="rectangle">
             <stroke android:width="2dp" android:color="#999999"/>
-            <corners android:radius="3dp"/>
+            <corners android:radius="4dp"/>
             <solid android:color="@android:color/transparent"/>
             <size android:width="24dp" android:height="24dp"/>
         </shape>
