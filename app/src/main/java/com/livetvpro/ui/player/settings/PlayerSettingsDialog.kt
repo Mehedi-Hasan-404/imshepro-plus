@@ -31,6 +31,9 @@ class PlayerSettingsDialog(
     private var selectedText: TrackUiModel.Text? = null
     private var selectedSpeed: Float = 1.0f
 
+    // Multi-select support for video qualities
+    private var selectedVideoQualities = mutableSetOf<TrackUiModel.Video>()
+
     // State flags for "None" and "Auto"
     private var isVideoNone = false
     private var isAudioNone = false
@@ -120,14 +123,14 @@ class PlayerSettingsDialog(
             textTracks = PlayerTrackMapper.textTracks(player)
 
 
-            // 3. Set Selected Objects based on State
-            // If we are in Auto or None, selectedX should be null. 
-            // If we are Manual (not Auto and not None), we find the track that is currently active.
-            
-            selectedVideo = if (!isVideoAuto && !isVideoNone) {
-                videoTracks.firstOrNull { it.isSelected }
-            } else null
+            // 3. Initialize selectedVideoQualities Set
+            selectedVideoQualities.clear()
+            if (!isVideoAuto && !isVideoNone) {
+                // Add all currently selected tracks to the set
+                selectedVideoQualities.addAll(videoTracks.filter { it.isSelected })
+            }
 
+            // 4. Set Selected Objects based on State (for Audio and Text)
             selectedAudio = if (!isAudioAuto && !isAudioNone) {
                 audioTracks.firstOrNull { it.isSelected }
             } else null
@@ -137,7 +140,7 @@ class PlayerSettingsDialog(
                 textTracks.filter { it.language != "Off" }.firstOrNull { it.isSelected }
             } else null
 
-            // 4. Get Speed
+            // 5. Get Speed
             selectedSpeed = player.playbackParameters.speed
             
             Timber.d("State -> Video Auto: $isVideoAuto, None: $isVideoNone | Audio Auto: $isAudioAuto")
@@ -186,78 +189,104 @@ class PlayerSettingsDialog(
 
     private fun showVideoTracks() {
         if (videoTracks.isEmpty()) return
+        
+        val list = mutableListOf<TrackUiModel.Video>()
 
-        val tracksWithOptions = mutableListOf<TrackUiModel.Video>()
-
-        // 1. Auto Option (RED RADIO BUTTON)
-        tracksWithOptions.add(TrackUiModel.Video(
+        // 1. Add Auto/None (Radio Buttons)
+        list.add(TrackUiModel.Video(
             groupIndex = -1,
             trackIndex = -1,
             width = 0, height = 0, bitrate = 0,
             isSelected = isVideoAuto,
-            isRadio = true // Explicitly Radio
+            isRadio = true
         ))
 
-        // 2. None Option (RED RADIO BUTTON)
-        tracksWithOptions.add(TrackUiModel.Video(
+        list.add(TrackUiModel.Video(
             groupIndex = -2,
             trackIndex = -2,
             width = 0, height = 0, bitrate = 0,
             isSelected = isVideoNone,
-            isRadio = true // Explicitly Radio
+            isRadio = true
         ))
-
-        // 3. Specific Qualities (RED CHECKBOXES)
-        // Note: PlayerTrackMapper sets isRadio = false by default for Video, which is what we want here
-        tracksWithOptions.addAll(videoTracks.map { track ->
-            track.copy(isSelected = !isVideoAuto && !isVideoNone && track.isSelected)
+        
+        // 2. Add Specific Qualities (Checkboxes)
+        list.addAll(videoTracks.map { track ->
+            // Check if this track is in our multi-select set
+            val isCurrentlyChecked = selectedVideoQualities.any { 
+                it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex 
+            }
+            track.copy(isSelected = !isVideoAuto && !isVideoNone && isCurrentlyChecked)
         })
 
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
             when (selected.groupIndex) {
-                -1 -> { // Auto selected
-                    selectedVideo = null
-                    isVideoNone = false
+                -1 -> { // Auto Clicked
+                    selectedVideoQualities.clear()
                     isVideoAuto = true
-                }
-                -2 -> { // None selected
-                    selectedVideo = null
-                    isVideoNone = true
-                    isVideoAuto = false
-                }
-                else -> { // Specific track selected
-                    selectedVideo = selected
                     isVideoNone = false
+                }
+                -2 -> { // None Clicked
+                    selectedVideoQualities.clear()
                     isVideoAuto = false
+                    isVideoNone = true
+                }
+                else -> { // A specific Quality Checkbox Clicked
+                    isVideoAuto = false
+                    isVideoNone = false
+                    
+                    // Toggle logic: If already in set, remove it. If not, add it.
+                    val existing = selectedVideoQualities.find { 
+                        it.groupIndex == selected.groupIndex && it.trackIndex == selected.trackIndex 
+                    }
+                    
+                    if (existing != null) {
+                        selectedVideoQualities.remove(existing)
+                    } else {
+                        selectedVideoQualities.add(selected)
+                    }
+
+                    // AUTO-SELECT AUTO: If user unchecks everything, turn Auto back on
+                    if (selectedVideoQualities.isEmpty()) {
+                        isVideoAuto = true
+                    }
                 }
             }
-            
-            // Re-build the list to update UI states (Radio vs Checkbox logic logic)
-            val updatedList = mutableListOf<TrackUiModel.Video>()
-            
-            // Re-add Auto
-            updatedList.add(tracksWithOptions[0].copy(isSelected = isVideoAuto))
-            // Re-add None
-            updatedList.add(tracksWithOptions[1].copy(isSelected = isVideoNone))
-            
-            // Re-add tracks
-            // If Auto or None is selected, uncheck all specific tracks
-            // If specific track is selected, check only that one (mimic radio behavior for quality selection usually)
-            // Or allow multi-selection? Standard ExoPlayer behavior for video is usually single selection of a quality or Auto.
-            // Let's treat quality selection as Single Selection for simplicity/stability.
-            
-            videoTracks.forEach { track ->
-                val isMe = track.groupIndex == selected.groupIndex && track.trackIndex == selected.trackIndex
-                val shouldBeSelected = if (isVideoAuto || isVideoNone) false else isMe
-                updatedList.add(track.copy(isSelected = shouldBeSelected))
-            }
-            
-            (currentAdapter as? TrackAdapter<TrackUiModel.Video>)?.submit(updatedList)
+            // Refresh the UI list
+            refreshVideoList()
         }
-
-        adapter.submit(tracksWithOptions)
+        
+        adapter.submit(list)
         recyclerView.adapter = adapter
         currentAdapter = adapter
+    }
+
+    private fun refreshVideoList() {
+        val list = mutableListOf<TrackUiModel.Video>()
+        
+        list.add(TrackUiModel.Video(
+            groupIndex = -1,
+            trackIndex = -1,
+            width = 0, height = 0, bitrate = 0,
+            isSelected = isVideoAuto,
+            isRadio = true
+        ))
+        
+        list.add(TrackUiModel.Video(
+            groupIndex = -2,
+            trackIndex = -2,
+            width = 0, height = 0, bitrate = 0,
+            isSelected = isVideoNone,
+            isRadio = true
+        ))
+        
+        list.addAll(videoTracks.map { track ->
+            val isChecked = selectedVideoQualities.any { 
+                it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex 
+            }
+            track.copy(isSelected = !isVideoAuto && !isVideoNone && isChecked)
+        })
+        
+        (currentAdapter as? TrackAdapter<TrackUiModel.Video>)?.submit(list)
     }
 
     private fun showAudioTracks() {
@@ -344,19 +373,27 @@ class PlayerSettingsDialog(
 
     private fun applySelections() {
         try {
-            TrackSelectionApplier.apply(
+            // Convert the set of selected qualities to a list
+            val videoList = if (isVideoAuto || isVideoNone) {
+                emptyList()
+            } else {
+                selectedVideoQualities.toList()
+            }
+            
+            // You'll need to update TrackSelectionApplier to handle multiple video tracks
+            TrackSelectionApplier.applyMultipleVideo(
                 player = player,
-                video = selectedVideo,
+                videoTracks = videoList,
                 audio = selectedAudio,
                 text = selectedText,
                 disableVideo = isVideoNone,
                 disableAudio = isAudioNone,
                 disableText = isTextNone
             )
+            
             player.setPlaybackSpeed(selectedSpeed)
         } catch (e: Exception) {
             Timber.e(e, "Error applying selections")
         }
     }
 }
-
