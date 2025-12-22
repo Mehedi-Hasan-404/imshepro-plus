@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
 import com.livetvpro.databinding.ItemTrackOptionBinding
+import timber.log.Timber
 
 class TrackAdapter<T : TrackUiModel>(
     private val onSelect: (T) -> Unit
@@ -19,23 +20,14 @@ class TrackAdapter<T : TrackUiModel>(
         notifyDataSetChanged()
     }
 
-    // Update selection - handles both radio (single) and checkbox (multiple) behavior
+    // Update selection - handles radio (single selection) behavior
+    // Used for Audio, Text, and Speed tabs
     fun updateSelection(selectedItem: T) {
         items.forEachIndexed { index, item ->
             val wasSelected = item.isSelected
             
-            // Determine new selection state based on type
-            val isSelected = if (selectedItem.isRadio) {
-                // Radio button behavior: only the clicked item is selected
-                item == selectedItem
-            } else {
-                // Checkbox behavior: toggle the clicked item, keep others as-is
-                if (item == selectedItem) {
-                    !item.isSelected // Toggle
-                } else {
-                    item.isSelected // Keep current state
-                }
-            }
+            // Radio button behavior: only the clicked item is selected
+            val isSelected = item == selectedItem
             
             // Use type-safe copying
             @Suppress("UNCHECKED_CAST")
@@ -49,7 +41,7 @@ class TrackAdapter<T : TrackUiModel>(
             
             items[index] = updatedItem
             
-            // Only refresh changed items
+            // Only refresh changed items for performance
             if (wasSelected != isSelected) {
                 notifyItemChanged(index)
             }
@@ -64,7 +56,7 @@ class TrackAdapter<T : TrackUiModel>(
             val radioButton = binding.root.findViewById<android.widget.RadioButton>(R.id.radioButton)
             val checkBox = binding.root.findViewById<android.widget.CheckBox>(R.id.checkBox)
             
-            timber.log.Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
+            Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
             
             if (item.isRadio) {
                 // Show radio button, hide checkbox
@@ -73,7 +65,7 @@ class TrackAdapter<T : TrackUiModel>(
                 radioButton.isChecked = item.isSelected
                 // Don't use tint - let the drawable handle colors
                 radioButton.buttonTintList = null
-                timber.log.Timber.d("Showing RADIO button")
+                Timber.d("Showing RADIO button")
             } else {
                 // Show checkbox, hide radio button
                 radioButton.visibility = View.GONE
@@ -81,7 +73,7 @@ class TrackAdapter<T : TrackUiModel>(
                 checkBox.isChecked = item.isSelected
                 // Don't use tint - let the drawable handle colors
                 checkBox.buttonTintList = null
-                timber.log.Timber.d("Showing CHECKBOX")
+                Timber.d("Showing CHECKBOX")
             }
 
             when (item) {
