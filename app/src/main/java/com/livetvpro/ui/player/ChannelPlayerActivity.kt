@@ -260,41 +260,46 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (
+            // Landscape - Hide system bars
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(false)
+                window.insetsController?.let { controller ->
+                    controller.hide(
+                        android.view.WindowInsets.Type.statusBars() or 
+                        android.view.WindowInsets.Type.navigationBars()
+                    )
+                    controller.systemBarsBehavior = 
+                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                             or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                             or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
                             or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                             or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    )
+                )
+            }
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
                 }
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(false)
-            }
         } else {
-            // Portrait mode - show system bars
+            // Portrait - Show system bars
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11+ - Use WindowInsetsController
                 window.setDecorFitsSystemWindows(true)
                 window.insetsController?.show(
                     android.view.WindowInsets.Type.statusBars() or 
                     android.view.WindowInsets.Type.navigationBars()
                 )
             } else {
-                // Android 10 and below
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                )
-                
-                // Clear fullscreen flag to show status bar
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
                 window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             }
             
