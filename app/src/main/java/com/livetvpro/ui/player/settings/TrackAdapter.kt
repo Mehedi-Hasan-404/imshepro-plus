@@ -59,20 +59,18 @@ class TrackAdapter<T : TrackUiModel>(
             Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
             
             if (item.isRadio) {
-                // Show radio button, hide checkbox
+                // Show radio button, hide checkbox - USE DEFAULT ANDROID STYLE
                 radioButton.visibility = View.VISIBLE
                 checkBox.visibility = View.GONE
                 radioButton.isChecked = item.isSelected
-                // Don't use tint - let the drawable handle colors
-                radioButton.buttonTintList = null
+                // Use default Android radio button (no custom drawable)
                 Timber.d("Showing RADIO button")
             } else {
-                // Show checkbox, hide radio button
+                // Show checkbox, hide radio button - USE DEFAULT ANDROID STYLE
                 radioButton.visibility = View.GONE
                 checkBox.visibility = View.VISIBLE
                 checkBox.isChecked = item.isSelected
-                // Don't use tint - let the drawable handle colors
-                checkBox.buttonTintList = null
+                // Use default Android checkbox (no custom drawable)
                 Timber.d("Showing CHECKBOX")
             }
 
