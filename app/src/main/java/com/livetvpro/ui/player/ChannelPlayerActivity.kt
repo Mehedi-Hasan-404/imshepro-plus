@@ -258,16 +258,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.layoutParams = params
     }
 
+    // FIX 1: Updated setWindowFlags() - Keeps status bar visible in landscape
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // Landscape - Hide system bars
+            // Landscape - Hide ONLY navigation bar, keep status bar visible
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
-                    controller.hide(
-                        android.view.WindowInsets.Type.statusBars() or 
-                        android.view.WindowInsets.Type.navigationBars()
-                    )
+                    // Only hide navigation bar, keep status bar
+                    controller.hide(android.view.WindowInsets.Type.navigationBars())
                     controller.systemBarsBehavior = 
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
@@ -277,9 +276,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                             or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                             or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                             or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_FULLSCREEN
                 )
             }
             
@@ -289,7 +286,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait - Show system bars
+            // Portrait - Show all system bars
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(true)
                 window.insetsController?.show(
@@ -506,30 +503,34 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setAllowCrossProtocolRedirects(true)
                 .setKeepPostFor302Redirects(true)
 
-            val mediaSourceFactory = if (streamInfo.drmScheme != null &&
-                streamInfo.drmKeyId != null &&
-                streamInfo.drmKey != null
-            ) {
+            // FIX 2: Improved DRM detection and handling
+            val mediaSourceFactory = if (streamInfo.drmScheme != null) {
                 Timber.d("╔═══════════════════════════════════╗")
                 Timber.d("🔐 INITIALIZING DRM PROTECTION")
                 Timber.d("🔒 Scheme: ${streamInfo.drmScheme}")
                 
-                val drmSessionManager = if (streamInfo.drmScheme.equals("clearkey", ignoreCase = true)) {
-                    Timber.d("🔑 Creating ClearKey DRM Manager...")
-                    Timber.d("   KeyID Length: ${streamInfo.drmKeyId.length}")
-                    Timber.d("   Key Length: ${streamInfo.drmKey.length}")
-                    
-                    val manager = createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
-                    
-                    if (manager != null) {
-                        Timber.d("✅ ClearKey DRM Manager created successfully")
-                    } else {
-                        Timber.e("❌ Failed to create ClearKey DRM Manager")
+                // Normalize scheme name
+                val normalizedScheme = streamInfo.drmScheme.lowercase().let { scheme ->
+                    when {
+                        scheme.contains("clearkey") -> "clearkey"
+                        scheme.contains("widevine") -> "widevine"
+                        else -> scheme
                     }
-                    
-                    manager
+                }
+                
+                val drmSessionManager = if (normalizedScheme == "clearkey") {
+                    if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
+                        Timber.d("🔑 Creating ClearKey DRM Manager with keys...")
+                        Timber.d("   KeyID Length: ${streamInfo.drmKeyId.length}")
+                        Timber.d("   Key Length: ${streamInfo.drmKey.length}")
+                        
+                        createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
+                    } else {
+                        Timber.w("⚠️ ClearKey scheme but no keys provided - attempting playback without DRM")
+                        null
+                    }
                 } else {
-                    Timber.e("❌ Unsupported DRM scheme: ${streamInfo.drmScheme}")
+                    Timber.e("❌ Unsupported DRM scheme: $normalizedScheme")
                     null
                 }
                 
@@ -540,19 +541,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         .setDataSourceFactory(dataSourceFactory)
                         .setDrmSessionManagerProvider { drmSessionManager }
                 } else {
-                    Timber.w("⚠️ DRM Manager is null - falling back to non-DRM playback")
+                    Timber.w("⚠️ Falling back to non-DRM playback")
                     DefaultMediaSourceFactory(this)
                         .setDataSourceFactory(dataSourceFactory)
                 }
             } else {
-                if (streamInfo.drmScheme != null) {
-                    Timber.w("⚠️ DRM Scheme present but keys missing!")
-                    Timber.w("   Scheme: ${streamInfo.drmScheme}")
-                    Timber.w("   KeyID: ${streamInfo.drmKeyId ?: "NULL"}")
-                    Timber.w("   Key: ${streamInfo.drmKey ?: "NULL"}")
-                } else {
-                    Timber.d("🔓 No DRM protection - regular stream")
-                }
+                Timber.d("🔓 No DRM protection - regular stream")
                 DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(dataSourceFactory)
             }
@@ -610,6 +604,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             }
                         }
 
+                        // FIX 3: Better error handling with detailed messages
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                             super.onPlayerError(error)
                             Timber.e("╔═══════════════════════════════════╗")
@@ -617,20 +612,39 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             Timber.e("📺 Channel: ${channel.name}")
                             Timber.e("🔗 URL: ${streamInfo.url}")
                             Timber.e("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
+                            if (streamInfo.drmKeyId != null) {
+                                Timber.e("🔑 Has Keys: YES (${streamInfo.drmKeyId.length} + ${streamInfo.drmKey?.length})")
+                            }
                             Timber.e("💥 Error: ${error.message}")
                             Timber.e("📋 Error Code: ${error.errorCode}")
+                            Timber.e("🔍 Cause: ${error.cause?.message}")
                             Timber.e("╚═══════════════════════════════════╝")
                             
                             binding.progressBar.visibility = View.GONE
+                            
+                            // More detailed error messages
                             val errorMessage = when {
                                 error.message?.contains("drm", ignoreCase = true) == true ->
-                                    "DRM error: Unable to decrypt stream\n${error.message}"
+                                    "DRM Protection Error\n\nThis stream requires valid decryption keys.\nError: ${error.message}"
+                                
                                 error.message?.contains("clearkey", ignoreCase = true) == true ->
-                                    "ClearKey DRM error: Invalid license keys\n${error.message}"
+                                    "ClearKey DRM Error\n\nInvalid or missing license keys.\nError: ${error.message}"
+                                
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-                                    "Server error: Unable to connect\n${error.message}"
-                                else -> "Playback error: ${error.message}"
+                                    "Connection Error\n\nUnable to reach the server.\nError: ${error.message}"
+                                
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
+                                    "Network Error\n\nCheck your internet connection.\nError: ${error.message}"
+                                
+                                error.message?.contains("403", ignoreCase = true) == true ->
+                                    "Access Denied\n\nThis stream may require authentication.\nError: ${error.message}"
+                                
+                                error.message?.contains("404", ignoreCase = true) == true ->
+                                    "Stream Not Found\n\nThe stream URL may be invalid or expired.\nError: ${error.message}"
+                                
+                                else -> "Playback Error\n\n${error.message ?: "Unknown error occurred"}"
                             }
+                            
                             Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
                             binding.errorView.visibility = View.VISIBLE
                             binding.errorText.text = errorMessage
