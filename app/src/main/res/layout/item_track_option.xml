@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Save as: res/layout/item_track_option.xml -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -15,7 +14,7 @@
     android:gravity="center_vertical"
     android:minHeight="56dp">
 
-    <!-- Text Container -->
+    <!-- Text Container - Takes up remaining space -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
@@ -41,28 +40,32 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- RadioButton - RED circle -->
+    <!-- RadioButton - Fixed positioning -->
     <RadioButton
         android:id="@+id/radioButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
         android:layout_gravity="center_vertical"
         android:layout_marginStart="16dp"
         android:button="@drawable/radio_button_selector"
         android:clickable="false"
         android:focusable="false"
-        android:visibility="visible" />
+        android:visibility="visible"
+        android:padding="0dp"
+        android:background="@null" />
 
-    <!-- CheckBox - RED square -->
+    <!-- CheckBox - Fixed positioning, same size and position as RadioButton -->
     <CheckBox
         android:id="@+id/checkBox"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
         android:layout_gravity="center_vertical"
         android:layout_marginStart="16dp"
         android:button="@drawable/checkbox_selector"
         android:clickable="false"
         android:focusable="false"
-        android:visibility="gone" />
+        android:visibility="gone"
+        android:padding="0dp"
+        android:background="@null" />
 
 </LinearLayout>
