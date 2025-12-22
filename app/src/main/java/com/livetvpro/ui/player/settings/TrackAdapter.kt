@@ -1,8 +1,10 @@
 package com.livetvpro.ui.player.settings
 
+import android.content.res.ColorStateList
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
 import com.livetvpro.databinding.ItemTrackOptionBinding
@@ -58,19 +60,31 @@ class TrackAdapter<T : TrackUiModel>(
             
             Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
             
+            // Create ColorStateList for better visibility on dark background
+            val colorStateList = ColorStateList(
+                arrayOf(
+                    intArrayOf(android.R.attr.state_checked),  // Checked state
+                    intArrayOf(-android.R.attr.state_checked)  // Unchecked state
+                ),
+                intArrayOf(
+                    ContextCompat.getColor(binding.root.context, R.color.accent),  // Red when checked
+                    ContextCompat.getColor(binding.root.context, R.color.text_secondary_dark)  // Gray when unchecked
+                )
+            )
+            
             if (item.isRadio) {
-                // Show radio button, hide checkbox - USE DEFAULT ANDROID STYLE
+                // Show radio button, hide checkbox
                 radioButton.visibility = View.VISIBLE
                 checkBox.visibility = View.GONE
                 radioButton.isChecked = item.isSelected
-                // Use default Android radio button (no custom drawable)
+                radioButton.buttonTintList = colorStateList
                 Timber.d("Showing RADIO button")
             } else {
-                // Show checkbox, hide radio button - USE DEFAULT ANDROID STYLE
+                // Show checkbox, hide radio button
                 radioButton.visibility = View.GONE
                 checkBox.visibility = View.VISIBLE
                 checkBox.isChecked = item.isSelected
-                // Use default Android checkbox (no custom drawable)
+                checkBox.buttonTintList = colorStateList
                 Timber.d("Showing CHECKBOX")
             }
 
