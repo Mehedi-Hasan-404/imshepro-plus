@@ -14,11 +14,11 @@
     android:gravity="center_vertical"
     android:minHeight="56dp">
 
+    <!-- Text Container - Takes up remaining space -->
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_weight="1"
-        android:layout_marginEnd="16dp"
         android:orientation="vertical">
 
         <TextView
@@ -40,22 +40,22 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- RadioButton (for single selection) -->
+    <!-- RadioButton - Right aligned, realistic style -->
     <RadioButton
         android:id="@+id/radioButton"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:button="@drawable/radio_button_selector"
         android:clickable="false"
         android:focusable="false"
         android:visibility="visible" />
 
-    <!-- CheckBox (for multiple selection) -->
+    <!-- CheckBox - Right aligned, realistic style -->
     <CheckBox
         android:id="@+id/checkBox"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:button="@drawable/checkbox_selector"
         android:clickable="false"
@@ -63,4 +63,3 @@
         android:visibility="gone" />
 
 </LinearLayout>
-
