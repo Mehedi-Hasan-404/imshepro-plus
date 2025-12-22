@@ -1,29 +1,47 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Checked state - Solid filled circle -->
+    
+    <!-- Checked state - Red filled circle with ring -->
     <item android:state_checked="true">
-        <shape android:shape="oval">
-            <size android:width="20dp" android:height="20dp" />
-            <solid android:color="#FF0000" />
-            <stroke android:width="2dp" android:color="#FF0000" />
-        </shape>
+        <layer-list>
+            <!-- Outer ring (border) -->
+            <item>
+                <shape android:shape="oval">
+                    <size android:width="22dp" android:height="22dp" />
+                    <stroke android:width="2.5dp" android:color="#FF0000" />
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+            <!-- Inner filled circle -->
+            <item android:top="6dp" android:bottom="6dp" android:left="6dp" android:right="6dp">
+                <shape android:shape="oval">
+                    <solid android:color="#FF0000" />
+                </shape>
+            </item>
+        </layer-list>
     </item>
     
-    <!-- Unchecked state - Empty circle with gray border -->
+    <!-- Unchecked state - Gray circle with ring -->
     <item android:state_checked="false">
-        <shape android:shape="oval">
-            <size android:width="20dp" android:height="20dp" />
-            <solid android:color="@android:color/transparent" />
-            <stroke android:width="2dp" android:color="#666666" />
-        </shape>
+        <layer-list>
+            <!-- Outer ring -->
+            <item>
+                <shape android:shape="oval">
+                    <size android:width="22dp" android:height="22dp" />
+                    <stroke android:width="2.5dp" android:color="#8A8A8A" />
+                    <solid android:color="@android:color/transparent" />
+                </shape>
+            </item>
+        </layer-list>
     </item>
     
     <!-- Default state -->
     <item>
         <shape android:shape="oval">
-            <size android:width="20dp" android:height="20dp" />
+            <size android:width="22dp" android:height="22dp" />
+            <stroke android:width="2.5dp" android:color="#8A8A8A" />
             <solid android:color="@android:color/transparent" />
-            <stroke android:width="2dp" android:color="#666666" />
         </shape>
     </item>
+    
 </selector>
