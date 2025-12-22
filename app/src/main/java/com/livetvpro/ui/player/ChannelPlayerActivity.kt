@@ -136,6 +136,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        // FIXED: Apply window flags immediately after setContentView to ensure status bar shows in portrait
+        setWindowFlags(isLandscape)
         applyOrientationSettings(isLandscape)
 
         channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run {
@@ -258,7 +261,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.layoutParams = params
     }
 
-    // FIX 1: Updated setWindowFlags() - Hide all system bars in landscape, show all in portrait
+    // FIXED: Status bar visibility - hides in landscape, shows in portrait
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
             // Landscape - Hide both status bar and navigation bar (full immersive)
@@ -507,13 +510,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setAllowCrossProtocolRedirects(true)
                 .setKeepPostFor302Redirects(true)
 
-            // FIX 2: Improved DRM detection and handling
             val mediaSourceFactory = if (streamInfo.drmScheme != null) {
                 Timber.d("╔═══════════════════════════════════╗")
                 Timber.d("🔐 INITIALIZING DRM PROTECTION")
                 Timber.d("🔒 Scheme: ${streamInfo.drmScheme}")
                 
-                // Normalize scheme name
                 val normalizedScheme = streamInfo.drmScheme.lowercase().let { scheme ->
                     when {
                         scheme.contains("clearkey") -> "clearkey"
@@ -541,7 +542,420 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 Timber.d("╚═══════════════════════════════════╝")
                 
                 if (drmSessionManager != null) {
-                    DefaultMediaSourceFactory(this)
+                    DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(
+                    clearKeyUuid,
+                    FrameworkMediaDrm.DEFAULT_PROVIDER
+                )
+                .setMultiSession(false)
+                .build(drmCallback).also {
+                    Timber.d("✅ ClearKey DRM manager created successfully")
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Failed to create ClearKey DRM manager")
+            null
+        }
+    }
+
+    private fun hexToBytes(hex: String): ByteArray {
+        val cleanHex = hex.replace(" ", "").replace("-", "")
+        return cleanHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+    }
+
+    private fun updatePlayPauseIcon(isPlaying: Boolean) {
+        btnPlayPause?.setImageResource(
+            if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+        )
+    }
+
+    private fun bindControllerViewsExact() {
+        with(binding.playerView) {
+            btnBack = findViewById(R.id.exo_back)
+            btnPip = findViewById(R.id.exo_pip)
+            btnSettings = findViewById(R.id.exo_settings)
+            btnLock = findViewById(R.id.exo_lock)
+            btnMute = findViewById(R.id.exo_mute)
+            btnRewind = findViewById(R.id.exo_rewind)
+            btnPlayPause = findViewById(R.id.exo_play_pause)
+            btnForward = findViewById(R.id.exo_forward)
+            btnFullscreen = findViewById(R.id.exo_fullscreen)
+            btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
+            tvChannelName = findViewById(R.id.exo_channel_name)
+        }
+
+        btnBack?.setImageResource(R.drawable.ic_arrow_back)
+        btnPip?.setImageResource(R.drawable.ic_pip)
+        btnSettings?.setImageResource(R.drawable.ic_settings)
+        btnLock?.setImageResource(R.drawable.ic_lock_open)
+        updateMuteIcon()
+        btnRewind?.setImageResource(R.drawable.ic_skip_backward)
+        btnPlayPause?.setImageResource(R.drawable.ic_pause)
+        btnForward?.setImageResource(R.drawable.ic_skip_forward)
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
+
+        listOf(
+            btnBack, btnPip, btnSettings, btnLock, btnMute,
+            btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio
+        ).forEach { button ->
+            button?.apply {
+                isClickable = true
+                isFocusable = true
+            }
+        }
+
+        btnAspectRatio?.visibility = View.VISIBLE
+        btnPip?.visibility = View.VISIBLE
+        btnFullscreen?.visibility = View.VISIBLE
+    }
+
+    private fun setupControlListenersExact() {
+        btnBack?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) finish()
+        }
+
+        btnPip?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) {
+                userRequestedPip = true
+                enterPipMode()
+            }
+        }
+
+        btnSettings?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) {
+                showPlayerSettingsDialog()
+            }
+        }
+
+        btnAspectRatio?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) toggleAspectRatio()
+        }
+
+        btnLock?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            toggleLock()
+        }
+
+        btnRewind?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) {
+                player?.let { p ->
+                    val newPosition = p.currentPosition - skipMs
+                    if (newPosition < 0) {
+                        p.seekTo(0)
+                    } else {
+                        p.seekTo(newPosition)
+                    }
+                }
+            }
+        }
+
+        btnPlayPause?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) {
+                player?.let { p ->
+                    if (p.isPlaying) p.pause() else p.play()
+                }
+            }
+        }
+
+        btnForward?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) {
+                player?.let { p ->
+                    val newPosition = p.currentPosition + skipMs
+                    if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
+                        p.seekTo(p.duration)
+                    } else {
+                        p.seekTo(newPosition)
+                    }
+                }
+            }
+        }
+
+        btnFullscreen?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) toggleFullscreen()
+        }
+
+        btnMute?.setOnClickListener {
+            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
+            if (!isLocked) toggleMute()
+        }
+    }
+
+    private fun toggleMute() {
+        player?.let {
+            isMuted = !isMuted
+            it.volume = if (isMuted) 0f else 1f
+            updateMuteIcon()
+            Toast.makeText(
+                this,
+                if (isMuted) "Muted" else "Unmuted",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun updateMuteIcon() {
+        btnMute?.setImageResource(
+            if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+        )
+    }
+
+    private fun toggleAspectRatio() {
+        currentResizeMode = when (currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> {
+                Toast.makeText(this, "Zoom", Toast.LENGTH_SHORT).show()
+                AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            }
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> {
+                Toast.makeText(this, "Fit", Toast.LENGTH_SHORT).show()
+                AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+            else -> {
+                Toast.makeText(this, "Fill", Toast.LENGTH_SHORT).show()
+                AspectRatioFrameLayout.RESIZE_MODE_FILL
+            }
+        }
+        binding.playerView.resizeMode = currentResizeMode
+    }
+
+    private fun showPlayerSettingsDialog() {
+        val exoPlayer = player ?: return 
+
+        try {
+            val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(
+                context = this,
+                player = exoPlayer
+            )
+            dialog.show()
+        } catch (e: Exception) {
+            Timber.e(e, "Error showing player settings dialog")
+            Toast.makeText(this, "Unable to open settings", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun configurePlayerInteractions() {
+        binding.playerView.apply {
+            setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                when (visibility) {
+                    View.VISIBLE -> Timber.d("Controls shown")
+                    View.GONE -> Timber.d("Controls hidden")
+                }
+            })
+            setControllerHideDuringAds(false)
+            controllerShowTimeoutMs = 5000
+            controllerHideOnTouch = true
+        }
+    }
+
+    private fun setupLockOverlay() {
+        binding.unlockButton.setOnClickListener { toggleLock() }
+        binding.lockOverlay.setOnClickListener {
+            if (binding.unlockButton.visibility == View.VISIBLE) {
+                hideUnlockButton()
+            } else {
+                showUnlockButton()
+            }
+        }
+        binding.lockOverlay.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
+
+        binding.retryButton.setOnClickListener {
+            binding.errorView.visibility = View.GONE
+            binding.progressBar.visibility = View.VISIBLE
+            player?.release()
+            player = null
+            setupPlayer()
+        }
+    }
+
+    private fun showUnlockButton() {
+        binding.unlockButton.visibility = View.VISIBLE
+        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
+        mainHandler.postDelayed(hideUnlockButtonRunnable, 3000)
+    }
+
+    private fun hideUnlockButton() {
+        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
+        binding.unlockButton.visibility = View.GONE
+    }
+
+    private fun toggleLock() {
+        isLocked = !isLocked
+        if (isLocked) {
+            binding.playerView.useController = false
+            binding.playerView.hideController()
+            binding.lockOverlay.visibility = View.VISIBLE
+            showUnlockButton()
+            btnLock?.setImageResource(R.drawable.ic_lock_closed)
+            binding.lockOverlay.isClickable = true
+            binding.lockOverlay.isFocusable = true
+        } else {
+            binding.playerView.useController = true
+            binding.playerView.showController()
+            binding.lockOverlay.visibility = View.GONE
+            hideUnlockButton()
+            btnLock?.setImageResource(R.drawable.ic_lock_open)
+        }
+    }
+
+    private fun toggleFullscreen() {
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        requestedOrientation = if (isLandscape) {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+    }
+
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            Toast.makeText(this, "PiP not supported", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            Toast.makeText(this, "PiP not available", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        player?.let {
+            if (!it.isPlaying) {
+                it.play()
+            }
+        }
+
+        binding.playerView.useController = false
+        binding.lockOverlay.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
+        updatePipParams(enter = true)
+    }
+
+    private fun updatePipParams(enter: Boolean = false) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            try {
+                val format = player?.videoFormat
+                val width = format?.width ?: 16
+                val height = format?.height ?: 9
+                val ratio = if (width > 0 && height > 0) {
+                    Rational(width, height)
+                } else {
+                    Rational(16, 9)
+                }
+
+                val builder = PictureInPictureParams.Builder()
+                builder.setAspectRatio(ratio)
+
+                val actions = ArrayList<RemoteAction>()
+
+                val isPlaying = player?.isPlaying == true
+                val playPauseIconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                val playPauseTitle = if (isPlaying) "Pause" else "Play"
+                val playPauseControlType = if (isPlaying) CONTROL_TYPE_PAUSE else CONTROL_TYPE_PLAY
+
+                val playPauseIntent = Intent(ACTION_MEDIA_CONTROL).apply {
+                    setPackage(packageName)
+                    putExtra(EXTRA_CONTROL_TYPE, playPauseControlType)
+                }
+
+                val playPausePendingIntent = PendingIntent.getBroadcast(
+                    this,
+                    playPauseControlType,
+                    playPauseIntent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+
+                val playPauseIcon = Icon.createWithResource(this, playPauseIconId)
+                actions.add(RemoteAction(playPauseIcon, playPauseTitle, playPauseTitle, playPausePendingIntent))
+
+                builder.setActions(actions)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    builder.setAutoEnterEnabled(false)
+                    builder.setSeamlessResizeEnabled(true)
+                }
+
+                if (enter) {
+                    val success = enterPictureInPictureMode(builder.build())
+                    if (success) {
+                        isInPipMode = true
+                    }
+                } else if (isInPipMode) {
+                    setPictureInPictureParams(builder.build())
+                }
+            } catch (e: Exception) {
+                Timber.e(e, "PiP Error")
+            }
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isInPipMode = isInPictureInPictureMode
+
+        if (isInPipMode) {
+            binding.playerView.useController = false
+            binding.lockOverlay.visibility = View.GONE
+            binding.unlockButton.visibility = View.GONE
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            binding.playerView.hideController()
+            binding.relatedChannelsSection.visibility = View.GONE
+        } else {
+            if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
+                finish()
+                return
+            }
+            userRequestedPip = false
+            if (isFinishing) {
+                return
+            }
+            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+
+            if (isLocked) {
+                binding.playerView.useController = false
+                binding.lockOverlay.visibility = View.VISIBLE
+                showUnlockButton()
+            } else {
+                binding.playerView.useController = true
+                binding.lockOverlay.visibility = View.GONE
+                binding.playerView.postDelayed({
+                    if (!this.isInPipMode) {
+                        binding.playerView.showController()
+                    }
+                }, 150)
+            }
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (!isInPipMode && player?.isPlaying == true) {
+            userRequestedPip = true
+            enterPipMode()
+        }
+    }
+
+    override fun finish() {
+        try {
+            releasePlayer()
+            isInPipMode = false
+            userRequestedPip = false
+            super.finish()
+        } catch (e: Exception) {
+            Timber.e(e, "Error in finish()")
+            super.finish()
+        }
+    }
+}MediaSourceFactory(this)
                         .setDataSourceFactory(dataSourceFactory)
                         .setDrmSessionManagerProvider { drmSessionManager }
                 } else {
@@ -608,7 +1022,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             }
                         }
 
-                        // FIX 3: Better error handling with detailed messages
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                             super.onPlayerError(error)
                             Timber.e("╔═══════════════════════════════════╗")
@@ -626,7 +1039,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             
                             binding.progressBar.visibility = View.GONE
                             
-                            // More detailed error messages
                             val errorMessage = when {
                                 error.message?.contains("drm", ignoreCase = true) == true ->
                                     "DRM Protection Error\n\nThis stream requires valid decryption keys.\nError: ${error.message}"
