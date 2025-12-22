@@ -1,32 +1,62 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Checked state - Solid filled square -->
+    
+    <!-- Checked state - Red filled square with white checkmark -->
     <item android:state_checked="true">
-        <shape android:shape="rectangle">
-            <size android:width="20dp" android:height="20dp" />
-            <solid android:color="#FF0000" />
-            <corners android:radius="4dp" />
-            <stroke android:width="2dp" android:color="#FF0000" />
-        </shape>
+        <layer-list>
+            <!-- Background square -->
+            <item>
+                <shape android:shape="rectangle">
+                    <size android:width="22dp" android:height="22dp" />
+                    <solid android:color="#FF0000" />
+                    <corners android:radius="2dp" />
+                </shape>
+            </item>
+            <!-- White checkmark - short stroke -->
+            <item android:top="10dp" android:left="4dp" android:bottom="8dp" android:right="12dp">
+                <rotate
+                    android:fromDegrees="45"
+                    android:pivotX="0%"
+                    android:pivotY="100%">
+                    <shape android:shape="rectangle">
+                        <size android:width="2.5dp" android:height="6dp"/>
+                        <solid android:color="@android:color/white" />
+                    </shape>
+                </rotate>
+            </item>
+            <!-- White checkmark - long stroke -->
+            <item android:top="6dp" android:left="7dp" android:bottom="5dp" android:right="6dp">
+                <rotate
+                    android:fromDegrees="-45"
+                    android:pivotX="100%"
+                    android:pivotY="100%">
+                    <shape android:shape="rectangle">
+                        <size android:width="2.5dp" android:height="12dp"/>
+                        <solid android:color="@android:color/white" />
+                    </shape>
+                </rotate>
+            </item>
+        </layer-list>
     </item>
     
-    <!-- Unchecked state - Empty square with gray border -->
+    <!-- Unchecked state - Gray square outline -->
     <item android:state_checked="false">
         <shape android:shape="rectangle">
-            <size android:width="20dp" android:height="20dp" />
+            <size android:width="22dp" android:height="22dp" />
+            <stroke android:width="2.5dp" android:color="#8A8A8A" />
             <solid android:color="@android:color/transparent" />
-            <stroke android:width="2dp" android:color="#666666" />
-            <corners android:radius="4dp" />
+            <corners android:radius="2dp" />
         </shape>
     </item>
     
     <!-- Default state -->
     <item>
         <shape android:shape="rectangle">
-            <size android:width="20dp" android:height="20dp" />
+            <size android:width="22dp" android:height="22dp" />
+            <stroke android:width="2.5dp" android:color="#8A8A8A" />
             <solid android:color="@android:color/transparent" />
-            <stroke android:width="2dp" android:color="#666666" />
-            <corners android:radius="4dp" />
+            <corners android:radius="2dp" />
         </shape>
     </item>
+    
 </selector>
