@@ -128,8 +128,9 @@ object M3uParser {
             when {
                 // --- DRM Parsing (KODIPROP) - MUST BE BEFORE #EXTINF ---
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_type=") -> {
-                    currentDrmScheme = trimmedLine.substringAfter("=").trim().lowercase()
-                    Timber.d("🔐 DRM Scheme: $currentDrmScheme")
+                    val rawScheme = trimmedLine.substringAfter("=").trim().lowercase()
+                    currentDrmScheme = normalizeDrmScheme(rawScheme)
+                    Timber.d("🔐 DRM Scheme: $currentDrmScheme (raw: $rawScheme)")
                 }
                 
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_key=") -> {
@@ -320,6 +321,20 @@ object M3uParser {
     }
 
     /**
+     * Normalize DRM scheme names to standard formats
+     */
+    private fun normalizeDrmScheme(scheme: String): String {
+        val lower = scheme.lowercase()
+        return when {
+            lower.contains("clearkey") -> "clearkey"
+            lower.contains("widevine") -> "widevine"
+            lower.contains("playready") -> "playready"
+            lower.contains("fairplay") -> "fairplay"
+            else -> lower
+        }
+    }
+
+    /**
      * Parse JWK (JSON Web Key) format to KeyID:Key pair
      * Example input: { "keys":[ { "kty":"oct", "k":"base64key", "kid":"base64keyid" } ], "type":"temporary" }
      */
@@ -392,7 +407,7 @@ object M3uParser {
                     
                     when (key.lowercase()) {
                         "drmscheme" -> {
-                            drmScheme = value.lowercase()
+                            drmScheme = normalizeDrmScheme(value)
                             Timber.d("      🔐 Inline DRM Scheme: $drmScheme")
                         }
                         "drmlicense" -> {
@@ -506,11 +521,18 @@ object M3uParser {
         m3u.userAgent?.let { parts.add("User-Agent=$it") }
         m3u.httpHeaders.forEach { (k, v) -> parts.add("$k=$v") }
         
-        // CRITICAL: Add DRM information ONLY if both scheme and keys are present
-        if (m3u.drmScheme != null && m3u.drmKeyId != null && m3u.drmKey != null) {
+        // FIXED: Add DRM information if scheme is present
+        // Don't require keys to be present - they might be embedded in the stream
+        if (m3u.drmScheme != null) {
             parts.add("drmScheme=${m3u.drmScheme}")
-            parts.add("drmLicense=${m3u.drmKeyId}:${m3u.drmKey}")
-            Timber.d("   ✅ DRM added to stream URL")
+            
+            // Only add license if we have keys
+            if (m3u.drmKeyId != null && m3u.drmKey != null) {
+                parts.add("drmLicense=${m3u.drmKeyId}:${m3u.drmKey}")
+                Timber.d("   ✅ DRM added to stream URL with keys")
+            } else {
+                Timber.d("   ⚠️ DRM scheme added but no keys available")
+            }
         }
         
         return parts.joinToString("|")
