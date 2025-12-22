@@ -60,30 +60,32 @@ class TrackAdapter<T : TrackUiModel>(
             
             Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
             
-            // Create ColorStateList for better visibility on dark background
+            // Create ColorStateList for Android default controls with red accent
             val colorStateList = ColorStateList(
                 arrayOf(
                     intArrayOf(android.R.attr.state_checked),  // Checked state
                     intArrayOf(-android.R.attr.state_checked)  // Unchecked state
                 ),
                 intArrayOf(
-                    ContextCompat.getColor(binding.root.context, R.color.accent),  // Red when checked
-                    ContextCompat.getColor(binding.root.context, R.color.text_secondary_dark)  // Gray when unchecked
+                    ContextCompat.getColor(binding.root.context, R.color.accent),  // Red (#EF4444) when checked
+                    ContextCompat.getColor(binding.root.context, R.color.text_secondary_dark)  // Gray (#CCCCCC) when unchecked
                 )
             )
             
             if (item.isRadio) {
-                // Show radio button, hide checkbox
+                // Show Android default radio button, hide checkbox
                 radioButton.visibility = View.VISIBLE
                 checkBox.visibility = View.GONE
                 radioButton.isChecked = item.isSelected
+                // Apply color tint to Android's default radio button
                 radioButton.buttonTintList = colorStateList
                 Timber.d("Showing RADIO button")
             } else {
-                // Show checkbox, hide radio button
+                // Show Android default checkbox, hide radio button
                 radioButton.visibility = View.GONE
                 checkBox.visibility = View.VISIBLE
                 checkBox.isChecked = item.isSelected
+                // Apply color tint to Android's default checkbox
                 checkBox.buttonTintList = colorStateList
                 Timber.d("Showing CHECKBOX")
             }
