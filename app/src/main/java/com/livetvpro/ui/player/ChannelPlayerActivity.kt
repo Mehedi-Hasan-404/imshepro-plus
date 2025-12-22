@@ -39,11 +39,11 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.recyclerview.widget.GridLayoutManager // Added Import
+import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ActivityChannelPlayerBinding
-import com.livetvpro.ui.adapters.RelatedChannelAdapter // Assumed Import Path
+import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import java.util.UUID
@@ -57,7 +57,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var trackSelector: DefaultTrackSelector? = null
     private lateinit var channel: Channel
     
-    // NEW: Related Channels Properties
+    // Related Channels Properties
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
 
@@ -151,70 +151,50 @@ class ChannelPlayerActivity : AppCompatActivity() {
         configurePlayerInteractions()
         setupLockOverlay()
 
-        // NEW: Setup Related Channels
         setupRelatedChannels()
         loadRelatedChannels()
     }
 
-    // NEW: Function to setup RecyclerView
     private fun setupRelatedChannels() {
         relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel ->
-            // Switch to the selected channel
             switchToChannel(relatedChannel)
         }
 
         val recyclerView = binding.relatedChannelsRecycler
-        // Using 3 columns for grid
         recyclerView.layoutManager = GridLayoutManager(this, 3)
         recyclerView.adapter = relatedChannelsAdapter
         recyclerView.setHasFixedSize(true)
     }
 
-    // NEW: Function to load data from ViewModel
     private fun loadRelatedChannels() {
-        // Assuming loadRelatedChannels exists in ViewModel taking (categoryId, currentChannelId)
         viewModel.loadRelatedChannels(channel.categoryId, channel.id)
 
         viewModel.relatedChannels.observe(this) { channels ->
             relatedChannels = channels
             relatedChannelsAdapter.submitList(channels)
 
-            // Update UI visibility
             binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
                 View.GONE
             } else {
                 View.VISIBLE
             }
 
-            // Hide loading, show recycler
             binding.relatedLoadingProgress.visibility = View.GONE
             binding.relatedChannelsRecycler.visibility = View.VISIBLE
-
-            // Update count
             binding.relatedCount.text = channels.size.toString()
 
             Timber.d("Loaded ${channels.size} related channels")
         }
     }
 
-    // NEW: Function to switch channel without restarting activity
     private fun switchToChannel(newChannel: Channel) {
         Timber.d("Switching to channel: ${newChannel.name}")
 
-        // Release current player
         releasePlayer()
-
-        // Update current channel
         channel = newChannel
-
-        // Update UI
         tvChannelName?.text = channel.name
-
-        // Reinitialize player with new channel
         setupPlayer()
 
-        // Reload related channels for the new channel
-        // Reset loading state for visual feedback
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
         loadRelatedChannels()
@@ -261,8 +241,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            
-            // NEW: Hide related channels in landscape for immersion
             binding.relatedChannelsSection.visibility = View.GONE
         } else {
             binding.playerView.controllerAutoShow = true
@@ -273,8 +251,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            
-            // NEW: Show related channels in portrait if we have data
             if (relatedChannels.isNotEmpty()) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
             }
@@ -376,13 +352,28 @@ class ChannelPlayerActivity : AppCompatActivity() {
     )
 
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
+        Timber.d("╔═══════════════════════════════════╗")
+        Timber.d("🔍 PARSING STREAM URL")
+        Timber.d("📥 Raw URL: $streamUrl")
+        
         val pipeIndex = streamUrl.indexOf('|')
         if (pipeIndex == -1) {
+            Timber.d("ℹ️ No pipe delimiter found - plain URL")
+            Timber.d("╚═══════════════════════════════════╝")
             return StreamInfo(streamUrl, mapOf(), null, null, null)
         }
+        
         val url = streamUrl.substring(0, pipeIndex).trim()
-        val rawParams = streamUrl.substring(pipeIndex + 1).trim().replace("&", "|")
-        val parts = rawParams.split("|")
+        val rawParams = streamUrl.substring(pipeIndex + 1).trim()
+        
+        Timber.d("📺 Clean URL: $url")
+        Timber.d("⚙️ Raw Parameters: $rawParams")
+        
+        val normalizedParams = rawParams.replace("&", "|")
+        val parts = normalizedParams.split("|")
+        
+        Timber.d("📋 Found ${parts.size} parameter parts")
+        
         val headers = mutableMapOf<String, String>()
         var drmScheme: String? = null
         var drmKeyId: String? = null
@@ -390,32 +381,73 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         for (part in parts) {
             val eqIndex = part.indexOf('=')
-            if (eqIndex == -1) continue
+            if (eqIndex == -1) {
+                Timber.w("⚠️ Skipping invalid parameter: $part")
+                continue
+            }
+            
             val key = part.substring(0, eqIndex).trim()
             val value = part.substring(eqIndex + 1).trim()
+            
+            Timber.d("   📌 Param: $key = ${value.take(20)}${if (value.length > 20) "..." else ""}")
+            
             when (key.lowercase()) {
                 "drmscheme" -> {
                     drmScheme = value.lowercase()
-                    Timber.d("🔐 DRM Scheme: $drmScheme")
+                    Timber.d("   🔐 DRM Scheme detected: $drmScheme")
                 }
                 "drmlicense" -> {
                     val keyParts = value.split(":")
                     if (keyParts.size == 2) {
                         drmKeyId = keyParts[0].trim()
                         drmKey = keyParts[1].trim()
-                        Timber.d("🔑 DRM Keys found")
+                        Timber.d("   🔑 DRM Keys extracted:")
+                        Timber.d("      KeyID: ${drmKeyId.take(16)}... (${drmKeyId.length} chars)")
+                        Timber.d("      Key:   ${drmKey.take(16)}... (${drmKey.length} chars)")
+                    } else {
+                        Timber.e("   ❌ Invalid DRM License format: $value")
                     }
                 }
-                "referer", "referrer" -> headers["Referer"] = value
-                "user-agent", "useragent" -> headers["User-Agent"] = value
-                "origin" -> headers["Origin"] = value
+                "referer", "referrer" -> {
+                    headers["Referer"] = value
+                    Timber.d("   🌐 Referer: $value")
+                }
+                "user-agent", "useragent" -> {
+                    headers["User-Agent"] = value
+                    Timber.d("   🖥️ User-Agent: ${value.take(30)}...")
+                }
+                "origin" -> {
+                    headers["Origin"] = value
+                    Timber.d("   🌍 Origin: $value")
+                }
                 "cookie" -> {
                     headers["Cookie"] = value
-                    Timber.d("🍪 Cookie found")
+                    Timber.d("   🍪 Cookie: ${value.take(30)}...")
                 }
-                else -> headers[key] = value
+                "x-forwarded-for" -> {
+                    headers["X-Forwarded-For"] = value
+                    Timber.d("   📡 X-Forwarded-For: $value")
+                }
+                else -> {
+                    headers[key] = value
+                    Timber.d("   📎 Custom header: $key")
+                }
             }
         }
+        
+        Timber.d("📊 PARSING SUMMARY:")
+        Timber.d("   URL: ✅")
+        Timber.d("   Headers: ${headers.size}")
+        Timber.d("   DRM Scheme: ${drmScheme ?: "❌ None"}")
+        Timber.d("   DRM KeyID: ${if (drmKeyId != null) "✅ Present (${drmKeyId.length} chars)" else "❌ Missing"}")
+        Timber.d("   DRM Key: ${if (drmKey != null) "✅ Present (${drmKey.length} chars)" else "❌ Missing"}")
+        
+        if (drmScheme != null && (drmKeyId == null || drmKey == null)) {
+            Timber.e("⚠️ WARNING: DRM Scheme present but keys missing!")
+        }
+        
+        Timber.d("╚═══════════════════════════════════╝")
+        
         return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey)
     }
 
@@ -429,10 +461,16 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         try {
             val streamInfo = parseStreamUrl(channel.streamUrl)
+            
             Timber.d("╔═══════════════════════════════════╗")
-            Timber.d("🎬 Setting up player for: ${channel.name}")
-            Timber.d("📺 URL: ${streamInfo.url}")
-            Timber.d("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
+            Timber.d("🎬 SETTING UP PLAYER")
+            Timber.d("📺 Channel: ${channel.name}")
+            Timber.d("🔗 URL: ${streamInfo.url}")
+            Timber.d("🔒 DRM Scheme: ${streamInfo.drmScheme ?: "None"}")
+            if (streamInfo.drmScheme != null) {
+                Timber.d("🔑 DRM KeyID: ${streamInfo.drmKeyId?.take(16)}...")
+                Timber.d("🔑 DRM Key: ${streamInfo.drmKey?.take(16)}...")
+            }
             Timber.d("╚═══════════════════════════════════╝")
 
             val headers = streamInfo.headers.toMutableMap()
@@ -452,24 +490,49 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 streamInfo.drmKeyId != null &&
                 streamInfo.drmKey != null
             ) {
-                Timber.d("🔐 Setting up DRM protection...")
+                Timber.d("╔═══════════════════════════════════╗")
+                Timber.d("🔐 INITIALIZING DRM PROTECTION")
+                Timber.d("🔒 Scheme: ${streamInfo.drmScheme}")
+                
                 val drmSessionManager = if (streamInfo.drmScheme.equals("clearkey", ignoreCase = true)) {
-                    createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
+                    Timber.d("🔑 Creating ClearKey DRM Manager...")
+                    Timber.d("   KeyID Length: ${streamInfo.drmKeyId.length}")
+                    Timber.d("   Key Length: ${streamInfo.drmKey.length}")
+                    
+                    val manager = createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
+                    
+                    if (manager != null) {
+                        Timber.d("✅ ClearKey DRM Manager created successfully")
+                    } else {
+                        Timber.e("❌ Failed to create ClearKey DRM Manager")
+                    }
+                    
+                    manager
                 } else {
                     Timber.e("❌ Unsupported DRM scheme: ${streamInfo.drmScheme}")
                     null
                 }
+                
+                Timber.d("╚═══════════════════════════════════╝")
+                
                 if (drmSessionManager != null) {
-                    Timber.d("✅ DRM manager created successfully")
                     DefaultMediaSourceFactory(this)
                         .setDataSourceFactory(dataSourceFactory)
                         .setDrmSessionManagerProvider { drmSessionManager }
                 } else {
+                    Timber.w("⚠️ DRM Manager is null - falling back to non-DRM playback")
                     DefaultMediaSourceFactory(this)
                         .setDataSourceFactory(dataSourceFactory)
                 }
             } else {
-                Timber.d("🔓 No DRM - regular stream")
+                if (streamInfo.drmScheme != null) {
+                    Timber.w("⚠️ DRM Scheme present but keys missing!")
+                    Timber.w("   Scheme: ${streamInfo.drmScheme}")
+                    Timber.w("   KeyID: ${streamInfo.drmKeyId ?: "NULL"}")
+                    Timber.w("   Key: ${streamInfo.drmKey ?: "NULL"}")
+                } else {
+                    Timber.d("🔓 No DRM protection - regular stream")
+                }
                 DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(dataSourceFactory)
             }
@@ -529,16 +592,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                             super.onPlayerError(error)
-                            Timber.e(error, "❌ PLAYBACK ERROR")
-                            Timber.e("Stream URL: ${streamInfo.url}")
+                            Timber.e("╔═══════════════════════════════════╗")
+                            Timber.e("❌ PLAYBACK ERROR")
+                            Timber.e("📺 Channel: ${channel.name}")
+                            Timber.e("🔗 URL: ${streamInfo.url}")
+                            Timber.e("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
+                            Timber.e("💥 Error: ${error.message}")
+                            Timber.e("📋 Error Code: ${error.errorCode}")
+                            Timber.e("╚═══════════════════════════════════╝")
+                            
                             binding.progressBar.visibility = View.GONE
                             val errorMessage = when {
                                 error.message?.contains("drm", ignoreCase = true) == true ->
-                                    "DRM error: Unable to decrypt stream"
+                                    "DRM error: Unable to decrypt stream\n${error.message}"
                                 error.message?.contains("clearkey", ignoreCase = true) == true ->
-                                    "ClearKey DRM error: Invalid license keys"
+                                    "ClearKey DRM error: Invalid license keys\n${error.message}"
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-                                    "Server error: Unable to connect"
+                                    "Server error: Unable to connect\n${error.message}"
                                 else -> "Playback error: ${error.message}"
                             }
                             Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
@@ -549,7 +619,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
         } catch (e: Exception) {
             Timber.e(e, "❌ Error creating ExoPlayer")
-            Toast.makeText(this, "Failed to initialize player", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Failed to initialize player: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
         binding.playerView.apply {
@@ -583,7 +653,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
             )
 
-            // FIXED: Proper string escaping for JSON
             val jwkResponse = """
             {
                 "keys": [
@@ -652,7 +721,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
 
-        // Ensure buttons react to clicks visually
         listOf(
             btnBack, btnPip, btnSettings, btnLock, btnMute,
             btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio
@@ -966,7 +1034,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.unlockButton.visibility = View.GONE
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
-            binding.relatedChannelsSection.visibility = View.GONE // Hide related in PiP
+            binding.relatedChannelsSection.visibility = View.GONE
         } else {
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
                 finish()
@@ -1015,4 +1083,3 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 }
-
