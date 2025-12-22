@@ -12,7 +12,7 @@
     <color name="text_primary_dark">#E0E0E0</color>
     <color name="text_secondary_dark">#CCCCCC</color>
 
-    <!-- Accent -->
+    <!-- Accent - Controls CHECKED state of Radio Buttons & Checkboxes -->
     <color name="accent">#EF4444</color>
     <color name="accent_hover">#DC2626</color>
 
@@ -27,6 +27,6 @@
     <color name="black">#000000</color>
     <color name="transparent">#00000000</color>
     
-    <!-- ADD THIS NEW COLOR FOR LAUNCHER ICON -->
+    <!-- Launcher Icon Background -->
     <color name="ic_launcher_background">#EF4444</color>
 </resources>
