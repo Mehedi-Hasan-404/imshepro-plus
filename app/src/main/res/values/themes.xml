@@ -2,7 +2,7 @@
 <resources>
     <!-- Dark Theme -->
     <style name="Theme.LiveTVPro" parent="Theme.Material3.Dark.NoActionBar">
-        <!-- Primary color - Changed from red to dark blue/purple -->
+        <!-- Primary color -->
         <item name="colorPrimary">#1F1F1F</item>
         <item name="colorPrimaryVariant">#0A0A0A</item>
         <item name="colorSecondary">@color/secondary_dark</item>
@@ -13,9 +13,11 @@
         <item name="colorOnPrimary">@color/white</item>
         <item name="colorOnSecondary">@color/white</item>
         <item name="colorOnBackground">@color/text_primary_dark</item>
-        <item name="colorOnSurface">@color/text_primary_dark</item>
+        
+        <!-- Controls unchecked state of Radio Buttons & Checkboxes -->
+        <item name="colorOnSurface">@color/text_secondary_dark</item>
 
-        <!-- Accent color for highlights -->
+        <!-- Controls checked state of Radio Buttons & Checkboxes -->
         <item name="colorAccent">@color/accent</item>
 
         <item name="android:statusBarColor">@color/background_dark</item>
@@ -35,8 +37,11 @@
         <item name="colorOnPrimary">#000000</item>
         <item name="colorOnSecondary">@color/white</item>
         <item name="colorOnBackground">#000000</item>
-        <item name="colorOnSurface">#000000</item>
+        
+        <!-- Controls unchecked state of Radio Buttons & Checkboxes (Light theme) -->
+        <item name="colorOnSurface">#666666</item>
 
+        <!-- Controls checked state of Radio Buttons & Checkboxes (Light theme) -->
         <item name="colorAccent">@color/accent</item>
 
         <item name="android:statusBarColor">#FAFAFA</item>
@@ -58,4 +63,3 @@
     </style>
     
 </resources>
-
