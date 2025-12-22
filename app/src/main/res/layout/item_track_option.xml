@@ -40,26 +40,25 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- RadioButton (for single selection) - Red when checked -->
+    <!-- RadioButton (for single selection) - Using Android default style -->
     <RadioButton
         android:id="@+id/radioButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
-        android:button="@drawable/radio_button_selector"
         android:clickable="false"
         android:focusable="false"
         android:visibility="visible" />
 
-    <!-- CheckBox (for multiple selection) - Red when checked -->
+    <!-- CheckBox (for multiple selection) - Using Android default style -->
     <CheckBox
         android:id="@+id/checkBox"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
-        android:button="@drawable/checkbox_selector"
         android:clickable="false"
         android:focusable="false"
         android:visibility="gone" />
 
 </LinearLayout>
+
