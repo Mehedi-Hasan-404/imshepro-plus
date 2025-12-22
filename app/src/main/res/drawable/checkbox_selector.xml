@@ -1,37 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    
+    <!-- Checked state - Solid filled square -->
     <item android:state_checked="true">
-        <layer-list>
-            <item>
-                <shape android:shape="rectangle">
-                    <solid android:color="#EF4444"/>
-                    <corners android:radius="4dp"/>
-                    <size android:width="24dp" android:height="24dp"/>
-                </shape>
-            </item>
-            <item android:gravity="center">
-                <vector
-                    android:width="18dp"
-                    android:height="18dp"
-                    android:viewportWidth="24"
-                    android:viewportHeight="24">
-                    <path
-                        android:fillColor="#FFFFFF"
-                        android:pathData="M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z"/>
-                </vector>
-            </item>
-        </layer-list>
-    </item>
-    
-    <item android:state_checked="false">
         <shape android:shape="rectangle">
-            <stroke android:width="2dp" android:color="#999999"/>
-            <corners android:radius="4dp"/>
-            <solid android:color="@android:color/transparent"/>
-            <size android:width="24dp" android:height="24dp"/>
+            <size android:width="20dp" android:height="20dp" />
+            <solid android:color="#FF0000" />
+            <corners android:radius="4dp" />
+            <stroke android:width="2dp" android:color="#FF0000" />
         </shape>
     </item>
     
+    <!-- Unchecked state - Empty square with gray border -->
+    <item android:state_checked="false">
+        <shape android:shape="rectangle">
+            <size android:width="20dp" android:height="20dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="2dp" android:color="#666666" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
+    
+    <!-- Default state -->
+    <item>
+        <shape android:shape="rectangle">
+            <size android:width="20dp" android:height="20dp" />
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="2dp" android:color="#666666" />
+            <corners android:radius="4dp" />
+        </shape>
+    </item>
 </selector>
-
