@@ -278,15 +278,30 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 window.setDecorFitsSystemWindows(false)
             }
         } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            // Portrait mode - show system bars
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Android 11+ - Use WindowInsetsController
+                window.setDecorFitsSystemWindows(true)
+                window.insetsController?.show(
+                    android.view.WindowInsets.Type.statusBars() or 
+                    android.view.WindowInsets.Type.navigationBars()
+                )
+            } else {
+                // Android 10 and below
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
+                
+                // Clear fullscreen flag to show status bar
+                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            }
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
                 }
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true)
             }
         }
     }
