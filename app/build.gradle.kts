@@ -85,27 +85,27 @@ dependencies {
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
     implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
 
-    // ExoPlayer (Media3) - updated to latest stable
-    implementation("androidx.media3:media3-exoplayer:1.6.0")
-    implementation("androidx.media3:media3-exoplayer-hls:1.6.0")
-    implementation("androidx.media3:media3-exoplayer-dash:1.6.0")
-    implementation("androidx.media3:media3-ui:1.6.0")
-    implementation("androidx.media3:media3-common:1.6.0")
+    // ExoPlayer (Media3) - DOWNGRADED to 1.5.0 for compileSdk 34 compatibility
+    implementation("androidx.media3:media3-exoplayer:1.5.0")
+    implementation("androidx.media3:media3-exoplayer-hls:1.5.0")
+    implementation("androidx.media3:media3-exoplayer-dash:1.5.0")
+    implementation("androidx.media3:media3-ui:1.5.0")
+    implementation("androidx.media3:media3-common:1.5.0")
 
     // OkHttp & Retrofit
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("com.squareup.retrofit2:retrofit:2.9.0") // No major update beyond this in 2025
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    // Hilt - updated to latest
+    // Hilt
     implementation("com.google.dagger:hilt-android:2.56")
     kapt("com.google.dagger:hilt-compiler:2.56")
 
-    // Glide - no major bump, still 4.x series
+    // Glide
     implementation("com.github.bumptech.glide:glide:4.16.0")
     kapt("com.github.bumptech.glide:compiler:4.16.0")
 
