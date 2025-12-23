@@ -137,8 +137,17 @@ object M3uParser {
                     val keyValue = trimmedLine.substringAfter("=").trim()
                     
                     when {
-                        // Format 1: Simple KeyID:Key (hex) - MOST COMMON
-                        keyValue.contains(":") && !keyValue.startsWith("http") && !keyValue.startsWith("{") -> {
+                        // Format 1: URL-based license key (Widevine/PlayReady)
+                        keyValue.startsWith("http://", ignoreCase = true) || 
+                        keyValue.startsWith("https://", ignoreCase = true) -> {
+                            currentLicenseUrl = keyValue
+                            currentDrmKeyId = keyValue  // Store in keyId for transport
+                            currentDrmKey = "LICENSE_URL"
+                            Timber.d("🌐 DRM License URL: $keyValue")
+                        }
+                        
+                        // Format 2: Simple KeyID:Key (hex) - ClearKey
+                        keyValue.contains(":") && !keyValue.startsWith("{") -> {
                             val parts = keyValue.split(":", limit = 2)
                             if (parts.size == 2) {
                                 currentDrmKeyId = parts[0].trim()
@@ -147,12 +156,6 @@ object M3uParser {
                                 Timber.d("   KeyID: ${currentDrmKeyId?.take(16)}... (${currentDrmKeyId?.length} chars)")
                                 Timber.d("   Key:   ${currentDrmKey?.take(16)}... (${currentDrmKey?.length} chars)")
                             }
-                        }
-                        
-                        // Format 2: URL-based license key
-                        keyValue.startsWith("http") -> {
-                            currentLicenseUrl = keyValue
-                            Timber.d("🌐 DRM License URL: $keyValue")
                         }
                         
                         // Format 3: JWK JSON format
@@ -171,7 +174,6 @@ object M3uParser {
                 
                 // Parse other KODIPROP directives
                 trimmedLine.startsWith("#KODIPROP:") -> {
-                    // Handle other KODIPROP properties if needed
                     Timber.d("📋 KODIPROP: ${trimmedLine.take(50)}...")
                 }
                 
@@ -241,31 +243,21 @@ object M3uParser {
                 !trimmedLine.startsWith("#") -> {
                     // This is the URL line - Process and commit channel
                     if (currentName.isNotEmpty()) {
-                        // FIX 1: Better handling of inline parameters
+                        // Better handling of inline parameters
                         val (streamUrl, inlineHeaders, inlineDrmInfo) = parseInlineHeadersAndDrm(trimmedLine)
                         
                         // Merge all headers (M3U tags + inline)
                         val finalHeaders = currentHeaders.toMutableMap()
                         finalHeaders.putAll(inlineHeaders)
                         
-                        // FIX 2: Prioritize inline DRM info if both exist (inline is more specific)
+                        // Prioritize inline DRM info if both exist (inline is more specific)
                         val finalDrmScheme = inlineDrmInfo.first ?: currentDrmScheme
                         val finalDrmKeyId = inlineDrmInfo.second ?: currentDrmKeyId
                         val finalDrmKey = inlineDrmInfo.third ?: currentDrmKey
                         
-                        // If we have a license URL, try to fetch keys
-                        var licenseKeyId = finalDrmKeyId
-                        var licenseKey = finalDrmKey
-                        
-                        if (currentLicenseUrl != null && licenseKeyId == null) {
-                            Timber.d("   📄 License URL detected: $currentLicenseUrl")
-                            licenseKeyId = "URL:$currentLicenseUrl"
-                            licenseKey = "FETCH_REQUIRED"
-                        }
-                        
-                        // FIX 3: Validate DRM configuration before adding
+                        // Validate DRM configuration before adding
                         val hasDrm = finalDrmScheme != null
-                        val hasKeys = licenseKeyId != null && licenseKey != null
+                        val hasKeys = finalDrmKeyId != null && finalDrmKey != null
                         
                         if (hasDrm && !hasKeys) {
                             Timber.w("   ⚠️ DRM scheme present but NO KEYS - stream may fail")
@@ -279,14 +271,19 @@ object M3uParser {
                             userAgent = currentUserAgent,
                             httpHeaders = finalHeaders,
                             drmScheme = finalDrmScheme,
-                            drmKeyId = licenseKeyId,
-                            drmKey = licenseKey
+                            drmKeyId = finalDrmKeyId,
+                            drmKey = finalDrmKey
                         ))
                         
                         // Log final status
                         val drmStatus = if (finalDrmScheme != null) {
                             if (hasKeys) {
-                                "✅ DRM: $finalDrmScheme (with keys)"
+                                val isUrl = finalDrmKeyId?.startsWith("http") == true
+                                if (isUrl) {
+                                    "✅ DRM: $finalDrmScheme (with license URL)"
+                                } else {
+                                    "✅ DRM: $finalDrmScheme (with keys)"
+                                }
                             } else {
                                 "⚠️ DRM: $finalDrmScheme (NO KEYS)"
                             }
@@ -295,8 +292,12 @@ object M3uParser {
                         }
                         Timber.d("   $drmStatus")
                         if (hasKeys && finalDrmScheme != null) {
-                            Timber.d("   🔑 KeyID: ${licenseKeyId?.take(16)}...")
-                            Timber.d("   🔑 Key: ${licenseKey?.take(16)}...")
+                            if (finalDrmKeyId?.startsWith("http") == true) {
+                                Timber.d("   🌐 License URL: ${finalDrmKeyId.take(60)}...")
+                            } else {
+                                Timber.d("   🔑 KeyID: ${finalDrmKeyId?.take(16)}...")
+                                Timber.d("   🔑 Key: ${finalDrmKey?.take(16)}...")
+                            }
                         }
                         Timber.d("   📍 URL: ${streamUrl.take(60)}...")
                         
@@ -408,7 +409,10 @@ object M3uParser {
         }
     }
 
-    // FIX 4: Better inline parameter parsing with proper delimiter handling
+    /**
+     * Parse inline headers and DRM from URL with pipe separator
+     * Handles both ClearKey (KeyID:Key) and Widevine/PlayReady (License URL) formats
+     */
     private fun parseInlineHeadersAndDrm(urlLine: String): Triple<String, Map<String, String>, Triple<String?, String?, String?>> {
         // First check if there's a pipe separator
         val pipeIndex = urlLine.indexOf('|')
@@ -450,16 +454,26 @@ object M3uParser {
                         Timber.d("      🔐 Inline DRM Scheme: $drmScheme")
                     }
                     "drmlicense" -> {
-                        // Handle KeyID:Key format
-                        val colonIndex = value.indexOf(':')
-                        if (colonIndex != -1) {
-                            drmKeyId = value.substring(0, colonIndex).trim()
-                            drmKey = value.substring(colonIndex + 1).trim()
-                            Timber.d("      🔑 Inline DRM Keys:")
-                            Timber.d("         KeyID: ${drmKeyId?.take(16)}... (${drmKeyId?.length} chars)")
-                            Timber.d("         Key:   ${drmKey?.take(16)}... (${drmKey?.length} chars)")
+                        // UPDATED: Check if it's a URL or KeyID:Key format
+                        if (value.startsWith("http://", ignoreCase = true) || 
+                            value.startsWith("https://", ignoreCase = true)) {
+                            // It's a license URL (Widevine/PlayReady)
+                            drmKeyId = value  // Store URL in keyId field
+                            drmKey = "LICENSE_URL"  // Mark as URL-based
+                            Timber.d("      🌐 Inline DRM License URL:")
+                            Timber.d("         ${value.take(60)}...")
                         } else {
-                            Timber.w("      ⚠️ Invalid drmLicense format (no :): $value")
+                            // It's KeyID:Key format (ClearKey)
+                            val colonIndex = value.indexOf(':')
+                            if (colonIndex != -1) {
+                                drmKeyId = value.substring(0, colonIndex).trim()
+                                drmKey = value.substring(colonIndex + 1).trim()
+                                Timber.d("      🔑 Inline DRM Keys:")
+                                Timber.d("         KeyID: ${drmKeyId?.take(16)}... (${drmKeyId?.length} chars)")
+                                Timber.d("         Key:   ${drmKey?.take(16)}... (${drmKey?.length} chars)")
+                            } else {
+                                Timber.w("      ⚠️ Invalid drmLicense format (no :): $value")
+                            }
                         }
                     }
                     "user-agent", "useragent" -> {
@@ -560,8 +574,12 @@ object M3uParser {
             if (m3u.drmScheme != null) {
                 Timber.d("   🔐 DRM: ${m3u.drmScheme}")
                 if (m3u.drmKeyId != null && m3u.drmKey != null) {
-                    Timber.d("   🔑 KeyID: ${m3u.drmKeyId.take(16)}...")
-                    Timber.d("   🔑 Key: ${m3u.drmKey.take(16)}...")
+                    if (m3u.drmKeyId.startsWith("http")) {
+                        Timber.d("   🌐 License URL: ${m3u.drmKeyId.take(60)}...")
+                    } else {
+                        Timber.d("   🔑 KeyID: ${m3u.drmKeyId.take(16)}...")
+                        Timber.d("   🔑 Key: ${m3u.drmKey.take(16)}...")
+                    }
                 } else {
                     Timber.w("   ⚠️ DRM scheme present but NO KEYS")
                 }
@@ -582,7 +600,9 @@ object M3uParser {
         }
     }
 
-    // FIX 5: Simplified buildStreamUrlWithMetadata - preserve exact format
+    /**
+     * Build stream URL with metadata - handles both ClearKey and Widevine/PlayReady
+     */
     private fun buildStreamUrlWithMetadata(m3u: M3uChannel): String {
         val parts = mutableListOf<String>()
         
@@ -597,16 +617,30 @@ object M3uParser {
             parts.add("$key=$value")
         }
         
-        // FIX: Add DRM information in the exact format the player expects
+        // Add DRM information in the exact format the player expects
         if (m3u.drmScheme != null) {
             parts.add("drmScheme=${m3u.drmScheme}")
             
-            // Add license keys if available
+            // For ClearKey: add KeyID:Key format
+            // For Widevine/PlayReady: add license URL
             if (m3u.drmKeyId != null && m3u.drmKey != null) {
-                parts.add("drmLicense=${m3u.drmKeyId}:${m3u.drmKey}")
-                Timber.d("   ✅ DRM info added to URL: ${m3u.drmScheme} with keys")
+                // Check if it's a license URL or actual keys
+                if (m3u.drmKeyId.startsWith("http://", ignoreCase = true) || 
+                    m3u.drmKeyId.startsWith("https://", ignoreCase = true)) {
+                    // It's a license URL (for Widevine/PlayReady)
+                    parts.add("drmLicense=${m3u.drmKeyId}")
+                    Timber.d("   ✅ DRM info added: ${m3u.drmScheme} with license URL")
+                } else {
+                    // It's KeyID:Key format (for ClearKey)
+                    parts.add("drmLicense=${m3u.drmKeyId}:${m3u.drmKey}")
+                    Timber.d("   ✅ DRM info added: ${m3u.drmScheme} with keys")
+                }
             } else {
-                Timber.w("   ⚠️ DRM scheme '${m3u.drmScheme}' added but NO KEYS - playback will likely fail")
+                when (m3u.drmScheme.lowercase()) {
+                    "clearkey" -> Timber.w("   ⚠️ ClearKey scheme but NO KEYS - playback will fail")
+                    "widevine", "playready" -> Timber.w("   ⚠️ ${m3u.drmScheme} scheme but NO LICENSE URL - playback will fail")
+                    else -> Timber.w("   ⚠️ DRM scheme '${m3u.drmScheme}' but no license info")
+                }
             }
         }
         
