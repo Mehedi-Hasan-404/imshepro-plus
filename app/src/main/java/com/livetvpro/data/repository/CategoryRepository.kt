@@ -1,7 +1,7 @@
 package com.livetvpro.data.repository
 
 import com.livetvpro.data.api.ApiService
-import com.livetvpro.data.models.Category
+import com.livetvpro.data.models.Channel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -9,38 +9,67 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class CategoryRepository @Inject constructor(
+class ChannelRepository @Inject constructor(
     private val apiService: ApiService
 ) {
-    suspend fun getCategories(): List<Category> = withContext(Dispatchers.IO) {
+    /**
+     * Gets channels for a category from the API
+     * The API automatically merges Firestore + M3U channels
+     */
+    suspend fun getChannelsByCategory(categoryId: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
-            Timber.d("Fetching categories from API...")
-            val response = apiService.getCategories()
+            Timber.d("📡 Fetching channels for category: $categoryId")
+            val response = apiService.getChannels(categoryId)
             
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body?.success == true && body.data != null) {
-                    Timber.d("Successfully loaded ${body.data.size} categories")
-                    return@withContext body.data.sortedBy { it.order }
+                    Timber.d("✅ Successfully loaded ${body.data.size} channels (Firestore + M3U)")
+                    return@withContext body.data
                 }
             }
             
-            Timber.e("Failed to load categories: ${response.message()}")
+            Timber.e("❌ Failed to load channels: ${response.message()}")
             emptyList()
         } catch (e: Exception) {
-            Timber.e(e, "Error loading categories from API")
+            Timber.e(e, "❌ Error loading channels from API")
             emptyList()
         }
     }
 
-    suspend fun getCategoryBySlug(slug: String): Category? = withContext(Dispatchers.IO) {
+    suspend fun getChannels(categoryId: String? = null): List<Channel> = withContext(Dispatchers.IO) {
         try {
-            val categories = getCategories()
-            categories.firstOrNull { it.slug == slug }
+            val response = apiService.getChannels(categoryId)
+            
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    return@withContext body.data
+                }
+            }
+            
+            emptyList()
         } catch (e: Exception) {
-            Timber.e(e, "Error loading category by slug: $slug")
+            Timber.e(e, "Error loading channels")
+            emptyList()
+        }
+    }
+
+    suspend fun getChannelById(channelId: String): Channel? = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.getChannel(channelId)
+            
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true) {
+                    return@withContext body.data
+                }
+            }
+            
+            null
+        } catch (e: Exception) {
+            Timber.e(e, "Error loading channel: $channelId")
             null
         }
     }
 }
-
