@@ -18,7 +18,7 @@ import javax.inject.Singleton
 object NetworkModule {
 
     // TODO: Replace with your actual API URL
-    private const val BASE_URL = "https://your-app.vercel.app/api/"
+    private const val BASE_URL = "https://aidsgo-plus.vercel.app/api/"
 
     @Provides
     @Singleton
