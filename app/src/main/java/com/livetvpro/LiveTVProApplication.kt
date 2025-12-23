@@ -1,7 +1,7 @@
+// app/src/main/java/com/livetvpro/LiveTVProApplication.kt
 package com.livetvpro
 
 import android.app.Application
-import com.google.firebase.FirebaseApp
 import dagger.hilt.android.HiltAndroidApp
 import timber.log.Timber
 
@@ -15,14 +15,6 @@ class LiveTVProApplication : Application() {
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Timber.e(throwable, "UNCAUGHT EXCEPTION on thread: ${thread.name}")
             throwable.printStackTrace()
-        }
-
-        // Initialize Firebase first
-        try {
-            FirebaseApp.initializeApp(this)
-            Timber.d("Firebase initialized successfully")
-        } catch (e: Exception) {
-            Timber.e(e, "Firebase initialization failed")
         }
 
         // Initialize Timber for logging
