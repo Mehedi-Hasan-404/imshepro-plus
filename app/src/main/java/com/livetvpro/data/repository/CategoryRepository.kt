@@ -1,63 +1,46 @@
 package com.livetvpro.data.repository
 
-import com.google.firebase.firestore.FirebaseFirestore
+import com.livetvpro.data.api.ApiService
 import com.livetvpro.data.models.Category
-import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class CategoryRepository @Inject constructor(
-    private val firestore: FirebaseFirestore
+    private val apiService: ApiService
 ) {
-    suspend fun getCategories(): List<Category> {
-        return try {
-            Timber.d("Fetching categories from Firestore...")
+    suspend fun getCategories(): List<Category> = withContext(Dispatchers.IO) {
+        try {
+            Timber.d("Fetching categories from API...")
+            val response = apiService.getCategories()
             
-            // Test Firestore connection
-            val testQuery = firestore.collection("categories").limit(1).get().await()
-            Timber.d("Firestore connection successful. Test doc count: ${testQuery.size()}")
-            
-            val snapshot = firestore.collection("categories")
-                .get()
-                .await()
-            
-            Timber.d("Retrieved ${snapshot.documents.size} category documents")
-            
-            val categories = snapshot.documents.mapNotNull { doc ->
-                try {
-                    val category = doc.toObject(Category::class.java)?.copy(id = doc.id)
-                    Timber.d("Parsed category: ${category?.name}")
-                    category
-                } catch (e: Exception) {
-                    Timber.e(e, "Error parsing category document: ${doc.id}")
-                    null
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    Timber.d("Successfully loaded ${body.data.size} categories")
+                    return@withContext body.data.sortedBy { it.order }
                 }
-            }.sortedBy { it.order }
+            }
             
-            Timber.d("Successfully loaded ${categories.size} categories")
-            categories
+            Timber.e("Failed to load categories: ${response.message()}")
+            emptyList()
         } catch (e: Exception) {
-            Timber.e(e, "Error loading categories from Firestore")
-            Timber.e("Error type: ${e.javaClass.simpleName}")
-            Timber.e("Error message: ${e.message}")
+            Timber.e(e, "Error loading categories from API")
             emptyList()
         }
     }
 
-    suspend fun getCategoryBySlug(slug: String): Category? {
-        return try {
-            Timber.d("Fetching category by slug: $slug")
-            val snapshot = firestore.collection("categories")
-                .whereEqualTo("slug", slug)
-                .get()
-                .await()
-            val doc = snapshot.documents.firstOrNull() ?: return null
-            doc.toObject(Category::class.java)?.copy(id = doc.id)
+    suspend fun getCategoryBySlug(slug: String): Category? = withContext(Dispatchers.IO) {
+        try {
+            val categories = getCategories()
+            categories.firstOrNull { it.slug == slug }
         } catch (e: Exception) {
             Timber.e(e, "Error loading category by slug: $slug")
             null
         }
     }
 }
+
