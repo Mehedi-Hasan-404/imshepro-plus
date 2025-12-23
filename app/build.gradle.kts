@@ -90,7 +90,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.2.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
-    implementation("androidx.media3:media3-common:1.2.1"
+    implementation("androidx.media3:media3-common:1.2.1")
 
     // OkHttp & Retrofit
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
