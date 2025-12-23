@@ -1,11 +1,9 @@
 package com.livetvpro.data.repository
 
-import com.google.firebase.firestore.FirebaseFirestore
+import com.livetvpro.data.api.ApiService
 import com.livetvpro.data.models.Channel
-import com.livetvpro.data.models.Category
 import com.livetvpro.utils.M3uParser
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import javax.inject.Inject
@@ -13,52 +11,66 @@ import javax.inject.Singleton
 
 @Singleton
 class ChannelRepository @Inject constructor(
-    private val firestore: FirebaseFirestore
+    private val apiService: ApiService
 ) {
-    /**
-     * Fetches both manual Firestore channels and M3U channels.
-     * It looks up the category document first to find the m3uUrl.
-     */
     suspend fun getChannelsByCategory(categoryId: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
-            Timber.d("Starting load for category: $categoryId")
-
-            // 1. Fetch manual channels from Firestore
-            val manualTask = firestore.collection("channels")
-                .whereEqualTo("categoryId", categoryId)
-                .get()
-
-            // 2. Fetch Category details for M3U URL discovery
-            val categoryTask = firestore.collection("categories")
-                .document(categoryId)
-                .get()
-
-            val manualSnapshot = manualTask.await()
-            val categorySnapshot = categoryTask.await()
-
-            val manualChannels = manualSnapshot.documents.mapNotNull { 
-                it.toObject(Channel::class.java)?.copy(id = it.id) 
+            Timber.d("Fetching channels for category: $categoryId")
+            val response = apiService.getChannels(categoryId)
+            
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    Timber.d("Successfully loaded ${body.data.size} channels")
+                    return@withContext body.data
+                }
             }
-
-            val category = categorySnapshot.toObject(Category::class.java)
-            val m3uUrl = category?.m3uUrl
-            val categoryName = category?.name ?: "Unknown"
-
-            // 3. Merge M3U channels if URL is present
-            if (!m3uUrl.isNullOrEmpty()) {
-                Timber.d("M3U URL found: $m3uUrl. Parsing...")
-                val m3uChannels = getChannelsFromM3u(m3uUrl, categoryId, categoryName)
-                manualChannels + m3uChannels
-            } else {
-                Timber.d("No M3U URL found for category $categoryId")
-                manualChannels
-            }
+            
+            Timber.e("Failed to load channels: ${response.message()}")
+            emptyList()
         } catch (e: Exception) {
-            Timber.e(e, "Error loading channels for category: $categoryId")
+            Timber.e(e, "Error loading channels from API")
             emptyList()
         }
     }
 
+    suspend fun getChannels(categoryId: String? = null): List<Channel> = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.getChannels(categoryId)
+            
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true && body.data != null) {
+                    return@withContext body.data
+                }
+            }
+            
+            emptyList()
+        } catch (e: Exception) {
+            Timber.e(e, "Error loading channels")
+            emptyList()
+        }
+    }
+
+    suspend fun getChannelById(channelId: String): Channel? = withContext(Dispatchers.IO) {
+        try {
+            val response = apiService.getChannel(channelId)
+            
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body?.success == true) {
+                    return@withContext body.data
+                }
+            }
+            
+            null
+        } catch (e: Exception) {
+            Timber.e(e, "Error loading channel: $channelId")
+            null
+        }
+    }
+    
+    // Keep M3U parsing functionality
     suspend fun getChannelsFromM3u(
         m3uUrl: String,
         categoryId: String,
@@ -72,20 +84,6 @@ class ChannelRepository @Inject constructor(
                 Timber.e(e, "Error fetching channels from M3U: $m3uUrl")
                 emptyList()
             }
-        }
-    }
-
-    suspend fun getChannelById(channelId: String): Channel? {
-        return try {
-            firestore.collection("channels")
-                .document(channelId)
-                .get()
-                .await()
-                .toObject(Channel::class.java)
-                ?.copy(id = channelId)
-        } catch (e: Exception) {
-            Timber.e(e, "Error loading channel: $channelId")
-            null
         }
     }
 }
