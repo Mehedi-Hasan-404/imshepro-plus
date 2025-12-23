@@ -84,6 +84,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private val hideUnlockButtonRunnable = Runnable {
         binding.unlockButton.visibility = View.GONE
     }
+    
+    // FIX: Prevent multiple rebindings
+    private var isBindingControls = false
+    private var controlsBindingRunnable: Runnable? = null
 
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -148,11 +152,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         setupPlayer()
         
-        // FIX: Bind controls after player setup
-        binding.playerView.post {
-            bindControllerViewsExact()
-            setupControlListenersExact()
-        }
+        // FIX: Single delayed binding after player setup
+        binding.playerView.postDelayed({
+            bindControllerViewsOnce()
+            setupControlListenersOnce()
+        }, 300)
         
         configurePlayerInteractions()
         setupLockOverlay()
@@ -242,16 +246,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         setWindowFlags(isLandscape)
         adjustLayoutForOrientation(isLandscape)
         
-        // FIX: Rebind controls after orientation change if not in PiP
-        if (!isInPipMode) {
-            binding.playerView.post {
-                bindControllerViewsExact()
-                // Only reset listeners if not locked
-                if (!isLocked) {
-                    setupControlListenersExact()
-                }
-            }
-        }
+        // FIX: DON'T rebind controls here - it causes flickering
+        // Controls are already bound and working
         
         binding.playerContainer.requestLayout()
         binding.root.requestLayout()
@@ -368,7 +364,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        
+        // FIX: Clean up all handlers and callbacks
+        mainHandler.removeCallbacksAndMessages(null)
+        controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
+        controlsBindingRunnable = null
+        
         releasePlayer()
+        
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 unregisterReceiver(pipReceiver)
@@ -376,7 +379,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Timber.w(e, "Error unregistering PiP receiver")
         }
-        mainHandler.removeCallbacksAndMessages(null)
     }
 
     private fun releasePlayer() {
@@ -960,6 +962,21 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         Timber.d("✅ Controller views bound successfully")
     }
+    
+    // FIX: Debounced version to prevent multiple calls
+    private fun bindControllerViewsOnce() {
+        if (isBindingControls) {
+            Timber.d("⏭️ Already binding controls, skipping...")
+            return
+        }
+        
+        isBindingControls = true
+        bindControllerViewsExact()
+        
+        mainHandler.postDelayed({
+            isBindingControls = false
+        }, 500)
+    }
 
     private fun setupControlListenersExact() {
         Timber.d("🔧 Setting up controller listeners...")
@@ -1078,6 +1095,20 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
         
         Timber.d("✅ Controller listeners set up successfully")
+    }
+    
+    // FIX: Debounced version to prevent multiple calls
+    private fun setupControlListenersOnce() {
+        // Cancel any pending listener setup
+        controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
+        
+        controlsBindingRunnable = Runnable {
+            setupControlListenersExact()
+            controlsBindingRunnable = null
+        }
+        
+        // Setup listeners only once
+        mainHandler.post(controlsBindingRunnable!!)
     }
 
     private fun toggleMute() {
@@ -1200,12 +1231,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             hideUnlockButton()
             btnLock?.setImageResource(R.drawable.ic_lock_open)
             
-            // Rebind controls to ensure they work after unlocking
-            binding.playerView.post {
-                bindControllerViewsExact()
-                setupControlListenersExact()
-                binding.playerView.showController()
-            }
+            // FIX: Just show controller, don't rebind
+            binding.playerView.showController()
             
             Toast.makeText(this, "Controls unlocked", Toast.LENGTH_SHORT).show()
         }
@@ -1356,14 +1383,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 return
             }
             
-            // FIX: Restore orientation-specific settings
+            // FIX: Restore orientation-specific settings WITHOUT rebinding
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             Timber.d("🔄 Restoring orientation: ${if (isLandscape) "LANDSCAPE" else "PORTRAIT"}")
             
             // Apply orientation settings first
-            applyOrientationSettings(isLandscape)
+            setWindowFlags(isLandscape)
+            adjustLayoutForOrientation(isLandscape)
             
-            // FIX: Properly restore controls based on lock state
+            // FIX: Restore controls based on lock state WITHOUT rebinding
             if (isLocked) {
                 Timber.d("🔒 Restoring locked state")
                 binding.playerView.useController = false
@@ -1377,19 +1405,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 binding.playerView.useController = true
                 binding.lockOverlay.visibility = View.GONE
                 
-                // FIX: Rebind controller views to ensure they're working
-                binding.playerView.post {
-                    bindControllerViewsExact()
-                    setupControlListenersExact()
-                    
-                    // Show controller after a short delay
-                    binding.playerView.postDelayed({
-                        if (!isInPipMode && !isFinishing) {
-                            binding.playerView.showController()
-                            Timber.d("✅ Controller shown after PiP exit")
-                        }
-                    }, 200)
-                }
+                // FIX: Single delayed show controller - NO rebinding
+                binding.playerView.postDelayed({
+                    if (!isInPipMode && !isFinishing) {
+                        binding.playerView.showController()
+                        Timber.d("✅ Controller shown after PiP exit")
+                    }
+                }, 150)
             }
             
             Timber.d("✅ PIP exit restoration complete")
