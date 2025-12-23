@@ -2,7 +2,6 @@ package com.livetvpro.data.repository
 
 import com.livetvpro.data.api.ApiService
 import com.livetvpro.data.models.Channel
-import com.livetvpro.utils.M3uParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import timber.log.Timber
@@ -13,23 +12,27 @@ import javax.inject.Singleton
 class ChannelRepository @Inject constructor(
     private val apiService: ApiService
 ) {
+    /**
+     * Gets channels for a category from the API
+     * The API automatically merges Firestore + M3U channels
+     */
     suspend fun getChannelsByCategory(categoryId: String): List<Channel> = withContext(Dispatchers.IO) {
         try {
-            Timber.d("Fetching channels for category: $categoryId")
+            Timber.d("📡 Fetching channels for category: $categoryId")
             val response = apiService.getChannels(categoryId)
             
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body?.success == true && body.data != null) {
-                    Timber.d("Successfully loaded ${body.data.size} channels")
+                    Timber.d("✅ Successfully loaded ${body.data.size} channels (Firestore + M3U)")
                     return@withContext body.data
                 }
             }
             
-            Timber.e("Failed to load channels: ${response.message()}")
+            Timber.e("❌ Failed to load channels: ${response.message()}")
             emptyList()
         } catch (e: Exception) {
-            Timber.e(e, "Error loading channels from API")
+            Timber.e(e, "❌ Error loading channels from API")
             emptyList()
         }
     }
@@ -69,22 +72,4 @@ class ChannelRepository @Inject constructor(
             null
         }
     }
-    
-    // Keep M3U parsing functionality
-    suspend fun getChannelsFromM3u(
-        m3uUrl: String,
-        categoryId: String,
-        categoryName: String
-    ): List<Channel> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val m3uChannels = M3uParser.parseM3uFromUrl(m3uUrl)
-                M3uParser.convertToChannels(m3uChannels, categoryId, categoryName)
-            } catch (e: Exception) {
-                Timber.e(e, "Error fetching channels from M3U: $m3uUrl")
-                emptyList()
-            }
-        }
-    }
 }
-
