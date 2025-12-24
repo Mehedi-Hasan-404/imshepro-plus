@@ -17,8 +17,13 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    // TODO: Replace with your actual API URL
-    private const val BASE_URL = "https://aidsgo-plus.vercel.app/api/"
+    init {
+        // Load native library
+        System.loadLibrary("native-lib")
+    }
+
+    // Native method declaration
+    private external fun getBaseUrl(): String
 
     @Provides
     @Singleton
@@ -38,8 +43,11 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        // Get base URL from native library (encrypted)
+        val baseUrl = getBaseUrl()
+        
         return Retrofit.Builder()
-            .baseUrl(BASE_URL)
+            .baseUrl(baseUrl)
             .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
