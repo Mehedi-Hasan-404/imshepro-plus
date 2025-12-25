@@ -85,10 +85,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
     
-    // FIX: Prevent multiple rebindings and layout issues
+    // FIX: Prevent multiple rebindings
     private var isBindingControls = false
     private var controlsBindingRunnable: Runnable? = null
-    private var isTransitioningFromPip = false
 
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -269,10 +268,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             binding.relatedChannelsSection.visibility = View.GONE
         } else {
-            // FIX: Don't change controllerAutoShow during PiP transition
-            if (!isTransitioningFromPip) {
-                binding.playerView.controllerAutoShow = false
-            }
+            binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -280,7 +276,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            if (relatedChannels.isNotEmpty() && !isTransitioningFromPip) {
+            if (relatedChannels.isNotEmpty()) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
             }
         }
@@ -759,8 +755,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
             controllerShowTimeoutMs = 5000
             controllerHideOnTouch = true
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-            // FIX: Disable auto-show to prevent flickering
+            // FIX: Disable auto-show and animations to prevent flickering
             controllerAutoShow = false
+            // Disable show/hide animations
+            setControllerShowTimeoutMs(5000)
+            setControllerHideOnTouch(true)
         }
     }
 
@@ -1305,11 +1304,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // Disable all overlays before entering PiP
+        // FIX: ONLY disable controller, don't touch any layout/visibility
         binding.playerView.useController = false
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
-        binding.relatedChannelsSection.visibility = View.GONE
         
         // Enter PiP
         updatePipParams(enter = true)
@@ -1382,36 +1378,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
         Timber.d("╔═══════════════════════════════════╗")
         Timber.d("📺 PIP MODE CHANGED")
         Timber.d("   In PiP: $isInPictureInPictureMode")
-        Timber.d("   Previous state: $isInPipMode")
         Timber.d("╚═══════════════════════════════════╝")
         
         isInPipMode = isInPictureInPictureMode
 
         if (isInPipMode) {
-            // Entering PiP mode
+            // Entering PiP mode - MINIMAL changes
             Timber.d("▶️ ENTERING PIP MODE")
-            isTransitioningFromPip = false
             
-            // Disable controls completely
+            // Only disable controller, DON'T touch layout
             binding.playerView.useController = false
             binding.playerView.hideController()
             
-            // Hide overlays
-            binding.lockOverlay.visibility = View.GONE
-            binding.unlockButton.visibility = View.GONE
-            binding.relatedChannelsSection.visibility = View.GONE
-            
-            // Set resize mode for PiP
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            
         } else {
-            // Exiting PiP mode
+            // Exiting PiP mode - MINIMAL changes
             Timber.d("◀️ EXITING PIP MODE")
-            isTransitioningFromPip = true
             
-            // Check if activity is being destroyed
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
-                Timber.d("⚠️ Activity being destroyed, finishing...")
                 finish()
                 return
             }
@@ -1419,66 +1402,49 @@ class ChannelPlayerActivity : AppCompatActivity() {
             userRequestedPip = false
             
             if (isFinishing) {
-                Timber.d("⚠️ Activity is finishing, skipping restoration")
                 return
             }
             
-            // FIX: Complete layout changes BEFORE showing controller
-            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            Timber.d("🔄 Restoring orientation: ${if (isLandscape) "LANDSCAPE" else "PORTRAIT"}")
-            
-            // Temporarily hide player view to prevent flicker
-            binding.playerView.alpha = 0f
-            
-            // Step 1: Apply ALL layout changes
-            setWindowFlags(isLandscape)
-            adjustLayoutForOrientation(isLandscape)
-            
-            // Step 2: Request layout and wait for it to complete
-            binding.root.requestLayout()
-            binding.playerContainer.requestLayout()
-            
-            // Step 3: After layout is done, restore visibility and controls
-            binding.root.post {
-                binding.root.post {
-                    // Fade player view back in smoothly
-                    binding.playerView.animate()
-                        .alpha(1f)
-                        .setDuration(200)
-                        .start()
-                    
-                    // Now restore controls
-                    binding.playerView.postDelayed({
-                        if (!isInPipMode && !isFinishing) {
-                            if (isLocked) {
-                                Timber.d("🔒 Restoring locked state")
-                                binding.playerView.useController = false
-                                binding.lockOverlay.visibility = View.VISIBLE
-                                binding.lockOverlay.isClickable = true
-                                binding.lockOverlay.isFocusable = true
-                                showUnlockButton()
-                            } else {
-                                Timber.d("🔓 Restoring unlocked state")
-                                binding.playerView.useController = true
-                                binding.lockOverlay.visibility = View.GONE
-                                
-                                // Show controller
-                                binding.playerView.postDelayed({
-                                    if (!isInPipMode && !isFinishing) {
-                                        binding.playerView.showController()
-                                        Timber.d("✅ Controller shown after PiP exit")
-                                        
-                                        // Reset transition flag
-                                        isTransitioningFromPip = false
-                                    }
-                                }, 100)
-                            }
+            // FIX: Make controller visible WITHOUT animation
+            if (isLocked) {
+                Timber.d("🔒 Restoring locked state")
+                binding.playerView.useController = false
+                binding.lockOverlay.visibility = View.VISIBLE
+                showUnlockButton()
+            } else {
+                Timber.d("🔓 Restoring unlocked state")
+                
+                // Enable controller
+                binding.playerView.useController = true
+                
+                // Find and show controller directly without animation
+                binding.playerView.post {
+                    try {
+                        // Get the controller view
+                        val controllerClass = Class.forName("androidx.media3.ui.PlayerControlView")
+                        val controller = binding.playerView.findViewById<View>(
+                            androidx.media3.ui.R.id.exo_controller
+                        )
+                        
+                        if (controller != null) {
+                            // Make it visible immediately without animation
+                            controller.visibility = View.VISIBLE
+                            controller.alpha = 1f
+                            
+                            // Reset any ongoing animations
+                            controller.clearAnimation()
+                            
+                            Timber.d("✅ Controller made visible directly")
+                        } else {
+                            Timber.w("Controller view not found, using showController()")
+                            binding.playerView.showController()
                         }
-                    }, 200)
+                    } catch (e: Exception) {
+                        Timber.w(e, "Error accessing controller, using showController()")
+                        binding.playerView.showController()
+                    }
                 }
             }
-            
-            Timber.d("✅ PIP exit restoration complete")
         }
     }
 
