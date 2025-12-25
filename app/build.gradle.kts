@@ -23,6 +23,17 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+        
+        // NDK configuration
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+        }
+        
+        externalNativeBuild {
+            cmake {
+                cppFlags += ""
+            }
+        }
     }
 
     buildTypes {
@@ -64,6 +75,14 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    
+    // Native build configuration
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 }
 
 dependencies {
@@ -85,15 +104,12 @@ dependencies {
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.7")
     implementation("androidx.navigation:navigation-ui-ktx:2.7.7")
 
-    // ExoPlayer (Media3) with FULL DRM support + FFmpeg Extension
+    // ExoPlayer (Media3)
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.2.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
     implementation("androidx.media3:media3-common:1.2.1")
-    
-    // ⭐ FFmpeg Extension for Advanced Codec Support
-    implementation("androidx.media3:media3-exoplayer-ffmpeg:1.2.1")
 
     // OkHttp & Retrofit
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
