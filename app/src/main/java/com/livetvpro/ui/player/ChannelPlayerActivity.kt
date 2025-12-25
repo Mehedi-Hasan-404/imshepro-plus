@@ -267,7 +267,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            // Always hide related channels in landscape
             binding.relatedChannelsSection.visibility = View.GONE
         } else {
             // FIX: Don't change controllerAutoShow during PiP transition
@@ -281,10 +280,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            
-            // FIX: Don't manage related channels visibility here during PiP transition
-            // It will be handled in onPictureInPictureModeChanged
-            if (!isTransitioningFromPip && relatedChannels.isNotEmpty()) {
+            if (relatedChannels.isNotEmpty() && !isTransitioningFromPip) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
             }
         }
@@ -1449,13 +1445,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     binding.playerView.animate()
                         .alpha(1f)
                         .setDuration(200)
-                        .withEndAction {
-                            // FIX: Show related channels AFTER fade completes
-                            if (!isLandscape && relatedChannels.isNotEmpty() && !isInPipMode) {
-                                binding.relatedChannelsSection.visibility = View.VISIBLE
-                                Timber.d("📺 Restored related channels section (${relatedChannels.size} channels)")
-                            }
-                        }
                         .start()
                     
                     // Now restore controls
