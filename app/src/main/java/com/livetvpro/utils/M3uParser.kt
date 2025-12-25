@@ -361,6 +361,8 @@ object M3uParser {
      */
     private fun parseJWKToKeyIdPair(jwk: String): Pair<String?, String?> {
         return try {
+            Timber.d("🔐 Parsing JWK: ${jwk.take(100)}...")
+            
             val kidMatch = Regex(""""kid"\s*:\s*"([^"]+)"""").find(jwk)
             val kMatch = Regex(""""k"\s*:\s*"([^"]+)"""").find(jwk)
             
@@ -368,43 +370,70 @@ object M3uParser {
                 val kidBase64 = kidMatch.groupValues[1]
                 val kBase64 = kMatch.groupValues[1]
                 
+                Timber.d("📝 Extracted from JWK:")
+                Timber.d("   kid (base64): $kidBase64")
+                Timber.d("   k (base64): $kBase64")
+                
                 val kidHex = base64UrlToHex(kidBase64)
                 val kHex = base64UrlToHex(kBase64)
                 
                 if (kidHex.isNotEmpty() && kHex.isNotEmpty()) {
-                    Timber.d("🔐 JWK Converted - KID: ${kidHex.take(16)}..., Key: ${kHex.take(16)}...")
+                    Timber.d("🔐 JWK Converted Successfully:")
+                    Timber.d("   KID (hex): ${kidHex.take(32)}... (${kidHex.length} chars)")
+                    Timber.d("   Key (hex): ${kHex.take(32)}... (${kHex.length} chars)")
                     kidHex to kHex
                 } else {
                     Timber.w("⚠️ JWK conversion resulted in empty strings")
+                    Timber.w("   kidHex isEmpty: ${kidHex.isEmpty()}")
+                    Timber.w("   kHex isEmpty: ${kHex.isEmpty()}")
                     null to null
                 }
             } else {
-                Timber.w("⚠️ JWK parsing failed: missing kid or k")
+                Timber.w("⚠️ JWK parsing failed:")
+                Timber.w("   kid found: ${kidMatch != null}")
+                Timber.w("   k found: ${kMatch != null}")
                 null to null
             }
         } catch (e: Exception) {
             Timber.e(e, "❌ Failed to parse JWK")
+            Timber.e("   JWK content: $jwk")
             null to null
         }
     }
 
     /**
      * Convert base64url encoded string to hexadecimal
+     * Handles both standard base64 and base64url encoding
      */
     private fun base64UrlToHex(base64Url: String): String {
         return try {
+            Timber.d("🔄 Converting base64url to hex: $base64Url")
+            
+            // Replace base64url characters with standard base64
             var base64 = base64Url.replace('-', '+').replace('_', '/')
             
-            while (base64.length % 4 != 0) {
-                base64 += "="
+            // Add padding if needed
+            val paddingNeeded = (4 - (base64.length % 4)) % 4
+            base64 += "=".repeat(paddingNeeded)
+            
+            Timber.d("   Padded base64: $base64")
+            
+            // Decode base64 to bytes
+            val bytes = try {
+                Base64.decode(base64, Base64.NO_WRAP)
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Failed to decode base64, trying URL_SAFE flag")
+                Base64.decode(base64, Base64.URL_SAFE or Base64.NO_WRAP)
             }
             
-            val bytes = Base64.decode(base64, Base64.NO_WRAP or Base64.URL_SAFE)
+            // Convert bytes to hex
             val hex = bytes.joinToString("") { "%02x".format(it) }
-            Timber.d("🔄 Base64→Hex: $base64Url → ${hex.take(16)}...")
+            
+            Timber.d("   ✅ Converted: ${hex.take(32)}... (${hex.length} chars)")
             hex
         } catch (e: Exception) {
-            Timber.e(e, "❌ Failed to convert base64url to hex: $base64Url")
+            Timber.e(e, "❌ Failed to convert base64url to hex")
+            Timber.e("   Input: $base64Url")
             ""
         }
     }
