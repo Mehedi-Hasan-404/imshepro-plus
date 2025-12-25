@@ -85,9 +85,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
     
-    // FIX: Prevent multiple rebindings
+    // FIX: Prevent multiple rebindings and layout issues
     private var isBindingControls = false
     private var controlsBindingRunnable: Runnable? = null
+    private var isTransitioningFromPip = false
 
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -251,11 +252,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         binding.playerContainer.requestLayout()
         binding.root.requestLayout()
-        
-        // FIX: Force insets to apply immediately to avoid jumps
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-            binding.root.requestApplyInsets()
-        }
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
@@ -271,9 +267,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+            // Always hide related channels in landscape
             binding.relatedChannelsSection.visibility = View.GONE
         } else {
-            binding.playerView.controllerAutoShow = false
+            // FIX: Don't change controllerAutoShow during PiP transition
+            if (!isTransitioningFromPip) {
+                binding.playerView.controllerAutoShow = false
+            }
             binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -281,7 +281,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            if (relatedChannels.isNotEmpty()) {
+            
+            // FIX: Don't manage related channels visibility here during PiP transition
+            // It will be handled in onPictureInPictureModeChanged
+            if (!isTransitioningFromPip && relatedChannels.isNotEmpty()) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
             }
         }
@@ -426,7 +429,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         Timber.d("📺 Clean URL: $url")
         Timber.d("⚙️ Raw Parameters: $rawParams")
-    
+        
         val normalizedParams = rawParams.replace("&", "|")
         val parts = normalizedParams.split("|")
         
@@ -444,7 +447,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 Timber.w("⚠️ Skipping invalid parameter: $part")
                 continue
             }
-        
+            
             val key = part.substring(0, eqIndex).trim()
             val value = part.substring(eqIndex + 1).trim()
             
@@ -538,7 +541,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             
             // Detect stream type
             val isDash = streamInfo.url.contains(".mpd", ignoreCase = true)
-            val isHls = streamInfo.url.contains(".m3u8", ignoreCase = true) || streamInfo.url.contains("/hls/", ignoreCase = true)
+            val isHls = streamInfo.url.contains(".m3u8", ignoreCase = true) || 
+                        streamInfo.url.contains("/hls/", ignoreCase = true)
             Timber.d("📦 Stream Type: ${when {
                 isDash -> "DASH"
                 isHls -> "HLS"
@@ -721,10 +725,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                         else -> ""
                                     } +
                                     "\nError: ${error.message}"
-                                
+                            
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
                                     "🌐 Connection Error\n\nUnable to reach the server.\n\nError: ${error.message}"
-                                
+                            
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
                                     "📡 Network Error\n\nCheck your internet connection.\n\nError: ${error.message}"
                             
@@ -1305,8 +1309,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // FIX: ONLY disable controller, don't touch any layout/visibility
+        // Disable all overlays before entering PiP
         binding.playerView.useController = false
+        binding.lockOverlay.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
+        binding.relatedChannelsSection.visibility = View.GONE
         
         // Enter PiP
         updatePipParams(enter = true)
@@ -1379,6 +1386,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         Timber.d("╔═══════════════════════════════════╗")
         Timber.d("📺 PIP MODE CHANGED")
         Timber.d("   In PiP: $isInPictureInPictureMode")
+        Timber.d("   Previous state: $isInPipMode")
         Timber.d("╚═══════════════════════════════════╝")
         
         isInPipMode = isInPictureInPictureMode
@@ -1386,22 +1394,28 @@ class ChannelPlayerActivity : AppCompatActivity() {
         if (isInPipMode) {
             // Entering PiP mode
             Timber.d("▶️ ENTERING PIP MODE")
+            isTransitioningFromPip = false
             
-            // Only disable controller, DON'T touch layout
+            // Disable controls completely
             binding.playerView.useController = false
             binding.playerView.hideController()
+            
+            // Hide overlays
+            binding.lockOverlay.visibility = View.GONE
+            binding.unlockButton.visibility = View.GONE
+            binding.relatedChannelsSection.visibility = View.GONE
+            
+            // Set resize mode for PiP
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
         } else {
             // Exiting PiP mode
             Timber.d("◀️ EXITING PIP MODE")
+            isTransitioningFromPip = true
             
-            // FIX: Apply Window Flags IMMEDIATELY to prevent the "jump"
-            // We force the system to hide bars before the layout pass happens
-            val currentOrientation = resources.configuration.orientation
-            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-            applyOrientationSettings(isLandscape)
-            
+            // Check if activity is being destroyed
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
+                Timber.d("⚠️ Activity being destroyed, finishing...")
                 finish()
                 return
             }
@@ -1409,26 +1423,73 @@ class ChannelPlayerActivity : AppCompatActivity() {
             userRequestedPip = false
             
             if (isFinishing) {
+                Timber.d("⚠️ Activity is finishing, skipping restoration")
                 return
             }
             
-            if (isLocked) {
-                Timber.d("🔒 Restoring locked state")
-                binding.playerView.useController = false
-                binding.lockOverlay.visibility = View.VISIBLE
-                showUnlockButton()
-            } else {
-                Timber.d("🔓 Restoring unlocked state")
-                binding.playerView.useController = true
-                
-                // FIX: Slightly longer delay for controller to ensure layout is stable
-                binding.playerView.postDelayed({
-                    if (!isInPipMode && !isFinishing) {
-                        binding.playerView.showController()
-                        Timber.d("✅ Controller shown")
-                    }
-                }, 300)
+            // FIX: Complete layout changes BEFORE showing controller
+            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            Timber.d("🔄 Restoring orientation: ${if (isLandscape) "LANDSCAPE" else "PORTRAIT"}")
+            
+            // Temporarily hide player view to prevent flicker
+            binding.playerView.alpha = 0f
+            
+            // Step 1: Apply ALL layout changes
+            setWindowFlags(isLandscape)
+            adjustLayoutForOrientation(isLandscape)
+            
+            // Step 2: Request layout and wait for it to complete
+            binding.root.requestLayout()
+            binding.playerContainer.requestLayout()
+            
+            // Step 3: After layout is done, restore visibility and controls
+            binding.root.post {
+                binding.root.post {
+                    // Fade player view back in smoothly
+                    binding.playerView.animate()
+                        .alpha(1f)
+                        .setDuration(200)
+                        .withEndAction {
+                            // FIX: Show related channels AFTER fade completes
+                            if (!isLandscape && relatedChannels.isNotEmpty() && !isInPipMode) {
+                                binding.relatedChannelsSection.visibility = View.VISIBLE
+                                Timber.d("📺 Restored related channels section (${relatedChannels.size} channels)")
+                            }
+                        }
+                        .start()
+                    
+                    // Now restore controls
+                    binding.playerView.postDelayed({
+                        if (!isInPipMode && !isFinishing) {
+                            if (isLocked) {
+                                Timber.d("🔒 Restoring locked state")
+                                binding.playerView.useController = false
+                                binding.lockOverlay.visibility = View.VISIBLE
+                                binding.lockOverlay.isClickable = true
+                                binding.lockOverlay.isFocusable = true
+                                showUnlockButton()
+                            } else {
+                                Timber.d("🔓 Restoring unlocked state")
+                                binding.playerView.useController = true
+                                binding.lockOverlay.visibility = View.GONE
+                                
+                                // Show controller
+                                binding.playerView.postDelayed({
+                                    if (!isInPipMode && !isFinishing) {
+                                        binding.playerView.showController()
+                                        Timber.d("✅ Controller shown after PiP exit")
+                                        
+                                        // Reset transition flag
+                                        isTransitioningFromPip = false
+                                    }
+                                }, 100)
+                            }
+                        }
+                    }, 200)
+                }
             }
+            
+            Timber.d("✅ PIP exit restoration complete")
         }
     }
 
@@ -1452,4 +1513,3 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 }
-
