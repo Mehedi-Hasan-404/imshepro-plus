@@ -85,10 +85,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
     
-    // FIX: Prevent multiple rebindings and layout issues
+    // FIX: Prevent multiple rebindings
     private var isBindingControls = false
     private var controlsBindingRunnable: Runnable? = null
-    private var isTransitioningFromPip = false
 
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -252,6 +251,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         binding.playerContainer.requestLayout()
         binding.root.requestLayout()
+        
+        // FIX: Force insets to apply immediately to avoid jumps
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            binding.root.requestApplyInsets()
+        }
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
@@ -267,13 +271,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            // Always hide related channels in landscape
             binding.relatedChannelsSection.visibility = View.GONE
         } else {
-            // FIX: Don't change controllerAutoShow during PiP transition
-            if (!isTransitioningFromPip) {
-                binding.playerView.controllerAutoShow = false
-            }
+            binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -281,10 +281,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            
-            // FIX: Don't manage related channels visibility here during PiP transition
-            // It will be handled in onPictureInPictureModeChanged
-            if (!isTransitioningFromPip && relatedChannels.isNotEmpty()) {
+            if (relatedChannels.isNotEmpty()) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
             }
         }
@@ -429,7 +426,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         Timber.d("📺 Clean URL: $url")
         Timber.d("⚙️ Raw Parameters: $rawParams")
-        
+    
         val normalizedParams = rawParams.replace("&", "|")
         val parts = normalizedParams.split("|")
         
@@ -447,7 +444,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 Timber.w("⚠️ Skipping invalid parameter: $part")
                 continue
             }
-            
+        
             val key = part.substring(0, eqIndex).trim()
             val value = part.substring(eqIndex + 1).trim()
             
@@ -522,273 +519,250 @@ class ChannelPlayerActivity : AppCompatActivity() {
         return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey, drmLicenseUrl)
     }
 
-    // Add this to ChannelPlayerActivity.kt - REPLACE the setupPlayer() method
+    private fun setupPlayer() {
+        if (player != null) return
+        binding.errorView.visibility = View.GONE
+        binding.errorText.text = ""
+        binding.progressBar.visibility = View.VISIBLE
 
-private fun setupPlayer() {
-    if (player != null) return
-    binding.errorView.visibility = View.GONE
-    binding.errorText.text = ""
-    binding.progressBar.visibility = View.VISIBLE
+        trackSelector = DefaultTrackSelector(this)
 
-    trackSelector = DefaultTrackSelector(this)
-
-    try {
-        val streamInfo = parseStreamUrl(channel.streamUrl)
-        
-        Timber.d("╔═══════════════════════════════════╗")
-        Timber.d("🎬 SETTING UP PLAYER WITH FFMPEG")
-        Timber.d("📺 Channel: ${channel.name}")
-        Timber.d("🔗 URL: ${streamInfo.url}")
-        Timber.d("🔒 DRM Scheme: ${streamInfo.drmScheme ?: "None"}")
-        
-        // Detect stream type
-        val isDash = streamInfo.url.contains(".mpd", ignoreCase = true)
-        val isHls = streamInfo.url.contains(".m3u8", ignoreCase = true) || 
-                    streamInfo.url.contains("/hls/", ignoreCase = true)
-        Timber.d("📦 Stream Type: ${when {
-            isDash -> "DASH"
-            isHls -> "HLS"
-            else -> "Progressive"
-        }}")
-        Timber.d("╚═══════════════════════════════════╝")
-
-        val headers = streamInfo.headers.toMutableMap()
-        if (!headers.containsKey("User-Agent")) {
-            headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-
-        val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
-            .setDefaultRequestProperties(headers)
-            .setConnectTimeoutMs(30000)
-            .setReadTimeoutMs(30000)
-            .setAllowCrossProtocolRedirects(true)
-            .setKeepPostFor302Redirects(true)
-
-        // ⭐ ENHANCED: Create MediaSourceFactory with FFmpeg support
-        val mediaSourceFactory = if (streamInfo.drmScheme != null) {
+        try {
+            val streamInfo = parseStreamUrl(channel.streamUrl)
+            
             Timber.d("╔═══════════════════════════════════╗")
-            Timber.d("🔐 INITIALIZING DRM PROTECTION")
-            Timber.d("🔒 Scheme: ${streamInfo.drmScheme}")
+            Timber.d("🎬 SETTING UP PLAYER")
+            Timber.d("📺 Channel: ${channel.name}")
+            Timber.d("🔗 URL: ${streamInfo.url}")
+            Timber.d("🔒 DRM Scheme: ${streamInfo.drmScheme ?: "None"}")
             
-            val normalizedScheme = streamInfo.drmScheme.lowercase().let { scheme ->
-                when {
-                    scheme.contains("clearkey") -> "clearkey"
-                    scheme.contains("widevine") -> "widevine"
-                    scheme.contains("playready") -> "playready"
-                    else -> scheme
-                }
-            }
-            
-            val drmSessionManager = when (normalizedScheme) {
-                "clearkey" -> {
-                    if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
-                        Timber.d("🔑 Creating ClearKey DRM Manager...")
-                        createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
-                    } else {
-                        Timber.w("⚠️ ClearKey scheme but no keys provided")
-                        null
-                    }
-                }
-                "widevine" -> {
-                    if (streamInfo.drmLicenseUrl != null) {
-                        Timber.d("🌐 Creating Widevine DRM Manager...")
-                        createWidevineDrmManager(streamInfo.drmLicenseUrl, headers)
-                    } else {
-                        Timber.e("❌ Widevine scheme but no license URL provided")
-                        null
-                    }
-                }
-                "playready" -> {
-                    if (streamInfo.drmLicenseUrl != null) {
-                        Timber.d("🌐 Creating PlayReady DRM Manager...")
-                        createPlayReadyDrmManager(streamInfo.drmLicenseUrl, headers)
-                    } else {
-                        Timber.e("❌ PlayReady scheme but no license URL provided")
-                        null
-                    }
-                }
-                else -> {
-                    Timber.e("❌ Unsupported DRM scheme: $normalizedScheme")
-                    null
-                }
-            }
-            
+            // Detect stream type
+            val isDash = streamInfo.url.contains(".mpd", ignoreCase = true)
+            val isHls = streamInfo.url.contains(".m3u8", ignoreCase = true) || streamInfo.url.contains("/hls/", ignoreCase = true)
+            Timber.d("📦 Stream Type: ${when {
+                isDash -> "DASH"
+                isHls -> "HLS"
+                else -> "Progressive"
+            }}")
             Timber.d("╚═══════════════════════════════════╝")
-            
-            if (drmSessionManager != null) {
-                DefaultMediaSourceFactory(this)
-                    .setDataSourceFactory(dataSourceFactory)
-                    .setDrmSessionManagerProvider { drmSessionManager }
+
+            val headers = streamInfo.headers.toMutableMap()
+            if (!headers.containsKey("User-Agent")) {
+                headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            }
+
+            val dataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
+                .setDefaultRequestProperties(headers)
+                .setConnectTimeoutMs(30000)
+                .setReadTimeoutMs(30000)
+                .setAllowCrossProtocolRedirects(true)
+                .setKeepPostFor302Redirects(true)
+
+            // Support ClearKey, Widevine, and PlayReady
+            val mediaSourceFactory = if (streamInfo.drmScheme != null) {
+                Timber.d("╔═══════════════════════════════════╗")
+                Timber.d("🔐 INITIALIZING DRM PROTECTION")
+                Timber.d("🔒 Scheme: ${streamInfo.drmScheme}")
+                
+                // Normalize scheme name
+                val normalizedScheme = streamInfo.drmScheme.lowercase().let { scheme ->
+                    when {
+                        scheme.contains("clearkey") -> "clearkey"
+                        scheme.contains("widevine") -> "widevine"
+                        scheme.contains("playready") -> "playready"
+                        else -> scheme
+                    }
+                }
+                
+                val drmSessionManager = when (normalizedScheme) {
+                    "clearkey" -> {
+                        if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
+                            Timber.d("🔑 Creating ClearKey DRM Manager...")
+                            Timber.d("   KeyID Length: ${streamInfo.drmKeyId.length}")
+                            Timber.d("   Key Length: ${streamInfo.drmKey.length}")
+                            createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
+                        } else {
+                            Timber.w("⚠️ ClearKey scheme but no keys provided")
+                            null
+                        }
+                    }
+                    "widevine" -> {
+                        if (streamInfo.drmLicenseUrl != null) {
+                            Timber.d("🌐 Creating Widevine DRM Manager...")
+                            Timber.d("   License URL: ${streamInfo.drmLicenseUrl}")
+                            createWidevineDrmManager(streamInfo.drmLicenseUrl, headers)
+                        } else {
+                            Timber.e("❌ Widevine scheme but no license URL provided")
+                            Timber.e("   Widevine requires a license server URL")
+                            null
+                        }
+                    }
+                    "playready" -> {
+                        if (streamInfo.drmLicenseUrl != null) {
+                            Timber.d("🌐 Creating PlayReady DRM Manager...")
+                            Timber.d("   License URL: ${streamInfo.drmLicenseUrl}")
+                            createPlayReadyDrmManager(streamInfo.drmLicenseUrl, headers)
+                        } else {
+                            Timber.e("❌ PlayReady scheme but no license URL provided")
+                            Timber.e("   PlayReady requires a license server URL")
+                            null
+                        }
+                    }
+                    else -> {
+                        Timber.e("❌ Unsupported DRM scheme: $normalizedScheme")
+                        Timber.e("   Supported schemes: clearkey, widevine, playready")
+                        null
+                    }
+                }
+                
+                Timber.d("╚═══════════════════════════════════╝")
+                
+                if (drmSessionManager != null) {
+                    DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(dataSourceFactory)
+                        .setDrmSessionManagerProvider { drmSessionManager }
+                } else {
+                    Timber.w("⚠️ DRM manager creation failed - attempting playback without DRM")
+                    Timber.w("   This will likely fail for DRM-protected content")
+                    DefaultMediaSourceFactory(this)
+                        .setDataSourceFactory(dataSourceFactory)
+                }
             } else {
-                Timber.w("⚠️ DRM manager creation failed - attempting playback without DRM")
+                Timber.d("🔓 No DRM protection - regular stream")
                 DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(dataSourceFactory)
             }
-        } else {
-            Timber.d("🔓 No DRM protection - regular stream")
-            DefaultMediaSourceFactory(this)
-                .setDataSourceFactory(dataSourceFactory)
+
+            player = ExoPlayer.Builder(this)
+                .setTrackSelector(trackSelector!!)
+                .setMediaSourceFactory(mediaSourceFactory)
+                .setSeekBackIncrementMs(skipMs)
+                .setSeekForwardIncrementMs(skipMs)
+                .build().also { exo ->
+                    binding.playerView.player = exo
+                    val mediaItem = MediaItem.fromUri(streamInfo.url)
+                    exo.setMediaItem(mediaItem)
+                    exo.prepare()
+                    exo.playWhenReady = true
+
+                    exo.addListener(object : Player.Listener {
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            when (playbackState) {
+                                Player.STATE_READY -> {
+                                    updatePlayPauseIcon(exo.playWhenReady)
+                                    binding.progressBar.visibility = View.GONE
+                                    binding.errorView.visibility = View.GONE
+                                    updatePipParams()
+                                    Timber.d("✅ Player ready - PLAYING!")
+                                }
+                                Player.STATE_BUFFERING -> {
+                                    binding.progressBar.visibility = View.VISIBLE
+                                    binding.errorView.visibility = View.GONE
+                                    Timber.d("⏳ Buffering...")
+                                }
+                                Player.STATE_ENDED -> {
+                                    binding.progressBar.visibility = View.GONE
+                                    Timber.d("ℹ️ Playback ended")
+                                }
+                                Player.STATE_IDLE -> {
+                                    Timber.d("💤 Player idle")
+                                }
+                            }
+                        }
+
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            updatePlayPauseIcon(isPlaying)
+                            Timber.d("▶️ Is playing: $isPlaying")
+                            if (isInPipMode) {
+                                updatePipParams()
+                            }
+                        }
+
+                        override fun onVideoSizeChanged(videoSize: VideoSize) {
+                            super.onVideoSizeChanged(videoSize)
+                            Timber.d("📐 Video size: ${videoSize.width}x${videoSize.height}")
+                            if (isInPipMode) {
+                                updatePipParams()
+                            }
+                        }
+
+                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            super.onPlayerError(error)
+                            Timber.e("╔═══════════════════════════════════╗")
+                            Timber.e("❌ PLAYBACK ERROR")
+                            Timber.e("📺 Channel: ${channel.name}")
+                            Timber.e("🔗 URL: ${streamInfo.url}")
+                            Timber.e("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
+                            if (streamInfo.drmLicenseUrl != null) {
+                                Timber.e("🌐 License URL: ${streamInfo.drmLicenseUrl}")
+                            }
+                            if (streamInfo.drmKeyId != null) {
+                                Timber.e("🔑 Has Keys: YES (${streamInfo.drmKeyId.length} + ${streamInfo.drmKey?.length})")
+                            }
+                            Timber.e("💥 Error: ${error.message}")
+                            Timber.e("📋 Error Code: ${error.errorCode}")
+                            Timber.e("📝 Cause: ${error.cause?.message}")
+                            Timber.e("╚═══════════════════════════════════╝")
+                            
+                            binding.progressBar.visibility = View.GONE
+                            
+                            // Enhanced error messages for DRM
+                            val errorMessage = when {
+                                error.message?.contains("drm", ignoreCase = true) == true ||
+                                error.message?.contains("widevine", ignoreCase = true) == true ||
+                                error.message?.contains("clearkey", ignoreCase = true) == true ->
+                                    "🔒 DRM Protection Error\n\n" +
+                                    "DRM Scheme: ${streamInfo.drmScheme ?: "Unknown"}\n" +
+                                    when (streamInfo.drmScheme?.lowercase()) {
+                                        "widevine" -> "License URL: ${streamInfo.drmLicenseUrl ?: "Missing"}\n"
+                                        "playready" -> "License URL: ${streamInfo.drmLicenseUrl ?: "Missing"}\n"
+                                        "clearkey" -> "Has Keys: ${if (streamInfo.drmKeyId != null) "Yes" else "No"}\n"
+                                        else -> ""
+                                    } +
+                                    "\nError: ${error.message}"
+                                
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
+                                    "🌐 Connection Error\n\nUnable to reach the server.\n\nError: ${error.message}"
+                                
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
+                                    "📡 Network Error\n\nCheck your internet connection.\n\nError: ${error.message}"
+                            
+                                error.message?.contains("403", ignoreCase = true) == true ->
+                                    "🚫 Access Denied\n\nThis stream may require authentication.\n\nError: ${error.message}"
+                            
+                                error.message?.contains("404", ignoreCase = true) == true ->
+                                    "❓ Stream Not Found\n\nThe stream URL may be invalid or expired.\n\nError: ${error.message}"
+                            
+                                isDash && streamInfo.drmScheme != null ->
+                                    "📦 DASH DRM Error\n\n" +
+                                    "This DASH stream requires ${streamInfo.drmScheme} DRM decryption.\n" +
+                                    "Make sure the license URL/keys are valid.\n\n" +
+                                    "Error: ${error.message}"
+                            
+                                else -> "❌ Playback Error\n\n${error.message ?: "Unknown error occurred"}"
+                            }
+                            
+                            Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
+                            binding.errorView.visibility = View.VISIBLE
+                            binding.errorText.text = errorMessage
+                        }
+                    })
+                }
+        } catch (e: Exception) {
+            Timber.e(e, "❌ Error creating ExoPlayer")
+            Toast.makeText(this, "Failed to initialize player: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
-        // ⭐ ENHANCED: Build ExoPlayer with FFmpeg Extension support
-        player = ExoPlayer.Builder(this)
-            .setTrackSelector(trackSelector!!)
-            .setMediaSourceFactory(mediaSourceFactory)
-            .setSeekBackIncrementMs(skipMs)
-            .setSeekForwardIncrementMs(skipMs)
-            // Enable FFmpeg extension for advanced codecs
-            .setRenderersFactory(
-                androidx.media3.exoplayer.DefaultRenderersFactory(this).apply {
-                    // Enable FFmpeg audio renderer for better codec support
-                    setExtensionRendererMode(
-                        androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-                    )
-                }
-            )
-            .build().also { exo ->
-                binding.playerView.player = exo
-                val mediaItem = MediaItem.fromUri(streamInfo.url)
-                exo.setMediaItem(mediaItem)
-                exo.prepare()
-                exo.playWhenReady = true
-
-                exo.addListener(object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_READY -> {
-                                updatePlayPauseIcon(exo.playWhenReady)
-                                binding.progressBar.visibility = View.GONE
-                                binding.errorView.visibility = View.GONE
-                                updatePipParams()
-                                
-                                // Log codec info
-                                val format = exo.videoFormat
-                                if (format != null) {
-                                    Timber.d("✅ Playing with codec: ${format.sampleMimeType}")
-                                    Timber.d("📐 Resolution: ${format.width}x${format.height}")
-                                    Timber.d("🎬 Bitrate: ${format.bitrate / 1000} kbps")
-                                }
-                                Timber.d("✅ Player ready - PLAYING!")
-                            }
-                            Player.STATE_BUFFERING -> {
-                                binding.progressBar.visibility = View.VISIBLE
-                                binding.errorView.visibility = View.GONE
-                                Timber.d("⏳ Buffering...")
-                            }
-                            Player.STATE_ENDED -> {
-                                binding.progressBar.visibility = View.GONE
-                                Timber.d("ℹ️ Playback ended")
-                            }
-                            Player.STATE_IDLE -> {
-                                Timber.d("💤 Player idle")
-                            }
-                        }
-                    }
-
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        updatePlayPauseIcon(isPlaying)
-                        Timber.d("▶️ Is playing: $isPlaying")
-                        if (isInPipMode) {
-                            updatePipParams()
-                        }
-                    }
-
-                    override fun onVideoSizeChanged(videoSize: VideoSize) {
-                        super.onVideoSizeChanged(videoSize)
-                        Timber.d("📐 Video size: ${videoSize.width}x${videoSize.height}")
-                        if (isInPipMode) {
-                            updatePipParams()
-                        }
-                    }
-
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        super.onPlayerError(error)
-                        Timber.e("╔═══════════════════════════════════╗")
-                        Timber.e("❌ PLAYBACK ERROR")
-                        Timber.e("📺 Channel: ${channel.name}")
-                        Timber.e("🔗 URL: ${streamInfo.url}")
-                        Timber.e("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
-                        if (streamInfo.drmLicenseUrl != null) {
-                            Timber.e("🌐 License URL: ${streamInfo.drmLicenseUrl}")
-                        }
-                        if (streamInfo.drmKeyId != null) {
-                            Timber.e("🔑 Has Keys: YES")
-                        }
-                        Timber.e("💥 Error: ${error.message}")
-                        Timber.e("📋 Error Code: ${error.errorCode}")
-                        Timber.e("📝 Cause: ${error.cause?.message}")
-                        
-                        // Check if it's a codec-related error
-                        if (error.message?.contains("codec", ignoreCase = true) == true ||
-                            error.message?.contains("decoder", ignoreCase = true) == true) {
-                            Timber.e("🎬 CODEC ERROR: FFmpeg extension may help with this codec")
-                        }
-                        
-                        Timber.e("╚═══════════════════════════════════╝")
-                        
-                        binding.progressBar.visibility = View.GONE
-                        
-                        val errorMessage = when {
-                            error.message?.contains("codec", ignoreCase = true) == true ||
-                            error.message?.contains("decoder", ignoreCase = true) == true ->
-                                "🎬 Codec Not Supported\n\n" +
-                                "This stream uses a codec that requires FFmpeg extension.\n" +
-                                "The app is trying to use FFmpeg decoders.\n\n" +
-                                "Error: ${error.message}"
-                            
-                            error.message?.contains("drm", ignoreCase = true) == true ||
-                            error.message?.contains("widevine", ignoreCase = true) == true ||
-                            error.message?.contains("clearkey", ignoreCase = true) == true ->
-                                "🔒 DRM Protection Error\n\n" +
-                                "DRM Scheme: ${streamInfo.drmScheme ?: "Unknown"}\n" +
-                                when (streamInfo.drmScheme?.lowercase()) {
-                                    "widevine" -> "License URL: ${streamInfo.drmLicenseUrl ?: "Missing"}\n"
-                                    "playready" -> "License URL: ${streamInfo.drmLicenseUrl ?: "Missing"}\n"
-                                    "clearkey" -> "Has Keys: ${if (streamInfo.drmKeyId != null) "Yes" else "No"}\n"
-                                    else -> ""
-                                } +
-                                "\nError: ${error.message}"
-                        
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-                                "🌐 Connection Error\n\nUnable to reach the server.\n\nError: ${error.message}"
-                        
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                                "📡 Network Error\n\nCheck your internet connection.\n\nError: ${error.message}"
-                        
-                            error.message?.contains("403", ignoreCase = true) == true ->
-                                "🚫 Access Denied\n\nThis stream may require authentication.\n\nError: ${error.message}"
-                        
-                            error.message?.contains("404", ignoreCase = true) == true ->
-                                "❓ Stream Not Found\n\nThe stream URL may be invalid or expired.\n\nError: ${error.message}"
-                        
-                            isDash && streamInfo.drmScheme != null ->
-                                "📦 DASH DRM Error\n\n" +
-                                "This DASH stream requires ${streamInfo.drmScheme} DRM decryption.\n" +
-                                "Make sure the license URL/keys are valid.\n\n" +
-                                "Error: ${error.message}"
-                        
-                            else -> "❌ Playback Error\n\n${error.message ?: "Unknown error occurred"}"
-                        }
-                        
-                        Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
-                        binding.errorView.visibility = View.VISIBLE
-                        binding.errorText.text = errorMessage
-                    }
-                })
-            }
-    } catch (e: Exception) {
-        Timber.e(e, "❌ Error creating ExoPlayer")
-        Toast.makeText(this, "Failed to initialize player: ${e.message}", Toast.LENGTH_LONG).show()
+        binding.playerView.apply {
+            useController = true
+            controllerShowTimeoutMs = 5000
+            controllerHideOnTouch = true
+            setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+            // FIX: Disable auto-show to prevent flickering
+            controllerAutoShow = false
+        }
     }
-
-    binding.playerView.apply {
-        useController = true
-        controllerShowTimeoutMs = 5000
-        controllerHideOnTouch = true
-        setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-    }
-}
 
     private fun createClearKeyDrmManager(
         keyIdHex: String,
@@ -1331,11 +1305,8 @@ private fun setupPlayer() {
             }
         }
 
-        // Disable all overlays before entering PiP
+        // FIX: ONLY disable controller, don't touch any layout/visibility
         binding.playerView.useController = false
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
-        binding.relatedChannelsSection.visibility = View.GONE
         
         // Enter PiP
         updatePipParams(enter = true)
@@ -1408,7 +1379,6 @@ private fun setupPlayer() {
         Timber.d("╔═══════════════════════════════════╗")
         Timber.d("📺 PIP MODE CHANGED")
         Timber.d("   In PiP: $isInPictureInPictureMode")
-        Timber.d("   Previous state: $isInPipMode")
         Timber.d("╚═══════════════════════════════════╝")
         
         isInPipMode = isInPictureInPictureMode
@@ -1416,28 +1386,22 @@ private fun setupPlayer() {
         if (isInPipMode) {
             // Entering PiP mode
             Timber.d("▶️ ENTERING PIP MODE")
-            isTransitioningFromPip = false
             
-            // Disable controls completely
+            // Only disable controller, DON'T touch layout
             binding.playerView.useController = false
             binding.playerView.hideController()
-            
-            // Hide overlays
-            binding.lockOverlay.visibility = View.GONE
-            binding.unlockButton.visibility = View.GONE
-            binding.relatedChannelsSection.visibility = View.GONE
-            
-            // Set resize mode for PiP
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
         } else {
             // Exiting PiP mode
             Timber.d("◀️ EXITING PIP MODE")
-            isTransitioningFromPip = true
             
-            // Check if activity is being destroyed
+            // FIX: Apply Window Flags IMMEDIATELY to prevent the "jump"
+            // We force the system to hide bars before the layout pass happens
+            val currentOrientation = resources.configuration.orientation
+            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+            
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
-                Timber.d("⚠️ Activity being destroyed, finishing...")
                 finish()
                 return
             }
@@ -1445,72 +1409,26 @@ private fun setupPlayer() {
             userRequestedPip = false
             
             if (isFinishing) {
-                Timber.d("⚠️ Activity is finishing, skipping restoration")
                 return
             }
             
-            // FIX: Complete layout changes BEFORE showing controller
-            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            Timber.d("🔄 Restoring orientation: ${if (isLandscape) "LANDSCAPE" else "PORTRAIT"}")
-            
-            // Temporarily hide player view to prevent flicker
-            binding.playerView.alpha = 0f
-            
-            // Step 1: Apply ALL layout changes
-            setWindowFlags(isLandscape)
-            adjustLayoutForOrientation(isLandscape)
-            
-            // Step 2: Request layout and wait for it to complete
-            binding.root.requestLayout()
-            binding.playerContainer.requestLayout()
-            
-            // Step 3: After layout is done, restore visibility and controls
-            binding.root.post {
-                binding.root.post {
-                    // Fade player view back in smoothly
-                    binding.playerView.animate()
-                        .alpha(1f)
-                        .setDuration(200)
-                        .start()
-                    
-                    // FIX: Restore related channels if in portrait and has channels
-                    if (!isLandscape && relatedChannels.isNotEmpty()) {
-                        binding.relatedChannelsSection.visibility = View.VISIBLE
-                        Timber.d("📺 Restored related channels section (${relatedChannels.size} channels)")
+            if (isLocked) {
+                Timber.d("🔒 Restoring locked state")
+                binding.playerView.useController = false
+                binding.lockOverlay.visibility = View.VISIBLE
+                showUnlockButton()
+            } else {
+                Timber.d("🔓 Restoring unlocked state")
+                binding.playerView.useController = true
+                
+                // FIX: Slightly longer delay for controller to ensure layout is stable
+                binding.playerView.postDelayed({
+                    if (!isInPipMode && !isFinishing) {
+                        binding.playerView.showController()
+                        Timber.d("✅ Controller shown")
                     }
-                    
-                    // Now restore controls
-                    binding.playerView.postDelayed({
-                        if (!isInPipMode && !isFinishing) {
-                            if (isLocked) {
-                                Timber.d("🔒 Restoring locked state")
-                                binding.playerView.useController = false
-                                binding.lockOverlay.visibility = View.VISIBLE
-                                binding.lockOverlay.isClickable = true
-                                binding.lockOverlay.isFocusable = true
-                                showUnlockButton()
-                            } else {
-                                Timber.d("🔓 Restoring unlocked state")
-                                binding.playerView.useController = true
-                                binding.lockOverlay.visibility = View.GONE
-                                
-                                // Show controller
-                                binding.playerView.postDelayed({
-                                    if (!isInPipMode && !isFinishing) {
-                                        binding.playerView.showController()
-                                        Timber.d("✅ Controller shown after PiP exit")
-                                        
-                                        // Reset transition flag
-                                        isTransitioningFromPip = false
-                                    }
-                                }, 100)
-                            }
-                        }
-                    }, 200)
-                }
+                }, 300)
             }
-            
-            Timber.d("✅ PIP exit restoration complete")
         }
     }
 
