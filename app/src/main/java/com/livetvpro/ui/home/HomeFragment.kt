@@ -1,3 +1,4 @@
+// app/src/main/java/com/livetvpro/ui/home/HomeFragment.kt
 package com.livetvpro.ui.home
 
 import android.os.Bundle
@@ -11,10 +12,13 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.R
 import com.livetvpro.SearchableFragment
+import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentHomeBinding
 import com.livetvpro.ui.adapters.CategoryAdapter
+import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class HomeFragment : Fragment(), SearchableFragment {
@@ -24,8 +28,12 @@ class HomeFragment : Fragment(), SearchableFragment {
 
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var categoryAdapter: CategoryAdapter
+    
+    @Inject
+    lateinit var listenerManager: ListenerManager
+    
+    private var hasTriggeredListener = false
 
-    // ✅ IMPLEMENT INTERFACE
     override fun onSearchQuery(query: String) {
         viewModel.searchCategories(query)
     }
@@ -48,6 +56,11 @@ class HomeFragment : Fragment(), SearchableFragment {
 
     private fun setupRecyclerView() {
         categoryAdapter = CategoryAdapter { category ->
+            // Trigger listener on first category click
+            if (!hasTriggeredListener) {
+                hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_HOME)
+            }
+            
             val bundle = bundleOf(
                 "categoryId" to category.id,
                 "categoryName" to category.name
@@ -94,6 +107,12 @@ class HomeFragment : Fragment(), SearchableFragment {
         binding.retryButton.setOnClickListener {
             viewModel.retry()
         }
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Reset listener flag when returning to this fragment
+        hasTriggeredListener = false
     }
 
     override fun onDestroyView() {
