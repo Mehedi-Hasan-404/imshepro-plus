@@ -1,3 +1,4 @@
+// app/src/main/java/com/livetvpro/ui/favorites/FavoritesFragment.kt
 package com.livetvpro.ui.favorites
 
 import android.os.Bundle
@@ -10,10 +11,13 @@ import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.FavoriteChannel
+import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentFavoritesBinding
 import com.livetvpro.ui.adapters.FavoriteAdapter
 import com.livetvpro.ui.player.ChannelPlayerActivity
+import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class FavoritesFragment : Fragment() {
@@ -23,6 +27,11 @@ class FavoritesFragment : Fragment() {
 
     private val viewModel: FavoritesViewModel by viewModels()
     private lateinit var favoriteAdapter: FavoriteAdapter
+    
+    @Inject
+    lateinit var listenerManager: ListenerManager
+    
+    private var hasTriggeredListener = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -43,6 +52,11 @@ class FavoritesFragment : Fragment() {
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
             onChannelClick = { favChannel ->
+                // Trigger listener on first favorite channel click
+                if (!hasTriggeredListener) {
+                    hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
+                }
+                
                 val channel = Channel(
                     id = favChannel.id,
                     name = favChannel.name,
@@ -51,6 +65,7 @@ class FavoritesFragment : Fragment() {
                     categoryId = favChannel.categoryId,
                     categoryName = favChannel.categoryName
                 )
+                // Note: No listener on player pages - just navigate
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { favChannel ->
@@ -70,9 +85,6 @@ class FavoritesFragment : Fragment() {
         }
     }
 
-    /**
-     * ✅ Material Design Confirmation for Single Item
-     */
     private fun showRemoveConfirmation(favorite: FavoriteChannel) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Remove Favorite")
@@ -84,9 +96,6 @@ class FavoritesFragment : Fragment() {
             .show()
     }
 
-    /**
-     * ✅ Material Design Confirmation for All Items
-     */
     private fun showClearAllDialog() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Clear All Favorites")
@@ -107,10 +116,15 @@ class FavoritesFragment : Fragment() {
             binding.clearAllButton.visibility = if (isEmpty) View.GONE else View.VISIBLE
         }
     }
+    
+    override fun onResume() {
+        super.onResume()
+        // Reset listener flag when returning to this fragment
+        hasTriggeredListener = false
+    }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
 }
-
