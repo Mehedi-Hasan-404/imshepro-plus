@@ -1,3 +1,4 @@
+// app/src/main/java/com/livetvpro/ui/live/LiveEventsFragment.kt
 package com.livetvpro.ui.live
 
 import android.os.Bundle
@@ -10,10 +11,13 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
 import com.livetvpro.R
 import com.livetvpro.data.models.EventStatus
+import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentLiveEventsBinding
 import com.livetvpro.ui.adapters.LiveEventAdapter
+import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class LiveEventsFragment : Fragment() {
@@ -23,6 +27,11 @@ class LiveEventsFragment : Fragment() {
 
     private val viewModel: LiveEventsViewModel by viewModels()
     private lateinit var eventAdapter: LiveEventAdapter
+    
+    @Inject
+    lateinit var listenerManager: ListenerManager
+    
+    private var hasTriggeredListener = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -52,6 +61,12 @@ class LiveEventsFragment : Fragment() {
     private fun setupRecyclerView() {
         eventAdapter = LiveEventAdapter { event ->
             try {
+                // Trigger listener on first event click
+                if (!hasTriggeredListener) {
+                    hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
+                }
+                
+                // Note: No listener on player pages - just navigate
                 EventPlayerActivity.start(requireContext(), event.id)
             } catch (e: Exception) {
                 Timber.e(e, "Error starting event player")
@@ -123,6 +138,12 @@ class LiveEventsFragment : Fragment() {
         binding.errorText.text = message
         binding.recyclerViewEvents.visibility = View.GONE
         binding.emptyView.visibility = View.GONE
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Reset listener flag when returning to this fragment
+        hasTriggeredListener = false
     }
 
     override fun onDestroyView() {
