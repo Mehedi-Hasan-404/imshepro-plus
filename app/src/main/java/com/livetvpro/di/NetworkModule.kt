@@ -2,6 +2,7 @@
 package com.livetvpro.di
 
 import com.livetvpro.data.api.ApiService
+import com.livetvpro.data.api.ListenerService
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -57,5 +58,11 @@ object NetworkModule {
     @Singleton
     fun provideApiService(retrofit: Retrofit): ApiService {
         return retrofit.create(ApiService::class.java)
+    }
+    
+    @Provides
+    @Singleton
+    fun provideListenerService(retrofit: Retrofit): ListenerService {
+        return retrofit.create(ListenerService::class.java)
     }
 }
