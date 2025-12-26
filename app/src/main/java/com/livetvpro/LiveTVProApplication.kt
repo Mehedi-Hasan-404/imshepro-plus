@@ -2,11 +2,22 @@
 package com.livetvpro
 
 import android.app.Application
+import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import timber.log.Timber
+import javax.inject.Inject
 
 @HiltAndroidApp
 class LiveTVProApplication : Application() {
+    
+    @Inject
+    lateinit var listenerManager: ListenerManager
+    
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
@@ -23,5 +34,14 @@ class LiveTVProApplication : Application() {
         }
 
         Timber.d("LiveTVPro Application Started")
+        
+        // Initialize listener manager
+        applicationScope.launch {
+            try {
+                listenerManager.initialize()
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to initialize listener manager")
+            }
+        }
     }
 }
