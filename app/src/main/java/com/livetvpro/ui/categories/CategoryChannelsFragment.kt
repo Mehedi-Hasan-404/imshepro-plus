@@ -1,3 +1,4 @@
+// app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
@@ -10,10 +11,13 @@ import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.R
 import com.livetvpro.SearchableFragment
+import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentCategoryChannelsBinding
 import com.livetvpro.ui.adapters.ChannelAdapter
 import com.livetvpro.ui.player.ChannelPlayerActivity
+import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class CategoryChannelsFragment : Fragment(), SearchableFragment {
@@ -23,6 +27,11 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     private val viewModel: CategoryChannelsViewModel by viewModels()
     private lateinit var channelAdapter: ChannelAdapter
+    
+    @Inject
+    lateinit var listenerManager: ListenerManager
+    
+    private var hasTriggeredListener = false
 
     override fun onSearchQuery(query: String) {
         viewModel.searchChannels(query)
@@ -61,6 +70,12 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
+                // Trigger listener on first channel click
+                if (!hasTriggeredListener) {
+                    hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
+                }
+                
+                // Note: No listener on player pages - just navigate
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
@@ -103,10 +118,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         }
     }
 
-    /**
-     * Fixes the overlapping issue. 
-     * Only shows Empty View if not loading and list is empty.
-     */
     private fun updateUiState(isListEmpty: Boolean, isLoading: Boolean) {
         if (isLoading) {
             binding.emptyView.visibility = View.GONE
@@ -117,6 +128,9 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
+        // Reset listener flag when returning to this fragment
+        hasTriggeredListener = false
+        
         binding.root.postDelayed({
             channelAdapter.refreshAll()
         }, 50)
@@ -127,4 +141,3 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         _binding = null
     }
 }
-
