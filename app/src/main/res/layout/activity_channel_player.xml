@@ -26,6 +26,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             android:keepScreenOn="true"
+            app:surface_type="texture_view"
             android:background="@android:color/black"
             app:use_controller="true"
             app:controller_layout_id="@layout/exo_modern_player_controls" />
@@ -153,3 +154,4 @@
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
+
