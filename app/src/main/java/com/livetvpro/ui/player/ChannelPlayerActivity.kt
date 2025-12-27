@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
@@ -85,7 +86,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
     
-    // FIX: Prevent multiple rebindings
+    // FIX: Cache the source rect so we don't lose it while in PiP
+    private val pipSourceRect = Rect()
+    
     private var isBindingControls = false
     private var controlsBindingRunnable: Runnable? = null
 
@@ -137,7 +140,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
-        // FIX: Apply orientation settings after window is ready
         binding.root.post {
             val currentOrientation = resources.configuration.orientation
             val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
@@ -152,7 +154,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         setupPlayer()
         
-        // FIX: Single delayed binding after player setup
+        // FIX: Update PiP params when layout changes so the sourceRect is always accurate
+        binding.playerView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
+            if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
+                updatePipParams()
+            }
+        }
+        
+        // Single delayed binding after player setup
         binding.playerView.postDelayed({
             bindControllerViewsOnce()
             setupControlListenersOnce()
@@ -192,14 +201,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.relatedLoadingProgress.visibility = View.GONE
             binding.relatedChannelsRecycler.visibility = View.VISIBLE
             binding.relatedCount.text = channels.size.toString()
-
-            Timber.d("Loaded ${channels.size} related channels")
         }
     }
 
     private fun switchToChannel(newChannel: Channel) {
-        Timber.d("Switching to channel: ${newChannel.name}")
-
         releasePlayer()
         channel = newChannel
         tvChannelName?.text = channel.name
@@ -215,12 +220,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         // Don't apply settings if in PiP mode
         if (isInPipMode) {
-            Timber.d("⏭️ Skipping configuration change - in PiP mode")
             return
         }
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-        Timber.d("🔄 Configuration changed: ${if (isLandscape) "LANDSCAPE" else "PORTRAIT"}")
         applyOrientationSettings(isLandscape)
     }
 
@@ -241,13 +244,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
-        Timber.d("🔄 Applying orientation settings: ${if (isLandscape) "LANDSCAPE" else "PORTRAIT"}")
-        
         setWindowFlags(isLandscape)
         adjustLayoutForOrientation(isLandscape)
-        
-        // FIX: DON'T rebind controls here - it causes flickering
-        // Controls are already bound and working
         
         binding.playerContainer.requestLayout()
         binding.root.requestLayout()
@@ -257,14 +255,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         
         if (isLandscape) {
-            binding.playerView.hideController()
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 3000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            
             params.dimensionRatio = null
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             binding.relatedChannelsSection.visibility = View.GONE
         } else {
@@ -272,9 +271,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
             params.dimensionRatio = "16:9"
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             if (relatedChannels.isNotEmpty()) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
@@ -286,7 +287,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // Landscape - Hide both status bar and navigation bar (full immersive)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
@@ -315,7 +315,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait - Always show both status bar and navigation bar
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(true)
                 window.insetsController?.show(
@@ -366,12 +365,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        
-        // FIX: Clean up all handlers and callbacks
         mainHandler.removeCallbacksAndMessages(null)
         controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
         controlsBindingRunnable = null
-        
         releasePlayer()
         
         try {
@@ -405,27 +401,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
     )
 
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
-        Timber.d("╔═══════════════════════════════════╗")
-        Timber.d("🔍 PARSING STREAM URL")
-        Timber.d("📥 Raw URL: $streamUrl")
-        
         val pipeIndex = streamUrl.indexOf('|')
         if (pipeIndex == -1) {
-            Timber.d("ℹ️ No pipe delimiter found - plain URL")
-            Timber.d("╚═══════════════════════════════════╝")
             return StreamInfo(streamUrl, mapOf(), null, null, null, null)
         }
         
         val url = streamUrl.substring(0, pipeIndex).trim()
         val rawParams = streamUrl.substring(pipeIndex + 1).trim()
-        
-        Timber.d("📺 Clean URL: $url")
-        Timber.d("⚙️ Raw Parameters: $rawParams")
-        
         val normalizedParams = rawParams.replace("&", "|")
         val parts = normalizedParams.split("|")
-        
-        Timber.d("📋 Found ${parts.size} parameter parts")
         
         val headers = mutableMapOf<String, String>()
         var drmScheme: String? = null
@@ -435,81 +419,33 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         for (part in parts) {
             val eqIndex = part.indexOf('=')
-            if (eqIndex == -1) {
-                Timber.w("⚠️ Skipping invalid parameter: $part")
-                continue
-            }
+            if (eqIndex == -1) continue
             
             val key = part.substring(0, eqIndex).trim()
             val value = part.substring(eqIndex + 1).trim()
             
-            Timber.d("   🔌 Param: $key = ${value.take(20)}${if (value.length > 20) "..." else ""}")
-            
             when (key.lowercase()) {
-                "drmscheme" -> {
-                    drmScheme = value.lowercase()
-                    Timber.d("   🔐 DRM Scheme detected: $drmScheme")
-                }
+                "drmscheme" -> drmScheme = value.lowercase()
                 "drmlicense" -> {
-                    // Check if it's a URL (for Widevine/PlayReady) or KeyID:Key (for ClearKey)
                     if (value.startsWith("http://", ignoreCase = true) || 
                         value.startsWith("https://", ignoreCase = true)) {
                         drmLicenseUrl = value
-                        Timber.d("   🌐 DRM License URL: $drmLicenseUrl")
                     } else {
-                        // ClearKey format: KeyID:Key
                         val keyParts = value.split(":")
                         if (keyParts.size == 2) {
                             drmKeyId = keyParts[0].trim()
                             drmKey = keyParts[1].trim()
-                            Timber.d("   🔑 DRM Keys extracted:")
-                            Timber.d("      KeyID: ${drmKeyId.take(16)}... (${drmKeyId.length} chars)")
-                            Timber.d("      Key:   ${drmKey.take(16)}... (${drmKey.length} chars)")
-                        } else {
-                            Timber.e("   ❌ Invalid DRM License format: $value")
                         }
                     }
                 }
-                "referer", "referrer" -> {
-                    headers["Referer"] = value
-                    Timber.d("   🌐 Referer: $value")
-                }
-                "user-agent", "useragent" -> {
-                    headers["User-Agent"] = value
-                    Timber.d("   🖥️ User-Agent: ${value.take(30)}...")
-                }
-                "origin" -> {
-                    headers["Origin"] = value
-                    Timber.d("   🌐 Origin: $value")
-                }
-                "cookie" -> {
-                    headers["Cookie"] = value
-                    Timber.d("   🍪 Cookie: ${value.take(30)}...")
-                }
-                "x-forwarded-for" -> {
-                    headers["X-Forwarded-For"] = value
-                    Timber.d("   📡 X-Forwarded-For: $value")
-                }
-                else -> {
-                    headers[key] = value
-                    Timber.d("   🔎 Custom header: $key")
-                }
+                "referer", "referrer" -> headers["Referer"] = value
+                "user-agent", "useragent" -> headers["User-Agent"] = value
+                "origin" -> headers["Origin"] = value
+                "cookie" -> headers["Cookie"] = value
+                "x-forwarded-for" -> headers["X-Forwarded-For"] = value
+                else -> headers[key] = value
             }
         }
-        
-        Timber.d("📊 PARSING SUMMARY:")
-        Timber.d("   URL: ✅")
-        Timber.d("   Headers: ${headers.size}")
-        Timber.d("   DRM Scheme: ${drmScheme ?: "❌ None"}")
-        Timber.d("   DRM License URL: ${if (drmLicenseUrl != null) "✅ $drmLicenseUrl" else "❌ None"}")
-        Timber.d("   DRM KeyID: ${if (drmKeyId != null) "✅ Present (${drmKeyId.length} chars)" else "❌ Missing"}")
-        Timber.d("   DRM Key: ${if (drmKey != null) "✅ Present (${drmKey.length} chars)" else "❌ Missing"}")
-        
-        if (drmScheme != null && drmLicenseUrl == null && (drmKeyId == null || drmKey == null)) {
-            Timber.e("⚠️ WARNING: DRM Scheme present but neither license URL nor keys provided!")
-        }
-        
-        Timber.d("╚═══════════════════════════════════╝")
         
         return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey, drmLicenseUrl)
     }
@@ -525,22 +461,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         try {
             val streamInfo = parseStreamUrl(channel.streamUrl)
             
-            Timber.d("╔═══════════════════════════════════╗")
-            Timber.d("🎬 SETTING UP PLAYER")
-            Timber.d("📺 Channel: ${channel.name}")
-            Timber.d("🔗 URL: ${streamInfo.url}")
-            Timber.d("🔒 DRM Scheme: ${streamInfo.drmScheme ?: "None"}")
-            
-            // Detect stream type
             val isDash = streamInfo.url.contains(".mpd", ignoreCase = true)
-            val isHls = streamInfo.url.contains(".m3u8", ignoreCase = true) || 
-                        streamInfo.url.contains("/hls/", ignoreCase = true)
-            Timber.d("📦 Stream Type: ${when {
-                isDash -> "DASH"
-                isHls -> "HLS"
-                else -> "Progressive"
-            }}")
-            Timber.d("╚═══════════════════════════════════╝")
+            val isHls = streamInfo.url.contains(".m3u8", ignoreCase = true) || streamInfo.url.contains("/hls/", ignoreCase = true)
 
             val headers = streamInfo.headers.toMutableMap()
             if (!headers.containsKey("User-Agent")) {
@@ -555,13 +477,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setAllowCrossProtocolRedirects(true)
                 .setKeepPostFor302Redirects(true)
 
-            // Support ClearKey, Widevine, and PlayReady
             val mediaSourceFactory = if (streamInfo.drmScheme != null) {
-                Timber.d("╔═══════════════════════════════════╗")
-                Timber.d("🔐 INITIALIZING DRM PROTECTION")
-                Timber.d("🔒 Scheme: ${streamInfo.drmScheme}")
-                
-                // Normalize scheme name
                 val normalizedScheme = streamInfo.drmScheme.lowercase().let { scheme ->
                     when {
                         scheme.contains("clearkey") -> "clearkey"
@@ -574,58 +490,31 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 val drmSessionManager = when (normalizedScheme) {
                     "clearkey" -> {
                         if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
-                            Timber.d("🔑 Creating ClearKey DRM Manager...")
-                            Timber.d("   KeyID Length: ${streamInfo.drmKeyId.length}")
-                            Timber.d("   Key Length: ${streamInfo.drmKey.length}")
                             createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
-                        } else {
-                            Timber.w("⚠️ ClearKey scheme but no keys provided")
-                            null
-                        }
+                        } else null
                     }
                     "widevine" -> {
                         if (streamInfo.drmLicenseUrl != null) {
-                            Timber.d("🌐 Creating Widevine DRM Manager...")
-                            Timber.d("   License URL: ${streamInfo.drmLicenseUrl}")
                             createWidevineDrmManager(streamInfo.drmLicenseUrl, headers)
-                        } else {
-                            Timber.e("❌ Widevine scheme but no license URL provided")
-                            Timber.e("   Widevine requires a license server URL")
-                            null
-                        }
+                        } else null
                     }
                     "playready" -> {
                         if (streamInfo.drmLicenseUrl != null) {
-                            Timber.d("🌐 Creating PlayReady DRM Manager...")
-                            Timber.d("   License URL: ${streamInfo.drmLicenseUrl}")
                             createPlayReadyDrmManager(streamInfo.drmLicenseUrl, headers)
-                        } else {
-                            Timber.e("❌ PlayReady scheme but no license URL provided")
-                            Timber.e("   PlayReady requires a license server URL")
-                            null
-                        }
+                        } else null
                     }
-                    else -> {
-                        Timber.e("❌ Unsupported DRM scheme: $normalizedScheme")
-                        Timber.e("   Supported schemes: clearkey, widevine, playready")
-                        null
-                    }
+                    else -> null
                 }
-                
-                Timber.d("╚═══════════════════════════════════╝")
                 
                 if (drmSessionManager != null) {
                     DefaultMediaSourceFactory(this)
                         .setDataSourceFactory(dataSourceFactory)
                         .setDrmSessionManagerProvider { drmSessionManager }
                 } else {
-                    Timber.w("⚠️ DRM manager creation failed - attempting playback without DRM")
-                    Timber.w("   This will likely fail for DRM-protected content")
                     DefaultMediaSourceFactory(this)
                         .setDataSourceFactory(dataSourceFactory)
                 }
             } else {
-                Timber.d("🔓 No DRM protection - regular stream")
                 DefaultMediaSourceFactory(this)
                     .setDataSourceFactory(dataSourceFactory)
             }
@@ -650,93 +539,49 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
                                     updatePipParams()
-                                    Timber.d("✅ Player ready - PLAYING!")
                                 }
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
                                     binding.errorView.visibility = View.GONE
-                                    Timber.d("⏳ Buffering...")
                                 }
                                 Player.STATE_ENDED -> {
                                     binding.progressBar.visibility = View.GONE
-                                    Timber.d("ℹ️ Playback ended")
                                 }
-                                Player.STATE_IDLE -> {
-                                    Timber.d("💤 Player idle")
-                                }
+                                Player.STATE_IDLE -> {}
                             }
                         }
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
-                            Timber.d("▶️ Is playing: $isPlaying")
-                            if (isInPipMode) {
-                                updatePipParams()
-                            }
+                            // We can update params here, but the correct logic is inside updatePipParams
+                            updatePipParams()
                         }
 
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
-                            Timber.d("📐 Video size: ${videoSize.width}x${videoSize.height}")
-                            if (isInPipMode) {
-                                updatePipParams()
-                            }
+                            updatePipParams()
                         }
 
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                             super.onPlayerError(error)
-                            Timber.e("╔═══════════════════════════════════╗")
-                            Timber.e("❌ PLAYBACK ERROR")
-                            Timber.e("📺 Channel: ${channel.name}")
-                            Timber.e("🔗 URL: ${streamInfo.url}")
-                            Timber.e("🔒 DRM: ${streamInfo.drmScheme ?: "None"}")
-                            if (streamInfo.drmLicenseUrl != null) {
-                                Timber.e("🌐 License URL: ${streamInfo.drmLicenseUrl}")
-                            }
-                            if (streamInfo.drmKeyId != null) {
-                                Timber.e("🔑 Has Keys: YES (${streamInfo.drmKeyId.length} + ${streamInfo.drmKey?.length})")
-                            }
-                            Timber.e("💥 Error: ${error.message}")
-                            Timber.e("📋 Error Code: ${error.errorCode}")
-                            Timber.e("📝 Cause: ${error.cause?.message}")
-                            Timber.e("╚═══════════════════════════════════╝")
-                            
                             binding.progressBar.visibility = View.GONE
                             
-                            // Enhanced error messages for DRM
                             val errorMessage = when {
                                 error.message?.contains("drm", ignoreCase = true) == true ||
                                 error.message?.contains("widevine", ignoreCase = true) == true ||
                                 error.message?.contains("clearkey", ignoreCase = true) == true ->
-                                    "🔒 DRM Protection Error\n\n" +
-                                    "DRM Scheme: ${streamInfo.drmScheme ?: "Unknown"}\n" +
-                                    when (streamInfo.drmScheme?.lowercase()) {
-                                        "widevine" -> "License URL: ${streamInfo.drmLicenseUrl ?: "Missing"}\n"
-                                        "playready" -> "License URL: ${streamInfo.drmLicenseUrl ?: "Missing"}\n"
-                                        "clearkey" -> "Has Keys: ${if (streamInfo.drmKeyId != null) "Yes" else "No"}\n"
-                                        else -> ""
-                                    } +
-                                    "\nError: ${error.message}"
-                            
+                                    "DRM Protection Error\n${error.message}"
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-                                    "🌐 Connection Error\n\nUnable to reach the server.\n\nError: ${error.message}"
-                            
+                                    "Connection Error\n${error.message}"
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                                    "📡 Network Error\n\nCheck your internet connection.\n\nError: ${error.message}"
-                            
+                                    "Network Error\n${error.message}"
                                 error.message?.contains("403", ignoreCase = true) == true ->
-                                    "🚫 Access Denied\n\nThis stream may require authentication.\n\nError: ${error.message}"
-                            
+                                    "Access Denied\n${error.message}"
                                 error.message?.contains("404", ignoreCase = true) == true ->
-                                    "❓ Stream Not Found\n\nThe stream URL may be invalid or expired.\n\nError: ${error.message}"
-                            
+                                    "Stream Not Found\n${error.message}"
                                 isDash && streamInfo.drmScheme != null ->
-                                    "📦 DASH DRM Error\n\n" +
-                                    "This DASH stream requires ${streamInfo.drmScheme} DRM decryption.\n" +
-                                    "Make sure the license URL/keys are valid.\n\n" +
-                                    "Error: ${error.message}"
-                            
-                                else -> "❌ Playback Error\n\n${error.message ?: "Unknown error occurred"}"
+                                    "DASH DRM Error\n${error.message}"
+                                else -> "Playback Error\n${error.message}"
                             }
                             
                             Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
@@ -746,7 +591,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     })
                 }
         } catch (e: Exception) {
-            Timber.e(e, "❌ Error creating ExoPlayer")
+            Timber.e(e, "Error creating ExoPlayer")
             Toast.makeText(this, "Failed to initialize player: ${e.message}", Toast.LENGTH_LONG).show()
         }
 
@@ -755,34 +600,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
             controllerShowTimeoutMs = 5000
             controllerHideOnTouch = true
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
-            // FIX: Disable auto-show and animations to prevent flickering
             controllerAutoShow = false
-            // Disable show/hide animations
-            setControllerShowTimeoutMs(5000)
-            setControllerHideOnTouch(true)
         }
     }
 
-    private fun createClearKeyDrmManager(
-        keyIdHex: String,
-        keyHex: String
-    ): DefaultDrmSessionManager? {
+    private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
         return try {
             val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
-
-            Timber.d("╔═══════════════════════════════════╗")
-            Timber.d("🔐 Creating ClearKey DRM manager")
-            Timber.d("🔑 Input KeyID (hex): $keyIdHex")
-            Timber.d("   Length: ${keyIdHex.length} chars")
-            Timber.d("🔑 Input Key (hex): $keyHex")
-            Timber.d("   Length: ${keyHex.length} chars")
-
             val keyIdBytes = hexToBytes(keyIdHex)
             val keyBytes = hexToBytes(keyHex)
-
-            Timber.d("📦 Converted to bytes:")
-            Timber.d("   KeyID bytes: ${keyIdBytes.size} bytes")
-            Timber.d("   Key bytes: ${keyBytes.size} bytes")
 
             val keyIdBase64 = android.util.Base64.encodeToString(
                 keyIdBytes,
@@ -792,10 +618,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 keyBytes,
                 android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
             )
-
-            Timber.d("🔄 Converted to base64url:")
-            Timber.d("   KeyID: $keyIdBase64")
-            Timber.d("   Key: $keyBase64")
 
             val jwkResponse = """
             {
@@ -807,44 +629,22 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     }
                 ]
             }
-        """.trimIndent()
-
-            Timber.d("📝 Generated JWK response:")
-            Timber.d(jwkResponse)
+            """.trimIndent()
 
             val drmCallback = LocalMediaDrmCallback(jwkResponse.toByteArray())
 
             DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(
-                    clearKeyUuid,
-                    FrameworkMediaDrm.DEFAULT_PROVIDER
-                )
+                .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
-                .build(drmCallback).also {
-                    Timber.d("✅ ClearKey DRM manager created successfully")
-                    Timber.d("╚═══════════════════════════════════╝")
-                }
+                .build(drmCallback)
         } catch (e: Exception) {
-            Timber.e("╔═══════════════════════════════════╗")
-            Timber.e(e, "❌ Failed to create ClearKey DRM manager")
-            Timber.e("   KeyID: $keyIdHex")
-            Timber.e("   Key: $keyHex")
-            Timber.e("╚═══════════════════════════════════╝")
             null
         }
     }
 
-    private fun createWidevineDrmManager(
-        licenseUrl: String,
-        requestHeaders: Map<String, String> = emptyMap()
-    ): DefaultDrmSessionManager? {
+    private fun createWidevineDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
         return try {
             val widevineUuid = C.WIDEVINE_UUID
-
-            Timber.d("🔐 Creating Widevine DRM manager")
-            Timber.d("🌐 License URL: $licenseUrl")
-            Timber.d("📦 Request Headers: ${requestHeaders.keys.joinToString(", ")}")
-
             val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
                 .setDefaultRequestProperties(requestHeaders)
@@ -852,41 +652,23 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
 
-            val drmCallback = androidx.media3.exoplayer.drm.HttpMediaDrmCallback(
-                licenseUrl,
-                licenseDataSourceFactory
-            )
-
+            val drmCallback = androidx.media3.exoplayer.drm.HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory)
             requestHeaders.forEach { (key, value) ->
                 drmCallback.setKeyRequestProperty(key, value)
             }
 
             DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(
-                    widevineUuid,
-                    FrameworkMediaDrm.DEFAULT_PROVIDER
-                )
+                .setUuidAndExoMediaDrmProvider(widevineUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
-                .build(drmCallback).also {
-                    Timber.d("✅ Widevine DRM manager created successfully")
-                }
+                .build(drmCallback)
         } catch (e: Exception) {
-            Timber.e(e, "❌ Failed to create Widevine DRM manager")
             null
         }
     }
 
-    private fun createPlayReadyDrmManager(
-        licenseUrl: String,
-        requestHeaders: Map<String, String> = emptyMap()
-    ): DefaultDrmSessionManager? {
+    private fun createPlayReadyDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
         return try {
             val playReadyUuid = C.PLAYREADY_UUID
-
-            Timber.d("🔐 Creating PlayReady DRM manager")
-            Timber.d("🌐 License URL: $licenseUrl")
-            Timber.d("📦 Request Headers: ${requestHeaders.keys.joinToString(", ")}")
-
             val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
                 .setDefaultRequestProperties(requestHeaders)
@@ -894,26 +676,16 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
 
-            val drmCallback = androidx.media3.exoplayer.drm.HttpMediaDrmCallback(
-                licenseUrl,
-                licenseDataSourceFactory
-            )
-
+            val drmCallback = androidx.media3.exoplayer.drm.HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory)
             requestHeaders.forEach { (key, value) ->
                 drmCallback.setKeyRequestProperty(key, value)
             }
 
             DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(
-                    playReadyUuid,
-                    FrameworkMediaDrm.DEFAULT_PROVIDER
-                )
+                .setUuidAndExoMediaDrmProvider(playReadyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
-                .build(drmCallback).also {
-                    Timber.d("✅ PlayReady DRM manager created successfully")
-                }
+                .build(drmCallback)
         } catch (e: Exception) {
-            Timber.e(e, "❌ Failed to create PlayReady DRM manager")
             null
         }
     }
@@ -921,30 +693,18 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun hexToBytes(hex: String): ByteArray {
         return try {
             val cleanHex = hex.replace(" ", "").replace("-", "").lowercase()
-            
-            if (cleanHex.length % 2 != 0) {
-                Timber.e("❌ Invalid hex string length: ${cleanHex.length} (must be even)")
-                return ByteArray(0)
-            }
-            
-            cleanHex.chunked(2).map { 
-                it.toInt(16).toByte() 
-            }.toByteArray()
+            if (cleanHex.length % 2 != 0) return ByteArray(0)
+            cleanHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
         } catch (e: Exception) {
-            Timber.e(e, "❌ Failed to convert hex to bytes: $hex")
             ByteArray(0)
         }
     }
 
     private fun updatePlayPauseIcon(isPlaying: Boolean) {
-        btnPlayPause?.setImageResource(
-            if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-        )
+        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
     private fun bindControllerViewsExact() {
-        Timber.d("🔧 Binding controller views...")
-        
         with(binding.playerView) {
             btnBack = findViewById(R.id.exo_back)
             btnPip = findViewById(R.id.exo_pip)
@@ -959,7 +719,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             tvChannelName = findViewById(R.id.exo_channel_name)
         }
 
-        // Update icons
         btnBack?.setImageResource(R.drawable.ic_arrow_back)
         btnPip?.setImageResource(R.drawable.ic_pip)
         btnSettings?.setImageResource(R.drawable.ic_settings)
@@ -969,182 +728,71 @@ class ChannelPlayerActivity : AppCompatActivity() {
         updatePlayPauseIcon(player?.isPlaying == true)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
         
-        // Update fullscreen icon based on orientation
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        btnFullscreen?.setImageResource(
-            if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen
-        )
-        
+        btnFullscreen?.setImageResource(if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen)
         btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
 
-        // Ensure all buttons are clickable
-        listOf(
-            btnBack, btnPip, btnSettings, btnLock, btnMute,
-            btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio
-        ).forEach { button ->
-            button?.apply {
-                isClickable = true
-                isFocusable = true
-                isEnabled = true
-            }
+        listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach { 
+            it?.apply { isClickable = true; isFocusable = true; isEnabled = true }
         }
 
-        // Ensure visibility
         btnAspectRatio?.visibility = View.VISIBLE
         btnPip?.visibility = View.VISIBLE
         btnFullscreen?.visibility = View.VISIBLE
-        
-        // Update channel name
         tvChannelName?.text = channel.name
-        
-        Timber.d("✅ Controller views bound successfully")
     }
     
-    // FIX: Debounced version to prevent multiple calls
     private fun bindControllerViewsOnce() {
-        if (isBindingControls) {
-            Timber.d("⏭️ Already binding controls, skipping...")
-            return
-        }
-        
+        if (isBindingControls) return
         isBindingControls = true
         bindControllerViewsExact()
-        
-        mainHandler.postDelayed({
-            isBindingControls = false
-        }, 500)
+        mainHandler.postDelayed({ isBindingControls = false }, 500)
     }
 
     private fun setupControlListenersExact() {
-        Timber.d("🔧 Setting up controller listeners...")
-        
-        // Remove any existing listeners first by setting to null
-        btnBack?.setOnClickListener(null)
-        btnPip?.setOnClickListener(null)
-        btnSettings?.setOnClickListener(null)
-        btnAspectRatio?.setOnClickListener(null)
-        btnLock?.setOnClickListener(null)
-        btnRewind?.setOnClickListener(null)
-        btnPlayPause?.setOnClickListener(null)
-        btnForward?.setOnClickListener(null)
-        btnFullscreen?.setOnClickListener(null)
-        btnMute?.setOnClickListener(null)
-        
-        // Now set new listeners
-        btnBack?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) {
-                Timber.d("⬅️ Back button clicked")
-                finish()
-            }
-        }
-
+        btnBack?.setOnClickListener { if (!isLocked) finish() }
         btnPip?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
             if (!isLocked) {
-                Timber.d("📺 PiP button clicked")
                 userRequestedPip = true
                 enterPipMode()
             }
         }
-
-        btnSettings?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) {
-                Timber.d("⚙️ Settings button clicked")
-                showPlayerSettingsDialog()
-            }
-        }
-
-        btnAspectRatio?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) {
-                Timber.d("📐 Aspect ratio button clicked")
-                toggleAspectRatio()
-            }
-        }
-
-        btnLock?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            Timber.d("🔒 Lock button clicked")
-            toggleLock()
-        }
-
+        btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
+        btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
+        btnLock?.setOnClickListener { toggleLock() }
+        
         btnRewind?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) {
-                Timber.d("⏪ Rewind button clicked")
-                player?.let { p ->
-                    val newPosition = p.currentPosition - skipMs
-                    if (newPosition < 0) {
-                        p.seekTo(0)
-                    } else {
-                        p.seekTo(newPosition)
-                    }
-                }
+            if (!isLocked) player?.let { p ->
+                val newPosition = p.currentPosition - skipMs
+                p.seekTo(if (newPosition < 0) 0 else newPosition)
             }
         }
 
         btnPlayPause?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) {
-                player?.let { p ->
-                    if (p.isPlaying) {
-                        Timber.d("⏸️ Pause clicked")
-                        p.pause()
-                    } else {
-                        Timber.d("▶️ Play clicked")
-                        p.play()
-                    }
-                }
-            }
+            if (!isLocked) player?.let { p -> if (p.isPlaying) p.pause() else p.play() }
         }
 
         btnForward?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) {
-                Timber.d("⏩ Forward button clicked")
-                player?.let { p ->
-                    val newPosition = p.currentPosition + skipMs
-                    if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
-                        p.seekTo(p.duration)
-                    } else {
-                        p.seekTo(newPosition)
-                    }
+            if (!isLocked) player?.let { p ->
+                val newPosition = p.currentPosition + skipMs
+                if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
+                    p.seekTo(p.duration)
+                } else {
+                    p.seekTo(newPosition)
                 }
             }
         }
 
-        btnFullscreen?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) {
-                Timber.d("🖥️ Fullscreen button clicked")
-                toggleFullscreen()
-            }
-        }
-
-        btnMute?.setOnClickListener {
-            it.performHapticFeedback(android.view.HapticFeedbackConstants.VIRTUAL_KEY)
-            if (!isLocked) {
-                Timber.d("🔇 Mute button clicked")
-                toggleMute()
-            }
-        }
-        
-        Timber.d("✅ Controller listeners set up successfully")
+        btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
+        btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
     }
     
-    // FIX: Debounced version to prevent multiple calls
     private fun setupControlListenersOnce() {
-        // Cancel any pending listener setup
         controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
-        
         controlsBindingRunnable = Runnable {
             setupControlListenersExact()
             controlsBindingRunnable = null
         }
-        
-        // Setup listeners only once
         mainHandler.post(controlsBindingRunnable!!)
     }
 
@@ -1153,61 +801,39 @@ class ChannelPlayerActivity : AppCompatActivity() {
             isMuted = !isMuted
             it.volume = if (isMuted) 0f else 1f
             updateMuteIcon()
-            Toast.makeText(
-                this,
-                if (isMuted) "Muted" else "Unmuted",
-                Toast.LENGTH_SHORT
-            ).show()
         }
     }
 
     private fun updateMuteIcon() {
-        btnMute?.setImageResource(
-            if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
-        )
+        btnMute?.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
     }
 
     private fun toggleAspectRatio() {
         currentResizeMode = when (currentResizeMode) {
-            AspectRatioFrameLayout.RESIZE_MODE_FILL -> {
-                Toast.makeText(this, "Zoom", Toast.LENGTH_SHORT).show()
-                AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            }
-            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> {
-                Toast.makeText(this, "Fit", Toast.LENGTH_SHORT).show()
-                AspectRatioFrameLayout.RESIZE_MODE_FIT
-            }
-            else -> {
-                Toast.makeText(this, "Fill", Toast.LENGTH_SHORT).show()
-                AspectRatioFrameLayout.RESIZE_MODE_FILL
-            }
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FILL
         }
         binding.playerView.resizeMode = currentResizeMode
+        Toast.makeText(this, when(currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> "Zoom"
+            AspectRatioFrameLayout.RESIZE_MODE_FIT -> "Fit"
+            else -> "Fill"
+        }, Toast.LENGTH_SHORT).show()
     }
 
     private fun showPlayerSettingsDialog() {
         val exoPlayer = player ?: return 
-
         try {
-            val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(
-                context = this,
-                player = exoPlayer
-            )
+            val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(this, exoPlayer)
             dialog.show()
         } catch (e: Exception) {
-            Timber.e(e, "Error showing player settings dialog")
             Toast.makeText(this, "Unable to open settings", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun configurePlayerInteractions() {
         binding.playerView.apply {
-            setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
-                when (visibility) {
-                    View.VISIBLE -> Timber.d("Controls shown")
-                    View.GONE -> Timber.d("Controls hidden")
-                }
-            })
             setControllerHideDuringAds(false)
             controllerShowTimeoutMs = 5000
             controllerHideOnTouch = true
@@ -1217,11 +843,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun setupLockOverlay() {
         binding.unlockButton.setOnClickListener { toggleLock() }
         binding.lockOverlay.setOnClickListener {
-            if (binding.unlockButton.visibility == View.VISIBLE) {
-                hideUnlockButton()
-            } else {
-                showUnlockButton()
-            }
+            if (binding.unlockButton.visibility == View.VISIBLE) hideUnlockButton() else showUnlockButton()
         }
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
@@ -1249,10 +871,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun toggleLock() {
         isLocked = !isLocked
         
-        Timber.d("🔒 Toggle lock: isLocked = $isLocked")
-        
         if (isLocked) {
-            // Locking controls
             binding.playerView.useController = false
             binding.playerView.hideController()
             binding.lockOverlay.visibility = View.VISIBLE
@@ -1262,15 +881,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnLock?.setImageResource(R.drawable.ic_lock_closed)
             Toast.makeText(this, "Controls locked", Toast.LENGTH_SHORT).show()
         } else {
-            // Unlocking controls
             binding.playerView.useController = true
             binding.lockOverlay.visibility = View.GONE
             hideUnlockButton()
             btnLock?.setImageResource(R.drawable.ic_lock_open)
-            
-            // FIX: Just show controller, don't rebind
             binding.playerView.showController()
-            
             Toast.makeText(this, "Controls unlocked", Toast.LENGTH_SHORT).show()
         }
     }
@@ -1285,29 +900,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun enterPipMode() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            Toast.makeText(this, "PiP not supported on this device", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-            Toast.makeText(this, "PiP not available", Toast.LENGTH_SHORT).show()
-            return
-        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
 
-        Timber.d("📺 Entering PiP mode...")
-
-        // Ensure player is playing
-        player?.let {
-            if (!it.isPlaying) {
-                Timber.d("▶️ Starting playback for PiP")
-                it.play()
-            }
-        }
-
-        // FIX: ONLY disable controller, don't touch any layout/visibility
-        binding.playerView.useController = false
+        player?.let { if (!it.isPlaying) it.play() }
         
-        // Enter PiP
+        binding.playerView.useController = false
+        // Update params one last time before entering to ensure SourceRect is fresh
         updatePipParams(enter = true)
     }
 
@@ -1317,17 +916,26 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 val format = player?.videoFormat
                 val width = format?.width ?: 16
                 val height = format?.height ?: 9
-                val ratio = if (width > 0 && height > 0) {
-                    Rational(width, height)
-                } else {
-                    Rational(16, 9)
-                }
+                val ratio = if (width > 0 && height > 0) Rational(width, height) else Rational(16, 9)
 
                 val builder = PictureInPictureParams.Builder()
                 builder.setAspectRatio(ratio)
+                
+                // FIX START: Source Rect Hint Logic
+                // If we are NOT in PiP, capture the current global visible rect.
+                // This ensures 'pipSourceRect' always holds the full-screen video bounds.
+                if (!isInPipMode && binding.playerView.width > 0 && binding.playerView.height > 0) {
+                    binding.playerView.getGlobalVisibleRect(pipSourceRect)
+                }
+                
+                // Always set the hint if we have valid bounds.
+                // When in PiP, 'pipSourceRect' acts as the target for the exit animation.
+                if (!pipSourceRect.isEmpty) {
+                    builder.setSourceRectHint(pipSourceRect)
+                }
+                // FIX END
 
                 val actions = ArrayList<RemoteAction>()
-
                 val isPlaying = player?.isPlaying == true
                 val playPauseIconId = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
                 val playPauseTitle = if (isPlaying) "Pause" else "Play"
@@ -1345,9 +953,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
                 )
 
-                val playPauseIcon = Icon.createWithResource(this, playPauseIconId)
-                actions.add(RemoteAction(playPauseIcon, playPauseTitle, playPauseTitle, playPausePendingIntent))
-
+                actions.add(RemoteAction(Icon.createWithResource(this, playPauseIconId), playPauseTitle, playPauseTitle, playPausePendingIntent))
                 builder.setActions(actions)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -1356,10 +962,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
 
                 if (enter) {
-                    val success = enterPictureInPictureMode(builder.build())
-                    if (success) {
-                        isInPipMode = true
-                    }
+                    if (enterPictureInPictureMode(builder.build())) isInPipMode = true
                 } else if (isInPipMode) {
                     setPictureInPictureParams(builder.build())
                 }
@@ -1369,81 +972,33 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    override fun onPictureInPictureModeChanged(
-        isInPictureInPictureMode: Boolean,
-        newConfig: Configuration
-    ) {
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        
-        Timber.d("╔═══════════════════════════════════╗")
-        Timber.d("📺 PIP MODE CHANGED")
-        Timber.d("   In PiP: $isInPictureInPictureMode")
-        Timber.d("╚═══════════════════════════════════╝")
-        
         isInPipMode = isInPictureInPictureMode
 
         if (isInPipMode) {
-            // Entering PiP mode - MINIMAL changes
-            Timber.d("▶️ ENTERING PIP MODE")
-            
-            // Only disable controller, DON'T touch layout
+            // ENTERING PIP
             binding.playerView.useController = false
             binding.playerView.hideController()
-            
         } else {
-            // Exiting PiP mode - MINIMAL changes
-            Timber.d("◀️ EXITING PIP MODE")
-            
+            // EXITING PIP
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
                 finish()
                 return
             }
-            
             userRequestedPip = false
-            
-            if (isFinishing) {
-                return
-            }
-            
-            // FIX: Make controller visible WITHOUT animation
+            if (isFinishing) return
+
+            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+
             if (isLocked) {
-                Timber.d("🔒 Restoring locked state")
                 binding.playerView.useController = false
                 binding.lockOverlay.visibility = View.VISIBLE
                 showUnlockButton()
             } else {
-                Timber.d("🔓 Restoring unlocked state")
-                
-                // Enable controller
                 binding.playerView.useController = true
-                
-                // Find and show controller directly without animation
-                binding.playerView.post {
-                    try {
-                        // Get the controller view
-                        val controllerClass = Class.forName("androidx.media3.ui.PlayerControlView")
-                        val controller = binding.playerView.findViewById<View>(
-                            androidx.media3.ui.R.id.exo_controller
-                        )
-                        
-                        if (controller != null) {
-                            // Make it visible immediately without animation
-                            controller.visibility = View.VISIBLE
-                            controller.alpha = 1f
-                            
-                            // Reset any ongoing animations
-                            controller.clearAnimation()
-                            
-                            Timber.d("✅ Controller made visible directly")
-                        } else {
-                            Timber.w("Controller view not found, using showController()")
-                            binding.playerView.showController()
-                        }
-                    } catch (e: Exception) {
-                        Timber.w(e, "Error accessing controller, using showController()")
-                        binding.playerView.showController()
-                    }
-                }
+                binding.playerView.post { binding.playerView.showController() }
             }
         }
     }
@@ -1463,8 +1018,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             userRequestedPip = false
             super.finish()
         } catch (e: Exception) {
-            Timber.e(e, "Error in finish()")
             super.finish()
         }
     }
 }
+
