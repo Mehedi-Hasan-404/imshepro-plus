@@ -6,10 +6,11 @@ import retrofit2.Response
 import retrofit2.http.GET
 
 /**
- * API service for fetching listener configuration
+ * API service for fetching listener configuration (direct link ads)
+ * Separate from main API because it uses /public/ path
  */
 interface ListenerService {
     
-    @GET("public/listener-config")
+    @GET("listener-config")
     suspend fun getListenerConfig(): Response<ListenerConfig>
 }
