@@ -10,6 +10,6 @@ import retrofit2.http.GET
  */
 interface ListenerService {
     
-    @GET("public/listener")
+    @GET("public/listener-config")
     suspend fun getListenerConfig(): Response<ListenerConfig>
 }
