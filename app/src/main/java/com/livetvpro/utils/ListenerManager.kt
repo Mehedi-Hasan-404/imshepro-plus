@@ -13,8 +13,8 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Manages listener configuration and execution
- * Handles showing direct-link listeners on first interaction per page
+ * Manages direct-link listener (interstitial ad) functionality
+ * Opens URL automatically on FIRST interaction per page (like an interstitial ad)
  */
 @Singleton
 class ListenerManager @Inject constructor(
@@ -30,16 +30,19 @@ class ListenerManager @Inject constructor(
      */
     suspend fun initialize() {
         try {
-            Timber.d("🔔 Fetching listener configuration...")
+            Timber.d("🔔 Fetching listener configuration from /public/listener-config...")
             val response = withContext(Dispatchers.IO) {
                 listenerService.getListenerConfig()
             }
             
             if (response.isSuccessful) {
                 config = response.body()
-                Timber.d("✅ Listener config loaded: enabled=${config?.enableDirectLink}, pages=${config?.allowedPages?.size}")
+                Timber.d("✅ Listener config loaded:")
+                Timber.d("   - Enabled: ${config?.enableDirectLink}")
+                Timber.d("   - URL: ${config?.directLinkUrl}")
+                Timber.d("   - Pages: ${config?.allowedPages?.joinToString(", ")}")
             } else {
-                Timber.w("⚠️ Failed to load listener config: ${response.code()}")
+                Timber.w("⚠️ Failed to load listener config: ${response.code()} ${response.message()}")
                 config = ListenerConfig() // Use default (disabled)
             }
         } catch (e: Exception) {
@@ -49,29 +52,34 @@ class ListenerManager @Inject constructor(
     }
     
     /**
-     * Check if listener should be triggered for a page interaction
+     * INTERSTITIAL AD BEHAVIOR:
+     * Automatically opens direct link on FIRST interaction with an allowed page
      * Returns true if listener was shown, false otherwise
      */
     fun onPageInteraction(pageId: String): Boolean {
-        val cfg = config ?: return false
-        
-        // Check if this page is eligible for listeners
-        if (!cfg.isEnabledForPage(pageId)) {
+        val cfg = config ?: run {
+            Timber.d("⏭️ No config loaded yet for page: $pageId")
             return false
         }
         
-        // Check if we've already shown listener for this page
+        // Check if this page is eligible for listeners
+        if (!cfg.isEnabledForPage(pageId)) {
+            Timber.d("⏭️ Listener not enabled for page: $pageId")
+            return false
+        }
+        
+        // Check if we've already shown listener for this page (ONE TIME PER PAGE)
         if (shownPages.contains(pageId)) {
             Timber.d("⏭️ Listener already shown for page: $pageId")
             return false
         }
         
-        // Show the listener
+        // AUTOMATICALLY OPEN THE LINK (Like interstitial ad)
         return showListener(cfg.directLinkUrl, pageId)
     }
     
     /**
-     * Show listener by opening URL in browser
+     * Show listener by opening URL in browser (INTERSTITIAL AD STYLE)
      */
     private fun showListener(url: String, pageId: String): Boolean {
         try {
@@ -80,7 +88,11 @@ class ListenerManager @Inject constructor(
                 return false
             }
             
-            Timber.d("🔔 Opening listener for page '$pageId': $url")
+            Timber.d("╔═══════════════════════════════════════════════════════╗")
+            Timber.d("   🔔 OPENING DIRECT LINK (INTERSTITIAL AD)")
+            Timber.d("   Page: $pageId")
+            Timber.d("   URL: ${url.take(60)}...")
+            Timber.d("╚═══════════════════════════════════════════════════════╝")
             
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -88,10 +100,10 @@ class ListenerManager @Inject constructor(
             
             context.startActivity(intent)
             
-            // Mark this page as shown
+            // Mark this page as shown (ONCE PER SESSION)
             shownPages.add(pageId)
             
-            Timber.d("✅ Listener shown successfully for page: $pageId")
+            Timber.d("✅ Listener opened successfully for page: $pageId")
             return true
         } catch (e: Exception) {
             Timber.e(e, "❌ Error showing listener")
@@ -112,5 +124,12 @@ class ListenerManager @Inject constructor(
      */
     fun isEnabledForPage(pageId: String): Boolean {
         return config?.isEnabledForPage(pageId) ?: false
+    }
+    
+    /**
+     * Check if listener was already shown for a page
+     */
+    fun wasShownForPage(pageId: String): Boolean {
+        return shownPages.contains(pageId)
     }
 }
