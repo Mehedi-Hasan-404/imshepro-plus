@@ -60,9 +60,28 @@ object NetworkModule {
         return retrofit.create(ApiService::class.java)
     }
     
+    // FIXED: Separate Retrofit instance for listener service with /public/ path
     @Provides
     @Singleton
-    fun provideListenerService(retrofit: Retrofit): ListenerService {
+    fun provideListenerRetrofit(okHttpClient: OkHttpClient): Retrofit {
+        val baseUrl = getBaseUrl()
+        // Ensure base URL ends with /public/ for listener endpoints
+        val listenerBaseUrl = if (baseUrl.endsWith("/")) {
+            "${baseUrl}public/"
+        } else {
+            "$baseUrl/public/"
+        }
+        
+        return Retrofit.Builder()
+            .baseUrl(listenerBaseUrl)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+    }
+    
+    @Provides
+    @Singleton
+    fun provideListenerService(@Named("listener") retrofit: Retrofit): ListenerService {
         return retrofit.create(ListenerService::class.java)
     }
 }
