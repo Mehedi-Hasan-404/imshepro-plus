@@ -180,15 +180,17 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
 
-        // FIXED: Register receiver only once
+                // FIXED: Register receiver only once
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), RECEIVER_NOT_EXPORTED)
+                // MUST BE EXPORTED for System UI to trigger it
+                registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), RECEIVER_EXPORTED)
             } else {
                 @Suppress("UnspecifiedRegisterReceiverFlag")
                 registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
             }
         }
+
 
         binding.root.post {
             val currentOrientation = resources.configuration.orientation
@@ -1032,7 +1034,8 @@ private fun bindControllerViewsOnce() {
             val intent = PendingIntent.getBroadcast(
                 this,
                 requestCode,
-                Intent(ACTION_MEDIA_CONTROL).putExtra(EXTRA_CONTROL_TYPE, controlType),
+                // Add .setPackage(packageName) to ensure it hits your app correctly
+                Intent(ACTION_MEDIA_CONTROL).setPackage(packageName).putExtra(EXTRA_CONTROL_TYPE, controlType),
                 PendingIntent.FLAG_IMMUTABLE
             )
             val icon = Icon.createWithResource(this, iconId)
@@ -1250,3 +1253,4 @@ private fun bindControllerViewsOnce() {
         }
     }
 }
+
