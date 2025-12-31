@@ -86,7 +86,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
     
-    // FIX: Cache the source rect so we don't lose it while in PiP
+    // Cache the source rect so we don't lose it while in PiP
     private val pipSourceRect = Rect()
     
     private var isBindingControls = false
@@ -154,7 +154,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         setupPlayer()
         
-        // FIX: Update PiP params when layout changes so the sourceRect is always accurate
+        // Update PiP params when layout changes so the sourceRect is always accurate
         binding.playerView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
                 updatePipParams()
@@ -553,7 +553,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
-                            // We can update params here, but the correct logic is inside updatePipParams
                             updatePipParams()
                         }
 
@@ -566,25 +565,47 @@ class ChannelPlayerActivity : AppCompatActivity() {
                             super.onPlayerError(error)
                             binding.progressBar.visibility = View.GONE
                             
+                            // Simple, user-friendly error messages
                             val errorMessage = when {
+                                // Network/Connection errors
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
+                                    "Connection Failed"
+                                
+                                // HTTP errors
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
+                                    when {
+                                        error.message?.contains("403") == true -> "Access Denied"
+                                        error.message?.contains("404") == true -> "Stream Not Found"
+                                        error.message?.contains("500") == true || 
+                                        error.message?.contains("503") == true -> "Server Error"
+                                        else -> "Connection Failed"
+                                    }
+                                }
+                                
+                                // DRM, parsing, decoder - all just "Stream Error"
                                 error.message?.contains("drm", ignoreCase = true) == true ||
                                 error.message?.contains("widevine", ignoreCase = true) == true ||
-                                error.message?.contains("clearkey", ignoreCase = true) == true ->
-                                    "DRM Protection Error\n${error.message}"
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ->
-                                    "Connection Error\n${error.message}"
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ->
-                                    "Network Error\n${error.message}"
-                                error.message?.contains("403", ignoreCase = true) == true ->
-                                    "Access Denied\n${error.message}"
-                                error.message?.contains("404", ignoreCase = true) == true ->
-                                    "Stream Not Found\n${error.message}"
-                                isDash && streamInfo.drmScheme != null ->
-                                    "DASH DRM Error\n${error.message}"
-                                else -> "Playback Error\n${error.message}"
+                                error.message?.contains("clearkey", ignoreCase = true) == true ||
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
+                                    "Stream Error"
+                                
+                                // Geo-blocked
+                                error.message?.contains("geo", ignoreCase = true) == true ||
+                                error.message?.contains("region", ignoreCase = true) == true ->
+                                    "Not Available"
+                                
+                                // Generic fallback
+                                else -> "Playback Error"
                             }
                             
-                            Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_SHORT).show()
                             binding.errorView.visibility = View.VISIBLE
                             binding.errorText.text = errorMessage
                         }
@@ -715,7 +736,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnPlayPause = findViewById(R.id.exo_play_pause)
             btnForward = findViewById(R.id.exo_forward)
             btnFullscreen = findViewById(R.id.exo_fullscreen)
-            btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
+            btnAspectRatio = findViewById(R.id```kotlin
+exo_aspect_ratio)
             tvChannelName = findViewById(R.id.exo_channel_name)
         }
 
@@ -769,7 +791,21 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         btnPlayPause?.setOnClickListener {
-            if (!isLocked) player?.let { p -> if (p.isPlaying) p.pause() else p.play() }
+            if (!isLocked) {
+                // If error is showing, retry playback
+                if (binding.errorView.visibility == View.VISIBLE) {
+                    binding.errorView.visibility = View.GONE
+                    binding.progressBar.visibility = View.VISIBLE
+                    player?.release()
+                    player = null
+                    setupPlayer()
+                } else {
+                    // Normal play/pause
+                    player?.let { p -> 
+                        if (p.isPlaying) p.pause() else p.play() 
+                    }
+                }
+            }
         }
 
         btnForward?.setOnClickListener {
@@ -847,14 +883,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
-
-        binding.retryButton.setOnClickListener {
-            binding.errorView.visibility = View.GONE
-            binding.progressBar.visibility = View.VISIBLE
-            player?.release()
-            player = null
-            setupPlayer()
-        }
     }
 
     private fun showUnlockButton() {
@@ -905,8 +933,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         player?.let { if (!it.isPlaying) it.play() }
         
-        binding.playerView.useController = false
-        // Update params one last time before entering to ensure SourceRect is fresh
+        // Android automatically shows only video in PiP - no need to hide controls manually
         updatePipParams(enter = true)
     }
 
@@ -921,19 +948,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 val builder = PictureInPictureParams.Builder()
                 builder.setAspectRatio(ratio)
                 
-                // FIX START: Source Rect Hint Logic
-                // If we are NOT in PiP, capture the current global visible rect.
-                // This ensures 'pipSourceRect' always holds the full-screen video bounds.
+                // Source Rect Hint Logic
                 if (!isInPipMode && binding.playerView.width > 0 && binding.playerView.height > 0) {
                     binding.playerView.getGlobalVisibleRect(pipSourceRect)
                 }
                 
-                // Always set the hint if we have valid bounds.
-                // When in PiP, 'pipSourceRect' acts as the target for the exit animation.
                 if (!pipSourceRect.isEmpty) {
                     builder.setSourceRectHint(pipSourceRect)
                 }
-                // FIX END
 
                 val actions = ArrayList<RemoteAction>()
                 val isPlaying = player?.isPlaying == true
@@ -977,9 +999,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
 
         if (isInPipMode) {
-            // ENTERING PIP
-            binding.playerView.useController = false
-            binding.playerView.hideController()
+            // ENTERING PIP - Android automatically shows only video, no need to hide UI
         } else {
             // EXITING PIP
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
@@ -1022,4 +1042,3 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 }
-
