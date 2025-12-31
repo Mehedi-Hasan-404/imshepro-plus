@@ -12,6 +12,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
@@ -63,6 +64,7 @@ object NetworkModule {
     // FIXED: Separate Retrofit instance for listener service with /public/ path
     @Provides
     @Singleton
+    @Named("listener")
     fun provideListenerRetrofit(okHttpClient: OkHttpClient): Retrofit {
         val baseUrl = getBaseUrl()
         // Ensure base URL ends with /public/ for listener endpoints
