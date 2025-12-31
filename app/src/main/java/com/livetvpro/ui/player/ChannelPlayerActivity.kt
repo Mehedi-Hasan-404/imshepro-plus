@@ -1160,91 +1160,86 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     override fun onPictureInPictureModeChanged(
-        isInPictureInPictureMode: Boolean,
-        newConfig: Configuration
-    ) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        isInPipMode = isInPictureInPictureMode
+    isInPictureInPictureMode: Boolean,
+    newConfig: Configuration
+) {
+    super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+    isInPipMode = isInPictureInPictureMode
 
-        if (isInPipMode) {
-            // ENTERING PIP
-            // On Android TV it is required to hide controller in this callback
-            binding.playerView.hideController()
-            setSubtitleTextSizePiP()
-            binding.playerView.setScale(1.f)
-            
-            // Register broadcast receiver for PiP controls
-            mReceiver = object : BroadcastReceiver() {
-                override fun onReceive(context: Context?, intent: Intent?) {
-                    if (intent == null || ACTION_MEDIA_CONTROL != intent.action || player == null) {
-                        return
-                    }
+    if (isInPipMode) {
+        // ENTERING PIP
+        // On Android TV it is required to hide controller in this callback
+        binding.playerView.hideController()
+        setSubtitleTextSizePiP()
+        
+        // Register broadcast receiver for PiP controls
+        mReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent == null || ACTION_MEDIA_CONTROL != intent.action || player == null) {
+                    return
+                }
 
-                    when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
-                        CONTROL_TYPE_PLAY -> player?.play()
-                        CONTROL_TYPE_PAUSE -> player?.pause()
-                    }
+                when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
+                    CONTROL_TYPE_PLAY -> player?.play()
+                    CONTROL_TYPE_PAUSE -> player?.pause()
                 }
             }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(
-                    mReceiver,
-                    IntentFilter(ACTION_MEDIA_CONTROL),
-                    RECEIVER_NOT_EXPORTED
-                )
-            } else {
-                @Suppress("UnspecifiedRegisterReceiverFlag")
-                registerReceiver(mReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
-            }
-            
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(
+                mReceiver,
+                IntentFilter(ACTION_MEDIA_CONTROL),
+                RECEIVER_NOT_EXPORTED
+            )
         } else {
-            // EXITING PIP
-            setSubtitleTextSize()
-            
-            if (currentResizeMode == AspectRatioFrameLayout.RESIZE_MODE_ZOOM) {
-                binding.playerView.setScale(1.f) // Or restore saved scale
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(mReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
+        }
+        
+    } else {
+        // EXITING PIP
+        setSubtitleTextSize()
+        
+        // Unregister broadcast receiver
+        if (mReceiver != null) {
+            try {
+                unregisterReceiver(mReceiver)
+            } catch (e: Exception) {
+                Timber.w(e, "Error unregistering mReceiver")
             }
-            
-            // Unregister broadcast receiver
-            if (mReceiver != null) {
-                try {
-                    unregisterReceiver(mReceiver)
-                } catch (e: Exception) {
-                    Timber.w(e, "Error unregistering mReceiver")
-                }
-                mReceiver = null
-            }
-            
-            binding.playerView.setControllerAutoShow(true)
-            
-            // Handle finish on back press from PiP
-            if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
-                finish()
-                return
-            }
-            userRequestedPip = false
-            
-            if (isFinishing) return
+            mReceiver = null
+        }
+        
+        binding.playerView.setControllerAutoShow(true)
+        
+        // Handle finish on back press from PiP
+        if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
+            finish()
+            return
+        }
+        userRequestedPip = false
+        
+        if (isFinishing) return
 
-            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            applyOrientationSettings(isLandscape)
+        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        applyOrientationSettings(isLandscape)
 
-            if (isLocked) {
-                binding.playerView.useController = false
-                binding.lockOverlay.visibility = View.VISIBLE
-                showUnlockButton()
+        if (isLocked) {
+            binding.playerView.useController = false
+            binding.lockOverlay.visibility = View.VISIBLE
+            showUnlockButton()
+        } else {
+            binding.playerView.useController = true
+            if (player?.isPlaying == true) {
+                toggleSystemUi(false)
             } else {
-                binding.playerView.useController = true
-                if (player?.isPlaying == true) {
-                    toggleSystemUi(false)
-                } else {
-                    binding.playerView.post { 
-                        binding.playerView.showController() 
-                    }
+                binding.playerView.post { 
+                    binding.playerView.showController() 
                 }
             }
         }
     }
+}
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
@@ -1293,3 +1288,4 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 }
+
