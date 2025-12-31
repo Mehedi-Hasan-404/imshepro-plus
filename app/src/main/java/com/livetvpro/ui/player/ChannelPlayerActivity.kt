@@ -167,12 +167,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
     mPictureInPictureParamsBuilder = PictureInPictureParams.Builder()
     
-    // Set app icon for PiP (Android 13+)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        val appIcon = Icon.createWithResource(this, R.mipmap.ic_launcher)
-        (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).setIcon(appIcon)
-    }
- 
     updatePictureInPictureActions(
         R.drawable.ic_pause,
         R.string.exo_controls_pause_description,
