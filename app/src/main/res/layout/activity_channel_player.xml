@@ -59,32 +59,53 @@
                 android:visibility="gone"/>
         </FrameLayout>
 
+        <!-- Error View - Clean, Material Design, No Retry Button -->
         <LinearLayout
             android:id="@+id/errorView"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="12dp"
-            android:background="@drawable/bg_favorite_button"
+            android:padding="20dp"
+            android:gravity="center"
+            android:background="@drawable/bg_error_overlay"
             android:visibility="gone"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintBottom_toBottomOf="parent">
 
+            <!-- Error Icon -->
+            <ImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_error_outline"
+                android:layout_marginBottom="16dp"
+                android:tint="@android:color/white"
+                android:alpha="0.9"
+                android:contentDescription="Error"/>
+
+            <!-- Error Message -->
             <TextView
                 android:id="@+id/errorText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Playback error"
-                android:textColor="@android:color/white"/>
+                android:text="Stream Error"
+                android:textColor="@android:color/white"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:gravity="center"/>
 
-            <Button
-                android:id="@+id/retryButton"
+            <!-- Info Text -->
+            <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Retry"
-                android:layout_marginTop="8dp"/>
+                android:text="Press play to retry"
+                android:textColor="@android:color/white"
+                android:textSize="13sp"
+                android:layout_marginTop="8dp"
+                android:alpha="0.7"
+                android:gravity="center"/>
+
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
@@ -154,4 +175,3 @@
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
-
