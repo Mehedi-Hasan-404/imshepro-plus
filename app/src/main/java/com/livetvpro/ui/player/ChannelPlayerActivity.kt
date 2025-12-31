@@ -164,20 +164,22 @@ class ChannelPlayerActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
                 // Initialize PiP builder
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mPictureInPictureParamsBuilder = PictureInPictureParams.Builder()
-            
-            // REMOVED: The line below caused the error because .setIcon() does not exist
-            // val appIcon = Icon.createWithResource(this, R.mipmap.ic_launcher)
-            // (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).setIcon(appIcon)
-         
-            updatePictureInPictureActions(
-                R.drawable.ic_pause,
-                R.string.exo_controls_pause_description,
-                CONTROL_TYPE_PAUSE,
-                REQUEST_PAUSE
-            )
-        }
+if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+    mPictureInPictureParamsBuilder = PictureInPictureParams.Builder()
+    
+    // Set app icon for PiP (Android 13+)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val appIcon = Icon.createWithResource(this, R.mipmap.ic_launcher)
+        (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).setIcon(appIcon)
+    }
+ 
+    updatePictureInPictureActions(
+        R.drawable.ic_pause,
+        R.string.exo_controls_pause_description,
+        CONTROL_TYPE_PAUSE,
+        REQUEST_PAUSE
+    )
+}
 
 
                 // FIXED: Register receiver only once
@@ -1253,4 +1255,5 @@ private fun bindControllerViewsOnce() {
         }
     }
 }
+
 
