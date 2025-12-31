@@ -408,6 +408,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         
         val url = streamUrl.substring(0, pipeIndex).trim()
         val rawParams = streamUrl.substring(pipeIndex + 1).trim()
+    
         val normalizedParams = rawParams.replace("&", "|")
         val parts = normalizedParams.split("|")
         
@@ -423,7 +424,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             
             val key = part.substring(0, eqIndex).trim()
             val value = part.substring(eqIndex + 1).trim()
-            
+           
             when (key.lowercase()) {
                 "drmscheme" -> drmScheme = value.lowercase()
                 "drmlicense" -> {
@@ -578,7 +579,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                     when {
                                         error.message?.contains("403") == true -> "Access Denied"
                                         error.message?.contains("404") == true -> "Stream Not Found"
-                                        error.message?.contains("500") == true || 
+                                        error.message?.contains("500") == true ||
                                         error.message?.contains("503") == true -> "Server Error"
                                         else -> "Connection Failed"
                                     }
@@ -736,8 +737,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnPlayPause = findViewById(R.id.exo_play_pause)
             btnForward = findViewById(R.id.exo_forward)
             btnFullscreen = findViewById(R.id.exo_fullscreen)
-            btnAspectRatio = findViewById(R.id```kotlin
-exo_aspect_ratio)
+            btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
             tvChannelName = findViewById(R.id.exo_channel_name)
         }
 
@@ -1042,3 +1042,4 @@ exo_aspect_ratio)
         }
     }
 }
+
