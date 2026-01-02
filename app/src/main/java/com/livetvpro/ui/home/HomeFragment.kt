@@ -1,4 +1,4 @@
-// app/src/main/java/com/livetvpro/ui/home/HomeFragment.kt
+// File: app/src/main/java/com/livetvpro/ui/home/HomeFragment.kt
 package com.livetvpro.ui.home
 
 import android.os.Bundle
@@ -17,7 +17,6 @@ import com.livetvpro.databinding.FragmentHomeBinding
 import com.livetvpro.ui.adapters.CategoryAdapter
 import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.AndroidEntryPoint
-import timber.log.Timber
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -25,24 +24,18 @@ class HomeFragment : Fragment(), SearchableFragment {
 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
-
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var categoryAdapter: CategoryAdapter
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    
     private var hasTriggeredListener = false
 
     override fun onSearchQuery(query: String) {
         viewModel.searchCategories(query)
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         return binding.root
     }
@@ -56,11 +49,12 @@ class HomeFragment : Fragment(), SearchableFragment {
 
     private fun setupRecyclerView() {
         categoryAdapter = CategoryAdapter { category ->
-            // Trigger listener on first category click
+            // Try to show Ad
             if (!hasTriggeredListener) {
                 hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_HOME)
             }
             
+            // Navigate
             val bundle = bundleOf(
                 "categoryId" to category.id,
                 "categoryName" to category.name
@@ -81,12 +75,10 @@ class HomeFragment : Fragment(), SearchableFragment {
             binding.emptyView.visibility = if (categories.isEmpty()) View.VISIBLE else View.GONE
             binding.recyclerViewCategories.visibility = if (categories.isEmpty()) View.GONE else View.VISIBLE
         }
-
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
             binding.swipeRefresh.isRefreshing = isLoading
         }
-
         viewModel.error.observe(viewLifecycleOwner) { error ->
             if (error != null) {
                 binding.errorView.visibility = View.VISIBLE
@@ -100,18 +92,12 @@ class HomeFragment : Fragment(), SearchableFragment {
     }
 
     private fun setupSwipeRefresh() {
-        binding.swipeRefresh.setOnRefreshListener {
-            viewModel.loadCategories()
-        }
-
-        binding.retryButton.setOnClickListener {
-            viewModel.retry()
-        }
+        binding.swipeRefresh.setOnRefreshListener { viewModel.loadCategories() }
+        binding.retryButton.setOnClickListener { viewModel.retry() }
     }
     
     override fun onResume() {
         super.onResume()
-        // Reset listener flag when returning to this fragment
         hasTriggeredListener = false
     }
 
@@ -120,3 +106,4 @@ class HomeFragment : Fragment(), SearchableFragment {
         _binding = null
     }
 }
+
