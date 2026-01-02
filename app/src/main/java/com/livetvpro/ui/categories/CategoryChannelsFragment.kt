@@ -1,4 +1,4 @@
-// app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
+// File: app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
@@ -24,40 +24,31 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     private var _binding: FragmentCategoryChannelsBinding? = null
     private val binding get() = _binding!!
-
     private val viewModel: CategoryChannelsViewModel by viewModels()
     private lateinit var channelAdapter: ChannelAdapter
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    
     private var hasTriggeredListener = false
 
     override fun onSearchQuery(query: String) {
         viewModel.searchChannels(query)
     }
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentCategoryChannelsBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
-        // Set Toolbar Title
+        
         try {
             val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
             if (viewModel.categoryName.isNotEmpty()) {
                 toolbarTitle?.text = viewModel.categoryName
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: Exception) { e.printStackTrace() }
 
         setupRecyclerView()
         observeViewModel()
@@ -70,23 +61,17 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                // Trigger listener on first channel click
+                // Try to show Ad
                 if (!hasTriggeredListener) {
                     hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
                 }
-                
-                // Note: No listener on player pages - just navigate
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
                 viewModel.toggleFavorite(channel)
-                binding.root.postDelayed({
-                    channelAdapter.refreshItem(channel.id)
-                }, 100)
+                binding.root.postDelayed({ channelAdapter.refreshItem(channel.id) }, 100)
             },
-            isFavorite = { channelId ->
-                viewModel.isFavorite(channelId)
-            }
+            isFavorite = { channelId -> viewModel.isFavorite(channelId) }
         )
 
         binding.recyclerViewChannels.apply {
@@ -101,20 +86,13 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             channelAdapter.submitList(channels)
             updateUiState(channels.isEmpty(), viewModel.isLoading.value ?: false)
         }
-
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            val isEmpty = viewModel.filteredChannels.value?.isEmpty() ?: true
-            updateUiState(isEmpty, isLoading)
+            updateUiState(viewModel.filteredChannels.value?.isEmpty() ?: true, isLoading)
         }
-
         viewModel.error.observe(viewLifecycleOwner) { error ->
-            if (error != null) {
-                binding.errorView.visibility = View.VISIBLE
-                binding.errorText.text = error
-            } else {
-                binding.errorView.visibility = View.GONE
-            }
+            binding.errorView.visibility = if (error != null) View.VISIBLE else View.GONE
+            if (error != null) binding.errorText.text = error
         }
     }
 
@@ -128,12 +106,8 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
-        // Reset listener flag when returning to this fragment
         hasTriggeredListener = false
-        
-        binding.root.postDelayed({
-            channelAdapter.refreshAll()
-        }, 50)
+        binding.root.postDelayed({ channelAdapter.refreshAll() }, 50)
     }
 
     override fun onDestroyView() {
@@ -141,3 +115,4 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         _binding = null
     }
 }
+
