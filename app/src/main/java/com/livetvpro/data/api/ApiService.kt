@@ -1,8 +1,8 @@
-// app/src/main/java/com/livetvpro/data/api/ApiService.kt
 package com.livetvpro.data.api
 
 import com.livetvpro.data.models.Category
 import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.data.models.LiveEvent
 import retrofit2.Response
 import retrofit2.http.GET
@@ -36,4 +36,12 @@ interface ApiService {
     
     @GET("live-events/{id}")
     suspend fun getLiveEvent(@Path("id") id: String): Response<ApiResponse<LiveEvent>>
+
+    /**
+     * Listener Configuration (Merged from ListenerService)
+     * Same base URL as other endpoints
+     */
+    @GET("listener-config")
+    suspend fun getListenerConfig(): Response<ListenerConfig>
 }
+
