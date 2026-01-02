@@ -1,4 +1,4 @@
-// app/src/main/java/com/livetvpro/ui/live/LiveEventsFragment.kt
+// File: app/src/main/java/com/livetvpro/ui/live/LiveEventsFragment.kt
 package com.livetvpro.ui.live
 
 import android.os.Bundle
@@ -24,56 +24,38 @@ class LiveEventsFragment : Fragment() {
 
     private var _binding: FragmentLiveEventsBinding? = null
     private val binding get() = _binding!!
-
     private val viewModel: LiveEventsViewModel by viewModels()
     private lateinit var eventAdapter: LiveEventAdapter
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    
     private var hasTriggeredListener = false
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveEventsBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
-        try {
-            setupRecyclerView()
-            setupFilters()
-            observeViewModel()
-            
-            // Default filter to Live
-            viewModel.filterEvents(EventStatus.LIVE)
-        } catch (e: Exception) {
-            Timber.e(e, "Error setting up LiveEventsFragment")
-            showError("Failed to initialize: ${e.message}")
-        }
+        setupRecyclerView()
+        setupFilters()
+        observeViewModel()
+        viewModel.filterEvents(EventStatus.LIVE)
     }
 
     private fun setupRecyclerView() {
         eventAdapter = LiveEventAdapter { event ->
             try {
-                // Trigger listener on first event click
+                // Try to show Ad
                 if (!hasTriggeredListener) {
                     hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
                 }
-                
-                // Note: No listener on player pages - just navigate
                 EventPlayerActivity.start(requireContext(), event.id)
             } catch (e: Exception) {
                 Timber.e(e, "Error starting event player")
-                showError("Failed to play event: ${e.message}")
             }
         }
-
         binding.recyclerViewEvents.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = eventAdapter
@@ -82,24 +64,21 @@ class LiveEventsFragment : Fragment() {
     }
 
     private fun setupFilters() {
-        binding.chipAll.setOnClickListener { 
-            viewModel.filterEvents(null)
-            updateChipSelection(binding.chipAll)
+        val clickListener = View.OnClickListener { view ->
+            val status = when (view.id) {
+                R.id.chip_live -> EventStatus.LIVE
+                R.id.chip_upcoming -> EventStatus.UPCOMING
+                R.id.chip_recent -> EventStatus.RECENT
+                else -> null
+            }
+            viewModel.filterEvents(status)
+            updateChipSelection(view as Chip)
         }
-        binding.chipLive.setOnClickListener { 
-            viewModel.filterEvents(EventStatus.LIVE)
-            updateChipSelection(binding.chipLive)
-        }
-        binding.chipUpcoming.setOnClickListener { 
-            viewModel.filterEvents(EventStatus.UPCOMING)
-            updateChipSelection(binding.chipUpcoming)
-        }
-        binding.chipRecent.setOnClickListener { 
-            viewModel.filterEvents(EventStatus.RECENT)
-            updateChipSelection(binding.chipRecent)
-        }
-
-        // Default to Live
+        
+        binding.chipAll.setOnClickListener(clickListener)
+        binding.chipLive.setOnClickListener(clickListener)
+        binding.chipUpcoming.setOnClickListener(clickListener)
+        binding.chipRecent.setOnClickListener(clickListener)
         updateChipSelection(binding.chipLive)
     }
 
@@ -111,38 +90,21 @@ class LiveEventsFragment : Fragment() {
 
     private fun observeViewModel() {
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
-            try {
-                eventAdapter.submitList(events)
-                binding.emptyView.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
-                binding.recyclerViewEvents.visibility = if (events.isEmpty()) View.GONE else View.VISIBLE
-            } catch (e: Exception) {
-                Timber.e(e, "Error updating events list")
-            }
+            eventAdapter.submitList(events)
+            binding.emptyView.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
+            binding.recyclerViewEvents.visibility = if (events.isEmpty()) View.GONE else View.VISIBLE
         }
-
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
         }
-
         viewModel.error.observe(viewLifecycleOwner) { error ->
-            if (error != null) {
-                showError(error)
-            } else {
-                binding.errorView.visibility = View.GONE
-            }
+            binding.errorView.visibility = if (error != null) View.VISIBLE else View.GONE
+            if (error != null) binding.errorText.text = error
         }
-    }
-
-    private fun showError(message: String) {
-        binding.errorView.visibility = View.VISIBLE
-        binding.errorText.text = message
-        binding.recyclerViewEvents.visibility = View.GONE
-        binding.emptyView.visibility = View.GONE
     }
     
     override fun onResume() {
         super.onResume()
-        // Reset listener flag when returning to this fragment
         hasTriggeredListener = false
     }
 
@@ -151,3 +113,4 @@ class LiveEventsFragment : Fragment() {
         _binding = null
     }
 }
+
