@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/livetvpro/utils/ListenerManager.kt
 package com.livetvpro.utils
 
 import android.content.Context
@@ -27,12 +28,12 @@ class ListenerManager @Inject constructor(
                 apiService.getListenerConfig()
             }
 
-            if (response.isSuccessful) {
+            if (response.isSuccessful && response.body() != null) {
                 config = response.body()
-                Timber.d("✅ Listener config loaded successfully")
+                Timber.d("✅ Listener Config Loaded: Enable=${config?.enableDirectLink}, URL=${config?.directLinkUrl}")
             } else {
                 Timber.w("⚠️ Failed to load listener config: ${response.code()}")
-                config = ListenerConfig()
+                config = ListenerConfig() // Default empty config
             }
         } catch (e: Exception) {
             Timber.e(e, "❌ Error loading listener configuration")
@@ -41,56 +42,42 @@ class ListenerManager @Inject constructor(
     }
 
     fun onPageInteraction(pageId: String): Boolean {
-        val cfg = config ?: run {
-            Timber.d("⏭️ No config loaded yet for page: $pageId")
+        val currentConfig = config ?: return false
+
+        // 1. Check if enabled for this specific page
+        if (!currentConfig.isEnabledForPage(pageId)) {
             return false
         }
 
-        if (!cfg.isEnabledForPage(pageId)) {
-            Timber.d("⏭️ Listener not enabled for page: $pageId")
-            return false
-        }
-
+        // 2. Check if already shown for this page
         if (shownPages.contains(pageId)) {
-            Timber.d("⏭️ Listener already shown for page: $pageId")
             return false
         }
 
-        return showListener(cfg.directLinkUrl, pageId)
+        // 3. Show the ad
+        return openBrowser(currentConfig.directLinkUrl, pageId)
     }
 
-    private fun showListener(url: String, pageId: String): Boolean {
+    private fun openBrowser(url: String, pageId: String): Boolean {
         try {
-            if (url.isBlank()) {
-                Timber.w("⚠️ Listener URL is blank")
-                return false
-            }
+            if (url.isBlank()) return false
 
+            Timber.d("🚀 Opening Ad Link: $url")
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-
             context.startActivity(intent)
 
             shownPages.add(pageId)
-            Timber.d("✅ Listener opened for page: $pageId")
             return true
         } catch (e: Exception) {
-            Timber.e(e, "❌ Error showing listener")
+            Timber.e(e, "❌ Error opening browser")
             return false
         }
     }
 
     fun reset() {
         shownPages.clear()
-        Timber.d("🔄 Listener tracking reset")
-    }
-
-    fun isEnabledForPage(pageId: String): Boolean {
-        return config?.isEnabledForPage(pageId) ?: false
-    }
-
-    fun wasShownForPage(pageId: String): Boolean {
-        return shownPages.contains(pageId)
     }
 }
+
