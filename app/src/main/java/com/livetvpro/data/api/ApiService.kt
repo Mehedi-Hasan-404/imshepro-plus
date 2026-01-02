@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/livetvpro/data/api/ApiService.kt
 package com.livetvpro.data.api
 
 import com.livetvpro.data.models.Category
@@ -9,6 +10,7 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 
+// Wrapper for standard endpoints (categories, channels, etc.)
 data class ApiResponse<T>(
     val success: Boolean,
     val data: T? = null,
@@ -38,10 +40,11 @@ interface ApiService {
     suspend fun getLiveEvent(@Path("id") id: String): Response<ApiResponse<LiveEvent>>
 
     /**
-     * Listener Configuration (Merged from ListenerService)
-     * Same base URL as other endpoints
+     * DIRECT LINK AD CONFIGURATION
+     * We explicitly add ".json" to force the server to find the file.
+     * We do NOT wrap this in ApiResponse because the JSON is flat.
      */
-    @GET("listener-config")
+    @GET("listener-config.json")
     suspend fun getListenerConfig(): Response<ListenerConfig>
 }
 
