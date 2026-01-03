@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/livetvpro/ui/favorites/FavoritesFragment.kt
 package com.livetvpro.ui.favorites
 
 import android.os.Bundle
@@ -30,9 +31,6 @@ class FavoritesFragment : Fragment() {
     @Inject
     lateinit var listenerManager: ListenerManager
     
-    // Ad Session Flag
-    private var hasTriggeredListenerInFavorites = false
-
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
         return binding.root
@@ -40,11 +38,6 @@ class FavoritesFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
-        // SESSION START: Reset flag
-        hasTriggeredListenerInFavorites = false
-        Log.d("Favorites", "Session started: Ad trigger reset")
-        
         setupRecyclerView()
         setupButtons()
         observeViewModel()
@@ -53,21 +46,15 @@ class FavoritesFragment : Fragment() {
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
             onChannelClick = { favChannel ->
-                // 1. CHECK AD SESSION
-                if (!hasTriggeredListenerInFavorites) {
-                    val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
-                    
-                    if (listenerTriggered) {
-                        // Browser opened. Mark session as shown and STOP.
-                        hasTriggeredListenerInFavorites = true
-                        Log.d("Favorites", "Ad triggered. Blocking player launch.")
-                        return@FavoriteAdapter
-                    }
+                // CHANGED: No uniqueId passed. 
+                // This implies: "Show ad once for the entire Favorites section"
+                val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
+                
+                if (shouldBlock) {
+                    return@FavoriteAdapter
                 }
                 
-                // 2. OPEN PLAYER
-                Log.d("Favorites", "Opening channel player: ${favChannel.name}")
-                
+                // Open Player
                 val channel = Channel(
                     id = favChannel.id,
                     name = favChannel.name,
@@ -88,6 +75,8 @@ class FavoritesFragment : Fragment() {
             adapter = favoriteAdapter
         }
     }
+
+    // ... (rest of the file remains unchanged: setupButtons, showRemoveConfirmation, etc.)
 
     private fun setupButtons() {
         binding.clearAllButton.setOnClickListener { 
