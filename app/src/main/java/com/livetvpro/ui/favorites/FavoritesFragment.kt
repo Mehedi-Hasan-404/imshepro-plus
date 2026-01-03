@@ -1,6 +1,8 @@
+// File: app/src/main/java/com/livetvpro/ui/favorites/FavoritesFragment.kt
 package com.livetvpro.ui.favorites
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,7 +31,7 @@ class FavoritesFragment : Fragment() {
     @Inject
     lateinit var listenerManager: ListenerManager
     
-    private var hasShownAdInFavorites = false
+    private var hasTriggeredListenerInFavorites = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
@@ -39,7 +41,8 @@ class FavoritesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        hasShownAdInFavorites = false
+        hasTriggeredListenerInFavorites = false
+        Log.d("Favorites", "Entered Favorites page")
         
         setupRecyclerView()
         setupButtons()
@@ -49,9 +52,16 @@ class FavoritesFragment : Fragment() {
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
             onChannelClick = { favChannel ->
-                if (!hasShownAdInFavorites) {
-                    listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
-                    hasShownAdInFavorites = true
+                Log.d("Favorites", "Favorite channel clicked: ${favChannel.name}")
+                
+                if (!hasTriggeredListenerInFavorites) {
+                    Log.d("Favorites", "First favorite click, attempting to trigger listener...")
+                    val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
+                    hasTriggeredListenerInFavorites = true
+                    
+                    Log.d("Favorites", "Listener result: $listenerTriggered")
+                } else {
+                    Log.d("Favorites", "Listener already triggered in favorites")
                 }
                 
                 val channel = Channel(
@@ -62,6 +72,8 @@ class FavoritesFragment : Fragment() {
                     categoryId = favChannel.categoryId,
                     categoryName = favChannel.categoryName
                 )
+                
+                Log.d("Favorites", "Opening channel player...")
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { favChannel -> 
