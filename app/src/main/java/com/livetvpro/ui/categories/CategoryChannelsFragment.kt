@@ -56,12 +56,15 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         arguments?.getString("categoryId")?.let {
             viewModel.loadChannels(it)
         }
+        
+        // Reset the flag when entering a new category
+        hasTriggeredListener = false
     }
 
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                // Try to show Ad
+                // Show Ad once per category visit (on first channel click)
                 if (!hasTriggeredListener) {
                     hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
                 }
@@ -115,4 +118,3 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         _binding = null
     }
 }
-
