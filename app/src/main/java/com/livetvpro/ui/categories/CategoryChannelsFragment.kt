@@ -1,6 +1,8 @@
+// File: app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -29,7 +31,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     @Inject
     lateinit var listenerManager: ListenerManager
     
-    private var hasShownAdInThisCategory = false
+    private var hasTriggeredListenerInThisCategory = false
 
     override fun onSearchQuery(query: String) {
         viewModel.searchChannels(query)
@@ -43,15 +45,16 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        hasShownAdInThisCategory = false
+        hasTriggeredListenerInThisCategory = false
+        Log.d("CategoryChannels", "Entered category: ${viewModel.categoryName}")
         
         try {
             val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
             if (viewModel.categoryName.isNotEmpty()) {
                 toolbarTitle?.text = viewModel.categoryName
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
+        } catch (e: Exception) { 
+            Log.e("CategoryChannels", "Error setting toolbar title", e)
         }
 
         setupRecyclerView()
@@ -65,11 +68,19 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                if (!hasShownAdInThisCategory) {
-                    listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
-                    hasShownAdInThisCategory = true
+                Log.d("CategoryChannels", "Channel clicked: ${channel.name}")
+                
+                if (!hasTriggeredListenerInThisCategory) {
+                    Log.d("CategoryChannels", "First channel click, attempting to trigger listener...")
+                    val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
+                    hasTriggeredListenerInThisCategory = true
+                    
+                    Log.d("CategoryChannels", "Listener result: $listenerTriggered")
+                } else {
+                    Log.d("CategoryChannels", "Listener already triggered in this category")
                 }
                 
+                Log.d("CategoryChannels", "Opening channel player...")
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
