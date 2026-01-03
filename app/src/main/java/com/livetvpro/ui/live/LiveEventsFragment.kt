@@ -1,6 +1,8 @@
+// File: app/src/main/java/com/livetvpro/ui/live/LiveEventsFragment.kt
 package com.livetvpro.ui.live
 
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -28,7 +30,7 @@ class LiveEventsFragment : Fragment() {
     @Inject
     lateinit var listenerManager: ListenerManager
     
-    private var hasShownAdInLiveEvents = false
+    private var hasTriggeredListenerInLiveEvents = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveEventsBinding.inflate(inflater, container, false)
@@ -38,7 +40,8 @@ class LiveEventsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        hasShownAdInLiveEvents = false
+        hasTriggeredListenerInLiveEvents = false
+        Log.d("LiveEvents", "Entered Live Events page")
         
         setupRecyclerView()
         setupFilters()
@@ -49,14 +52,22 @@ class LiveEventsFragment : Fragment() {
     private fun setupRecyclerView() {
         eventAdapter = LiveEventAdapter { event ->
             try {
-                if (!hasShownAdInLiveEvents) {
-                    listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
-                    hasShownAdInLiveEvents = true
+                Log.d("LiveEvents", "Event clicked: ${event.title}")
+                
+                if (!hasTriggeredListenerInLiveEvents) {
+                    Log.d("LiveEvents", "First event click, attempting to trigger listener...")
+                    val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
+                    hasTriggeredListenerInLiveEvents = true
+                    
+                    Log.d("LiveEvents", "Listener result: $listenerTriggered")
+                } else {
+                    Log.d("LiveEvents", "Listener already triggered in live events")
                 }
                 
+                Log.d("LiveEvents", "Opening event player...")
                 EventPlayerActivity.start(requireContext(), event.id)
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("LiveEvents", "Error starting event player", e)
             }
         }
         
