@@ -1,97 +1,113 @@
-// File: app/src/main/java/com/livetvpro/ui/home/HomeFragment.kt
-package com.livetvpro.ui.home
+// File: app/src/main/java/com/livetvpro/ui/favorites/FavoritesFragment.kt
+package com.livetvpro.ui.favorites
 
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
-import com.livetvpro.R
-import com.livetvpro.SearchableFragment
-import com.livetvpro.databinding.FragmentHomeBinding
-import com.livetvpro.ui.adapters.CategoryAdapter
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.FavoriteChannel
+import com.livetvpro.data.models.ListenerConfig
+import com.livetvpro.databinding.FragmentFavoritesBinding
+import com.livetvpro.ui.adapters.FavoriteAdapter
+import com.livetvpro.ui.player.ChannelPlayerActivity
 import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class HomeFragment : Fragment(), SearchableFragment {
+class FavoritesFragment : Fragment() {
 
-    private var _binding: FragmentHomeBinding? = null
+    private var _binding: FragmentFavoritesBinding? = null
     private val binding get() = _binding!!
-    private val viewModel: HomeViewModel by viewModels()
-    private lateinit var categoryAdapter: CategoryAdapter
+    private val viewModel: FavoritesViewModel by viewModels()
+    private lateinit var favoriteAdapter: FavoriteAdapter
     
     @Inject
     lateinit var listenerManager: ListenerManager
-
-    override fun onSearchQuery(query: String) {
-        viewModel.searchCategories(query)
-    }
+    private var hasTriggeredListener = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
-        _binding = FragmentHomeBinding.inflate(inflater, container, false)
+        _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
+        setupButtons()
         observeViewModel()
-        setupSwipeRefresh()
+        
+        // Reset the flag when entering favorites page
+        hasTriggeredListener = false
     }
 
     private fun setupRecyclerView() {
-        categoryAdapter = CategoryAdapter { category ->
-            // Navigate directly without showing ad
-            val bundle = bundleOf(
-                "categoryId" to category.id,
-                "categoryName" to category.name
-            )
-            findNavController().navigate(R.id.action_home_to_category, bundle)
-        }
+        favoriteAdapter = FavoriteAdapter(
+            onChannelClick = { favChannel ->
+                // Show Ad once per favorites page visit (on first channel click)
+                if (!hasTriggeredListener) {
+                    hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
+                }
+                
+                val channel = Channel(
+                    id = favChannel.id,
+                    name = favChannel.name,
+                    logoUrl = favChannel.logoUrl,
+                    streamUrl = favChannel.streamUrl,
+                    categoryId = favChannel.categoryId,
+                    categoryName = favChannel.categoryName
+                )
+                ChannelPlayerActivity.start(requireContext(), channel)
+            },
+            onFavoriteToggle = { favChannel -> showRemoveConfirmation(favChannel) }
+        )
 
-        binding.recyclerViewCategories.apply {
-            layoutManager = GridLayoutManager(context, 2)
-            adapter = categoryAdapter
-            setHasFixedSize(true)
+        binding.recyclerViewFavorites.apply {
+            layoutManager = GridLayoutManager(context, 3)
+            adapter = favoriteAdapter
         }
+    }
+
+    private fun setupButtons() {
+        binding.clearAllButton.setOnClickListener { showClearAllDialog() }
+    }
+
+    private fun showRemoveConfirmation(favorite: FavoriteChannel) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Remove Favorite")
+            .setMessage("Remove '${favorite.name}' from your favorites list?")
+            .setPositiveButton("Remove") { _, _ -> viewModel.removeFavorite(favorite.id) }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showClearAllDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Clear All Favorites")
+            .setMessage("This will remove all channels from your list.")
+            .setPositiveButton("Clear All") { _, _ -> viewModel.clearAll() }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun observeViewModel() {
-        viewModel.filteredCategories.observe(viewLifecycleOwner) { categories ->
-            categoryAdapter.submitList(categories)
-            binding.emptyView.visibility = if (categories.isEmpty()) View.VISIBLE else View.GONE
-            binding.recyclerViewCategories.visibility = if (categories.isEmpty()) View.GONE else View.VISIBLE
+        viewModel.favorites.observe(viewLifecycleOwner) { favorites ->
+            favoriteAdapter.submitList(favorites)
+            val isEmpty = favorites.isEmpty()
+            binding.emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
+            binding.recyclerViewFavorites.visibility = if (isEmpty) View.GONE else View.VISIBLE
+            binding.clearAllButton.visibility = if (isEmpty) View.GONE else View.VISIBLE
         }
-        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.swipeRefresh.isRefreshing = isLoading
-        }
-        viewModel.error.observe(viewLifecycleOwner) { error ->
-            if (error != null) {
-                binding.errorView.visibility = View.VISIBLE
-                binding.errorText.text = error
-                binding.recyclerViewCategories.visibility = View.GONE
-            } else {
-                binding.errorView.visibility = View.GONE
-                binding.recyclerViewCategories.visibility = View.VISIBLE
-            }
-        }
-    }
-
-    private fun setupSwipeRefresh() {
-        binding.swipeRefresh.setOnRefreshListener { viewModel.loadCategories() }
-        binding.retryButton.setOnClickListener { viewModel.retry() }
     }
     
     override fun onResume() {
         super.onResume()
-        // No need to reset flag - removed from HomeFragment
+        hasTriggeredListener = false
     }
 
     override fun onDestroyView() {
