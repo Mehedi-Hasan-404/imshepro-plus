@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
@@ -31,6 +30,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     @Inject
     lateinit var listenerManager: ListenerManager
     
+    // Flag to ensure the listener only triggers once per session in this screen
     private var hasTriggeredListenerInThisCategory = false
 
     override fun onSearchQuery(query: String) {
@@ -45,6 +45,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        // Reset flag when view is created/re-created
         hasTriggeredListenerInThisCategory = false
         Log.d("CategoryChannels", "Entered category: ${viewModel.categoryName}")
         
@@ -70,21 +71,29 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             onChannelClick = { channel ->
                 Log.d("CategoryChannels", "Channel clicked: ${channel.name}")
                 
+                // --- FIX STARTS HERE ---
+                // Check if we need to trigger the listener (Ad/Link)
                 if (!hasTriggeredListenerInThisCategory) {
                     Log.d("CategoryChannels", "First channel click, attempting to trigger listener...")
                     val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
-                    hasTriggeredListenerInThisCategory = true
                     
-                    Log.d("CategoryChannels", "Listener result: $listenerTriggered")
-                } else {
-                    Log.d("CategoryChannels", "Listener already triggered in this category")
+                    if (listenerTriggered) {
+                        // If the browser opened, we mark it as triggered and RETURN immediately.
+                        // This prevents the player from opening on top of the browser.
+                        hasTriggeredListenerInThisCategory = true
+                        Log.d("CategoryChannels", "Listener triggered, stopping player launch.")
+                        return@ChannelAdapter
+                    }
                 }
+                // --- FIX ENDS HERE ---
                 
+                // This code only runs if the listener did NOT trigger (or was already triggered)
                 Log.d("CategoryChannels", "Opening channel player...")
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
                 viewModel.toggleFavorite(channel)
+                // Small delay to allow animation to complete before refresh
                 binding.root.postDelayed({ channelAdapter.refreshItem(channel.id) }, 100)
             },
             isFavorite = { channelId -> viewModel.isFavorite(channelId) }
@@ -122,6 +131,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
+        // Refresh items to update favorite status if changed elsewhere
         binding.root.postDelayed({ channelAdapter.refreshAll() }, 50)
     }
 
