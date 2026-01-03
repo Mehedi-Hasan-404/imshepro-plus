@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/live/LiveEventsFragment.kt
 package com.livetvpro.ui.live
 
 import android.os.Bundle
@@ -16,7 +15,6 @@ import com.livetvpro.databinding.FragmentLiveEventsBinding
 import com.livetvpro.ui.adapters.LiveEventAdapter
 import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.AndroidEntryPoint
-import timber.log.Timber
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -29,7 +27,8 @@ class LiveEventsFragment : Fragment() {
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    private var hasTriggeredListener = false
+    
+    private var hasShownAdInLiveEvents = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveEventsBinding.inflate(inflater, container, false)
@@ -38,6 +37,9 @@ class LiveEventsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        
+        hasShownAdInLiveEvents = false
+        
         setupRecyclerView()
         setupFilters()
         observeViewModel()
@@ -47,15 +49,17 @@ class LiveEventsFragment : Fragment() {
     private fun setupRecyclerView() {
         eventAdapter = LiveEventAdapter { event ->
             try {
-                // Try to show Ad
-                if (!hasTriggeredListener) {
-                    hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
+                if (!hasShownAdInLiveEvents) {
+                    listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
+                    hasShownAdInLiveEvents = true
                 }
+                
                 EventPlayerActivity.start(requireContext(), event.id)
             } catch (e: Exception) {
-                Timber.e(e, "Error starting event player")
+                e.printStackTrace()
             }
         }
+        
         binding.recyclerViewEvents.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = eventAdapter
@@ -101,11 +105,6 @@ class LiveEventsFragment : Fragment() {
             binding.errorView.visibility = if (error != null) View.VISIBLE else View.GONE
             if (error != null) binding.errorText.text = error
         }
-    }
-    
-    override fun onResume() {
-        super.onResume()
-        hasTriggeredListener = false
     }
 
     override fun onDestroyView() {
