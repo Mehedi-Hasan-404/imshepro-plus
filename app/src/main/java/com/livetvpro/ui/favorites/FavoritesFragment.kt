@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/favorites/FavoritesFragment.kt
 package com.livetvpro.ui.favorites
 
 import android.os.Bundle
@@ -29,7 +28,8 @@ class FavoritesFragment : Fragment() {
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    private var hasTriggeredListener = false
+    
+    private var hasShownAdInFavorites = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
@@ -38,20 +38,20 @@ class FavoritesFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+        
+        hasShownAdInFavorites = false
+        
         setupRecyclerView()
         setupButtons()
         observeViewModel()
-        
-        // Reset the flag when entering favorites page
-        hasTriggeredListener = false
     }
 
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
             onChannelClick = { favChannel ->
-                // Show Ad once per favorites page visit (on first channel click)
-                if (!hasTriggeredListener) {
-                    hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
+                if (!hasShownAdInFavorites) {
+                    listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
+                    hasShownAdInFavorites = true
                 }
                 
                 val channel = Channel(
@@ -64,7 +64,9 @@ class FavoritesFragment : Fragment() {
                 )
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
-            onFavoriteToggle = { favChannel -> showRemoveConfirmation(favChannel) }
+            onFavoriteToggle = { favChannel -> 
+                showRemoveConfirmation(favChannel) 
+            }
         )
 
         binding.recyclerViewFavorites.apply {
@@ -74,14 +76,18 @@ class FavoritesFragment : Fragment() {
     }
 
     private fun setupButtons() {
-        binding.clearAllButton.setOnClickListener { showClearAllDialog() }
+        binding.clearAllButton.setOnClickListener { 
+            showClearAllDialog() 
+        }
     }
 
     private fun showRemoveConfirmation(favorite: FavoriteChannel) {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Remove Favorite")
             .setMessage("Remove '${favorite.name}' from your favorites list?")
-            .setPositiveButton("Remove") { _, _ -> viewModel.removeFavorite(favorite.id) }
+            .setPositiveButton("Remove") { _, _ -> 
+                viewModel.removeFavorite(favorite.id) 
+            }
             .setNegativeButton("Cancel", null)
             .show()
     }
@@ -90,7 +96,9 @@ class FavoritesFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Clear All Favorites")
             .setMessage("This will remove all channels from your list.")
-            .setPositiveButton("Clear All") { _, _ -> viewModel.clearAll() }
+            .setPositiveButton("Clear All") { _, _ -> 
+                viewModel.clearAll() 
+            }
             .setNegativeButton("Cancel", null)
             .show()
     }
@@ -104,14 +112,10 @@ class FavoritesFragment : Fragment() {
             binding.clearAllButton.visibility = if (isEmpty) View.GONE else View.VISIBLE
         }
     }
-    
-    override fun onResume() {
-        super.onResume()
-        hasTriggeredListener = false
-    }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
 }
+
