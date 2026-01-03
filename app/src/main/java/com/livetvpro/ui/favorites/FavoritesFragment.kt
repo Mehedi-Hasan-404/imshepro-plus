@@ -30,6 +30,7 @@ class FavoritesFragment : Fragment() {
     @Inject
     lateinit var listenerManager: ListenerManager
     
+    // Ad Session Flag
     private var hasTriggeredListenerInFavorites = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -40,8 +41,9 @@ class FavoritesFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        // SESSION START: Reset flag
         hasTriggeredListenerInFavorites = false
-        Log.d("Favorites", "Entered Favorites page")
+        Log.d("Favorites", "Session started: Ad trigger reset")
         
         setupRecyclerView()
         setupButtons()
@@ -51,21 +53,20 @@ class FavoritesFragment : Fragment() {
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
             onChannelClick = { favChannel ->
-                Log.d("Favorites", "Favorite channel clicked: ${favChannel.name}")
-                
-                // --- FIX STARTS HERE ---
+                // 1. CHECK AD SESSION
                 if (!hasTriggeredListenerInFavorites) {
-                    Log.d("Favorites", "First favorite click, attempting to trigger listener...")
                     val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
                     
                     if (listenerTriggered) {
-                        // Browser opened. Stop execution so player doesn't open.
+                        // Browser opened. Mark session as shown and STOP.
                         hasTriggeredListenerInFavorites = true
-                        Log.d("Favorites", "Listener triggered, stopping player launch.")
+                        Log.d("Favorites", "Ad triggered. Blocking player launch.")
                         return@FavoriteAdapter
                     }
                 }
-                // --- FIX ENDS HERE ---
+                
+                // 2. OPEN PLAYER
+                Log.d("Favorites", "Opening channel player: ${favChannel.name}")
                 
                 val channel = Channel(
                     id = favChannel.id,
@@ -75,8 +76,6 @@ class FavoritesFragment : Fragment() {
                     categoryId = favChannel.categoryId,
                     categoryName = favChannel.categoryName
                 )
-                
-                Log.d("Favorites", "Opening channel player...")
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { favChannel -> 
