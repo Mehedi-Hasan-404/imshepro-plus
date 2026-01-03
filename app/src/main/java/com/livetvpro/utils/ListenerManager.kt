@@ -24,24 +24,20 @@ class ListenerManager @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var isInitialized = false
 
+    // CHANGED: Use a Set to track specific sessions (e.g., "category_sports", "favorites", etc.)
+    private val triggeredSessions = mutableSetOf<String>()
+
     init {
-        // Initialize immediately when the singleton is created
         initialize()
     }
 
     fun initialize() {
         scope.launch {
             try {
-                Log.d("ListenerManager", "Fetching listener config...")
                 val response = apiService.getListenerConfig()
-                
                 if (response.isSuccessful) {
                     config = response.body()
                     isInitialized = true
-                    Log.d("ListenerManager", "Listener config loaded: enabled=${config?.enableDirectLink}, url=${config?.directLinkUrl}")
-                    Log.d("ListenerManager", "Allowed pages: ${config?.allowedPages}")
-                } else {
-                    Log.e("ListenerManager", "Failed to load config: HTTP ${response.code()}")
                 }
             } catch (e: Exception) {
                 Log.e("ListenerManager", "Error loading config", e)
@@ -50,56 +46,49 @@ class ListenerManager @Inject constructor(
     }
 
     /**
-     * Called when user interacts with a page (clicks channel, event, etc.)
-     * Returns true if listener was triggered, false otherwise
+     * Checks if ad should be shown for a specific context.
+     * @param pageType The type of page (channels, favorites, etc.)
+     * @param uniqueId Optional ID to make the session unique (e.g., Category ID)
      */
-    fun onPageInteraction(pageId: String): Boolean {
-        Log.d("ListenerManager", "onPageInteraction called for: $pageId")
+    fun onPageInteraction(pageType: String, uniqueId: String? = null): Boolean {
+        if (!isInitialized || config == null) return false
+
+        val cfg = config!!
         
-        if (!isInitialized) {
-            Log.w("ListenerManager", "Not initialized yet")
+        // 1. Check if feature is enabled globally and for this page type
+        if (!cfg.enableDirectLink) return false
+        if (!cfg.isEnabledForPage(pageType)) return false
+        if (cfg.directLinkUrl.isBlank()) return false
+
+        // 2. Construct a unique key for this session
+        // If uniqueId is provided (e.g. Category ID), key is "channels_123"
+        // If no uniqueId (Favorites), key is just "favorites"
+        val sessionKey = if (uniqueId != null) "${pageType}_$uniqueId" else pageType
+
+        // 3. Check if this specific session has already triggered an ad
+        if (triggeredSessions.contains(sessionKey)) {
+            Log.d("ListenerManager", "Ad already shown for session: $sessionKey")
             return false
         }
 
-        val cfg = config
-        if (cfg == null) {
-            Log.w("ListenerManager", "No config available")
-            return false
-        }
-
-        Log.d("ListenerManager", "Config check: enabled=${cfg.enableDirectLink}")
-        
-        if (!cfg.enableDirectLink) {
-            Log.d("ListenerManager", "Direct link disabled in config")
-            return false
-        }
-
-        if (!cfg.isEnabledForPage(pageId)) {
-            Log.d("ListenerManager", "Page '$pageId' not in allowed list: ${cfg.allowedPages}")
-            return false
-        }
-
-        if (cfg.directLinkUrl.isBlank()) {
-            Log.w("ListenerManager", "Direct link URL is empty")
-            return false
-        }
-
-        // Trigger the listener
-        Log.d("ListenerManager", "Triggering listener for page: $pageId with URL: ${cfg.directLinkUrl}")
+        // 4. Trigger the Ad
         openDirectLink(cfg.directLinkUrl)
+        
+        // 5. Mark this specific session as triggered
+        triggeredSessions.add(sessionKey)
+        Log.d("ListenerManager", "Ad triggered and locked for session: $sessionKey")
+        
         return true
     }
 
     private fun openDirectLink(url: String) {
         try {
-            // Open in external browser
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-            Log.d("ListenerManager", "Successfully opened URL in browser: $url")
         } catch (e: Exception) {
-            Log.e("ListenerManager", "Failed to open URL: $url", e)
+            Log.e("ListenerManager", "Failed to open URL", e)
         }
     }
 }
