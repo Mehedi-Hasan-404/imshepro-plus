@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
@@ -29,10 +30,9 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    
-    // Flag to track ad session. 
-    // Initialized to false only when the view is created (Session Start).
-    private var hasTriggeredListenerInThisCategory = false
+
+    // We store the current category ID to pass to the listener manager
+    private var currentCategoryId: String? = null
 
     override fun onSearchQuery(query: String) {
         viewModel.searchChannels(query)
@@ -46,10 +46,9 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        // SESSION START: Reset flag when entering the screen
-        hasTriggeredListenerInThisCategory = false
-        Log.d("CategoryChannels", "Session started: Ad trigger reset to false")
-        
+        // Get Category ID from arguments
+        currentCategoryId = arguments?.getString("categoryId")
+
         try {
             val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
             if (viewModel.categoryName.isNotEmpty()) {
@@ -62,7 +61,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         setupRecyclerView()
         observeViewModel()
 
-        arguments?.getString("categoryId")?.let {
+        currentCategoryId?.let {
             viewModel.loadChannels(it)
         }
     }
@@ -70,26 +69,22 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                // 1. CHECK AD SESSION
-                if (!hasTriggeredListenerInThisCategory) {
-                    val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
-                    
-                    if (listenerTriggered) {
-                        // Browser opened. Mark session as "Ad Shown" and STOP.
-                        // Do not open the player this time.
-                        hasTriggeredListenerInThisCategory = true
-                        Log.d("CategoryChannels", "Ad triggered. Blocking player launch.")
-                        return@ChannelAdapter
-                    }
+                // CHANGED: Pass the currentCategoryId as the unique ID
+                // This implies: "Show ad once per Category"
+                val shouldBlock = listenerManager.onPageInteraction(
+                    ListenerConfig.PAGE_CHANNELS, 
+                    uniqueId = currentCategoryId
+                )
+
+                if (shouldBlock) {
+                    return@ChannelAdapter
                 }
                 
-                // 2. OPEN PLAYER (Only if Ad didn't trigger)
-                Log.d("CategoryChannels", "Opening channel player: ${channel.name}")
+                // Open Player
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
                 viewModel.toggleFavorite(channel)
-                // Small delay to allow animation/database update before UI refresh
                 binding.root.postDelayed({ channelAdapter.refreshItem(channel.id) }, 100)
             },
             isFavorite = { channelId -> viewModel.isFavorite(channelId) }
@@ -127,9 +122,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
-        // IMPORTANT: Do NOT reset hasTriggeredListenerInThisCategory here.
-        // If we reset it, the user will see the ad again immediately after returning from the browser.
-        
         binding.root.postDelayed({ channelAdapter.refreshAll() }, 50)
     }
 
