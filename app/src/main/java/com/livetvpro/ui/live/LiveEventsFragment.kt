@@ -1,3 +1,4 @@
+// File: app/src/main/java/com/livetvpro/ui/live/LiveEventsFragment.kt
 package com.livetvpro.ui.live
 
 import android.os.Bundle
@@ -28,9 +29,6 @@ class LiveEventsFragment : Fragment() {
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    
-    // Ad Session Flag
-    private var hasTriggeredListenerInLiveEvents = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveEventsBinding.inflate(inflater, container, false)
@@ -39,10 +37,6 @@ class LiveEventsFragment : Fragment() {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
-        // SESSION START: Reset flag
-        hasTriggeredListenerInLiveEvents = false
-        Log.d("LiveEvents", "Session started: Ad trigger reset")
         
         setupRecyclerView()
         setupFilters()
@@ -53,20 +47,15 @@ class LiveEventsFragment : Fragment() {
     private fun setupRecyclerView() {
         eventAdapter = LiveEventAdapter { event ->
             try {
-                // 1. CHECK AD SESSION
-                if (!hasTriggeredListenerInLiveEvents) {
-                    val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
-                    
-                    if (listenerTriggered) {
-                        // Browser opened. Mark as shown and STOP.
-                        hasTriggeredListenerInLiveEvents = true
-                        Log.d("LiveEvents", "Ad triggered. Blocking player launch.")
-                        return@LiveEventAdapter
-                    }
+                // CHANGED: No uniqueId passed.
+                // This implies: "Show ad once for the entire Live Events section"
+                val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
+                
+                if (shouldBlock) {
+                    return@LiveEventAdapter
                 }
                 
-                // 2. OPEN PLAYER
-                Log.d("LiveEvents", "Opening event player: ${event.title}")
+                // Open Player
                 EventPlayerActivity.start(requireContext(), event.id)
                 
             } catch (e: Exception) {
@@ -80,6 +69,8 @@ class LiveEventsFragment : Fragment() {
             setHasFixedSize(false)
         }
     }
+
+    // ... (Rest of file remains unchanged: setupFilters, updateChipSelection, observeViewModel, etc.)
 
     private fun setupFilters() {
         val clickListener = View.OnClickListener { view ->
