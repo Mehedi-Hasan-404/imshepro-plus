@@ -12,7 +12,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.R
 import com.livetvpro.SearchableFragment
-import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentHomeBinding
 import com.livetvpro.ui.adapters.CategoryAdapter
 import com.livetvpro.utils.ListenerManager
@@ -29,7 +28,6 @@ class HomeFragment : Fragment(), SearchableFragment {
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    private var hasTriggeredListener = false
 
     override fun onSearchQuery(query: String) {
         viewModel.searchCategories(query)
@@ -49,12 +47,7 @@ class HomeFragment : Fragment(), SearchableFragment {
 
     private fun setupRecyclerView() {
         categoryAdapter = CategoryAdapter { category ->
-            // Try to show Ad
-            if (!hasTriggeredListener) {
-                hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_HOME)
-            }
-            
-            // Navigate
+            // Navigate directly without showing ad
             val bundle = bundleOf(
                 "categoryId" to category.id,
                 "categoryName" to category.name
@@ -98,7 +91,7 @@ class HomeFragment : Fragment(), SearchableFragment {
     
     override fun onResume() {
         super.onResume()
-        hasTriggeredListener = false
+        // No need to reset flag - removed from HomeFragment
     }
 
     override fun onDestroyView() {
@@ -106,4 +99,3 @@ class HomeFragment : Fragment(), SearchableFragment {
         _binding = null
     }
 }
-
