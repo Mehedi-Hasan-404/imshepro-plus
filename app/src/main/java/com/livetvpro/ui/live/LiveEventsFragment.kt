@@ -29,6 +29,7 @@ class LiveEventsFragment : Fragment() {
     @Inject
     lateinit var listenerManager: ListenerManager
     
+    // Ad Session Flag
     private var hasTriggeredListenerInLiveEvents = false
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -39,8 +40,9 @@ class LiveEventsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        // SESSION START: Reset flag
         hasTriggeredListenerInLiveEvents = false
-        Log.d("LiveEvents", "Entered Live Events page")
+        Log.d("LiveEvents", "Session started: Ad trigger reset")
         
         setupRecyclerView()
         setupFilters()
@@ -51,24 +53,22 @@ class LiveEventsFragment : Fragment() {
     private fun setupRecyclerView() {
         eventAdapter = LiveEventAdapter { event ->
             try {
-                Log.d("LiveEvents", "Event clicked: ${event.title}")
-                
-                // --- FIX STARTS HERE ---
+                // 1. CHECK AD SESSION
                 if (!hasTriggeredListenerInLiveEvents) {
-                    Log.d("LiveEvents", "First event click, attempting to trigger listener...")
                     val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
                     
                     if (listenerTriggered) {
-                        // Browser opened. Stop execution so player doesn't open.
+                        // Browser opened. Mark as shown and STOP.
                         hasTriggeredListenerInLiveEvents = true
-                        Log.d("LiveEvents", "Listener triggered, stopping player launch.")
+                        Log.d("LiveEvents", "Ad triggered. Blocking player launch.")
                         return@LiveEventAdapter
                     }
                 }
-                // --- FIX ENDS HERE ---
                 
-                Log.d("LiveEvents", "Opening event player...")
+                // 2. OPEN PLAYER
+                Log.d("LiveEvents", "Opening event player: ${event.title}")
                 EventPlayerActivity.start(requireContext(), event.id)
+                
             } catch (e: Exception) {
                 Log.e("LiveEvents", "Error starting event player", e)
             }
