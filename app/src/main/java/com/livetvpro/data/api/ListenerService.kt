@@ -11,6 +11,6 @@ import retrofit2.http.GET
  */
 interface ListenerService {
     
-    @GET("listener-config")
+    @GET("listener")
     suspend fun getListenerConfig(): Response<ListenerConfig>
 }
