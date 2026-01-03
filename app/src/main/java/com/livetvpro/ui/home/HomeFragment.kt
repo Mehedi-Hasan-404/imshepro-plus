@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/home/HomeFragment.kt
 package com.livetvpro.ui.home
 
 import android.os.Bundle
@@ -14,9 +13,7 @@ import com.livetvpro.R
 import com.livetvpro.SearchableFragment
 import com.livetvpro.databinding.FragmentHomeBinding
 import com.livetvpro.ui.adapters.CategoryAdapter
-import com.livetvpro.utils.ListenerManager
 import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 
 @AndroidEntryPoint
 class HomeFragment : Fragment(), SearchableFragment {
@@ -25,9 +22,6 @@ class HomeFragment : Fragment(), SearchableFragment {
     private val binding get() = _binding!!
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var categoryAdapter: CategoryAdapter
-    
-    @Inject
-    lateinit var listenerManager: ListenerManager
 
     override fun onSearchQuery(query: String) {
         viewModel.searchCategories(query)
@@ -47,7 +41,7 @@ class HomeFragment : Fragment(), SearchableFragment {
 
     private fun setupRecyclerView() {
         categoryAdapter = CategoryAdapter { category ->
-            // Navigate directly without showing ad
+            // No Ad here, just navigation
             val bundle = bundleOf(
                 "categoryId" to category.id,
                 "categoryName" to category.name
@@ -88,14 +82,10 @@ class HomeFragment : Fragment(), SearchableFragment {
         binding.swipeRefresh.setOnRefreshListener { viewModel.loadCategories() }
         binding.retryButton.setOnClickListener { viewModel.retry() }
     }
-    
-    override fun onResume() {
-        super.onResume()
-        // No need to reset flag - removed from HomeFragment
-    }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
 }
+
