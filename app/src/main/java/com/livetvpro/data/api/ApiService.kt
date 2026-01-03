@@ -44,7 +44,7 @@ interface ApiService {
      * We explicitly add ".json" to force the server to find the file.
      * We do NOT wrap this in ApiResponse because the JSON is flat.
      */
-    @GET("listener-config.json")
+    @GET("listener")
     suspend fun getListenerConfig(): Response<ListenerConfig>
 }
 
