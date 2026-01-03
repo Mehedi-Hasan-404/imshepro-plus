@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/live/LiveEventsFragment.kt
 package com.livetvpro.ui.live
 
 import android.os.Bundle
@@ -54,15 +53,19 @@ class LiveEventsFragment : Fragment() {
             try {
                 Log.d("LiveEvents", "Event clicked: ${event.title}")
                 
+                // --- FIX STARTS HERE ---
                 if (!hasTriggeredListenerInLiveEvents) {
                     Log.d("LiveEvents", "First event click, attempting to trigger listener...")
                     val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
-                    hasTriggeredListenerInLiveEvents = true
                     
-                    Log.d("LiveEvents", "Listener result: $listenerTriggered")
-                } else {
-                    Log.d("LiveEvents", "Listener already triggered in live events")
+                    if (listenerTriggered) {
+                        // Browser opened. Stop execution so player doesn't open.
+                        hasTriggeredListenerInLiveEvents = true
+                        Log.d("LiveEvents", "Listener triggered, stopping player launch.")
+                        return@LiveEventAdapter
+                    }
                 }
+                // --- FIX ENDS HERE ---
                 
                 Log.d("LiveEvents", "Opening event player...")
                 EventPlayerActivity.start(requireContext(), event.id)
