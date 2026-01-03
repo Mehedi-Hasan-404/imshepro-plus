@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/favorites/FavoritesFragment.kt
 package com.livetvpro.ui.favorites
 
 import android.os.Bundle
@@ -54,15 +53,19 @@ class FavoritesFragment : Fragment() {
             onChannelClick = { favChannel ->
                 Log.d("Favorites", "Favorite channel clicked: ${favChannel.name}")
                 
+                // --- FIX STARTS HERE ---
                 if (!hasTriggeredListenerInFavorites) {
                     Log.d("Favorites", "First favorite click, attempting to trigger listener...")
                     val listenerTriggered = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
-                    hasTriggeredListenerInFavorites = true
                     
-                    Log.d("Favorites", "Listener result: $listenerTriggered")
-                } else {
-                    Log.d("Favorites", "Listener already triggered in favorites")
+                    if (listenerTriggered) {
+                        // Browser opened. Stop execution so player doesn't open.
+                        hasTriggeredListenerInFavorites = true
+                        Log.d("Favorites", "Listener triggered, stopping player launch.")
+                        return@FavoriteAdapter
+                    }
                 }
+                // --- FIX ENDS HERE ---
                 
                 val channel = Channel(
                     id = favChannel.id,
