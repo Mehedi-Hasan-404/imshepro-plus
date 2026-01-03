@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
@@ -29,7 +28,8 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     
     @Inject
     lateinit var listenerManager: ListenerManager
-    private var hasTriggeredListener = false
+    
+    private var hasShownAdInThisCategory = false
 
     override fun onSearchQuery(query: String) {
         viewModel.searchChannels(query)
@@ -43,12 +43,16 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
+        hasShownAdInThisCategory = false
+        
         try {
             val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
             if (viewModel.categoryName.isNotEmpty()) {
                 toolbarTitle?.text = viewModel.categoryName
             }
-        } catch (e: Exception) { e.printStackTrace() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
         setupRecyclerView()
         observeViewModel()
@@ -56,18 +60,16 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         arguments?.getString("categoryId")?.let {
             viewModel.loadChannels(it)
         }
-        
-        // Reset the flag when entering a new category
-        hasTriggeredListener = false
     }
 
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                // Show Ad once per category visit (on first channel click)
-                if (!hasTriggeredListener) {
-                    hasTriggeredListener = listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
+                if (!hasShownAdInThisCategory) {
+                    listenerManager.onPageInteraction(ListenerConfig.PAGE_CHANNELS)
+                    hasShownAdInThisCategory = true
                 }
+                
                 ChannelPlayerActivity.start(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
@@ -109,7 +111,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
-        hasTriggeredListener = false
         binding.root.postDelayed({ channelAdapter.refreshAll() }, 50)
     }
 
@@ -118,3 +119,4 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         _binding = null
     }
 }
+
