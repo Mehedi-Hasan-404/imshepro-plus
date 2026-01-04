@@ -2,11 +2,10 @@ name: Build Release APK
 
 on:
   push:
-    branches: [ "main" ] # or "master"
+    branches: [ "main" ]
     tags:
       - 'v*'
   workflow_dispatch:
-
 
 jobs:
   build-release:
@@ -30,14 +29,10 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      # OPTIONAL icons (kept as you had)
       - name: Create placeholder launcher icons
         run: |
-          mkdir -p app/src/main/res/mipmap-mdpi
-          mkdir -p app/src/main/res/mipmap-hdpi
-          mkdir -p app/src/main/res/mipmap-xhdpi
-          mkdir -p app/src/main/res/mipmap-xxhdpi
-          mkdir -p app/src/main/res/mipmap-xxxhdpi
-          
+          mkdir -p app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}
           for dpi in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             cat > app/src/main/res/mipmap-$dpi/ic_launcher.xml << 'ICON_EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -55,46 +50,19 @@ jobs:
             cp app/src/main/res/mipmap-$dpi/ic_launcher.xml app/src/main/res/mipmap-$dpi/ic_launcher_round.xml
           done
 
+      # 🔥 google-services.json now comes from SECRET
       - name: Create google-services.json
         run: |
-          cat > app/google-services.json << 'EOF'
-          {
-            "project_info": {
-              "project_number": "354874868790",
-              "project_id": "livetv-d9b81",
-              "storage_bucket": "livetv-d9b81.firebasestorage.app"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:354874868790:android:2c016cc71df885732f4497",
-                  "android_client_info": {
-                    "package_name": "com.livetvpro"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "AIzaSyBuaSp9csn6bo4d_617WE3pg3BVsUI9sH8"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > app/google-services.json
 
+      # 🔐 build keystore + properties from secrets
       - name: Create keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
-          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> keystore.properties
-          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
+          echo "storeFile=../release-keystore.jks" > keystore.properties
+          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> keystore.properties
+          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
 
       - name: Build Release APK
         run: ./gradlew assembleRelease --stacktrace
