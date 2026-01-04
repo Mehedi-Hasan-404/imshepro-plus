@@ -1,6 +1,7 @@
 package com.livetvpro.data.repository
 
 import com.google.gson.Gson
+import com.google.gson.JsonObject
 import com.livetvpro.data.models.Category
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.DataResponse
@@ -64,8 +65,25 @@ class DataRepository @Inject constructor(
                         return@withContext false
                     }
 
-                    // 3. Parse JSON directly into DataResponse
-                    val data = gson.fromJson(jsonString, DataResponse::class.java)
+                    // 3. Parse JSON - Handle both wrapped and unwrapped formats
+                    val data = try {
+                        // First try to parse as wrapped response (with "data" key)
+                        val jsonObject = gson.fromJson(jsonString, JsonObject::class.java)
+                        
+                        if (jsonObject.has("data")) {
+                            // Wrapped format: {"success": true, "data": {...}}
+                            Timber.d("📦 Detected wrapped API response")
+                            val dataObject = jsonObject.getAsJsonObject("data")
+                            gson.fromJson(dataObject, DataResponse::class.java)
+                        } else {
+                            // Direct format: {"categories": [...], ...}
+                            Timber.d("📄 Detected direct API response")
+                            gson.fromJson(jsonString, DataResponse::class.java)
+                        }
+                    } catch (e: Exception) {
+                        Timber.e(e, "❌ Failed to parse JSON response")
+                        null
+                    }
                     
                     if (data != null) {
                         // 4. Update Cache
@@ -75,7 +93,7 @@ class DataRepository @Inject constructor(
                         cachedListenerConfig = data.listenerConfig
                         
                         isInitialized = true
-                        Timber.d("✅ Data Loaded: ${cachedCategories.size} categories, ${cachedChannels.size} channels")
+                        Timber.d("✅ Data Loaded: ${cachedCategories.size} categories, ${cachedChannels.size} channels, ${cachedLiveEvents.size} live events")
                         return@withContext true
                     } else {
                         Timber.e("❌ Failed to parse JSON")
