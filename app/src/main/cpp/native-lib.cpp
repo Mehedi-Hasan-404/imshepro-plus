@@ -9,7 +9,6 @@
 
 // ==================== OBFUSCATION HELPERS ====================
 
-// XOR encryption key components (split to avoid detection)
 static const unsigned char KEY_PART_1 = 0x12;
 static const unsigned char KEY_PART_2 = 0xA7;
 static const unsigned char KEY_PART_3 = 0x3C;
@@ -17,12 +16,10 @@ static const unsigned char KEY_PART_4 = 0xF1;
 static const unsigned char KEY_PART_5 = 0x08;
 static const unsigned char KEY_PART_6 = 0x1D;
 
-// Calculate final key at runtime
 static unsigned char getKey() {
     return KEY_PART_1 ^ KEY_PART_2 ^ KEY_PART_3 ^ KEY_PART_4 ^ KEY_PART_5 ^ KEY_PART_6;
 }
 
-// Decrypt string
 static std::string decrypt(const unsigned char* encrypted, size_t length) {
     unsigned char key = getKey();
     std::string result;
@@ -35,36 +32,67 @@ static std::string decrypt(const unsigned char* encrypted, size_t length) {
     return result;
 }
 
-// ==================== ENCRYPTED BASE URL ====================
+// ==================== ENCRYPTED FIELD NAMES ====================
 
-static const unsigned char ENCRYPTED_BASE_URL[] = {
-    0x05, 0x19, 0x19, 0x1d, 0x1e, 0x57, 0x42, 0x42,
-    0x0c, 0x04, 0x09, 0x1e, 0x0a, 0x02, 0x40, 0x1d,
-    0x01, 0x18, 0x1e, 0x43, 0x1b, 0x08, 0x1f, 0x0e,
-    0x08, 0x01, 0x43, 0x0c, 0x1d, 0x1d, 0x42, 0x0c,
-    0x1d, 0x04, 0x42, 0x1d, 0x18, 0x0f, 0x01, 0x04,
-    0x0e, 0x42
-};
-static const size_t BASE_URL_LENGTH = sizeof(ENCRYPTED_BASE_URL);
-
-// ==================== ENCRYPTED REMOTE CONFIG KEY ====================
-
-// "data_file_url" encrypted
+// "data_file_url"
 static const unsigned char ENCRYPTED_CONFIG_KEY[] = {
     0x16, 0x06, 0x19, 0x06, 0x5f, 0x0c, 0x08, 0x0f,
     0x0a, 0x5f, 0x1a, 0x1c, 0x0f
 };
-static const size_t CONFIG_KEY_LENGTH = sizeof(ENCRYPTED_CONFIG_KEY);
+
+// "listener_config"
+static const unsigned char ENCRYPTED_LISTENER_CONFIG[] = {
+    0x0f, 0x08, 0x1e, 0x19, 0x0a, 0x17, 0x0a, 0x1c,
+    0x5f, 0x0c, 0x1d, 0x17, 0x0c, 0x08, 0x0e
+};
+
+// "enable_direct_link"
+static const unsigned char ENCRYPTED_ENABLE_LINK[] = {
+    0x0a, 0x17, 0x06, 0x07, 0x0f, 0x0a, 0x5f, 0x16,
+    0x08, 0x1c, 0x0a, 0x0c, 0x19, 0x5f, 0x0f, 0x08,
+    0x17, 0x0e
+};
+
+// "direct_link_url"
+static const unsigned char ENCRYPTED_LINK_URL[] = {
+    0x16, 0x08, 0x1c, 0x0a, 0x0c, 0x19, 0x5f, 0x0f,
+    0x08, 0x17, 0x0e, 0x5f, 0x1a, 0x1c, 0x0f
+};
+
+// "allowed_pages"
+static const unsigned char ENCRYPTED_ALLOWED_PAGES[] = {
+    0x06, 0x0f, 0x0f, 0x1d, 0x1b, 0x0a, 0x16, 0x5f,
+    0x1e, 0x06, 0x0e, 0x0a, 0x1e
+};
+
+// "categories" (for DataResponse parsing)
+static const unsigned char ENCRYPTED_CATEGORIES[] = {
+    0x0c, 0x06, 0x19, 0x0a, 0x0e, 0x1d, 0x1c, 0x08,
+    0x0a, 0x1e
+};
+
+// "channels"
+static const unsigned char ENCRYPTED_CHANNELS[] = {
+    0x0c, 0x05, 0x06, 0x17, 0x17, 0x0a, 0x0f, 0x1e
+};
+
+// "live_events"
+static const unsigned char ENCRYPTED_LIVE_EVENTS[] = {
+    0x0f, 0x08, 0x1b, 0x0a, 0x5f, 0x0a, 0x1b, 0x0a,
+    0x17, 0x19, 0x1e
+};
+
+// "data" (for wrapped responses)
+static const unsigned char ENCRYPTED_DATA[] = {
+    0x16, 0x06, 0x19, 0x06
+};
 
 // ==================== INTEGRITY VALIDATION ====================
 
-// Store validation token (changes on each successful check)
 static unsigned int integrity_token = 0;
 static time_t last_check_time = 0;
 
-// Anti-tampering: Validate calling context
 static bool validateCaller(JNIEnv* env, jobject caller) {
-    // Get the class name of the caller
     jclass callerClass = env->GetObjectClass(caller);
     jclass classClass = env->FindClass("java/lang/Class");
     jmethodID getNameMethod = env->GetMethodID(classClass, "getName", "()Ljava/lang/String;");
@@ -72,7 +100,6 @@ static bool validateCaller(JNIEnv* env, jobject caller) {
     jstring className = (jstring)env->CallObjectMethod(callerClass, getNameMethod);
     const char* classNameStr = env->GetStringUTFChars(className, nullptr);
     
-    // Verify caller is from legitimate package
     bool isValid = (strstr(classNameStr, "com.livetvpro") != nullptr);
     
     env->ReleaseStringUTFChars(className, classNameStr);
@@ -83,84 +110,44 @@ static bool validateCaller(JNIEnv* env, jobject caller) {
     return isValid;
 }
 
-// Generate integrity token based on current time
 static unsigned int generateToken() {
     time_t now = time(nullptr);
     return (unsigned int)(now ^ 0xDEADBEEF);
 }
 
-// Validate integrity token
 static bool validateToken(unsigned int token) {
     time_t now = time(nullptr);
-    
-    // Token valid for 60 seconds
     if ((now - last_check_time) > 60) {
         return false;
     }
-    
     return token == integrity_token;
 }
 
-// ==================== ENCRYPTED DATA RESPONSE STRUCTURE ====================
+// ==================== LISTENER CONFIG STATE ====================
 
-// Structure to hold encrypted data response fields
-struct EncryptedDataResponse {
-    const unsigned char* data;
-    size_t length;
-};
+// Store listener config state in native memory (completely hidden from Java)
+struct ListenerConfigState {
+    bool enableDirectLink;
+    std::string directLinkUrl;
+    std::vector<std::string> allowedPages;
+    bool isInitialized;
+    time_t lastUpdated;
+} static listenerState = {false, "", {}, false, 0};
 
-// "listener_config" field structure encrypted
-static const unsigned char ENCRYPTED_LISTENER_CONFIG[] = {
-    0x0f, 0x08, 0x1e, 0x19, 0x0a, 0x17, 0x0a, 0x1c,
-    0x5f, 0x0c, 0x1d, 0x17, 0x0c, 0x08, 0x0e
-};
-
-// "enable_direct_link" encrypted
-static const unsigned char ENCRYPTED_ENABLE_LINK[] = {
-    0x0a, 0x17, 0x06, 0x07, 0x0f, 0x0a, 0x5f, 0x16,
-    0x08, 0x1c, 0x0a, 0x0c, 0x19, 0x5f, 0x0f, 0x08,
-    0x17, 0x0e
-};
-
-// "direct_link_url" encrypted
-static const unsigned char ENCRYPTED_LINK_URL[] = {
-    0x16, 0x08, 0x1c, 0x0a, 0x0c, 0x19, 0x5f, 0x0f,
-    0x08, 0x17, 0x0e, 0x5f, 0x1a, 0x1c, 0x0f
-};
-
-// "allowed_pages" encrypted
-static const unsigned char ENCRYPTED_ALLOWED_PAGES[] = {
-    0x06, 0x0f, 0x0f, 0x1d, 0x1b, 0x0a, 0x16, 0x5f,
-    0x1e, 0x06, 0x0e, 0x0a, 0x1e
-};
+// Store session tracking in native memory
+static std::vector<std::string> triggeredSessions;
 
 // ==================== JNI EXPORTS ====================
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_livetvpro_di_NetworkModule_getBaseUrl(JNIEnv* env, jobject thiz) {
-    // Validate caller
-    if (!validateCaller(env, thiz)) {
-        LOGE("🚨 SECURITY: Unauthorized caller detected!");
-        return env->NewStringUTF("");
-    }
-    
-    // Decrypt and return base URL
-    std::string url = decrypt(ENCRYPTED_BASE_URL, BASE_URL_LENGTH);
-    return env->NewStringUTF(url.c_str());
-}
-
-extern "C"
-JNIEXPORT jstring JNICALL
 Java_com_livetvpro_utils_RemoteConfigManager_getNativeConfigKey(JNIEnv* env, jobject thiz) {
-    // Validate caller
     if (!validateCaller(env, thiz)) {
-        LOGE("🚨 SECURITY: Unauthorized caller detected!");
+        LOGE("🚨 SECURITY: Unauthorized caller!");
         return env->NewStringUTF("");
     }
     
-    // Decrypt and return config key
-    std::string key = decrypt(ENCRYPTED_CONFIG_KEY, CONFIG_KEY_LENGTH);
+    std::string key = decrypt(ENCRYPTED_CONFIG_KEY, sizeof(ENCRYPTED_CONFIG_KEY));
     return env->NewStringUTF(key.c_str());
 }
 
@@ -172,26 +159,21 @@ Java_com_livetvpro_security_SecurityManager_nativeValidateIntegrity(
     jstring packageName,
     jboolean isDebug
 ) {
-    // Validate caller
     if (!validateCaller(env, thiz)) {
-        LOGE("🚨 SECURITY: Unauthorized integrity check caller!");
+        LOGE("🚨 SECURITY: Unauthorized integrity check!");
         return 0;
     }
     
     const char* pkgName = env->GetStringUTFChars(packageName, nullptr);
-    
-    // Verify package name
     bool validPackage = (strcmp(pkgName, "com.livetvpro") == 0 || 
                          strcmp(pkgName, "com.livetvpro.debug") == 0);
-    
     env->ReleaseStringUTFChars(packageName, pkgName);
     
     if (!validPackage) {
-        LOGE("🚨 SECURITY: Invalid package name!");
+        LOGE("🚨 SECURITY: Invalid package!");
         return 0;
     }
     
-    // Generate new token
     time_t now = time(nullptr);
     last_check_time = now;
     integrity_token = generateToken();
@@ -206,7 +188,6 @@ Java_com_livetvpro_security_SecurityManager_nativeVerifyToken(
     jobject thiz,
     jint token
 ) {
-    // Validate caller
     if (!validateCaller(env, thiz)) {
         LOGE("🚨 SECURITY: Unauthorized token verification!");
         return JNI_FALSE;
@@ -215,7 +196,95 @@ Java_com_livetvpro_security_SecurityManager_nativeVerifyToken(
     return validateToken((unsigned int)token) ? JNI_TRUE : JNI_FALSE;
 }
 
-// ==================== DATA RESPONSE FIELD EXTRACTION ====================
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_livetvpro_security_SecurityManager_nativeCheckDebugger(
+    JNIEnv* env,
+    jobject thiz
+) {
+    if (!validateCaller(env, thiz)) {
+        return JNI_TRUE;
+    }
+    
+    FILE* status = fopen("/proc/self/status", "r");
+    if (status) {
+        char line[256];
+        bool debuggerFound = false;
+        
+        while (fgets(line, sizeof(line), status)) {
+            if (strncmp(line, "TracerPid:", 10) == 0) {
+                int pid = atoi(line + 10);
+                if (pid != 0) {
+                    debuggerFound = true;
+                    break;
+                }
+            }
+        }
+        
+        fclose(status);
+        return debuggerFound ? JNI_TRUE : JNI_FALSE;
+    }
+    
+    return JNI_FALSE;
+}
+
+// ==================== DATA RESPONSE FIELD NAMES ====================
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_livetvpro_data_repository_DataRepository_nativeGetCategoriesKey(
+    JNIEnv* env,
+    jobject thiz
+) {
+    if (!validateCaller(env, thiz)) {
+        return env->NewStringUTF("");
+    }
+    
+    std::string key = decrypt(ENCRYPTED_CATEGORIES, sizeof(ENCRYPTED_CATEGORIES));
+    return env->NewStringUTF(key.c_str());
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_livetvpro_data_repository_DataRepository_nativeGetChannelsKey(
+    JNIEnv* env,
+    jobject thiz
+) {
+    if (!validateCaller(env, thiz)) {
+        return env->NewStringUTF("");
+    }
+    
+    std::string key = decrypt(ENCRYPTED_CHANNELS, sizeof(ENCRYPTED_CHANNELS));
+    return env->NewStringUTF(key.c_str());
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_livetvpro_data_repository_DataRepository_nativeGetLiveEventsKey(
+    JNIEnv* env,
+    jobject thiz
+) {
+    if (!validateCaller(env, thiz)) {
+        return env->NewStringUTF("");
+    }
+    
+    std::string key = decrypt(ENCRYPTED_LIVE_EVENTS, sizeof(ENCRYPTED_LIVE_EVENTS));
+    return env->NewStringUTF(key.c_str());
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_livetvpro_data_repository_DataRepository_nativeGetDataKey(
+    JNIEnv* env,
+    jobject thiz
+) {
+    if (!validateCaller(env, thiz)) {
+        return env->NewStringUTF("");
+    }
+    
+    std::string key = decrypt(ENCRYPTED_DATA, sizeof(ENCRYPTED_DATA));
+    return env->NewStringUTF(key.c_str());
+}
 
 extern "C"
 JNIEXPORT jstring JNICALL
@@ -223,9 +292,7 @@ Java_com_livetvpro_data_repository_DataRepository_nativeGetListenerConfigKey(
     JNIEnv* env,
     jobject thiz
 ) {
-    // Validate caller
     if (!validateCaller(env, thiz)) {
-        LOGE("🚨 SECURITY: Unauthorized data access!");
         return env->NewStringUTF("");
     }
     
@@ -275,41 +342,174 @@ Java_com_livetvpro_data_repository_DataRepository_nativeGetAllowedPagesKey(
     return env->NewStringUTF(key.c_str());
 }
 
-// ==================== ANTI-DEBUGGING ====================
+// ==================== LISTENER CONFIG INITIALIZATION ====================
+
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_livetvpro_data_repository_DataRepository_nativeInitListenerConfig(
+    JNIEnv* env,
+    jobject thiz,
+    jboolean enableDirectLink,
+    jstring directLinkUrl,
+    jobjectArray allowedPages
+) {
+    if (!validateCaller(env, thiz)) {
+        LOGE("🚨 SECURITY: Unauthorized listener config init!");
+        return;
+    }
+    
+    // Store in native memory
+    listenerState.enableDirectLink = enableDirectLink;
+    
+    // Store URL
+    if (directLinkUrl != nullptr) {
+        const char* urlStr = env->GetStringUTFChars(directLinkUrl, nullptr);
+        listenerState.directLinkUrl = std::string(urlStr);
+        env->ReleaseStringUTFChars(directLinkUrl, urlStr);
+    } else {
+        listenerState.directLinkUrl = "";
+    }
+    
+    // Store allowed pages
+    listenerState.allowedPages.clear();
+    if (allowedPages != nullptr) {
+        jsize length = env->GetArrayLength(allowedPages);
+        for (jsize i = 0; i < length; i++) {
+            jstring page = (jstring)env->GetObjectArrayElement(allowedPages, i);
+            const char* pageStr = env->GetStringUTFChars(page, nullptr);
+            listenerState.allowedPages.push_back(std::string(pageStr));
+            env->ReleaseStringUTFChars(page, pageStr);
+            env->DeleteLocalRef(page);
+        }
+    }
+    
+    listenerState.isInitialized = true;
+    listenerState.lastUpdated = time(nullptr);
+}
+
+// ==================== LISTENER MANAGER LOGIC (NATIVE) ====================
 
 extern "C"
 JNIEXPORT jboolean JNICALL
-Java_com_livetvpro_security_SecurityManager_nativeCheckDebugger(
+Java_com_livetvpro_utils_ListenerManager_nativeShouldShowLink(
+    JNIEnv* env,
+    jobject thiz,
+    jstring pageType,
+    jstring uniqueId
+) {
+    if (!validateCaller(env, thiz)) {
+        LOGE("🚨 SECURITY: Unauthorized listener check!");
+        return JNI_FALSE;
+    }
+    
+    // Check if initialized
+    if (!listenerState.isInitialized) {
+        return JNI_FALSE;
+    }
+    
+    // Check if enabled
+    if (!listenerState.enableDirectLink) {
+        return JNI_FALSE;
+    }
+    
+    // Check if URL is valid
+    if (listenerState.directLinkUrl.empty()) {
+        return JNI_FALSE;
+    }
+    
+    // Check if page is allowed
+    const char* pageTypeStr = env->GetStringUTFChars(pageType, nullptr);
+    bool pageAllowed = false;
+    for (const auto& page : listenerState.allowedPages) {
+        if (page == pageTypeStr) {
+            pageAllowed = true;
+            break;
+        }
+    }
+    env->ReleaseStringUTFChars(pageType, pageTypeStr);
+    
+    if (!pageAllowed) {
+        return JNI_FALSE;
+    }
+    
+    // Build session key
+    std::string sessionKey;
+    if (uniqueId != nullptr) {
+        const char* uniqueIdStr = env->GetStringUTFChars(uniqueId, nullptr);
+        sessionKey = std::string(pageTypeStr) + "_" + std::string(uniqueIdStr);
+        env->ReleaseStringUTFChars(uniqueId, uniqueIdStr);
+    } else {
+        sessionKey = std::string(pageTypeStr);
+    }
+    
+    // Check if already triggered
+    for (const auto& triggered : triggeredSessions) {
+        if (triggered == sessionKey) {
+            return JNI_FALSE; // Already shown
+        }
+    }
+    
+    // Mark as triggered
+    triggeredSessions.push_back(sessionKey);
+    
+    return JNI_TRUE;
+}
+
+extern "C"
+JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_ListenerManager_nativeGetDirectLinkUrl(
     JNIEnv* env,
     jobject thiz
 ) {
     if (!validateCaller(env, thiz)) {
-        return JNI_TRUE; // Pretend debugger is attached
+        LOGE("🚨 SECURITY: Unauthorized URL access!");
+        return env->NewStringUTF("");
     }
     
-    // Check for common debugger detection
-    // This is a simplified check - can be expanded
-    
-    // Check if TracerPid exists in /proc/self/status
-    FILE* status = fopen("/proc/self/status", "r");
-    if (status) {
-        char line[256];
-        bool debuggerFound = false;
-        
-        while (fgets(line, sizeof(line), status)) {
-            if (strncmp(line, "TracerPid:", 10) == 0) {
-                int pid = atoi(line + 10);
-                if (pid != 0) {
-                    debuggerFound = true;
-                    break;
-                }
-            }
-        }
-        
-        fclose(status);
-        return debuggerFound ? JNI_TRUE : JNI_FALSE;
+    if (!listenerState.isInitialized) {
+        return env->NewStringUTF("");
     }
     
-    return JNI_FALSE;
+    return env->NewStringUTF(listenerState.directLinkUrl.c_str());
 }
 
+extern "C"
+JNIEXPORT void JNICALL
+Java_com_livetvpro_utils_ListenerManager_nativeResetSessions(
+    JNIEnv* env,
+    jobject thiz
+) {
+    if (!validateCaller(env, thiz)) {
+        LOGE("🚨 SECURITY: Unauthorized reset!");
+        return;
+    }
+    
+    triggeredSessions.clear();
+}
+
+extern "C"
+JNIEXPORT jboolean JNICALL
+Java_com_livetvpro_utils_ListenerManager_nativeIsConfigValid(
+    JNIEnv* env,
+    jobject thiz
+) {
+    if (!validateCaller(env, thiz)) {
+        return JNI_FALSE;
+    }
+    
+    if (!listenerState.isInitialized) {
+        return JNI_FALSE;
+    }
+    
+    // Basic validation
+    if (listenerState.enableDirectLink) {
+        if (listenerState.directLinkUrl.empty()) {
+            return JNI_FALSE;
+        }
+        if (listenerState.allowedPages.empty()) {
+            return JNI_FALSE;
+        }
+    }
+    
+    return JNI_TRUE;
+}
