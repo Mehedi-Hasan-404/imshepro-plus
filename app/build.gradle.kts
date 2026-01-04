@@ -5,6 +5,7 @@ plugins {
     id("com.google.dagger.hilt.android")
     id("kotlin-parcelize")
     id("androidx.navigation.safeargs.kotlin")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -24,7 +25,6 @@ android {
             useSupportLibrary = true
         }
         
-        // NDK configuration
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         }
@@ -76,7 +76,6 @@ android {
         }
     }
     
-    // Native build configuration
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
@@ -119,6 +118,7 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // Hilt
     implementation("com.google.dagger:hilt-android:2.50")
@@ -142,6 +142,16 @@ dependencies {
 
     // Chrome Custom Tabs
     implementation("androidx.browser:browser:1.7.0")
+
+    // ========== FIREBASE ==========
+    // Firebase BoM (manages all Firebase versions)
+    implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
+    
+    // Firebase Remote Config
+    implementation("com.google.firebase:firebase-config-ktx")
+    
+    // Firebase Analytics (required)
+    implementation("com.google.firebase:firebase-analytics-ktx")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
