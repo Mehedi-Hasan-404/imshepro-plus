@@ -16,14 +16,10 @@ class RemoteConfigManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     
-    // Native method to get config key (obfuscated)
-    private external fun getNativeConfigKey(): String
-    
     private val remoteConfig: FirebaseRemoteConfig = Firebase.remoteConfig
 
     companion object {
-        // This constant is now just a fallback - real key comes from native
-        private const val FALLBACK_KEY = "data_file_url"
+        private const val KEY_DATA_URL = "data_file_url"
         private const val DEFAULT_URL = ""
     }
 
@@ -32,15 +28,7 @@ class RemoteConfigManager @Inject constructor(
             minimumFetchIntervalInSeconds = if (isDebugBuild()) 0L else 3600L
         }
         remoteConfig.setConfigSettingsAsync(configSettings)
-        
-        // Get the actual key from native code for defaults
-        try {
-            val nativeKey = getNativeConfigKey()
-            remoteConfig.setDefaultsAsync(mapOf(nativeKey to DEFAULT_URL))
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to set native defaults, using fallback")
-            remoteConfig.setDefaultsAsync(mapOf(FALLBACK_KEY to DEFAULT_URL))
-        }
+        remoteConfig.setDefaultsAsync(mapOf(KEY_DATA_URL to DEFAULT_URL))
     }
 
     suspend fun fetchAndActivate(): Boolean {
@@ -55,32 +43,14 @@ class RemoteConfigManager @Inject constructor(
     }
 
     /**
-     * PROTECTED: Get data URL using native config key
+     * Get data URL from Remote Config
      */
     fun getDataUrl(): String {
         return try {
-            // Get the actual key from native code
-            val nativeKey = getNativeConfigKey()
-            
-            // Try native key first
-            val url = remoteConfig.getString(nativeKey)
-            
-            // Fallback to hardcoded key if native fails
-            if (url.isBlank()) {
-                Timber.w("⚠️ Native key returned empty, trying fallback")
-                remoteConfig.getString(FALLBACK_KEY)
-            } else {
-                url
-            }
+            remoteConfig.getString(KEY_DATA_URL)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to get data URL from native key")
-            // Last resort: use fallback key
-            try {
-                remoteConfig.getString(FALLBACK_KEY)
-            } catch (e2: Exception) {
-                Timber.e(e2, "Fallback also failed")
-                ""
-            }
+            Timber.e(e, "Failed to get data URL")
+            ""
         }
     }
 
