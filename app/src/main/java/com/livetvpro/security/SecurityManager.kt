@@ -13,13 +13,12 @@ class SecurityManager @Inject constructor(
 ) {
     
     companion object {
-        init {
-            try {
-                System.loadLibrary("native-lib")
-            } catch (e: Exception) {
-                throw SecurityException("Native library initialization failed")
-            }
-        }
+        // ========================================
+        // SECURITY LEVEL CONSTANTS
+        // ========================================
+        private const val LEVEL_1_RELAXED = 1
+        private const val LEVEL_2_MODERATE = 2
+        private const val LEVEL_3_STRICT = 3
         
         // ========================================
         // SECURITY LEVEL CONFIGURATION
@@ -30,9 +29,13 @@ class SecurityManager @Inject constructor(
         // LEVEL_3_STRICT: Maximum security, crashes on any issue
         private const val SECURITY_LEVEL = LEVEL_2_MODERATE
         
-        private const val LEVEL_1_RELAXED = 1
-        private const val LEVEL_2_MODERATE = 2
-        private const val LEVEL_3_STRICT = 3
+        init {
+            try {
+                System.loadLibrary("native-lib")
+            } catch (e: Exception) {
+                throw SecurityException("Native library initialization failed")
+            }
+        }
     }
     
     // Native methods
