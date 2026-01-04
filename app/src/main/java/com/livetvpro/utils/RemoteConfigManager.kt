@@ -1,7 +1,7 @@
+// app/src/main/java/com/livetvpro/utils/RemoteConfigManager.kt
 package com.livetvpro.utils
 
 import android.content.Context
-import android.util.Log
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.ktx.remoteConfig
@@ -19,13 +19,15 @@ class RemoteConfigManager @Inject constructor(
     private val remoteConfig: FirebaseRemoteConfig = Firebase.remoteConfig
 
     companion object {
+        // Only ONE parameter - your base API URL
         const val KEY_BASE_URL = "base_api_url"
         
-        // IMPORTANT: Set your actual backend URL here as fallback
+        // Default fallback if Firebase fails
         private const val DEFAULT_BASE_URL = ""
         
+        // Cache duration
         private const val FETCH_INTERVAL_SECONDS = 3600L // 1 hour
-        private const val FETCH_INTERVAL_DEBUG = 60L // 1 minute for debug
+        private const val FETCH_INTERVAL_DEBUG = 0L // Instant for debug
     }
 
     init {
@@ -43,47 +45,41 @@ class RemoteConfigManager @Inject constructor(
 
         remoteConfig.setConfigSettingsAsync(configSettings)
         
-        // Set default values
-        val defaults = mapOf(KEY_BASE_URL to DEFAULT_BASE_URL)
-        remoteConfig.setDefaultsAsync(defaults)
-        
-        Log.d("RemoteConfig", "Setup complete. Default URL: $DEFAULT_BASE_URL")
+        // Set default value
+        remoteConfig.setDefaultsAsync(
+            mapOf(KEY_BASE_URL to DEFAULT_BASE_URL)
+        )
     }
 
+    /**
+     * Fetch and activate remote config
+     */
     suspend fun fetchAndActivate(): Boolean {
         return try {
-            Log.d("RemoteConfig", "🔄 Fetching Remote Config...")
+            Timber.d("Fetching Remote Config...")
+            val result = remoteConfig.fetchAndActivate().await()
             
-            val fetchResult = remoteConfig.fetchAndActivate().await()
-            
-            if (fetchResult) {
-                val url = remoteConfig.getString(KEY_BASE_URL)
-                Log.d("RemoteConfig", "✅ Remote Config activated!")
-                Log.d("RemoteConfig", "📡 Base URL: $url")
-                true
-            } else {
-                val url = remoteConfig.getString(KEY_BASE_URL)
-                Log.d("RemoteConfig", "ℹ️ Using cached Remote Config")
-                Log.d("RemoteConfig", "📡 Base URL: $url")
-                true // Still return true since we have cached values
+            if (result) {
+                Timber.d("Remote Config activated: ${getBaseUrl()}")
             }
+            
+            true
         } catch (e: Exception) {
-            Log.e("RemoteConfig", "❌ Fetch failed, using defaults", e)
             Timber.e(e, "Failed to fetch Remote Config")
-            true // Return true to use default values
+            false
         }
     }
 
+    /**
+     * Get base API URL from Firebase
+     */
     fun getBaseUrl(): String {
         val url = remoteConfig.getString(KEY_BASE_URL)
-        val finalUrl = if (url.isNotEmpty()) {
+        return if (url.isNotEmpty()) {
             ensureTrailingSlash(url)
         } else {
             DEFAULT_BASE_URL
         }
-        
-        Log.d("RemoteConfig", "📍 Getting Base URL: $finalUrl")
-        return finalUrl
     }
 
     private fun ensureTrailingSlash(url: String): String {
