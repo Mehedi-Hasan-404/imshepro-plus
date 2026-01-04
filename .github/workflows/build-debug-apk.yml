@@ -2,15 +2,15 @@ name: Build Release APK
 
 on:
   push:
-    branches: [ "main" ]
-    tags:
-      - 'v*'
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
   build-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -29,10 +29,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # OPTIONAL icons (kept as you had)
       - name: Create placeholder launcher icons
         run: |
-          mkdir -p app/src/main/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+          
+          # Create a simple XML drawable as placeholder icon
           for dpi in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             cat > app/src/main/res/mipmap-$dpi/ic_launcher.xml << 'ICON_EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -49,28 +54,15 @@ jobs:
           ICON_EOF
             cp app/src/main/res/mipmap-$dpi/ic_launcher.xml app/src/main/res/mipmap-$dpi/ic_launcher_round.xml
           done
+          echo "✓ Created placeholder launcher icons"
 
-      # 🔥 google-services.json now comes from SECRET
-      - name: Create google-services.json
+      - name: Create google-services.json from secrets
         run: |
-          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > app/google-services.json
-
-      # 🔐 build keystore + properties from secrets
-      - name: Create keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
-          echo "storeFile=../release-keystore.jks" > keystore.properties
-          echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> keystore.properties
-          echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+          echo "✓ Created google-services.json from secrets"
 
       - name: Build Release APK
         run: ./gradlew assembleRelease --stacktrace
-        env:
-          KEYSTORE_FILE: ../release-keystore.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: List build outputs
         if: always()
@@ -84,16 +76,7 @@ jobs:
         with:
           name: app-release-apk
           path: app/build/outputs/apk/release/app-release.apk
-          retention-days: 90
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: app/build/outputs/apk/release/app-release.apk
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          retention-days: 14
 
       - name: Upload build reports on failure
         uses: actions/upload-artifact@v4
