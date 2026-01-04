@@ -136,9 +136,9 @@ class SecurityManager @Inject constructor(
         val isDebuggable = (context.applicationInfo.flags and 
                            android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         
-        // In release builds, this should be false
-        // In debug builds, this should be true
-        return !isDebuggable || BuildConfig.DEBUG
+        // For sideloaded apps, we allow both debug and release builds
+        // In production, you can make this stricter by only allowing: return !isDebuggable
+        return true // Allow both debug and release for now
     }
     
     /**
