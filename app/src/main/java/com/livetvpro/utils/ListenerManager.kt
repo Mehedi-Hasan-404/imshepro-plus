@@ -5,7 +5,6 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import com.livetvpro.data.repository.DataRepository
-import com.livetvpro.security.SecurityManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,28 +14,37 @@ class ListenerManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val dataRepository: DataRepository
 ) {
-    private val triggeredSessions = mutableSetOf<String>()
+    companion object {
+        init {
+            System.loadLibrary("native-lib")
+        }
+    }
+    
+    // All logic is in native code
+    private external fun nativeShouldShowLink(pageType: String, uniqueId: String?): Boolean
+    private external fun nativeGetDirectLinkUrl(): String
+    private external fun nativeResetSessions()
+    private external fun nativeIsConfigValid(): Boolean
 
     /**
-     * Check page interaction for ads/redirects
+     * Check if direct link should be shown
+     * ALL LOGIC IS IN NATIVE CODE - NO KOTLIN LOGIC HERE
      */
     fun onPageInteraction(pageType: String, uniqueId: String? = null): Boolean {
-        // Get config
-        val cfg = dataRepository.getListenerConfig()
-
-        if (!cfg.enableDirectLink) return false
-        if (!cfg.isEnabledForPage(pageType)) return false
-        if (cfg.directLinkUrl.isBlank()) return false
-
-        val sessionKey = if (uniqueId != null) "${pageType}_$uniqueId" else pageType
-
-        if (triggeredSessions.contains(sessionKey)) {
-            return false
+        // Ask native code if we should show the link
+        val shouldShow = nativeShouldShowLink(pageType, uniqueId)
+        
+        if (shouldShow) {
+            // Get URL from native code
+            val url = nativeGetDirectLinkUrl()
+            
+            if (url.isNotEmpty()) {
+                openDirectLink(url)
+                return true
+            }
         }
-
-        openDirectLink(cfg.directLinkUrl)
-        triggeredSessions.add(sessionKey)
-        return true
+        
+        return false
     }
 
     /**
@@ -54,9 +62,16 @@ class ListenerManager @Inject constructor(
     }
     
     /**
-     * Clear session tracking
+     * Reset session tracking (calls native code)
      */
     fun resetSessions() {
-        triggeredSessions.clear()
+        nativeResetSessions()
+    }
+    
+    /**
+     * Check if configuration is valid (asks native code)
+     */
+    fun isConfigValid(): Boolean {
+        return nativeIsConfigValid()
     }
 }
