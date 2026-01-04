@@ -43,7 +43,8 @@ class LiveTVProApplication : Application() {
                 
                 if (success) {
                     Log.d("LiveTVPro", "✅ Remote Config ready")
-                    Log.d("LiveTVPro", "Base URL: ${remoteConfigManager.getBaseUrl()}")
+                    // FIXED: Changed getBaseUrl() to getDataUrl()
+                    Log.d("LiveTVPro", "Data URL: ${remoteConfigManager.getDataUrl()}")
                 } else {
                     Log.w("LiveTVPro", "⚠️ Using cached/default Remote Config")
                 }
