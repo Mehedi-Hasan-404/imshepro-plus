@@ -36,6 +36,17 @@ android {
         }
     }
 
+    // Signing configuration for release builds
+    signingConfigs {
+        create("release") {
+            // Read from environment variables (GitHub Actions)
+            storeFile = file(System.getenv("KEYSTORE_FILE") ?: "../release-keystore.jks")
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -44,6 +55,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("release")
         }
         debug {
             isDebuggable = true
@@ -143,14 +155,9 @@ dependencies {
     // Chrome Custom Tabs
     implementation("androidx.browser:browser:1.7.0")
 
-    // ========== FIREBASE ==========
-    // Firebase BoM (manages all Firebase versions)
+    // Firebase
     implementation(platform("com.google.firebase:firebase-bom:32.7.0"))
-    
-    // Firebase Remote Config
     implementation("com.google.firebase:firebase-config-ktx")
-    
-    // Firebase Analytics (required)
     implementation("com.google.firebase:firebase-analytics-ktx")
 
     // Testing
