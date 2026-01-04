@@ -1,16 +1,15 @@
-name: Build Debug APK
+name: Build Release APK
 
 on:
   push:
-    branches: ["main", "develop"]
-  pull_request:
-    branches: ["main"]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
-  build-debug:
+  build-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -37,7 +36,6 @@ jobs:
           mkdir -p app/src/main/res/mipmap-xxhdpi
           mkdir -p app/src/main/res/mipmap-xxxhdpi
           
-          # Create a simple XML drawable as placeholder icon
           for dpi in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             cat > app/src/main/res/mipmap-$dpi/ic_launcher.xml << 'ICON_EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -54,7 +52,6 @@ jobs:
           ICON_EOF
             cp app/src/main/res/mipmap-$dpi/ic_launcher.xml app/src/main/res/mipmap-$dpi/ic_launcher_round.xml
           done
-          echo "✓ Created placeholder launcher icons"
 
       - name: Create google-services.json
         run: |
@@ -84,34 +81,26 @@ jobs:
                     "other_platform_oauth_client": []
                   }
                 }
-              },
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:354874868790:android:b0d1fed7cb74ac922f4497",
-                  "android_client_info": {
-                    "package_name": "com.livetvpro.debug"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "AIzaSyBuaSp9csn6bo4d_617WE3pg3BVsUI9sH8"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
               }
             ],
             "configuration_version": "1"
           }
           EOF
-          echo "✓ Created google-services.json"
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+      - name: Create keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
+          echo "KEYSTORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
+          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> keystore.properties
+          echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease --stacktrace
+        env:
+          KEYSTORE_FILE: ../release-keystore.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: List build outputs
         if: always()
@@ -119,13 +108,22 @@ jobs:
           echo "=== APK files found ==="
           find app/build/outputs -name "*.apk" -type f -exec ls -lh {} \;
 
-      - name: Upload Debug APK
+      - name: Upload Release APK
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 14
+          name: app-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          retention-days: 90
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload build reports on failure
         uses: actions/upload-artifact@v4
