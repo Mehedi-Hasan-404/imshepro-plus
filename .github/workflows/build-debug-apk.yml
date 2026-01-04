@@ -61,7 +61,18 @@ jobs:
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
           echo "✓ Created google-services.json from secrets"
 
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
+          echo "✓ Keystore decoded successfully"
+          ls -lh release-keystore.jks
+
       - name: Build Release APK
+        env:
+          KEYSTORE_FILE: ${{ github.workspace }}/release-keystore.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease --stacktrace
 
       - name: List build outputs
