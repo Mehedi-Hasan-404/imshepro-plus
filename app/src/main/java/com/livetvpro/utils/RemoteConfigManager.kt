@@ -19,7 +19,7 @@ class RemoteConfigManager @Inject constructor(
 
     companion object {
         // Ensure this key exists in your Firebase Console
-        const val KEY_DATA_URL = "base_url" 
+        const val KEY_DATA_URL = "data_file_url" 
         private const val DEFAULT_URL = ""
     }
 
