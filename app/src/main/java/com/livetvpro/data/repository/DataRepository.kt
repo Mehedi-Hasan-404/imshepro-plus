@@ -158,22 +158,15 @@ class DataRepository @Inject constructor(
     }
     
     /**
-     * PROTECTED: Parse listener config using native field keys
-     * This prevents users from finding field names in decompiled code
+     * Parse listener config using standard field names
      */
     private fun parseListenerConfig(dataObject: JsonObject): ListenerConfig {
-        // Verify integrity before accessing native methods
-        if (!securityManager.verifyIntegrity()) {
-            securityManager.enforceIntegrity()
-            return ListenerConfig()
-        }
-        
         try {
-            // Get field keys from native code (obfuscated)
-            val listenerConfigKey = nativeGetListenerConfigKey()
-            val enableLinkKey = nativeGetEnableLinkKey()
-            val linkUrlKey = nativeGetLinkUrlKey()
-            val allowedPagesKey = nativeGetAllowedPagesKey()
+            // Standard field names (not using native code for now)
+            val listenerConfigKey = "listener_config"
+            val enableLinkKey = "enable_direct_link"
+            val linkUrlKey = "direct_link_url"
+            val allowedPagesKey = "allowed_pages"
             
             // Check if listener_config exists
             if (!dataObject.has(listenerConfigKey)) {
@@ -183,7 +176,7 @@ class DataRepository @Inject constructor(
             
             val configObject = dataObject.getAsJsonObject(listenerConfigKey)
             
-            // Extract fields using native keys
+            // Extract fields
             val enableDirectLink = if (configObject.has(enableLinkKey)) {
                 configObject.get(enableLinkKey).asBoolean
             } else false
