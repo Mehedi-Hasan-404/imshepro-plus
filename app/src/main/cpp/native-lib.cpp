@@ -313,38 +313,3 @@ Java_com_livetvpro_security_SecurityManager_nativeCheckDebugger(
     return JNI_FALSE;
 }
 
-// ==================== STRING ENCRYPTION UTILITY ====================
-
-// Helper function to encrypt strings (use this to generate encrypted arrays)
-// This is for development only - remove in production
-extern "C"
-JNIEXPORT jstring JNICALL
-Java_com_livetvpro_utils_NativeHelper_encryptString(
-    JNIEnv* env,
-    jobject thiz,
-    jstring input
-) {
-    const char* inputStr = env->GetStringUTFChars(input, nullptr);
-    size_t length = strlen(inputStr);
-    unsigned char key = getKey();
-    
-    std::string result = "static const unsigned char ENCRYPTED_DATA[] = {\n    ";
-    
-    for (size_t i = 0; i < length; i++) {
-        char hex[8];
-        sprintf(hex, "0x%02X", (unsigned char)(inputStr[i] ^ key));
-        result += hex;
-        
-        if (i < length - 1) {
-            result += ", ";
-            if ((i + 1) % 8 == 0) {
-                result += "\n    ";
-            }
-        }
-    }
-    
-    result += "\n};";
-    
-    env->ReleaseStringUTFChars(input, inputStr);
-    return env->NewStringUTF(result.c_str());
-}
