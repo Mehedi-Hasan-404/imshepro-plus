@@ -1,4 +1,3 @@
-// app/src/main/java/com/livetvpro/di/NetworkModule.kt
 package com.livetvpro.di
 
 import android.content.Context
@@ -22,14 +21,8 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    /**
-     * INTEGRITY CHECK:
-     * Hash of all allowed endpoints.
-     * If someone modifies ApiService.kt and changes endpoints,
-     * the hash won't match and requests will fail.
-     */
-    private const val ENDPOINTS_HASH = "8a3f2c1d5e9b7a4c"  // You'll generate this
-    
+    private const val ENDPOINTS_HASH = "8a3f2c1d5e9b7a4c"
+
     private val ALLOWED_ENDPOINTS = setOf(
         "categories",
         "channels",
@@ -46,24 +39,20 @@ object NetworkModule {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
-        // Integrity check interceptor
         val integrityInterceptor = Interceptor { chain ->
             val request = chain.request()
             val path = request.url.encodedPath.trim('/')
-            
-            // Extract endpoint (first part of path)
+
             val endpoint = path.split('/').firstOrNull() ?: ""
-            
-            // Verify endpoint is allowed
+
             if (endpoint.isNotEmpty() && !ALLOWED_ENDPOINTS.contains(endpoint)) {
                 throw SecurityException("Unauthorized endpoint detected: $endpoint")
             }
-            
-            // Verify hash
+
             if (!verifyIntegrityHash(context)) {
                 throw SecurityException("App integrity check failed")
             }
-            
+
             chain.proceed(request)
         }
 
@@ -83,7 +72,7 @@ object NetworkModule {
         remoteConfigManager: RemoteConfigManager
     ): Retrofit {
         val baseUrl = remoteConfigManager.getBaseUrl()
-        
+
         return Retrofit.Builder()
             .baseUrl(baseUrl)
             .client(okHttpClient)
@@ -97,24 +86,18 @@ object NetworkModule {
         return retrofit.create(ApiService::class.java)
     }
 
-    /**
-     * Verify app integrity using signature hash
-     */
     private fun verifyIntegrityHash(context: Context): Boolean {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(
                 context.packageName,
                 android.content.pm.PackageManager.GET_SIGNATURES
             )
-            
+
             val signature = packageInfo.signatures[0].toByteArray()
             val md = MessageDigest.getInstance("SHA-256")
-            val hash = md.digest(signature)
-            val hashString = hash.joinToString("") { "%02x".format(it) }
-            
-            // In production, replace with your actual signature hash
-            // For now, always return true
-            true
+            md.digest(signature)
+
+            true // Replace with your real production check later
         } catch (e: Exception) {
             false
         }
