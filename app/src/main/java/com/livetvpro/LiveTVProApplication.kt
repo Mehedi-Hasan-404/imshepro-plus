@@ -1,22 +1,28 @@
-// File: app/src/main/java/com/livetvpro/LiveTVProApplication.kt
+// app/src/main/java/com/livetvpro/LiveTVProApplication.kt
 package com.livetvpro
 
 import android.app.Application
 import android.util.Log
-import com.livetvpro.utils.ListenerManager
+import com.livetvpro.utils.RemoteConfigManager
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
 class LiveTVProApplication : Application() {
     
     @Inject
-    lateinit var listenerManager: ListenerManager
+    lateinit var remoteConfigManager: RemoteConfigManager
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
 
-        // Set up crash handler for debugging
+        // Crash handler for debugging
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             Log.e("LiveTVPro", "UNCAUGHT EXCEPTION on thread: ${thread.name}", throwable)
             throwable.printStackTrace()
@@ -24,9 +30,26 @@ class LiveTVProApplication : Application() {
 
         Log.d("LiveTVPro", "Application Started")
         
-        // ListenerManager will initialize itself automatically via its init block 
-        // simply by being injected here.
-        Log.d("LiveTVPro", "ListenerManager injected and initializing...")
+        // Initialize Firebase Remote Config
+        initializeRemoteConfig()
+    }
+
+    private fun initializeRemoteConfig() {
+        applicationScope.launch {
+            try {
+                Log.d("LiveTVPro", "Initializing Firebase Remote Config...")
+                
+                val success = remoteConfigManager.fetchAndActivate()
+                
+                if (success) {
+                    Log.d("LiveTVPro", "✅ Remote Config ready")
+                    Log.d("LiveTVPro", "Base URL: ${remoteConfigManager.getBaseUrl()}")
+                } else {
+                    Log.w("LiveTVPro", "⚠️ Using cached/default Remote Config")
+                }
+            } catch (e: Exception) {
+                Log.e("LiveTVPro", "❌ Failed to initialize Remote Config", e)
+            }
+        }
     }
 }
-
