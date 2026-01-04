@@ -1,8 +1,8 @@
-// app/src/main/java/com/livetvpro/LiveTVProApplication.kt
 package com.livetvpro
 
 import android.app.Application
 import android.util.Log
+import com.livetvpro.security.SecurityManager
 import com.livetvpro.utils.RemoteConfigManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -16,19 +16,32 @@ class LiveTVProApplication : Application() {
     
     @Inject
     lateinit var remoteConfigManager: RemoteConfigManager
+    
+    @Inject
+    lateinit var securityManager: SecurityManager // ADDED
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
-
-        // Crash handler for debugging
-        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e("LiveTVPro", "UNCAUGHT EXCEPTION on thread: ${thread.name}", throwable)
-            throwable.printStackTrace()
+        
+        // CRITICAL: Verify app integrity FIRST before doing anything
+        if (!securityManager.verifyIntegrity()) {
+            Log.e("LiveTVPro", "🚨 App integrity check FAILED on startup")
+            securityManager.enforceIntegrity() // Crash app
+            return
         }
 
-        Log.d("LiveTVPro", "Application Started")
+        // Setup crash handler (still useful for real crashes)
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            // Don't log SecurityExceptions (those are intentional crashes)
+            if (throwable !is SecurityException) {
+                Log.e("LiveTVPro", "UNCAUGHT EXCEPTION on thread: ${thread.name}", throwable)
+                throwable.printStackTrace()
+            }
+        }
+
+        Log.d("LiveTVPro", "✅ Application Started with Valid Integrity")
         
         // Initialize Firebase Remote Config
         initializeRemoteConfig()
@@ -37,13 +50,18 @@ class LiveTVProApplication : Application() {
     private fun initializeRemoteConfig() {
         applicationScope.launch {
             try {
+                // Verify integrity before initializing remote config
+                if (!securityManager.verifyIntegrity()) {
+                    securityManager.enforceIntegrity()
+                    return@launch
+                }
+                
                 Log.d("LiveTVPro", "Initializing Firebase Remote Config...")
                 
                 val success = remoteConfigManager.fetchAndActivate()
                 
                 if (success) {
                     Log.d("LiveTVPro", "✅ Remote Config ready")
-                    // FIXED: Changed getBaseUrl() to getDataUrl()
                     Log.d("LiveTVPro", "Data URL: ${remoteConfigManager.getDataUrl()}")
                 } else {
                     Log.w("LiveTVPro", "⚠️ Using cached/default Remote Config")
