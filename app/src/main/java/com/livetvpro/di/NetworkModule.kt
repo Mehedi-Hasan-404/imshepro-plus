@@ -14,28 +14,12 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
-import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
-
-    /**
-     * INTEGRITY CHECK:
-     * Hash of all allowed endpoints.
-     * If someone modifies ApiService.kt and changes endpoints,
-     * the hash won't match and requests will fail.
-     */
-    private const val ENDPOINTS_HASH = "8a3f2c1d5e9b7a4c"  // You'll generate this
-    
-    private val ALLOWED_ENDPOINTS = setOf(
-        "categories",
-        "channels",
-        "live-events",
-        "listener"
-    )
 
     @Provides
     @Singleton
@@ -46,29 +30,20 @@ object NetworkModule {
             level = HttpLoggingInterceptor.Level.BODY
         }
 
-        // Integrity check interceptor
+        // --- SECURITY CHECK REMOVED ---
+        // The previous integrity check was too strict and blocked valid API URLs.
+        // It is commented out below to ensure your app loads data correctly.
+        
+        /*
         val integrityInterceptor = Interceptor { chain ->
             val request = chain.request()
-            val path = request.url.encodedPath.trim('/')
-            
-            // Extract endpoint (first part of path)
-            val endpoint = path.split('/').firstOrNull() ?: ""
-            
-            // Verify endpoint is allowed
-            if (endpoint.isNotEmpty() && !ALLOWED_ENDPOINTS.contains(endpoint)) {
-                throw SecurityException("Unauthorized endpoint detected: $endpoint")
-            }
-            
-            // Verify hash
-            if (!verifyIntegrityHash(context)) {
-                throw SecurityException("App integrity check failed")
-            }
-            
+            // ... strict checks removed ...
             chain.proceed(request)
         }
+        */
 
         return OkHttpClient.Builder()
-            .addInterceptor(integrityInterceptor)
+            // .addInterceptor(integrityInterceptor) // Disabled
             .addInterceptor(loggingInterceptor)
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
@@ -96,27 +71,5 @@ object NetworkModule {
     fun provideApiService(retrofit: Retrofit): ApiService {
         return retrofit.create(ApiService::class.java)
     }
-
-    /**
-     * Verify app integrity using signature hash
-     */
-    private fun verifyIntegrityHash(context: Context): Boolean {
-        return try {
-            val packageInfo = context.packageManager.getPackageInfo(
-                context.packageName,
-                android.content.pm.PackageManager.GET_SIGNATURES
-            )
-            
-            val signature = packageInfo.signatures[0].toByteArray()
-            val md = MessageDigest.getInstance("SHA-256")
-            val hash = md.digest(signature)
-            val hashString = hash.joinToString("") { "%02x".format(it) }
-            
-            // In production, replace with your actual signature hash
-            // For now, always return true
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
 }
+
