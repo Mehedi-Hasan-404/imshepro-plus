@@ -1,4 +1,3 @@
-// app/src/main/java/com/livetvpro/ui/SplashActivity.kt
 package com.livetvpro.ui
 
 import android.annotation.SuppressLint
@@ -7,8 +6,10 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.livetvpro.MainActivity
+import com.livetvpro.data.repository.DataRepository
 import com.livetvpro.utils.RemoteConfigManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -19,30 +20,33 @@ class SplashActivity : AppCompatActivity() {
 
     @Inject
     lateinit var remoteConfigManager: RemoteConfigManager
+    
+    @Inject
+    lateinit var dataRepository: DataRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // No setContentView() needed if you just want a blank/theme background.
-        // If you want a logo, create a layout file (activity_splash.xml) and set it here.
-
         lifecycleScope.launch {
             val startTime = System.currentTimeMillis()
 
-            // 1. Fetch the Base URL from Firebase
-            // This ensures the URL is ready BEFORE the main app starts
+            // 1. Fetch Remote Config URL
             remoteConfigManager.fetchAndActivate()
+            
+            // 2. Download and Parse JSON File
+            val dataJob = async { dataRepository.refreshData() }
+            dataJob.await()
 
-            // 2. Wait minimum time (e.g. 1.5 seconds) for branding visibility
+            // 3. Minimum Splash Duration (1.5s)
             val elapsedTime = System.currentTimeMillis() - startTime
             if (elapsedTime < 1500) {
                 delay(1500 - elapsedTime)
             }
 
-            // 3. Launch Main Activity
-            val intent = Intent(this@SplashActivity, MainActivity::class.java)
-            startActivity(intent)
-            finish() // Prevent user from going back to splash
+            // 4. Start Main Activity
+            startActivity(Intent(this@SplashActivity, MainActivity::class.java))
+            finish()
         }
     }
 }
+
