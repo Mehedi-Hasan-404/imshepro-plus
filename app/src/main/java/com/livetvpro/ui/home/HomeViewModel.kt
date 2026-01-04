@@ -1,3 +1,4 @@
+// app/src/main/java/com/livetvpro/ui/home/HomeViewModel.kt
 package com.livetvpro.ui.home
 
 import androidx.lifecycle.LiveData
@@ -42,8 +43,7 @@ class HomeViewModel @Inject constructor(
                 _isLoading.value = true
                 _error.value = null
                 
-                // Add a small delay to ensure Firebase is initialized
-                kotlinx.coroutines.delay(500)
+                // DELAY REMOVED: SplashActivity handles the wait now.
                 
                 val categories = categoryRepository.getCategories()
                 Timber.d("Loaded ${categories.size} categories from repository")
@@ -52,43 +52,15 @@ class HomeViewModel @Inject constructor(
                 searchCategories(currentSearchQuery)
                 
                 if (categories.isEmpty()) {
-                    Timber.w("No categories found in Firestore")
-                    _error.value = """
-                        No categories available.
-                        
-                        Possible reasons:
-                        1. Firestore database is empty
-                        2. No internet connection
-                        3. Firebase not properly configured
-                        
-                        Please check your Firestore console and ensure you have categories in the 'categories' collection.
-                    """.trimIndent()
+                    Timber.w("No categories found in API/Firestore")
+                    _error.value = "No categories available.\nPlease check your internet connection."
                 } else {
                     Timber.d("Successfully loaded ${categories.size} categories")
                     _error.value = null
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Error loading categories")
-                val errorMessage = when {
-                    e.message?.contains("PERMISSION_DENIED") == true -> 
-                        "Permission Denied: Check Firestore security rules"
-                    e.message?.contains("UNAVAILABLE") == true -> 
-                        "Network Error: Please check your internet connection"
-                    e.message?.contains("NOT_FOUND") == true -> 
-                        "Database Not Found: Check Firebase configuration"
-                    else -> 
-                        "Failed to load categories: ${e.message}"
-                }
-                
-                _error.value = """
-                    $errorMessage
-                    
-                    Please check:
-                    1. Internet connection
-                    2. Firebase configuration (google-services.json)
-                    3. Firestore database has 'categories' collection
-                    4. Firestore security rules allow read access
-                """.trimIndent()
+                _error.value = "Failed to load categories: ${e.message}"
                 
                 _categories.value = emptyList()
                 _filteredCategories.value = emptyList()
@@ -111,7 +83,6 @@ class HomeViewModel @Inject constructor(
                     it.slug.contains(query, ignoreCase = true)
                 }
             }
-            Timber.d("Search query: '$query', results: ${_filteredCategories.value?.size}")
         } catch (e: Exception) {
             Timber.e(e, "Error searching categories")
         }
@@ -123,3 +94,4 @@ class HomeViewModel @Inject constructor(
         loadCategories()
     }
 }
+
