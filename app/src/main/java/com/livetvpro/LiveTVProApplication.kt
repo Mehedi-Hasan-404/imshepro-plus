@@ -2,6 +2,7 @@ package com.livetvpro
 
 import android.app.Application
 import android.util.Log
+import com.livetvpro.security.SecurityManager
 import com.livetvpro.utils.RemoteConfigManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -16,20 +17,26 @@ class LiveTVProApplication : Application() {
     @Inject
     lateinit var remoteConfigManager: RemoteConfigManager
     
-    // REMOVED: securityManager injection
+    @Inject
+    lateinit var securityManager: SecurityManager // ADDED
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     override fun onCreate() {
         super.onCreate()
 
+        // Setup crash handler
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            Log.e("LiveTVPro", "UNCAUGHT EXCEPTION on thread: ${thread.name}", throwable)
-            throwable.printStackTrace()
+            // Don't log SecurityExceptions (those are intentional crashes)
+            if (throwable !is SecurityException) {
+                Log.e("LiveTVPro", "UNCAUGHT EXCEPTION on thread: ${thread.name}", throwable)
+                throwable.printStackTrace()
+            }
         }
 
         Log.d("LiveTVPro", "Application Started")
         
+        // Initialize Firebase Remote Config
         initializeRemoteConfig()
     }
 
