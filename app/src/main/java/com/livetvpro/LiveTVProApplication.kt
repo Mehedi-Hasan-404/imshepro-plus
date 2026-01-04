@@ -24,15 +24,8 @@ class LiveTVProApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        
-        // CRITICAL: Verify app integrity FIRST before doing anything
-        if (!securityManager.verifyIntegrity()) {
-            Log.e("LiveTVPro", "🚨 App integrity check FAILED on startup")
-            securityManager.enforceIntegrity() // Crash app
-            return
-        }
 
-        // Setup crash handler (still useful for real crashes)
+        // Setup crash handler
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             // Don't log SecurityExceptions (those are intentional crashes)
             if (throwable !is SecurityException) {
@@ -41,7 +34,7 @@ class LiveTVProApplication : Application() {
             }
         }
 
-        Log.d("LiveTVPro", "✅ Application Started with Valid Integrity")
+        Log.d("LiveTVPro", "Application Started")
         
         // Initialize Firebase Remote Config
         initializeRemoteConfig()
@@ -50,12 +43,6 @@ class LiveTVProApplication : Application() {
     private fun initializeRemoteConfig() {
         applicationScope.launch {
             try {
-                // Verify integrity before initializing remote config
-                if (!securityManager.verifyIntegrity()) {
-                    securityManager.enforceIntegrity()
-                    return@launch
-                }
-                
                 Log.d("LiveTVPro", "Initializing Firebase Remote Config...")
                 
                 val success = remoteConfigManager.fetchAndActivate()
