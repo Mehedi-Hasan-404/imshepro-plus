@@ -56,7 +56,10 @@ jobs:
           done
           echo "✓ Created placeholder launcher icons"
 
-      # --- GOOGLE SERVICES STEP REMOVED HERE ---
+      - name: Create google-services.json
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > app/google-services.json
+          echo "✓ Created google-services.json from secret"
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
@@ -84,4 +87,3 @@ jobs:
             app/build/reports/
             app/build/outputs/logs/
           retention-days: 7
-
