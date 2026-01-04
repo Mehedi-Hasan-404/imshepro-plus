@@ -1,4 +1,4 @@
-// File: app/src/main/java/com/livetvpro/data/api/ApiService.kt
+// app/src/main/java/com/livetvpro/data/api/ApiService.kt
 package com.livetvpro.data.api
 
 import com.livetvpro.data.models.Category
@@ -10,7 +10,12 @@ import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
 
-// Wrapper for standard endpoints (categories, channels, etc.)
+/**
+ * SECURITY NOTE:
+ * These endpoints CAN be changed in decompiled APK.
+ * But they are VERIFIED by hash in NetworkModule interceptor.
+ * Any modification will cause integrity check to fail.
+ */
 data class ApiResponse<T>(
     val success: Boolean,
     val data: T? = null,
@@ -39,12 +44,6 @@ interface ApiService {
     @GET("live-events/{id}")
     suspend fun getLiveEvent(@Path("id") id: String): Response<ApiResponse<LiveEvent>>
 
-    /**
-     * DIRECT LINK AD CONFIGURATION
-     * We explicitly add ".json" to force the server to find the file.
-     * We do NOT wrap this in ApiResponse because the JSON is flat.
-     */
     @GET("listener")
     suspend fun getListenerConfig(): Response<ListenerConfig>
 }
-
