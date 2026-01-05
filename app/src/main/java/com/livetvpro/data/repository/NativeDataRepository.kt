@@ -39,7 +39,6 @@ class NativeDataRepository @Inject constructor(
             } catch (e: UnsatisfiedLinkError) {
                 isNativeLibraryLoaded = false
                 Timber.e(e, "❌ Failed to load native-lib in NativeDataRepository")
-                Timber.e("This is a CRITICAL error. The app may not function correctly.")
             } catch (e: Exception) {
                 isNativeLibraryLoaded = false
                 Timber.e(e, "❌ Unexpected error loading native-lib")
@@ -47,7 +46,7 @@ class NativeDataRepository @Inject constructor(
         }
     }
     
-    // Native methods - wrapped with safety checks
+    // Native methods
     private external fun nativeValidateIntegrity(): Boolean
     private external fun nativeGetConfigKey(): String
     private external fun nativeStoreConfigUrl(configUrl: String)
@@ -58,17 +57,19 @@ class NativeDataRepository @Inject constructor(
     private external fun nativeGetLiveEvents(): String
     private external fun nativeIsDataLoaded(): Boolean
     
-    // Safe wrappers
+    // Safe wrappers with detailed logging
     private fun safeNativeValidateIntegrity(): Boolean {
         return try {
             if (!isNativeLibraryLoaded) {
                 Timber.w("Native library not loaded, skipping integrity check")
-                return true // Allow app to continue
+                return true
             }
-            nativeValidateIntegrity()
+            val result = nativeValidateIntegrity()
+            Timber.d("✅ Integrity check: $result")
+            result
         } catch (e: Exception) {
             Timber.e(e, "Error in nativeValidateIntegrity")
-            true // Allow app to continue
+            true
         }
     }
     
@@ -78,7 +79,9 @@ class NativeDataRepository @Inject constructor(
                 Timber.w("Native library not loaded, using default config key")
                 return "data_file_url"
             }
-            nativeGetConfigKey()
+            val key = nativeGetConfigKey()
+            Timber.d("✅ Config key retrieved: $key")
+            key
         } catch (e: Exception) {
             Timber.e(e, "Error in nativeGetConfigKey")
             "data_file_url"
@@ -92,6 +95,7 @@ class NativeDataRepository @Inject constructor(
                 return
             }
             nativeStoreConfigUrl(url)
+            Timber.d("✅ Config URL stored: ${url.take(50)}...")
         } catch (e: Exception) {
             Timber.e(e, "Error in nativeStoreConfigUrl")
         }
@@ -103,7 +107,9 @@ class NativeDataRepository @Inject constructor(
                 Timber.w("Native library not loaded, returning empty config URL")
                 return ""
             }
-            nativeGetConfigUrl()
+            val url = nativeGetConfigUrl()
+            Timber.d("✅ Config URL retrieved: ${url.take(50)}...")
+            url
         } catch (e: Exception) {
             Timber.e(e, "Error in nativeGetConfigUrl")
             ""
@@ -116,7 +122,9 @@ class NativeDataRepository @Inject constructor(
                 Timber.w("Native library not loaded, cannot store data")
                 return false
             }
-            nativeStoreData(jsonData)
+            val result = nativeStoreData(jsonData)
+            Timber.d("✅ Data stored: $result")
+            result
         } catch (e: Exception) {
             Timber.e(e, "Error in nativeStoreData")
             false
@@ -182,7 +190,6 @@ class NativeDataRepository @Inject constructor(
         try {
             Timber.d("Initializing NativeDataRepository...")
             
-            // Initialize Remote Config
             val configSettings = remoteConfigSettings {
                 minimumFetchIntervalInSeconds = if (isDebugBuild()) 0L else 3600L
             }
@@ -204,23 +211,25 @@ class NativeDataRepository @Inject constructor(
 
     suspend fun fetchRemoteConfig(): Boolean = withContext(Dispatchers.IO) {
         try {
-            Timber.d("Fetching Remote Config...")
+            Timber.d("📡 Fetching Remote Config...")
             val result = remoteConfig.fetchAndActivate().await()
-            Timber.d("Remote Config updated: $result")
+            Timber.d("Remote Config fetch result: $result")
             
             val nativeKey = safeNativeGetConfigKey()
             val url = remoteConfig.getString(nativeKey)
             
+            Timber.d("Remote Config URL: ${if (url.isEmpty()) "EMPTY" else url.take(50) + "..."}")
+            
             if (url.isNotEmpty()) {
                 safeNativeStoreConfigUrl(url)
-                Timber.d("✅ Config URL stored: ${url.take(50)}...")
+                Timber.d("✅ Config URL stored successfully")
                 return@withContext true
+            } else {
+                Timber.w("⚠️ Remote Config URL is empty!")
+                return@withContext false
             }
-            
-            Timber.w("Remote Config URL is empty")
-            return@withContext false
         } catch (e: Exception) {
-            Timber.e(e, "Failed to fetch Remote Config")
+            Timber.e(e, "❌ Failed to fetch Remote Config")
             return@withContext false
         }
     }
@@ -228,11 +237,11 @@ class NativeDataRepository @Inject constructor(
     suspend fun refreshData(): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
-                Timber.d("Starting data refresh...")
+                Timber.d("🔄 Starting data refresh...")
                 
                 // Validate integrity
                 if (!safeNativeValidateIntegrity()) {
-                    Timber.e("Integrity check failed!")
+                    Timber.e("❌ Integrity check failed!")
                     return@withContext false
                 }
                 
@@ -240,20 +249,20 @@ class NativeDataRepository @Inject constructor(
                 val remoteConfigUrl = safeNativeGetConfigUrl()
                 
                 if (remoteConfigUrl.isBlank()) {
-                    Timber.e("Remote Config URL is empty!")
+                    Timber.e("❌ Remote Config URL is empty!")
                     withContext(Dispatchers.Main) {
                         Toast.makeText(context, "Configuration URL not found", Toast.LENGTH_LONG).show()
                     }
                     return@withContext false
                 }
 
-                Timber.d("Downloading data from: ${remoteConfigUrl.take(50)}...")
+                Timber.d("📥 Downloading data from: ${remoteConfigUrl.take(50)}...")
 
                 val request = Request.Builder().url(remoteConfigUrl).build()
                 
                 client.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
-                        Timber.e("HTTP Error: ${response.code}")
+                        Timber.e("❌ HTTP Error: ${response.code}")
                         withContext(Dispatchers.Main) {
                             Toast.makeText(context, "Server error: ${response.code}", Toast.LENGTH_LONG).show()
                         }
@@ -262,23 +271,23 @@ class NativeDataRepository @Inject constructor(
 
                     val jsonString = response.body?.string()
                     if (jsonString.isNullOrBlank()) {
-                        Timber.e("Empty response body")
+                        Timber.e("❌ Empty response body")
                         return@withContext false
                     }
 
-                    Timber.d("Response size: ${jsonString.length} bytes")
+                    Timber.d("📦 Response size: ${jsonString.length} bytes")
 
                     // Store data
                     val stored = safeNativeStoreData(jsonString)
                     
                     if (stored) {
-                        Timber.d("✅ Data loaded successfully")
+                        Timber.d("✅✅✅ Data loaded successfully")
                         withContext(Dispatchers.Main) {
                             Toast.makeText(context, "Data loaded successfully", Toast.LENGTH_SHORT).show()
                         }
                         return@withContext true
                     } else {
-                        Timber.e("Failed to store data")
+                        Timber.e("❌ Failed to store data")
                         withContext(Dispatchers.Main) {
                             Toast.makeText(context, "Failed to process data", Toast.LENGTH_LONG).show()
                         }
@@ -286,7 +295,8 @@ class NativeDataRepository @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
-                Timber.e(e, "Error fetching data: ${e.message}")
+                Timber.e(e, "❌❌❌ Error fetching data: ${e.message}")
+                Timber.e("Stack trace: ${e.stackTraceToString()}")
                 withContext(Dispatchers.Main) {
                     Toast.makeText(context, "Network error: ${e.message}", Toast.LENGTH_LONG).show()
                 }
@@ -298,8 +308,13 @@ class NativeDataRepository @Inject constructor(
     fun getCategories(): List<Category> {
         return try {
             val json = safeNativeGetCategories()
-            if (json == "[]") return emptyList()
-            gson.fromJson(json, Array<Category>::class.java).toList()
+            if (json == "[]") {
+                Timber.w("No categories available")
+                return emptyList()
+            }
+            val categories = gson.fromJson(json, Array<Category>::class.java).toList()
+            Timber.d("✅ Parsed ${categories.size} categories")
+            categories
         } catch (e: Exception) {
             Timber.e(e, "Error parsing categories")
             emptyList()
@@ -309,8 +324,13 @@ class NativeDataRepository @Inject constructor(
     fun getChannels(): List<Channel> {
         return try {
             val json = safeNativeGetChannels()
-            if (json == "[]") return emptyList()
-            gson.fromJson(json, Array<Channel>::class.java).toList()
+            if (json == "[]") {
+                Timber.w("No channels available")
+                return emptyList()
+            }
+            val channels = gson.fromJson(json, Array<Channel>::class.java).toList()
+            Timber.d("✅ Parsed ${channels.size} channels")
+            channels
         } catch (e: Exception) {
             Timber.e(e, "Error parsing channels")
             emptyList()
@@ -320,8 +340,13 @@ class NativeDataRepository @Inject constructor(
     fun getLiveEvents(): List<LiveEvent> {
         return try {
             val json = safeNativeGetLiveEvents()
-            if (json == "[]") return emptyList()
-            gson.fromJson(json, Array<LiveEvent>::class.java).toList()
+            if (json == "[]") {
+                Timber.w("No live events available")
+                return emptyList()
+            }
+            val events = gson.fromJson(json, Array<LiveEvent>::class.java).toList()
+            Timber.d("✅ Parsed ${events.size} live events")
+            events
         } catch (e: Exception) {
             Timber.e(e, "Error parsing live events")
             emptyList()
@@ -329,7 +354,9 @@ class NativeDataRepository @Inject constructor(
     }
     
     fun isDataLoaded(): Boolean {
-        return safeNativeIsDataLoaded()
+        val loaded = safeNativeIsDataLoaded()
+        Timber.d("Data loaded status: $loaded")
+        return loaded
     }
     
     private fun isDebugBuild(): Boolean {
