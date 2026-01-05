@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <ctime>
 #include <android/log.h>
 
@@ -9,26 +10,20 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
-// ==================== ENCRYPTED STRINGS ====================
-static const char* ENC_DATA_FILE_URL = "\x16\x06\x19\x06\x5f\x0c\x08\x0f\x0a\x5f\x1a\x1c\x0f";
-
-static std::string decrypt(const char* encrypted, size_t length) {
-    return "data_file_url"; 
-}
-
 // ==================== LISTENER CONFIG STATE ====================
 struct ListenerConfigState {
     bool enableDirectLink;
     std::string directLinkUrl;
-    std::vector<std::string> allowedPages;
+    std::set<std::string> allowedPages;
     bool isInitialized;
 } static listenerState = {false, "", {}, false};
 
-static std::vector<std::string> triggeredSessions;
+// Track which pages/items have already shown the link
+static std::set<std::string> triggeredSessions;
 
 // ==================== DATA STORAGE ====================
 struct AppData {
-    std::string fullJson;  // Store complete JSON (or extracted data object)
+    std::string fullJson;
     bool isLoaded;
 } static appData = {"", false};
 
@@ -37,104 +32,77 @@ static bool remoteConfigFetched = false;
 
 // ==================== JSON EXTRACTION HELPERS ====================
 
-// Extract the "data" object from wrapped response
 static std::string extractDataObject(const std::string& json) {
     try {
-        // Find "data" key
         size_t dataPos = json.find("\"data\"");
         if (dataPos == std::string::npos) {
             LOGD("No 'data' wrapper found, using full JSON");
             return json;
         }
         
-        // Find the opening brace after "data"
         size_t startPos = json.find('{', dataPos);
         if (startPos == std::string::npos) {
-            LOGD("No opening brace for 'data', using full JSON");
             return json;
         }
         
-        // Find the matching closing brace
         int braceCount = 1;
         size_t endPos = startPos + 1;
         
         while (endPos < json.length() && braceCount > 0) {
-            if (json[endPos] == '{') {
-                braceCount++;
-            } else if (json[endPos] == '}') {
-                braceCount--;
-            }
+            if (json[endPos] == '{') braceCount++;
+            else if (json[endPos] == '}') braceCount--;
             endPos++;
         }
         
-        if (braceCount != 0) {
-            LOGD("Mismatched braces for 'data', using full JSON");
-            return json;
-        }
+        if (braceCount != 0) return json;
         
-        // Extract the data object (including braces)
         std::string result = json.substr(startPos, endPos - startPos);
         LOGD("📦 Extracted data object: %zu characters", result.length());
         return result;
         
     } catch (...) {
-        LOGE("Exception extracting data object, using full JSON");
         return json;
     }
 }
 
-// Extract a specific array from JSON by key
 static std::string extractJsonArray(const std::string& json, const std::string& key) {
     try {
-        // Find the key in the JSON
         std::string searchKey = "\"" + key + "\"";
         size_t keyPos = json.find(searchKey);
         
         if (keyPos == std::string::npos) {
-            LOGE("Key '%s' not found in JSON", key.c_str());
+            LOGE("Key '%s' not found", key.c_str());
             return "[]";
         }
         
-        // Find the opening bracket after the key
         size_t startPos = json.find('[', keyPos);
         if (startPos == std::string::npos) {
-            LOGE("Opening bracket not found for key '%s'", key.c_str());
+            LOGE("Opening bracket not found for '%s'", key.c_str());
             return "[]";
         }
         
-        // Find the matching closing bracket
         int bracketCount = 1;
         size_t endPos = startPos + 1;
         
         while (endPos < json.length() && bracketCount > 0) {
-            if (json[endPos] == '[') {
-                bracketCount++;
-            } else if (json[endPos] == ']') {
-                bracketCount--;
-            }
+            if (json[endPos] == '[') bracketCount++;
+            else if (json[endPos] == ']') bracketCount--;
             endPos++;
         }
         
-        if (bracketCount != 0) {
-            LOGE("Mismatched brackets for key '%s'", key.c_str());
-            return "[]";
-        }
+        if (bracketCount != 0) return "[]";
         
-        // Extract the array (including brackets)
         std::string result = json.substr(startPos, endPos - startPos);
         LOGD("Extracted %s: %zu characters", key.c_str(), result.length());
         return result;
         
     } catch (...) {
-        LOGE("Exception extracting key '%s'", key.c_str());
         return "[]";
     }
 }
 
-// Extract listener_config object and populate state
 static void extractListenerConfig(const std::string& json) {
     try {
-        // Find "listener_config" key
         size_t configPos = json.find("\"listener_config\"");
         if (configPos == std::string::npos) {
             LOGD("No listener_config found");
@@ -144,13 +112,12 @@ static void extractListenerConfig(const std::string& json) {
             return;
         }
         
-        // Check for enable_direct_link
+        // Extract enable_direct_link
         size_t enablePos = json.find("\"enable_direct_link\"", configPos);
         if (enablePos != std::string::npos) {
             size_t truePos = json.find("true", enablePos);
             size_t falsePos = json.find("false", enablePos);
             
-            // Check which comes first after the key
             if (truePos != std::string::npos && (falsePos == std::string::npos || truePos < falsePos)) {
                 listenerState.enableDirectLink = true;
                 LOGD("✅ Direct link ENABLED");
@@ -174,12 +141,40 @@ static void extractListenerConfig(const std::string& json) {
             }
         }
         
+        // Extract allowed_pages array
+        listenerState.allowedPages.clear();
+        size_t pagesPos = json.find("\"allowed_pages\"", configPos);
+        if (pagesPos != std::string::npos) {
+            size_t arrayStart = json.find('[', pagesPos);
+            if (arrayStart != std::string::npos) {
+                size_t arrayEnd = json.find(']', arrayStart);
+                if (arrayEnd != std::string::npos) {
+                    std::string pagesArray = json.substr(arrayStart + 1, arrayEnd - arrayStart - 1);
+                    
+                    // Simple parsing: find each "page_name"
+                    size_t pos = 0;
+                    while (pos < pagesArray.length()) {
+                        size_t quoteStart = pagesArray.find('\"', pos);
+                        if (quoteStart == std::string::npos) break;
+                        
+                        size_t quoteEnd = pagesArray.find('\"', quoteStart + 1);
+                        if (quoteEnd == std::string::npos) break;
+                        
+                        std::string pageName = pagesArray.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
+                        listenerState.allowedPages.insert(pageName);
+                        LOGD("   Allowed page: %s", pageName.c_str());
+                        
+                        pos = quoteEnd + 1;
+                    }
+                }
+            }
+        }
+        
         listenerState.isInitialized = true;
         
     } catch (...) {
         LOGE("Exception extracting listener_config");
         listenerState.enableDirectLink = false;
-        listenerState.directLinkUrl = "";
         listenerState.isInitialized = false;
     }
 }
@@ -210,34 +205,27 @@ Java_com_livetvpro_data_repository_NativeDataRepository_nativeStoreData(JNIEnv* 
         LOGD("========================================");
         LOGD("STORING DATA");
         LOGD("JSON Length: %zu bytes", json.length());
-        LOGD("First 300 chars: %.300s", json.c_str());
-        LOGD("========================================");
         
-        // Check if this is a wrapped response with "data" key
         if (json.find("\"data\"") != std::string::npos && json.find("\"success\"") != std::string::npos) {
-            LOGD("✅ Detected nested 'data' structure (wrapped response)");
-            // Extract just the data object
+            LOGD("✅ Detected nested 'data' structure");
             std::string dataJson = extractDataObject(json);
             appData.fullJson = dataJson;
-            LOGD("📦 Stored data object: %zu bytes", dataJson.length());
         } else {
-            LOGD("✅ Using full JSON (direct structure, no wrapper)");
+            LOGD("✅ Using full JSON (direct structure)");
             appData.fullJson = json;
         }
         
         appData.isLoaded = true;
-
-        // Extract listener_config from the stored JSON
         extractListenerConfig(appData.fullJson);
         
         env->ReleaseStringUTFChars(jsonData, jsonStr);
         
         LOGD("========================================");
         LOGD("✅ DATA STORED SUCCESSFULLY");
-        LOGD("   - Data loaded: %s", appData.isLoaded ? "YES" : "NO");
         LOGD("   - Direct link: %s", listenerState.enableDirectLink ? "ENABLED" : "DISABLED");
         if (listenerState.enableDirectLink) {
             LOGD("   - URL: %s", listenerState.directLinkUrl.c_str());
+            LOGD("   - Allowed pages: %zu", listenerState.allowedPages.size());
         }
         LOGD("========================================");
         
@@ -252,99 +240,106 @@ Java_com_livetvpro_data_repository_NativeDataRepository_nativeStoreData(JNIEnv* 
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetCategories(JNIEnv* env, jobject) {
-    if (!appData.isLoaded) {
-        LOGE("Data not loaded - returning empty array");
-        return env->NewStringUTF("[]");
-    }
-    
-    LOGD("========================================");
-    LOGD("GETTING CATEGORIES");
-    
-    // Extract the "categories" array from the stored JSON
+    if (!appData.isLoaded) return env->NewStringUTF("[]");
     std::string categoriesJson = extractJsonArray(appData.fullJson, "categories");
-    
-    LOGD("Categories JSON length: %zu", categoriesJson.length());
-    LOGD("Categories preview: %.200s", categoriesJson.c_str());
-    LOGD("========================================");
-    
     return env->NewStringUTF(categoriesJson.c_str());
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetChannels(JNIEnv* env, jobject) {
-    if (!appData.isLoaded) {
-        LOGE("Data not loaded - returning empty array");
-        return env->NewStringUTF("[]");
-    }
-    
-    LOGD("========================================");
-    LOGD("GETTING CHANNELS");
-    
+    if (!appData.isLoaded) return env->NewStringUTF("[]");
     std::string channelsJson = extractJsonArray(appData.fullJson, "channels");
-    
-    LOGD("Channels JSON length: %zu", channelsJson.length());
-    LOGD("========================================");
-    
     return env->NewStringUTF(channelsJson.c_str());
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetLiveEvents(JNIEnv* env, jobject) {
-    if (!appData.isLoaded) {
-        LOGE("Data not loaded - returning empty array");
-        return env->NewStringUTF("[]");
-    }
+    if (!appData.isLoaded) return env->NewStringUTF("[]");
     
-    LOGD("========================================");
-    LOGD("GETTING LIVE EVENTS");
-    
-    // Try both possible keys: "live_events" and "liveEvents"
     std::string eventsJson = extractJsonArray(appData.fullJson, "live_events");
     if (eventsJson == "[]") {
-        LOGD("Trying alternate key 'liveEvents'");
         eventsJson = extractJsonArray(appData.fullJson, "liveEvents");
     }
-    
-    LOGD("Events JSON length: %zu", eventsJson.length());
-    LOGD("========================================");
     
     return env->NewStringUTF(eventsJson.c_str());
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeIsDataLoaded(JNIEnv* env, jobject) {
-    LOGD("isDataLoaded check: %s", appData.isLoaded ? "YES" : "NO");
     return appData.isLoaded ? JNI_TRUE : JNI_FALSE;
 }
 
-// ==================== LISTENER MANAGER ====================
+// ==================== LISTENER MANAGER - PROPER LOGIC ====================
 
+/**
+ * PROPER LOGIC:
+ * - Returns TRUE if should show the direct link (and BLOCK the player)
+ * - Returns FALSE if should allow normal playback
+ * 
+ * BEHAVIOR:
+ * - First time accessing a page/item: Show link (returns TRUE)
+ * - Subsequent times: Allow normal playback (returns FALSE)
+ */
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_livetvpro_utils_NativeListenerManager_nativeShouldShowLink(JNIEnv* env, jobject, jstring pageType, jstring uniqueId) {
-    if (!listenerState.isInitialized) {
-        LOGD("Listener not initialized");
+Java_com_livetvpro_utils_NativeListenerManager_nativeShouldShowLink(
+    JNIEnv* env, 
+    jobject thiz, 
+    jstring pageType, 
+    jstring uniqueId
+) {
+    // If not initialized or disabled, never show link
+    if (!listenerState.isInitialized || !listenerState.enableDirectLink) {
+        LOGD("❌ Link disabled or not initialized");
         return JNI_FALSE;
     }
     
-    if (!listenerState.enableDirectLink) {
-        LOGD("Direct link disabled");
+    // Get page type
+    const char* pageTypeStr = env->GetStringUTFChars(pageType, nullptr);
+    if (pageTypeStr == nullptr) {
+        return JNI_FALSE;
+    }
+    std::string pageTypeString(pageTypeStr);
+    env->ReleaseStringUTFChars(pageType, pageTypeStr);
+    
+    // Check if this page is allowed
+    if (listenerState.allowedPages.find(pageTypeString) == listenerState.allowedPages.end()) {
+        LOGD("❌ Page '%s' not in allowed list", pageTypeString.c_str());
         return JNI_FALSE;
     }
     
-    LOGD("✅ Should show link: YES");
-    return JNI_TRUE;
+    // Build session key
+    std::string sessionKey = pageTypeString;
+    
+    // If uniqueId is provided, append it (for per-category tracking)
+    if (uniqueId != nullptr) {
+        const char* uniqueIdStr = env->GetStringUTFChars(uniqueId, nullptr);
+        if (uniqueIdStr != nullptr) {
+            sessionKey += ":" + std::string(uniqueIdStr);
+            env->ReleaseStringUTFChars(uniqueId, uniqueIdStr);
+        }
+    }
+    
+    // Check if this session has already been triggered
+    if (triggeredSessions.find(sessionKey) != triggeredSessions.end()) {
+        LOGD("✅ Session '%s' already triggered - ALLOW PLAYBACK", sessionKey.c_str());
+        return JNI_FALSE;  // Already shown, allow normal playback
+    }
+    
+    // First time - mark as triggered and show link
+    triggeredSessions.insert(sessionKey);
+    LOGD("🔗 First access to '%s' - SHOW LINK", sessionKey.c_str());
+    return JNI_TRUE;  // Show link this time
 }
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_livetvpro_utils_NativeListenerManager_nativeGetDirectLinkUrl(JNIEnv* env, jobject) {
-    LOGD("Returning URL: %s", listenerState.directLinkUrl.c_str());
     return env->NewStringUTF(listenerState.directLinkUrl.c_str());
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_livetvpro_utils_NativeListenerManager_nativeResetSessions(JNIEnv* env, jobject) {
     triggeredSessions.clear();
-    LOGD("Sessions reset");
+    LOGD("🔄 All sessions reset");
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
@@ -352,14 +347,13 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeIsConfigValid(JNIEnv* env, 
     return listenerState.isInitialized ? JNI_TRUE : JNI_FALSE;
 }
 
-// ==================== REMOTE CONFIG STORAGE ====================
+// ==================== REMOTE CONFIG ====================
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeStoreConfigUrl(JNIEnv* env, jobject thiz, jstring configUrl) {
     const char* urlStr = env->GetStringUTFChars(configUrl, nullptr);
     remoteConfigUrl = std::string(urlStr);
     remoteConfigFetched = true;
-    LOGD("Config URL stored: %s", remoteConfigUrl.c_str());
     env->ReleaseStringUTFChars(configUrl, urlStr);
 }
 
