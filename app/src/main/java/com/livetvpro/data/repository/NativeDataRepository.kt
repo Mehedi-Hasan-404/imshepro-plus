@@ -1,12 +1,18 @@
 package com.livetvpro.data.repository
 
+import android.content.Context
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.remoteconfig.ktx.remoteConfig
+import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
 import com.google.gson.Gson
 import com.livetvpro.data.models.Category
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -15,11 +21,12 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Thin wrapper around native implementation
- * All security logic is in native code
+ * All-in-one repository: Remote Config + Data Storage
+ * Everything delegated to native code for security
  */
 @Singleton
 class NativeDataRepository @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val client: OkHttpClient,
     private val gson: Gson
 ) {
@@ -32,6 +39,8 @@ class NativeDataRepository @Inject constructor(
     // Native methods
     private external fun nativeValidateIntegrity(): Boolean
     private external fun nativeGetConfigKey(): String
+    private external fun nativeStoreConfigUrl(configUrl: String)
+    private external fun nativeGetConfigUrl(): String
     private external fun nativeStoreData(jsonData: String): Boolean
     private external fun nativeGetCategories(): String
     private external fun nativeGetChannels(): String
@@ -39,8 +48,52 @@ class NativeDataRepository @Inject constructor(
     private external fun nativeIsDataLoaded(): Boolean
     
     private val mutex = Mutex()
+    private val remoteConfig = Firebase.remoteConfig
+    
+    init {
+        // Initialize Remote Config
+        val configSettings = remoteConfigSettings {
+            minimumFetchIntervalInSeconds = if (isDebugBuild()) 0L else 3600L
+        }
+        remoteConfig.setConfigSettingsAsync(configSettings)
+        
+        try {
+            val nativeKey = nativeGetConfigKey()
+            remoteConfig.setDefaultsAsync(mapOf(nativeKey to ""))
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to set native defaults")
+        }
+    }
 
-    suspend fun refreshData(remoteConfigUrl: String): Boolean = withContext(Dispatchers.IO) {
+    /**
+     * Fetch Remote Config and store URL in native memory
+     */
+    suspend fun fetchRemoteConfig(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val result = remoteConfig.fetchAndActivate().await()
+            Timber.d("Remote Config updated: $result")
+            
+            // Get URL from Firebase and store in native memory
+            val nativeKey = nativeGetConfigKey()
+            val url = remoteConfig.getString(nativeKey)
+            
+            if (url.isNotEmpty()) {
+                nativeStoreConfigUrl(url)
+                Timber.d("✅ Config URL stored in native memory")
+                return@withContext true
+            }
+            
+            return@withContext false
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to fetch Remote Config")
+            return@withContext false
+        }
+    }
+
+    /**
+     * Download data from the URL stored in native memory
+     */
+    suspend fun refreshData(): Boolean = withContext(Dispatchers.IO) {
         mutex.withLock {
             try {
                 // Validate integrity first
@@ -48,6 +101,9 @@ class NativeDataRepository @Inject constructor(
                     Timber.e("🚨 Integrity check failed!")
                     return@withContext false
                 }
+                
+                // Get URL from native memory
+                val remoteConfigUrl = nativeGetConfigUrl()
                 
                 if (remoteConfigUrl.isBlank()) {
                     Timber.e("❌ Remote Config URL is empty!")
@@ -125,7 +181,7 @@ class NativeDataRepository @Inject constructor(
         return nativeIsDataLoaded()
     }
     
-    fun getConfigKey(): String {
-        return nativeGetConfigKey()
+    private fun isDebugBuild(): Boolean {
+        return context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
     }
 }
