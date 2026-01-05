@@ -4,6 +4,7 @@ import android.animation.ValueAnimator
 import android.os.Bundle
 import android.view.View
 import android.view.animation.DecelerateInterpolator
+import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
@@ -32,36 +33,74 @@ class MainActivity : AppCompatActivity() {
     private var isSearchVisible = false
     private var lastSelectedView: View? = null 
     
-    // NEW: Reference to the sliding indicator view
     private val indicator by lazy { binding.bottomNavIndicator } 
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
         try {
-            val isDarkTheme = preferencesManager.isDarkTheme()
-            AppCompatDelegate.setDefaultNightMode(
-                if (isDarkTheme) AppCompatDelegate.MODE_NIGHT_YES 
-                else AppCompatDelegate.MODE_NIGHT_NO
-            )
+            Timber.d("============================================")
+            Timber.d("MainActivity onCreate() started")
+            Timber.d("============================================")
+            
+            Timber.d("Step 1: Setting theme...")
+            try {
+                val isDarkTheme = preferencesManager.isDarkTheme()
+                AppCompatDelegate.setDefaultNightMode(
+                    if (isDarkTheme) AppCompatDelegate.MODE_NIGHT_YES 
+                    else AppCompatDelegate.MODE_NIGHT_NO
+                )
+                Timber.d("✅ Theme set: ${if (isDarkTheme) "Dark" else "Light"}")
+            } catch (e: Exception) {
+                Timber.e(e, "❌ Error setting theme (using default)")
+            }
 
+            Timber.d("Step 2: Inflating layout...")
             binding = ActivityMainBinding.inflate(layoutInflater)
             setContentView(binding.root)
+            Timber.d("✅ Layout inflated successfully")
             
+            Timber.d("Step 3: Setting up toolbar...")
             setupToolbar() 
-            setupDrawer()  
+            Timber.d("✅ Toolbar setup complete")
+            
+            Timber.d("Step 4: Setting up drawer...")
+            setupDrawer()
+            Timber.d("✅ Drawer setup complete")
+            
+            Timber.d("Step 5: Setting up navigation...")
             setupNavigation()
+            Timber.d("✅ Navigation setup complete")
+            
+            Timber.d("Step 6: Setting up search...")
             setupSearch()
+            Timber.d("✅ Search setup complete")
+            
+            Timber.d("============================================")
+            Timber.d("MainActivity onCreate() completed successfully")
+            Timber.d("============================================")
+            
+            Toast.makeText(this, "MainActivity loaded successfully", Toast.LENGTH_SHORT).show()
             
         } catch (e: Exception) {
-            Timber.e(e, "FATAL: Error in MainActivity onCreate")
+            Timber.e(e, "❌❌❌ FATAL: Error in MainActivity onCreate ❌❌❌")
+            Timber.e("Error: ${e.message}")
+            Timber.e("Stack trace: ${e.stackTraceToString()}")
+            
+            Toast.makeText(this, "MainActivity Error: ${e.message}", Toast.LENGTH_LONG).show()
             e.printStackTrace()
         }
     }
 
     private fun setupToolbar() {
-        setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayShowTitleEnabled(false)
+        try {
+            setSupportActionBar(binding.toolbar)
+            supportActionBar?.setDisplayShowTitleEnabled(false)
+            Timber.d("Toolbar configured")
+        } catch (e: Exception) {
+            Timber.e(e, "Error in setupToolbar")
+            throw e
+        }
     }
 
     private fun setupDrawer() {
@@ -82,251 +121,237 @@ class MainActivity : AppCompatActivity() {
                 binding.drawerLayout.addDrawerListener(it)
             }
             
+            Timber.d("Drawer configured")
         } catch (e: Exception) {
             Timber.e(e, "Error setting up drawer")
         }
     }
 
     private fun setupNavigation() {
-        val navHostFragment = supportFragmentManager
-            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment ?: return
+        try {
+            val navHostFragment = supportFragmentManager
+                .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
             
-        val navController = navHostFragment.navController
-
-        val topLevelDestinations = setOf(
-            R.id.homeFragment,
-            R.id.liveEventsFragment,
-            R.id.contactFragment
-        )
-        
-        val graphStartDestinationId = navController.graph.startDestinationId 
-
-        // Helper function for navigating to a top-level screen
-        val navigateTopLevel = { destinationId: Int ->
-            val currentId = navController.currentDestination?.id ?: graphStartDestinationId
-            
-            if (currentId != destinationId) {
-                // The CRITICAL NavOptions for robust state preservation:
-                val navOptions = NavOptions.Builder()
-                    // 1. Pop up to the currently active destination *inclusively*. This clears the
-                    //    transient back stack of the tab we are leaving.
-                    .setPopUpTo(currentId, true) 
-                    .setLaunchSingleTop(true) 
-                    // 2. CRUCIAL: Saves the stack state we're leaving and restores the stack state we're entering.
-                    .setRestoreState(true) 
-                    .build()
-                
-                navController.navigate(destinationId, null, navOptions)
-            }
-        }
-
-        // Setup drawer navigation
-        binding.navigationView.setNavigationItemSelectedListener { menuItem ->
-            if (menuItem.itemId in topLevelDestinations) {
-                navigateTopLevel(menuItem.itemId)
-            }
-            binding.drawerLayout.closeDrawer(GravityCompat.START)
-            true
-        }
-
-        // Setup bottom navigation
-        binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
-            if (menuItem.itemId in topLevelDestinations) {
-                navigateTopLevel(menuItem.itemId)
-                
-                // Trigger the enhanced animation (scale, translation, and indicator slide)
-                val selectedItemView = binding.bottomNavigation.findViewById<View>(menuItem.itemId)
-                animateBottomNavItem(selectedItemView)
-                
-                return@setOnItemSelectedListener true
-            }
-            return@setOnItemSelectedListener false
-        }
-        
-        // NEW: Setup initial indicator position after the view is drawn
-        binding.bottomNavigation.post { setupIndicator(navController.currentDestination?.id) }
-
-
-        // MAIN NAVIGATION LOGIC (Icon/Lock/Title updates)
-        navController.addOnDestinationChangedListener { _, destination, _ ->
-            
-            // Set Title
-            binding.toolbarTitle.text = when (destination.id) {
-                R.id.homeFragment -> "Categories"
-                R.id.categoryChannelsFragment -> "Channels"
-                R.id.liveEventsFragment -> "Live Events"
-                R.id.favoritesFragment -> "Favorites"
-                R.id.contactFragment -> "Contact"
-                else -> "Live TV Pro"
+            if (navHostFragment == null) {
+                Timber.e("❌ NavHostFragment is null!")
+                Toast.makeText(this, "Navigation setup failed", Toast.LENGTH_LONG).show()
+                return
             }
             
-            val isTopLevel = destination.id in topLevelDestinations
-            
-            // Handle Click Actions & Drawer Locking
-            if (isTopLevel) {
-                binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
-                
-                // Set the indicator progress to Hamburger (0f)
-                animateNavigationIcon(0f) 
+            val navController = navHostFragment.navController
+            Timber.d("NavController obtained")
 
-                // Click Action: Open/Close Drawer 
-                binding.toolbar.setNavigationOnClickListener {
-                    if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                        binding.drawerLayout.closeDrawer(GravityCompat.START)
-                    } else {
-                        binding.drawerLayout.openDrawer(GravityCompat.START)
+            val topLevelDestinations = setOf(
+                R.id.homeFragment,
+                R.id.liveEventsFragment,
+                R.id.contactFragment
+            )
+            
+            val graphStartDestinationId = navController.graph.startDestinationId 
+
+            val navigateTopLevel = { destinationId: Int ->
+                val currentId = navController.currentDestination?.id ?: graphStartDestinationId
+                
+                if (currentId != destinationId) {
+                    val navOptions = NavOptions.Builder()
+                        .setPopUpTo(currentId, true) 
+                        .setLaunchSingleTop(true) 
+                        .setRestoreState(true) 
+                        .build()
+                    
+                    navController.navigate(destinationId, null, navOptions)
+                }
+            }
+
+            binding.navigationView.setNavigationItemSelectedListener { menuItem ->
+                if (menuItem.itemId in topLevelDestinations) {
+                    navigateTopLevel(menuItem.itemId)
+                }
+                binding.drawerLayout.closeDrawer(GravityCompat.START)
+                true
+            }
+
+            binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
+                if (menuItem.itemId in topLevelDestinations) {
+                    navigateTopLevel(menuItem.itemId)
+                    
+                    val selectedItemView = binding.bottomNavigation.findViewById<View>(menuItem.itemId)
+                    animateBottomNavItem(selectedItemView)
+                    
+                    return@setOnItemSelectedListener true
+                }
+                return@setOnItemSelectedListener false
+            }
+            
+            binding.bottomNavigation.post { setupIndicator(navController.currentDestination?.id) }
+
+            navController.addOnDestinationChangedListener { _, destination, _ ->
+                
+                binding.toolbarTitle.text = when (destination.id) {
+                    R.id.homeFragment -> "Categories"
+                    R.id.categoryChannelsFragment -> "Channels"
+                    R.id.liveEventsFragment -> "Live Events"
+                    R.id.favoritesFragment -> "Favorites"
+                    R.id.contactFragment -> "Contact"
+                    else -> "Live TV Pro"
+                }
+                
+                val isTopLevel = destination.id in topLevelDestinations
+                
+                if (isTopLevel) {
+                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
+                    
+                    animateNavigationIcon(0f) 
+
+                    binding.toolbar.setNavigationOnClickListener {
+                        if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                            binding.drawerLayout.closeDrawer(GravityCompat.START)
+                        } else {
+                            binding.drawerLayout.openDrawer(GravityCompat.START)
+                        }
                     }
-                }
-                
-                // Sync Bottom Nav selection state
-                binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
-                
-                // Animate icon and indicator on destination change (e.g., via back button)
-                val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
-                animateBottomNavItem(currentView)
+                    
+                    binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
+                    
+                    val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
+                    animateBottomNavItem(currentView)
 
-            } else {
-                binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
-                
-                // Set the indicator progress to Arrow (1f)
-                animateNavigationIcon(1f)
-                
-                // Click Action: Go Back
-                binding.toolbar.setNavigationOnClickListener {
-                    onBackPressedDispatcher.onBackPressed()
+                } else {
+                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+                    
+                    animateNavigationIcon(1f)
+                    
+                    binding.toolbar.setNavigationOnClickListener {
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                    
+                    if (lastSelectedView != null) {
+                        lastSelectedView?.animate()
+                            ?.scaleX(1.0f)
+                            ?.scaleY(1.0f)
+                            ?.translationY(0f)
+                            ?.setDuration(150)
+                            ?.start()
+                        lastSelectedView = null
+                    }
+                    indicator.animate().alpha(0f).setDuration(150).start()
                 }
                 
-                // Deselect and shrink bottom nav item when navigating away from top level
-                if (lastSelectedView != null) {
-                    lastSelectedView?.animate()
-                        ?.scaleX(1.0f)
-                        ?.scaleY(1.0f)
-                        ?.translationY(0f) // Reset translation
-                        ?.setDuration(150)
-                        ?.start()
-                    lastSelectedView = null
+                if (isSearchVisible) {
+                    hideSearch()
                 }
-                // Also hide the indicator when navigating to a non-top-level destination
-                indicator.animate().alpha(0f).setDuration(150).start()
+            }
+
+            binding.btnFavorites.setOnClickListener {
+                if (navController.currentDestination?.id != R.id.favoritesFragment) {
+                    navController.navigate(R.id.favoritesFragment)
+                }
             }
             
-            // Hide search if open
-            if (isSearchVisible) {
-                hideSearch()
-            }
-        }
-
-        binding.btnFavorites.setOnClickListener {
-            if (navController.currentDestination?.id != R.id.favoritesFragment) {
-                navController.navigate(R.id.favoritesFragment)
-            }
+            Timber.d("Navigation listeners configured")
+            
+        } catch (e: Exception) {
+            Timber.e(e, "Error in setupNavigation")
+            throw e
         }
     }
 
-    /**
-     * Initializes the indicator's position and size on startup.
-     */
     private fun setupIndicator(destinationId: Int?) {
-        val initialItemId = destinationId ?: binding.bottomNavigation.menu.getItem(0).itemId 
-        val initialView = binding.bottomNavigation.findViewById<View>(initialItemId)
+        try {
+            val initialItemId = destinationId ?: binding.bottomNavigation.menu.getItem(0).itemId 
+            val initialView = binding.bottomNavigation.findViewById<View>(initialItemId)
 
-        if (initialView != null) {
-            // Calculate starting position and size
-            val initialX = initialView.x + initialView.width * 0.25f // 25% margin from left
-            val initialWidth = initialView.width * 0.5f // Half the item width
-            
-            indicator.translationX = initialX
-            indicator.layoutParams.width = initialWidth.toInt()
-            indicator.requestLayout()
-            indicator.alpha = 1f // Ensure it's visible
+            if (initialView != null) {
+                val initialX = initialView.x + initialView.width * 0.25f
+                val initialWidth = initialView.width * 0.5f
+                
+                indicator.translationX = initialX
+                indicator.layoutParams.width = initialWidth.toInt()
+                indicator.requestLayout()
+                indicator.alpha = 1f
+            }
+        } catch (e: Exception) {
+            Timber.e(e, "Error in setupIndicator")
         }
     }
     
-    /**
-     * ENHANCED: Applies a sliding indicator animation, scaling, and vertical translation.
-     */
     private fun animateBottomNavItem(newSelectedView: View?) {
-        // Do not animate if the view is null or the same view is selected
-        if (newSelectedView == null || lastSelectedView == newSelectedView) return
-        
-        val duration = 300L 
-        
-        // 1. Indicator Animation (Smooth Slide)
-        indicator.alpha = 1f // Ensure it becomes visible when returning to top level
-        
-        // Target position (centered pill)
-        val targetX = newSelectedView.x + newSelectedView.width * 0.25f 
-        val targetWidth = newSelectedView.width * 0.5f 
-
-        // Animate Indicator Position (TranslationX)
-        indicator.animate()
-            .translationX(targetX)
-            .setDuration(duration)
-            .start()
-
-        // Animate Indicator Width (more complex, requires ValueAnimator)
-        val widthAnimator = ValueAnimator.ofInt(indicator.width, targetWidth.toInt())
-        widthAnimator.addUpdateListener { animator ->
-            indicator.layoutParams.width = animator.animatedValue as Int
-            indicator.requestLayout()
-        }
-        widthAnimator.duration = duration
-        widthAnimator.start()
-
-
-        // 2. Icon Animation (Vertical translation + Scale)
-
-        // Descale and Translate Down the previously selected item (Reset to default)
-        lastSelectedView?.animate()
-            ?.scaleX(1.0f)
-            ?.scaleY(1.0f)
-            ?.translationY(0f) 
-            ?.setDuration(duration)
-            ?.start()
-
-        // Scale up and Translate Up the newly selected item (Highlight)
-        newSelectedView.animate()
-            ?.scaleX(1.15f) 
-            ?.scaleY(1.15f)
-            ?.translationY(-8f) // Move up slightly
-            ?.setDuration(duration)
-            ?.start()
+        try {
+            if (newSelectedView == null || lastSelectedView == newSelectedView) return
             
-        // 3. Update the reference
-        lastSelectedView = newSelectedView
+            val duration = 300L 
+            
+            indicator.alpha = 1f
+            
+            val targetX = newSelectedView.x + newSelectedView.width * 0.25f 
+            val targetWidth = newSelectedView.width * 0.5f 
+
+            indicator.animate()
+                .translationX(targetX)
+                .setDuration(duration)
+                .start()
+
+            val widthAnimator = ValueAnimator.ofInt(indicator.width, targetWidth.toInt())
+            widthAnimator.addUpdateListener { animator ->
+                indicator.layoutParams.width = animator.animatedValue as Int
+                indicator.requestLayout()
+            }
+            widthAnimator.duration = duration
+            widthAnimator.start()
+
+            lastSelectedView?.animate()
+                ?.scaleX(1.0f)
+                ?.scaleY(1.0f)
+                ?.translationY(0f) 
+                ?.setDuration(duration)
+                ?.start()
+
+            newSelectedView.animate()
+                ?.scaleX(1.15f) 
+                ?.scaleY(1.15f)
+                ?.translationY(-8f)
+                ?.setDuration(duration)
+                ?.start()
+                
+            lastSelectedView = newSelectedView
+        } catch (e: Exception) {
+            Timber.e(e, "Error in animateBottomNavItem")
+        }
     }
 
-    // ... (setupSearch, showSearch, hideSearch, animateNavigationIcon remain the same) ...
-
     private fun setupSearch() {
-        binding.searchView.visibility = View.GONE
-        
-        binding.btnSearch.setOnClickListener {
-            showSearch()
-        }
-        
-        binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                binding.searchView.clearFocus()
-                return true
+        try {
+            binding.searchView.visibility = View.GONE
+            
+            binding.btnSearch.setOnClickListener {
+                showSearch()
             }
-
-            override fun onQueryTextChange(newText: String?): Boolean {
-                val query = newText ?: ""
-                binding.btnSearchClear.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
-                
-                val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
-                val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
-                
-                if (currentFragment is SearchableFragment) {
-                    currentFragment.onSearchQuery(query)
+            
+            binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    binding.searchView.clearFocus()
+                    return true
                 }
-                return true
+
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    val query = newText ?: ""
+                    binding.btnSearchClear.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
+                    
+                    val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+                    val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
+                    
+                    if (currentFragment is SearchableFragment) {
+                        currentFragment.onSearchQuery(query)
+                    }
+                    return true
+                }
+            })
+            
+            binding.btnSearchClear.setOnClickListener {
+                binding.searchView.setQuery("", false)
             }
-        })
-        
-        binding.btnSearchClear.setOnClickListener {
-            binding.searchView.setQuery("", false)
+        } catch (e: Exception) {
+            Timber.e(e, "Error in setupSearch")
         }
     }
 
@@ -360,7 +385,6 @@ class MainActivity : AppCompatActivity() {
         binding.searchView.setQuery("", false)
         binding.searchView.clearFocus()
         
-        // RESTORE NAVIGATION STATE
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
         val currentId = navHostFragment?.navController?.currentDestination?.id
         
@@ -384,23 +408,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Animates the Navigation Icon (Hamburger <-> Arrow)
-     */
     private fun animateNavigationIcon(endPosition: Float) {
-        val startPosition = drawerToggle?.drawerArrowDrawable?.progress ?: 0f
-        if (startPosition == endPosition) return
+        try {
+            val startPosition = drawerToggle?.drawerArrowDrawable?.progress ?: 0f
+            if (startPosition == endPosition) return
 
-        val animator = ValueAnimator.ofFloat(startPosition, endPosition)
-        animator.addUpdateListener { valueAnimator ->
-            val slideOffset = valueAnimator.animatedValue as Float
-            drawerToggle?.drawerArrowDrawable?.progress = slideOffset
+            val animator = ValueAnimator.ofFloat(startPosition, endPosition)
+            animator.addUpdateListener { valueAnimator ->
+                val slideOffset = valueAnimator.animatedValue as Float
+                drawerToggle?.drawerArrowDrawable?.progress = slideOffset
+            }
+            animator.interpolator = DecelerateInterpolator()
+            animator.duration = 300
+            animator.start()
+        } catch (e: Exception) {
+            Timber.e(e, "Error in animateNavigationIcon")
         }
-        animator.interpolator = DecelerateInterpolator()
-        animator.duration = 300
-        animator.start()
     }
-
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
