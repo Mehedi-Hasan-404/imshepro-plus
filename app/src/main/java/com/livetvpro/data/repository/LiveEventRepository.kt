@@ -8,10 +8,12 @@ import javax.inject.Singleton
 
 @Singleton
 class LiveEventRepository @Inject constructor(
-    private val dataRepository: DataRepository
+    private val dataRepository: NativeDataRepository
 ) {
     suspend fun getLiveEvents(): List<LiveEvent> = withContext(Dispatchers.IO) {
-        if (!dataRepository.isDataLoaded()) dataRepository.refreshData()
+        if (!dataRepository.isDataLoaded()) {
+            return@withContext emptyList()
+        }
         return@withContext dataRepository.getLiveEvents()
     }
 
@@ -19,4 +21,3 @@ class LiveEventRepository @Inject constructor(
         getLiveEvents().find { it.id == eventId }
     }
 }
-
