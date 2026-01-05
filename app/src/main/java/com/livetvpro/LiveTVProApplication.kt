@@ -50,7 +50,7 @@ class LiveTVProApplication : Application() {
             Timber.d("============================================")
             
             // Always plant Timber tree
-            if (Timber.treeCount() == 0) {
+            if (Timber.treeCount == 0) {  // ← FIXED: Removed ()
                 Timber.plant(Timber.DebugTree())
             }
 
