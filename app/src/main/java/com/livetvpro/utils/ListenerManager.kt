@@ -4,15 +4,17 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import com.livetvpro.data.repository.DataRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Thin wrapper around native implementation
+ * All logic is in native code - this just handles Android intents
+ */
 @Singleton
-class ListenerManager @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val dataRepository: DataRepository
+class NativeListenerManager @Inject constructor(
+    @ApplicationContext private val context: Context
 ) {
     companion object {
         init {
@@ -28,7 +30,7 @@ class ListenerManager @Inject constructor(
 
     /**
      * Check if direct link should be shown
-     * ALL LOGIC IS IN NATIVE CODE - NO KOTLIN LOGIC HERE
+     * ALL LOGIC IS IN NATIVE CODE
      */
     fun onPageInteraction(pageType: String, uniqueId: String? = null): Boolean {
         // Ask native code if we should show the link
