@@ -1,25 +1,22 @@
 package com.livetvpro
 
 import android.app.Application
-import com.google.firebase.ktx.Firebase
-import com.google.firebase.remoteconfig.ktx.remoteConfig
-import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
+import com.livetvpro.data.repository.NativeDataRepository
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import timber.log.Timber
+import javax.inject.Inject
 
 @HiltAndroidApp
 class LiveTVProApplication : Application() {
+
+    @Inject
+    lateinit var dataRepository: NativeDataRepository
     
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-
-    // Native methods - all logic in C++
-    private external fun nativeGetConfigKey(): String
-    private external fun nativeStoreConfigUrl(configUrl: String)
 
     companion object {
         init {
@@ -41,46 +38,9 @@ class LiveTVProApplication : Application() {
 
         Timber.d("Application Started")
 
-        // Initialize Remote Config and store in native memory
+        // Fetch Remote Config (non-blocking)
         applicationScope.launch {
-            fetchAndStoreRemoteConfig()
+            dataRepository.fetchRemoteConfig()
         }
-    }
-    
-    /**
-     * Fetch from Firebase and store directly in native memory
-     * No intermediate Kotlin storage
-     */
-    private suspend fun fetchAndStoreRemoteConfig() {
-        try {
-            val remoteConfig = Firebase.remoteConfig
-            
-            val configSettings = remoteConfigSettings {
-                minimumFetchIntervalInSeconds = if (isDebugBuild()) 0L else 3600L
-            }
-            remoteConfig.setConfigSettingsAsync(configSettings).await()
-            
-            // Get key from native code
-            val nativeKey = nativeGetConfigKey()
-            remoteConfig.setDefaultsAsync(mapOf(nativeKey to "")).await()
-            
-            // Fetch and activate
-            val result = remoteConfig.fetchAndActivate().await()
-            Timber.d("Remote Config updated: $result")
-            
-            // Get URL and store directly in native memory
-            val url = remoteConfig.getString(nativeKey)
-            if (url.isNotEmpty()) {
-                nativeStoreConfigUrl(url)
-                Timber.d("✅ Config URL stored in native memory")
-            }
-            
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to fetch Remote Config")
-        }
-    }
-    
-    private fun isDebugBuild(): Boolean {
-        return applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
     }
 }
