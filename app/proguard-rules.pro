@@ -1,82 +1,111 @@
-# ========== CRITICAL SECURITY PROTECTION ==========
+# ========== BASIC OBFUSCATION ==========
 
-# Keep Kotlin metadata (required for app to function)
+# Keep Kotlin metadata
 -keepclassmembers class kotlin.Metadata { *; }
 
-# Keep Hilt / Dagger (dependency injection needs these)
+# Keep Hilt/Dagger
 -keep class dagger.hilt.** { *; }
 -keep class dagger.hilt.internal.** { *; }
+-keep class javax.inject.** { *; }
 
-# Keep data models (Gson serialization needs these)
+# Keep data models
 -keepclassmembers class com.livetvpro.data.models.** { *; }
 
-# ========== AGGRESSIVE OBFUSCATION ==========
-
-# Repackage ALL classes into single package to confuse decompilers
--repackageclasses 'o'
--allowaccessmodification
-
-# CRITICAL: Keep native methods (JNI)
+# Keep native methods
 -keepclasseswithmembernames class * {
     native <methods>;
 }
 
-# Keep SecurityManager but obfuscate everything inside
--keep class com.livetvpro.security.SecurityManager {
+# Keep classes that use native code
+-keep class com.livetvpro.data.repository.NativeDataRepository {
     <init>(...);
-    public boolean verifyIntegrity();
-    public void enforceIntegrity();
-}
-
-# Keep NetworkModule but obfuscate internals
--keep class com.livetvpro.di.NetworkModule {
-    native <methods>;
-}
--keepclassmembers class com.livetvpro.di.NetworkModule {
     native <methods>;
 }
 
-# Keep ListenerManager constructor but obfuscate methods
--keep class com.livetvpro.utils.ListenerManager {
+-keep class com.livetvpro.utils.NativeListenerManager {
     <init>(...);
+    native <methods>;
 }
 
-# Keep RemoteConfigManager constructor
--keep class com.livetvpro.utils.RemoteConfigManager {
-    <init>(...);
-}
+# ========== OBFUSCATION SETTINGS ==========
 
-# Keep DataRepository constructor  
--keep class com.livetvpro.data.repository.DataRepository {
-    <init>(...);
-}
-
-# ========== MAXIMUM OBFUSCATION ==========
-
-# Maximum optimization passes
--optimizationpasses 7
+# Make code harder to understand when decompiled
+-repackageclasses ''
+-allowaccessmodification
 -overloadaggressively
 
-# Rename source files and remove line numbers (makes stack traces useless)
--renamesourcefileattribute ""
+# Optimization
+-optimizationpasses 5
+
+# Remove debugging info
+-renamesourcefileattribute SourceFile
 -keepattributes SourceFile,LineNumberTable
 
 # Keep only essential annotations
 -keepattributes *Annotation*,Signature,Exceptions
 
-# Obfuscate all strings (makes constants harder to find)
--adaptclassstrings
+# ========== ANDROID COMPONENTS ==========
 
-# ========== STRING ENCRYPTION ==========
+# Keep Activities, Services, Receivers
+-keep public class * extends android.app.Activity
+-keep public class * extends android.app.Service
+-keep public class * extends android.content.BroadcastReceiver
+-keep public class * extends android.app.Application
 
-# This makes it harder to find API endpoints and config keys in decompiled code
--assumenosideeffects class android.util.Log {
-    public static *** d(...);
-    public static *** v(...);
-    public static *** i(...);
-    public static *** w(...);
-    public static *** e(...);
+# Keep Fragment constructors
+-keepclassmembers class * extends androidx.fragment.app.Fragment {
+    public <init>();
 }
+
+# Keep View constructors
+-keepclasseswithmembers class * {
+    public <init>(android.content.Context, android.util.AttributeSet);
+}
+
+-keepclasseswithmembers class * {
+    public <init>(android.content.Context, android.util.AttributeSet, int);
+}
+
+# ========== LIBRARIES ==========
+
+# ExoPlayer / Media3
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
+# OkHttp
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+-keep interface okhttp3.** { *; }
+
+# Retrofit
+-keepattributes Signature
+-keep class retrofit2.** { *; }
+-keepclasseswithmembers class * {
+    @retrofit2.http.* <methods>;
+}
+
+# Gson
+-keep class com.google.gson.** { *; }
+-keep class * implements com.google.gson.TypeAdapterFactory
+-keep class * implements com.google.gson.JsonSerializer
+-keep class * implements com.google.gson.JsonDeserializer
+
+# Glide
+-keep public class * implements com.bumptech.glide.module.GlideModule
+-keep class * extends com.bumptech.glide.module.AppGlideModule {
+    <init>(...);
+}
+-keep public enum com.bumptech.glide.load.ImageHeaderParser$** {
+    **[] $VALUES;
+    public *;
+}
+
+# Firebase
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+
+# ========== REMOVE LOGGING ==========
 
 # Remove Timber logging in release
 -assumenosideeffects class timber.log.Timber {
@@ -87,54 +116,16 @@
     public static *** v(...);
 }
 
-# ========== CONTROL FLOW OBFUSCATION ==========
-
-# Optimize and obfuscate control flow
--optimizations !code/simplification/arithmetic,!code/simplification/cast,!field/*,!class/merging/*
--optimizations code/removal/advanced
-
-# ========== REMOVE DEBUG INFO ==========
-
-# Remove all debug information
--assumenosideeffects class kotlin.jvm.internal.Intrinsics {
-    public static void checkNotNull(...);
-    public static void checkParameterIsNotNull(...);
-    public static void checkNotNullParameter(...);
-    public static void checkExpressionValueIsNotNull(...);
-    public static void checkNotNullExpressionValue(...);
-    public static void checkReturnedValueIsNotNull(...);
-    public static void checkFieldIsNotNull(...);
-    public static void throwUninitializedPropertyAccessException(...);
+# Remove Android Log
+-assumenosideeffects class android.util.Log {
+    public static *** d(...);
+    public static *** v(...);
+    public static *** i(...);
+    public static *** w(...);
+    public static *** e(...);
 }
 
-# ========== ANTI-TAMPERING ==========
-
-# Make it harder to hook/modify methods at runtime
--keepclassmembers,allowoptimization class com.livetvpro.security.SecurityManager {
-    private <methods>;
-}
-
--keepclassmembers,allowoptimization class com.livetvpro.utils.ListenerManager {
-    private <methods>;
-}
-
--keepclassmembers,allowoptimization class com.livetvpro.data.repository.DataRepository {
-    private <methods>;
-}
-
-# ========== WARNINGS SUPPRESSION ==========
+# ========== WARNINGS ==========
 
 -dontwarn **
 -ignorewarnings
--dontnote **
-
-# ========== ADDITIONAL HARDENING ==========
-
-# Encrypt class names to maximum extent
--classobfuscationdictionary obfuscation-dict.txt
--packageobfuscationdictionary obfuscation-dict.txt
--obfuscationdictionary obfuscation-dict.txt
-
-# Make class hierarchy harder to understand
--mergeinterfacesaggressively
--flattenpackagehierarchy
