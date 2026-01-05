@@ -16,7 +16,7 @@ import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentCategoryChannelsBinding
 import com.livetvpro.ui.adapters.ChannelAdapter
 import com.livetvpro.ui.player.ChannelPlayerActivity
-import com.livetvpro.utils.ListenerManager
+import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -29,7 +29,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private lateinit var channelAdapter: ChannelAdapter
     
     @Inject
-    lateinit var listenerManager: ListenerManager
+    lateinit var listenerManager: NativeListenerManager
 
     // We store the current category ID to pass to the listener manager
     private var currentCategoryId: String? = null
@@ -130,4 +130,3 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         _binding = null
     }
 }
-
