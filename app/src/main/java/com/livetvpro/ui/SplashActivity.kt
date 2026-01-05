@@ -11,7 +11,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import javax.inject.Inject
 
 @SuppressLint("CustomSplashScreen")
@@ -20,15 +19,6 @@ class SplashActivity : AppCompatActivity() {
 
     @Inject
     lateinit var dataRepository: NativeDataRepository
-    
-    // Native method to get URL from native memory
-    private external fun nativeGetConfigUrl(): String
-
-    companion object {
-        init {
-            System.loadLibrary("native-lib")
-        }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,29 +26,20 @@ class SplashActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val startTime = System.currentTimeMillis()
 
-            // Wait a moment for Application to fetch config
-            delay(500)
+            // 1. Fetch Remote Config (if not already done)
+            dataRepository.fetchRemoteConfig()
             
-            // Get URL from native memory (stored by Application)
-            val dataUrl = nativeGetConfigUrl()
-            
-            if (dataUrl.isEmpty()) {
-                Timber.e("❌ Config URL not ready")
-                // Retry or show error
-                delay(1000)
-            }
-            
-            // Download data
-            val dataJob = async { dataRepository.refreshData(dataUrl) }
+            // 2. Download and parse data
+            val dataJob = async { dataRepository.refreshData() }
             dataJob.await()
 
-            // Minimum Splash Duration (1.5s)
+            // 3. Minimum Splash Duration (1.5s)
             val elapsedTime = System.currentTimeMillis() - startTime
             if (elapsedTime < 1500) {
                 delay(1500 - elapsedTime)
             }
 
-            // Start Main Activity
+            // 4. Start Main Activity
             startActivity(Intent(this@SplashActivity, MainActivity::class.java))
             finish()
         }
