@@ -670,15 +670,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                     when {
                                         error.message?.contains("403") == true -> "Access Denied"
                                         error.message?.contains("404") == true -> "Stream Not Found"
-                                        error.message?.contains("500") == true ||
-                                        error.message?.contains("503") == true -> "Server Error"
+                                        (error.message?.contains("500") == true) || // Grouped for clarity
+                                        (error.message?.contains("503") == true) -> "Server Error"
                                         else -> "Connection Failed"
                                     }
                                 }
                                 // DRM, parsing, decoder - all just "Stream Error"
-                                error.message?.contains("drm", ignoreCase = true) == true ||
-                                error.message?.contains("widevine", ignoreCase = true) == true ||
-                                error.message?.contains("clearkey", ignoreCase = true) == true ||
+                                (error.message?.contains("drm", ignoreCase = true) == true) || // Grouped for clarity
+                                (error.message?.contains("widevine", ignoreCase = true) == true) ||
+                                (error.message?.contains("clearkey", ignoreCase = true) == true) ||
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
@@ -687,8 +687,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
                                     "Stream Error"
                                 // Geo-blocked
-                                error.message?.contains("geo", ignoreCase = true) == true ||
-                                error.message?.contains("region", ignoreCase = true) ->
+                                (error.message?.contains("geo", ignoreCase = true) == true) || // Grouped for clarity
+                                (error.message?.contains("region", ignoreCase = true) == true) ->
                                     "Not Available"
                                 // Generic fallback
                                 else -> "Playback Error"
