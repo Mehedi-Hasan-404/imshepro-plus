@@ -15,7 +15,7 @@ import com.livetvpro.data.models.EventStatus
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentLiveEventsBinding
 import com.livetvpro.ui.adapters.LiveEventAdapter
-import com.livetvpro.utils.ListenerManager
+import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -28,7 +28,7 @@ class LiveEventsFragment : Fragment() {
     private lateinit var eventAdapter: LiveEventAdapter
     
     @Inject
-    lateinit var listenerManager: ListenerManager
+    lateinit var listenerManager: NativeListenerManager
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveEventsBinding.inflate(inflater, container, false)
@@ -69,8 +69,6 @@ class LiveEventsFragment : Fragment() {
             setHasFixedSize(false)
         }
     }
-
-    // ... (Rest of file remains unchanged: setupFilters, updateChipSelection, observeViewModel, etc.)
 
     private fun setupFilters() {
         val clickListener = View.OnClickListener { view ->
@@ -117,4 +115,3 @@ class LiveEventsFragment : Fragment() {
         _binding = null
     }
 }
-
