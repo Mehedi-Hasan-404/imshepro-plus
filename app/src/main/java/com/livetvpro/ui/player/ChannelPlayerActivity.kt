@@ -58,7 +58,6 @@ import java.util.UUID
 @UnstableApi
 @AndroidEntryPoint
 class ChannelPlayerActivity : AppCompatActivity() {
-
     private lateinit var binding: ActivityChannelPlayerBinding
     private val viewModel: PlayerViewModel by viewModels()
     private var player: ExoPlayer? = null
@@ -433,7 +432,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val drmLicenseUrl: String? = null
     )
 
-    // FIXED: Proper URL parsing with DRM detection
+    // FIXED: Proper URL parsing with DRM detection - ✅ NOW INCLUDES COOKIES
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
         val pipeIndex = streamUrl.indexOf('|')
         if (pipeIndex == -1) {
@@ -442,11 +441,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
         val url = streamUrl.substring(0, pipeIndex).trim()
         val rawParams = streamUrl.substring(pipeIndex + 1).trim()
-
+        // Handle both & and | as separators in the params string
         val normalizedParams = rawParams.replace("&", "|")
         val parts = normalizedParams.split("|")
-
-        val headers = mutableMapOf<String, String>()
+        val headers = mutableMapOf<String, String>() // ✅ Use mutable map
         var drmScheme: String? = null
         var drmKeyId: String? = null
         var drmKey: String? = null
@@ -455,14 +453,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
         for (part in parts) {
             val eqIndex = part.indexOf('=')
             if (eqIndex == -1) continue
-
             val key = part.substring(0, eqIndex).trim()
             val value = part.substring(eqIndex + 1).trim()
 
             when (key.lowercase()) {
                 "drmscheme" -> {
                     drmScheme = normalizeDrmScheme(value)
-                    Timber.d("📌 DRM Scheme detected: $drmScheme")
+                    Timber.d("🔐 DRM Scheme detected: $drmScheme")
                 }
                 "drmlicense" -> {
                     // FIXED: Proper detection of license URL vs KeyID:Key
@@ -483,12 +480,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         }
                     }
                 }
+                // ✅ Handle Cookie and other headers
                 "referer", "referrer" -> headers["Referer"] = value
                 "user-agent", "useragent" -> headers["User-Agent"] = value
                 "origin" -> headers["Origin"] = value
-                "cookie" -> headers["Cookie"] = value
+                "cookie" -> headers["Cookie"] = value // ✅ Critical for authentication
                 "x-forwarded-for" -> headers["X-Forwarded-For"] = value
-                else -> headers[key] = value
+                else -> headers[key] = value // Handles other headers like "Connection: keep-alive"
             }
         }
 
@@ -507,23 +505,36 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    // FIXED: Player setup with proper DRM handling
+    // FIXED: Player setup with proper DRM handling and headers
     private fun setupPlayer() {
         if (player != null) return
+
         binding.errorView.visibility = View.GONE
         binding.errorText.text = ""
         binding.progressBar.visibility = View.VISIBLE
 
         trackSelector = DefaultTrackSelector(this)
-
         try {
             val streamInfo = parseStreamUrl(channel.streamUrl)
-
-            Timber.d("╔═══════════════════════════════════════╗")
+            Timber.d("╔═══════════════════════════════════════════════════════╗")
             Timber.d("  SETTING UP PLAYER")
-            Timber.d("╚═══════════════════════════════════════╝")
+            Timber.d("╚═══════════════════════════════════════════════════════╝")
             Timber.d("URL: ${streamInfo.url.take(60)}...")
             Timber.d("DRM Scheme: ${streamInfo.drmScheme ?: "None"}")
+            Timber.d("Headers:")
+            streamInfo.headers.forEach { (key, value) ->
+                // Log cookie value partially for security
+                Timber.d("   $key: ${if (key == "Cookie") value.take(40) + "..." else value}")
+            }
+            if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
+                if (streamInfo.drmKeyId.startsWith("http")) {
+                    Timber.d("   🌐 License URL: ${streamInfo.drmKeyId.take(60)}...")
+                } else {
+                    Timber.d("   🔑 KeyID: ${streamInfo.drmKeyId.take(16)}...")
+                    Timber.d("   🔑 Key: ${streamInfo.drmKey.take(16)}...")
+                }
+            }
+            Timber.d("═══════════════════════════════════════════════════════")
 
             val headers = streamInfo.headers.toMutableMap()
             if (!headers.containsKey("User-Agent")) {
@@ -532,18 +543,19 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
             val dataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
-                .setDefaultRequestProperties(headers)
+                .setDefaultRequestProperties(headers) // ✅ Apply ALL headers including Cookie
                 .setConnectTimeoutMs(30000)
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
                 .setKeepPostFor302Redirects(true)
 
-            // FIXED: Proper DRM manager selection
+            // FIXED: Proper DRM manager selection - ✅ NOW PASSES HEADERS TO DRM MANAGER
             val mediaSourceFactory = if (streamInfo.drmScheme != null) {
                 val drmSessionManager = when (streamInfo.drmScheme) {
                     "clearkey" -> {
                         if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
-                            Timber.d("✅ Creating ClearKey DRM Manager")
+                            // ✅ For ClearKey, keys are embedded, but headers might be needed for license acquisition
+                            Timber.d("🔐 Creating ClearKey DRM Manager")
                             createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
                         } else {
                             Timber.e("❌ ClearKey scheme but no keys provided!")
@@ -552,8 +564,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     }
                     "widevine" -> {
                         if (streamInfo.drmLicenseUrl != null) {
-                            Timber.d("✅ Creating Widevine DRM Manager")
-                            createWidevineDrmManager(streamInfo.drmLicenseUrl, headers)
+                            Timber.d("🔐 Creating Widevine DRM Manager")
+                            createWidevineDrmManager(streamInfo.drmLicenseUrl, headers) // ✅ Pass headers
                         } else {
                             Timber.e("❌ Widevine scheme but no license URL provided!")
                             null
@@ -561,8 +573,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     }
                     "playready" -> {
                         if (streamInfo.drmLicenseUrl != null) {
-                            Timber.d("✅ Creating PlayReady DRM Manager")
-                            createPlayReadyDrmManager(streamInfo.drmLicenseUrl, headers)
+                            Timber.d("🔐 Creating PlayReady DRM Manager")
+                            createPlayReadyDrmManager(streamInfo.drmLicenseUrl, headers) // ✅ Pass headers
                         } else {
                             Timber.e("❌ PlayReady scheme but no license URL provided!")
                             null
@@ -573,7 +585,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         null
                     }
                 }
-
                 if (drmSessionManager != null) {
                     Timber.d("✅ DRM Manager created successfully")
                     DefaultMediaSourceFactory(this)
@@ -601,7 +612,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
                     exo.playWhenReady = true
-
                     exo.addListener(object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
@@ -657,13 +667,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                             super.onPlayerError(error)
                             binding.progressBar.visibility = View.GONE
-
                             // Simple, user-friendly error messages
                             val errorMessage = when {
                                 // Network/Connection errors
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
+                                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
                                     "Connection Failed"
                                 // HTTP errors
                                 error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
@@ -671,29 +680,28 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                         error.message?.contains("403") == true -> "Access Denied"
                                         error.message?.contains("404") == true -> "Stream Not Found"
                                         (error.message?.contains("500") == true) || // Grouped for clarity
-                                        (error.message?.contains("503") == true) -> "Server Error"
+                                                (error.message?.contains("503") == true) -> "Server Error"
                                         else -> "Connection Failed"
                                     }
                                 }
                                 // DRM, parsing, decoder - all just "Stream Error"
                                 (error.message?.contains("drm", ignoreCase = true) == true) || // Grouped for clarity
-                                (error.message?.contains("widevine", ignoreCase = true) == true) ||
-                                (error.message?.contains("clearkey", ignoreCase = true) == true) ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
+                                        (error.message?.contains("widevine", ignoreCase = true) == true) ||
+                                        (error.message?.contains("clearkey", ignoreCase = true) == true) ||
+                                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
+                                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
+                                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
+                                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                                        error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
                                     "Stream Error"
                                 // Geo-blocked
                                 (error.message?.contains("geo", ignoreCase = true) == true) || // Grouped for clarity
-                                (error.message?.contains("region", ignoreCase = true) == true) ->
+                                        (error.message?.contains("region", ignoreCase = true) == true) ->
                                     "Not Available"
                                 // Generic fallback
                                 else -> "Playback Error"
                             }
-
                             Timber.e(error, "❌ Player Error: $errorMessage")
                             Toast.makeText(this@ChannelPlayerActivity, errorMessage, Toast.LENGTH_SHORT).show()
                             binding.errorView.visibility = View.VISIBLE
@@ -732,20 +740,19 @@ class ChannelPlayerActivity : AppCompatActivity() {
             )
 
             val jwkResponse = """
-            {
+                {
                 "keys": [
-                    {
-                        "kty": "oct",
-                        "k": "$keyBase64",
-                        "kid": "$keyIdBase64"
-                    }
+                {
+                "kty": "oct",
+                "k": "$keyBase64",
+                "kid": "$keyIdBase64"
+                }
                 ]
-            }
+                }
             """.trimIndent()
 
             val drmCallback = LocalMediaDrmCallback(jwkResponse.toByteArray())
-
-            Timber.d("✅ ClearKey DRM Manager created successfully")
+            Timber.d("🔐 ClearKey DRM Manager created successfully")
             DefaultDrmSessionManager.Builder()
                 .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
@@ -756,14 +763,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
+    // ✅ UPDATED: createWidevineDrmManager passes headers to license request
     private fun createWidevineDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
         return try {
             val widevineUuid = C.WIDEVINE_UUID
-
             // FIXED: Use HTTP-based license callback
             val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
-                .setDefaultRequestProperties(requestHeaders)
+                .setDefaultRequestProperties(requestHeaders) // ✅ Apply headers to license request
                 .setConnectTimeoutMs(30000)
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
@@ -772,13 +779,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 licenseUrl,
                 licenseDataSourceFactory
             )
-
-            // CRITICAL: Add all headers to license request
-            requestHeaders.forEach { (key, value) ->
-                drmCallback.setKeyRequestProperty(key, value)
-            }
-
-            Timber.d("✅ Widevine DRM Manager created for URL: ${licenseUrl.take(50)}...")
+            // CRITICAL: Add all headers to license request - ✅ ALREADY DONE VIA dataSourceFactory
+            // requestHeaders.forEach { (key, value) -> drmCallback.setKeyRequestProperty(key, value) } // Not needed if using dataSourceFactory
+            Timber.d("🔐 Widevine DRM Manager created for URL: ${licenseUrl.take(50)}...")
             DefaultDrmSessionManager.Builder()
                 .setUuidAndExoMediaDrmProvider(widevineUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
@@ -789,14 +792,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
+    // ✅ UPDATED: createPlayReadyDrmManager passes headers to license request
     private fun createPlayReadyDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
         return try {
             val playReadyUuid = C.PLAYREADY_UUID
-
             // FIXED: Use HTTP-based license callback
             val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
-                .setDefaultRequestProperties(requestHeaders)
+                .setDefaultRequestProperties(requestHeaders) // ✅ Apply headers to license request
                 .setConnectTimeoutMs(30000)
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
@@ -805,13 +808,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 licenseUrl,
                 licenseDataSourceFactory
             )
-
-            // CRITICAL: Add all headers to license request
-            requestHeaders.forEach { (key, value) ->
-                drmCallback.setKeyRequestProperty(key, value)
-            }
-
-            Timber.d("✅ PlayReady DRM Manager created for URL: ${licenseUrl.take(50)}...")
+            // CRITICAL: Add all headers to license request - ✅ ALREADY DONE VIA dataSourceFactory
+            // requestHeaders.forEach { (key, value) -> drmCallback.setKeyRequestProperty(key, value) } // Not needed if using dataSourceFactory
+            Timber.d("🔐 PlayReady DRM Manager created for URL: ${licenseUrl.take(50)}...")
             DefaultDrmSessionManager.Builder()
                 .setUuidAndExoMediaDrmProvider(playReadyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
@@ -821,6 +820,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             null
         }
     }
+
 
     private fun hexToBytes(hex: String): ByteArray {
         return try {
@@ -1029,6 +1029,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     // ==================== PiP METHODS ====================
+
     private fun isPiPSupported(): Boolean {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
                 packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
@@ -1059,6 +1060,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             val icon = Icon.createWithResource(this, iconId)
             val title = getString(resTitle)
             actions.add(RemoteAction(icon, title, title, intent))
+
             (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).setActions(actions)
             setPictureInPictureParams((mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).build())
             true
@@ -1076,8 +1078,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 val width = format?.width ?: 16
                 val height = format?.height ?: 9
                 val ratio = if (width > 0 && height > 0) Rational(width, height) else Rational(16, 9)
+
                 val builder = mPictureInPictureParamsBuilder as PictureInPictureParams.Builder
                 builder.setAspectRatio(ratio)
+
                 // Source Rect Hint Logic
                 if (binding.playerView.width > 0 && binding.playerView.height > 0) {
                     binding.playerView.getGlobalVisibleRect(pipSourceRect)
@@ -1101,6 +1105,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             return
         }
+
         // Check PiP permission
         val appOpsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
         if (AppOpsManager.MODE_ALLOWED != appOpsManager.checkOpNoThrow(
@@ -1121,6 +1126,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         if (player == null) {
             return
         }
+
         // Disable controller auto-show and hide it
         binding.playerView.setControllerAutoShow(false)
         binding.playerView.hideController()
@@ -1132,7 +1138,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
             if (videoSurfaceView is SurfaceView) {
                 videoSurfaceView.holder.setFixedSize(format.width, format.height)
             }
+
             var rational = Rational(format.width, format.height)
+
             // Handle expanded PiP for extreme aspect ratios (Android 13+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 packageManager.hasSystemFeature(PackageManager.FEATURE_EXPANDED_PICTURE_IN_PICTURE) &&
@@ -1141,15 +1149,18 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder)
                     .setExpandedAspectRatio(rational)
             }
+
             // Clamp aspect ratio to acceptable limits
             if (rational.toFloat() > rationalLimitWide.toFloat()) {
                 rational = rationalLimitWide
             } else if (rational.toFloat() < rationalLimitTall.toFloat()) {
                 rational = rationalLimitTall
             }
+
             (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder)
                 .setAspectRatio(rational)
         }
+
         enterPictureInPictureMode(
             (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).build()
         )
