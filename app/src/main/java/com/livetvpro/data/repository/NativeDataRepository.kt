@@ -57,7 +57,7 @@ class NativeDataRepository @Inject constructor(
     private external fun nativeGetLiveEvents(): String
     private external fun nativeIsDataLoaded(): Boolean
     
-    // Safe wrappers with detailed logging
+    // Safe wrappers with detailed logging and CRITICAL FIX: Catching Throwable
     private fun safeNativeValidateIntegrity(): Boolean {
         return try {
             if (!isNativeLibraryLoaded) {
@@ -67,7 +67,7 @@ class NativeDataRepository @Inject constructor(
             val result = nativeValidateIntegrity()
             Timber.d("✅ Integrity check: $result")
             result
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Timber.e(e, "Error in nativeValidateIntegrity")
             true
         }
@@ -82,7 +82,7 @@ class NativeDataRepository @Inject constructor(
             val key = nativeGetConfigKey()
             Timber.d("✅ Config key retrieved: $key")
             key
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Timber.e(e, "Error in nativeGetConfigKey")
             "data_file_url"
         }
@@ -96,8 +96,8 @@ class NativeDataRepository @Inject constructor(
             }
             nativeStoreConfigUrl(url)
             Timber.d("✅ Config URL stored: ${url.take(50)}...")
-        } catch (e: Exception) {
-            Timber.e(e, "Error in nativeStoreConfigUrl")
+        } catch (e: Throwable) {
+            Timber.e(e, "Error in nativeStoreConfigUrl - likely JNI mismatch")
         }
     }
     
@@ -110,8 +110,8 @@ class NativeDataRepository @Inject constructor(
             val url = nativeGetConfigUrl()
             Timber.d("✅ Config URL retrieved: ${url.take(50)}...")
             url
-        } catch (e: Exception) {
-            Timber.e(e, "Error in nativeGetConfigUrl")
+        } catch (e: Throwable) {
+            Timber.e(e, "Error in nativeGetConfigUrl - likely JNI mismatch")
             ""
         }
     }
@@ -125,7 +125,7 @@ class NativeDataRepository @Inject constructor(
             val result = nativeStoreData(jsonData)
             Timber.d("✅ Data stored: $result")
             result
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Timber.e(e, "Error in nativeStoreData")
             false
         }
@@ -138,7 +138,7 @@ class NativeDataRepository @Inject constructor(
                 return "[]"
             }
             nativeGetCategories()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Timber.e(e, "Error in nativeGetCategories")
             "[]"
         }
@@ -151,7 +151,7 @@ class NativeDataRepository @Inject constructor(
                 return "[]"
             }
             nativeGetChannels()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Timber.e(e, "Error in nativeGetChannels")
             "[]"
         }
@@ -164,7 +164,7 @@ class NativeDataRepository @Inject constructor(
                 return "[]"
             }
             nativeGetLiveEvents()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Timber.e(e, "Error in nativeGetLiveEvents")
             "[]"
         }
@@ -177,7 +177,7 @@ class NativeDataRepository @Inject constructor(
                 return false
             }
             nativeIsDataLoaded()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Timber.e(e, "Error in nativeIsDataLoaded")
             false
         }
@@ -363,3 +363,4 @@ class NativeDataRepository @Inject constructor(
         return context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
     }
 }
+
