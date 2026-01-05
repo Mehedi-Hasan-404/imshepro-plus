@@ -16,7 +16,7 @@ import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentFavoritesBinding
 import com.livetvpro.ui.adapters.FavoriteAdapter
 import com.livetvpro.ui.player.ChannelPlayerActivity
-import com.livetvpro.utils.ListenerManager
+import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -29,7 +29,7 @@ class FavoritesFragment : Fragment() {
     private lateinit var favoriteAdapter: FavoriteAdapter
     
     @Inject
-    lateinit var listenerManager: ListenerManager
+    lateinit var listenerManager: NativeListenerManager
     
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
@@ -76,8 +76,6 @@ class FavoritesFragment : Fragment() {
         }
     }
 
-    // ... (rest of the file remains unchanged: setupButtons, showRemoveConfirmation, etc.)
-
     private fun setupButtons() {
         binding.clearAllButton.setOnClickListener { 
             showClearAllDialog() 
@@ -121,4 +119,3 @@ class FavoritesFragment : Fragment() {
         _binding = null
     }
 }
-
