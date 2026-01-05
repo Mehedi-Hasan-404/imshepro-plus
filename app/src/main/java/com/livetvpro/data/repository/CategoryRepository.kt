@@ -6,10 +6,13 @@ import javax.inject.Singleton
 
 @Singleton
 class CategoryRepository @Inject constructor(
-    private val dataRepository: DataRepository
+    private val dataRepository: NativeDataRepository
 ) {
     suspend fun getCategories(): List<Category> {
-        if (!dataRepository.isDataLoaded()) dataRepository.refreshData()
+        if (!dataRepository.isDataLoaded()) {
+            // Data not loaded yet - return empty
+            return emptyList()
+        }
         return dataRepository.getCategories()
     }
 
@@ -17,4 +20,3 @@ class CategoryRepository @Inject constructor(
         return getCategories().find { it.slug == slug }
     }
 }
-
