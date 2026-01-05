@@ -1,5 +1,4 @@
 package com.livetvpro.utils
-
 import android.util.Base64
 import com.livetvpro.data.models.Channel
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +13,6 @@ import java.net.URL
 import java.security.MessageDigest
 
 object M3uParser {
-
     data class M3uChannel(
         val name: String,
         val logoUrl: String,
@@ -30,30 +28,25 @@ object M3uParser {
     suspend fun parseM3uFromUrl(m3uUrl: String): List<M3uChannel> {
         return try {
             Timber.d("📥 FETCHING M3U FROM: $m3uUrl")
-            
             val trimmedUrl = m3uUrl.trim()
             if (trimmedUrl.startsWith("[") || trimmedUrl.startsWith("{")) {
                 return parseJsonPlaylist(trimmedUrl)
             }
-            
             val url = URL(trimmedUrl)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.connectTimeout = 15000
             connection.readTimeout = 15000
             connection.setRequestProperty("User-Agent", "LiveTVPro/1.0")
-
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                 val reader = BufferedReader(InputStreamReader(connection.inputStream))
                 val content = reader.readText()
                 reader.close()
                 connection.disconnect()
-
                 val trimmedContent = content.trim()
                 if (trimmedContent.startsWith("[") || trimmedContent.startsWith("{")) {
                     return parseJsonPlaylist(trimmedContent)
                 }
-
                 parseM3uContent(content)
             } else {
                 Timber.e("❌ Failed to fetch M3U: HTTP ${connection.responseCode}")
@@ -65,6 +58,7 @@ object M3uParser {
         }
     }
 
+    // ✅ UPDATED: parseJsonPlaylist now correctly handles cookie and DRM info
     fun parseJsonPlaylist(jsonContent: String): List<M3uChannel> {
         val channels = mutableListOf<M3uChannel>()
         try {
@@ -74,23 +68,48 @@ object M3uParser {
                 val name = item.optString("name", "Unknown Channel")
                 val link = item.optString("link", "")
                 val logo = item.optString("logo", "")
-                val cookie = item.optString("cookie", "")
+                val cookie = item.optString("cookie", "") // ✅ Extract cookie
                 val userAgent = item.optString("user-agent", null)
                 val referer = item.optString("referer", null)
                 val origin = item.optString("origin", null)
-                
+                // ✅ Extract DRM information
+                val drmSchemeRaw = item.optString("drmScheme", null)
+                val drmLicense = item.optString("drmLicense", null)
+
                 if (link.isNotEmpty()) {
                     val headers = mutableMapOf<String, String>()
+                    // ✅ Add cookie as header if present
                     if (cookie.isNotEmpty()) headers["Cookie"] = cookie
                     referer?.let { headers["Referer"] = it }
                     origin?.let { headers["Origin"] = it }
-                    
+
+                    // ✅ Parse DRM keys if DRM license is in KeyID:Key format
+                    var parsedDrmKeyId: String? = null
+                    var parsedDrmKey: String? = null
+                    var normalizedDrmScheme: String? = null
+
+                    if (drmSchemeRaw != null && drmSchemeRaw.isNotEmpty()) {
+                        normalizedDrmScheme = normalizeDrmScheme(drmSchemeRaw.lowercase())
+                    }
+
+                    if (drmLicense != null && drmLicense.isNotEmpty() && normalizedDrmScheme == "clearkey") {
+                        val colonIndex = drmLicense.indexOf(':')
+                        if (colonIndex != -1) {
+                            parsedDrmKeyId = drmLicense.substring(0, colonIndex).trim()
+                            parsedDrmKey = drmLicense.substring(colonIndex + 1).trim()
+                            Timber.d("🔑 Parsed ClearKey DRM: KeyID=${parsedDrmKeyId.take(16)}..., Key=${parsedDrmKey.take(16)}...")
+                        }
+                    }
+
                     channels.add(M3uChannel(
                         name = name,
                         logoUrl = logo,
                         streamUrl = link,
                         userAgent = userAgent,
-                        httpHeaders = headers
+                        httpHeaders = headers,
+                        drmScheme = normalizedDrmScheme,
+                        drmKeyId = parsedDrmKeyId,
+                        drmKey = parsedDrmKey
                     ))
                 }
             }
@@ -100,10 +119,10 @@ object M3uParser {
         return channels
     }
 
+
     fun parseM3uContent(content: String): List<M3uChannel> {
         val channels = mutableListOf<M3uChannel>()
         val lines = content.lines()
-
         if (lines.isEmpty()) return emptyList()
 
         var currentName = ""
@@ -132,20 +151,17 @@ object M3uParser {
                     currentDrmScheme = normalizeDrmScheme(rawScheme)
                     Timber.d("🔐 DRM Scheme: $currentDrmScheme (raw: $rawScheme)")
                 }
-                
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_key=") -> {
                     val keyValue = trimmedLine.substringAfter("=").trim()
-                    
                     when {
                         // Format 1: URL-based license key (Widevine/PlayReady)
-                        keyValue.startsWith("http://", ignoreCase = true) || 
-                        keyValue.startsWith("https://", ignoreCase = true) -> {
+                        keyValue.startsWith("http://", ignoreCase = true) ||
+                                keyValue.startsWith("https://", ignoreCase = true) -> {
                             currentLicenseUrl = keyValue
                             currentDrmKeyId = keyValue  // Store in keyId for transport
                             currentDrmKey = "LICENSE_URL"
                             Timber.d("🌐 DRM License URL: $keyValue")
                         }
-                        
                         // Format 2: Simple KeyID:Key (hex) - ClearKey
                         keyValue.contains(":") && !keyValue.startsWith("{") -> {
                             val parts = keyValue.split(":", limit = 2)
@@ -157,7 +173,6 @@ object M3uParser {
                                 Timber.d("   Key:   ${currentDrmKey?.take(16)}... (${currentDrmKey?.length} chars)")
                             }
                         }
-                        
                         // Format 3: JWK JSON format
                         keyValue.startsWith("{") -> {
                             val (keyId, key) = parseJWKToKeyIdPair(keyValue)
@@ -171,50 +186,41 @@ object M3uParser {
                         }
                     }
                 }
-                
                 // Parse other KODIPROP directives
                 trimmedLine.startsWith("#KODIPROP:") -> {
                     Timber.d("📋 KODIPROP: ${trimmedLine.take(50)}...")
                 }
-                
                 trimmedLine.startsWith("#EXTINF:") -> {
                     // DON'T reset DRM info here - only reset headers/user-agent
                     currentUserAgent = null
                     currentHeaders = mutableMapOf()
                     currentLicenseUrl = null
-                    
                     currentName = extractChannelName(trimmedLine)
                     currentLogo = extractAttribute(trimmedLine, "tvg-logo")
                     currentGroup = extractAttribute(trimmedLine, "group-title")
-                    
                     Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                     Timber.d("📺 Channel: $currentName")
                     if (currentDrmScheme != null) {
                         Timber.d("   🔐 DRM Pending: $currentDrmScheme")
                     }
                 }
-                
                 // --- Custom Header Parsing (VLC options) ---
                 trimmedLine.startsWith("#EXTVLCOPT:http-user-agent=") -> {
                     currentUserAgent = trimmedLine.substringAfter("=").trim()
                     Timber.d("   🖥️  User-Agent: ${currentUserAgent?.take(40)}...")
                 }
-                
                 trimmedLine.startsWith("#EXTVLCOPT:http-origin=") -> {
                     currentHeaders["Origin"] = trimmedLine.substringAfter("=").trim()
                     Timber.d("   🌐 Origin: ${currentHeaders["Origin"]}")
                 }
-                
                 trimmedLine.startsWith("#EXTVLCOPT:http-referrer=") -> {
                     currentHeaders["Referer"] = trimmedLine.substringAfter("=").trim()
                     Timber.d("   🌐 Referer: ${currentHeaders["Referer"]?.take(40)}...")
                 }
-
                 // Parse #EXTHTTP JSON format
                 trimmedLine.startsWith("#EXTHTTP:") -> {
                     try {
                         val jsonPart = trimmedLine.substringAfter("#EXTHTTP:").trim()
-                        
                         if (jsonPart.startsWith("{")) {
                             val json = JSONObject(jsonPart)
                             json.keys().forEach { key ->
@@ -230,8 +236,8 @@ object M3uParser {
                             Timber.d("   🌐 EXTHTTP headers: ${currentHeaders.keys}")
                         } else {
                             val cookieMatch = Regex(""""cookie"\s*:\s*"([^"]+)"""").find(jsonPart)
-                            cookieMatch?.groups?.get(1)?.value?.let { 
-                                currentHeaders["Cookie"] = it 
+                            cookieMatch?.groups?.get(1)?.value?.let {
+                                currentHeaders["Cookie"] = it
                                 Timber.d("   🍪 Cookie: ${it.take(30)}...")
                             }
                         }
@@ -239,30 +245,25 @@ object M3uParser {
                         Timber.e(e, "❌ Error parsing #EXTHTTP")
                     }
                 }
-                
                 !trimmedLine.startsWith("#") -> {
                     // This is the URL line - Process and commit channel
                     if (currentName.isNotEmpty()) {
                         // Better handling of inline parameters
                         val (streamUrl, inlineHeaders, inlineDrmInfo) = parseInlineHeadersAndDrm(trimmedLine)
-                        
                         // Merge all headers (M3U tags + inline)
                         val finalHeaders = currentHeaders.toMutableMap()
                         finalHeaders.putAll(inlineHeaders)
-                        
                         // Prioritize inline DRM info if both exist (inline is more specific)
                         val finalDrmScheme = inlineDrmInfo.first ?: currentDrmScheme
                         val finalDrmKeyId = inlineDrmInfo.second ?: currentDrmKeyId
                         val finalDrmKey = inlineDrmInfo.third ?: currentDrmKey
-                        
+
                         // Validate DRM configuration before adding
                         val hasDrm = finalDrmScheme != null
                         val hasKeys = finalDrmKeyId != null && finalDrmKey != null
-                        
                         if (hasDrm && !hasKeys) {
                             Timber.w("   ⚠️ DRM scheme present but NO KEYS - stream may fail")
                         }
-                        
                         channels.add(M3uChannel(
                             name = currentName,
                             logoUrl = currentLogo,
@@ -274,7 +275,6 @@ object M3uParser {
                             drmKeyId = finalDrmKeyId,
                             drmKey = finalDrmKey
                         ))
-                        
                         // Log final status
                         val drmStatus = if (finalDrmScheme != null) {
                             if (hasKeys) {
@@ -300,7 +300,6 @@ object M3uParser {
                             }
                         }
                         Timber.d("   📍 URL: ${streamUrl.take(60)}...")
-                        
                         // NOW reset DRM info for next channel
                         currentDrmScheme = null
                         currentDrmKeyId = null
@@ -310,7 +309,6 @@ object M3uParser {
                 }
             }
         }
-        
         Timber.d("╔═══════════════════════════════════════════════════════╗")
         Timber.d("📊 PARSING SUMMARY")
         Timber.d("   Total channels: ${channels.size}")
@@ -318,7 +316,6 @@ object M3uParser {
         Timber.d("   DRM with keys: ${channels.count { it.drmScheme != null && it.drmKeyId != null && it.drmKey != null }}")
         Timber.d("   With headers: ${channels.count { it.httpHeaders.isNotEmpty() }}")
         Timber.d("╚═══════════════════════════════════════════════════════╝")
-        
         return channels
     }
 
@@ -335,7 +332,6 @@ object M3uParser {
         val pattern = """$attribute="([^"]*)"""".toRegex()
         val match = pattern.find(line)
         if (match != null) return match.groupValues[1]
-        
         val unquotedPattern = """$attribute=([^ ]*)""".toRegex()
         val unquotedMatch = unquotedPattern.find(line)
         return unquotedMatch?.groupValues?.get(1) ?: ""
@@ -362,21 +358,16 @@ object M3uParser {
     private fun parseJWKToKeyIdPair(jwk: String): Pair<String?, String?> {
         return try {
             Timber.d("🔐 Parsing JWK: ${jwk.take(100)}...")
-            
             val kidMatch = Regex(""""kid"\s*:\s*"([^"]+)"""").find(jwk)
             val kMatch = Regex(""""k"\s*:\s*"([^"]+)"""").find(jwk)
-            
             if (kidMatch != null && kMatch != null) {
                 val kidBase64 = kidMatch.groupValues[1]
                 val kBase64 = kMatch.groupValues[1]
-                
                 Timber.d("📝 Extracted from JWK:")
                 Timber.d("   kid (base64): $kidBase64")
                 Timber.d("   k (base64): $kBase64")
-                
                 val kidHex = base64UrlToHex(kidBase64)
                 val kHex = base64UrlToHex(kBase64)
-                
                 if (kidHex.isNotEmpty() && kHex.isNotEmpty()) {
                     Timber.d("🔐 JWK Converted Successfully:")
                     Timber.d("   KID (hex): ${kidHex.take(32)}... (${kidHex.length} chars)")
@@ -408,16 +399,12 @@ object M3uParser {
     private fun base64UrlToHex(base64Url: String): String {
         return try {
             Timber.d("🔄 Converting base64url to hex: $base64Url")
-            
             // Replace base64url characters with standard base64
             var base64 = base64Url.replace('-', '+').replace('_', '/')
-            
             // Add padding if needed
             val paddingNeeded = (4 - (base64.length % 4)) % 4
             base64 += "=".repeat(paddingNeeded)
-            
             Timber.d("   Padded base64: $base64")
-            
             // Decode base64 to bytes
             val bytes = try {
                 Base64.decode(base64, Base64.NO_WRAP)
@@ -425,10 +412,8 @@ object M3uParser {
                 Timber.e(e, "❌ Failed to decode base64, trying URL_SAFE flag")
                 Base64.decode(base64, Base64.URL_SAFE or Base64.NO_WRAP)
             }
-            
             // Convert bytes to hex
             val hex = bytes.joinToString("") { "%02x".format(it) }
-            
             Timber.d("   ✅ Converted: ${hex.take(32)}... (${hex.length} chars)")
             hex
         } catch (e: Exception) {
@@ -449,10 +434,8 @@ object M3uParser {
             // No inline parameters
             return Triple(urlLine.trim(), emptyMap(), Triple(null, null, null))
         }
-        
         val url = urlLine.substring(0, pipeIndex).trim()
         val paramsString = urlLine.substring(pipeIndex + 1).trim()
-        
         val headers = mutableMapOf<String, String>()
         var drmScheme: String? = null
         var drmKeyId: String? = null
@@ -461,22 +444,17 @@ object M3uParser {
         if (paramsString.isNotEmpty()) {
             // Split by & or | (both are valid separators)
             val parts = paramsString.split(Regex("[&|]"))
-            
             Timber.d("   📦 Parsing inline parameters (${parts.size} parts)")
-            
             for (part in parts) {
                 val trimmedPart = part.trim()
                 if (trimmedPart.isEmpty()) continue
-                
                 val eqIndex = trimmedPart.indexOf('=')
                 if (eqIndex == -1) {
                     Timber.w("      ⚠️ Invalid parameter (no =): $trimmedPart")
                     continue
                 }
-                
                 val key = trimmedPart.substring(0, eqIndex).trim()
                 val value = trimmedPart.substring(eqIndex + 1).trim()
-                
                 when (key.lowercase()) {
                     "drmscheme" -> {
                         drmScheme = normalizeDrmScheme(value)
@@ -484,8 +462,8 @@ object M3uParser {
                     }
                     "drmlicense" -> {
                         // UPDATED: Check if it's a URL or KeyID:Key format
-                        if (value.startsWith("http://", ignoreCase = true) || 
-                            value.startsWith("https://", ignoreCase = true)) {
+                        if (value.startsWith("http://", ignoreCase = true) ||
+                                value.startsWith("https://", ignoreCase = true)) {
                             // It's a license URL (Widevine/PlayReady)
                             drmKeyId = value  // Store URL in keyId field
                             drmKey = "LICENSE_URL"  // Mark as URL-based
@@ -532,7 +510,6 @@ object M3uParser {
                 }
             }
         }
-        
         return Triple(url, headers, Triple(drmScheme, drmKeyId, drmKey))
     }
 
@@ -547,13 +524,13 @@ object M3uParser {
             connection.requestMethod = "GET"
             connection.connectTimeout = 10000
             connection.readTimeout = 10000
-            
+
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                 val reader = BufferedReader(InputStreamReader(connection.inputStream))
                 val response = reader.readText()
                 reader.close()
                 connection.disconnect()
-                
+
                 if (response.trim().startsWith("{")) {
                     val json = JSONObject(response)
                     val keyId = json.optString("keyId", null) ?: json.optString("kid", null)
@@ -595,10 +572,8 @@ object M3uParser {
         Timber.d("╔═══════════════════════════════════════════════════════╗")
         Timber.d("   🔄 CONVERTING TO CHANNELS")
         Timber.d("╚═══════════════════════════════════════════════════════╝")
-        
         return m3uChannels.mapIndexed { index, m3u ->
             val metaUrl = buildStreamUrlWithMetadata(m3u)
-            
             Timber.d("${index + 1}. ${m3u.name}")
             if (m3u.drmScheme != null) {
                 Timber.d("   🔐 DRM: ${m3u.drmScheme}")
@@ -617,7 +592,6 @@ object M3uParser {
                 Timber.d("   📦 Headers: ${m3u.httpHeaders.keys.joinToString(", ")}")
             }
             Timber.d("   📍 Final URL: ${metaUrl.take(80)}...")
-            
             Channel(
                 id = generateChannelId(m3u.streamUrl, m3u.name),
                 name = m3u.name,
@@ -631,31 +605,28 @@ object M3uParser {
 
     /**
      * Build stream URL with metadata - handles both ClearKey and Widevine/PlayReady
+     * ✅ UPDATED: Ensures cookies are included in the URL string
      */
     private fun buildStreamUrlWithMetadata(m3u: M3uChannel): String {
         val parts = mutableListOf<String>()
-        
         // Start with base URL
         parts.add(m3u.streamUrl)
-        
         // Add user agent if present
         m3u.userAgent?.let { parts.add("User-Agent=$it") }
-        
-        // Add HTTP headers
-        m3u.httpHeaders.forEach { (key, value) -> 
+        // ✅ Add HTTP headers (including Cookie)
+        m3u.httpHeaders.forEach { (key, value) ->
+            // Use the exact key name from the JSON (e.g., "Cookie")
             parts.add("$key=$value")
         }
-        
         // Add DRM information in the exact format the player expects
         if (m3u.drmScheme != null) {
             parts.add("drmScheme=${m3u.drmScheme}")
-            
             // For ClearKey: add KeyID:Key format
             // For Widevine/PlayReady: add license URL
             if (m3u.drmKeyId != null && m3u.drmKey != null) {
                 // Check if it's a license URL or actual keys
-                if (m3u.drmKeyId.startsWith("http://", ignoreCase = true) || 
-                    m3u.drmKeyId.startsWith("https://", ignoreCase = true)) {
+                if (m3u.drmKeyId.startsWith("http://", ignoreCase = true) ||
+                        m3u.drmKeyId.startsWith("https://", ignoreCase = true)) {
                     // It's a license URL (for Widevine/PlayReady)
                     parts.add("drmLicense=${m3u.drmKeyId}")
                     Timber.d("   ✅ DRM info added: ${m3u.drmScheme} with license URL")
@@ -672,7 +643,6 @@ object M3uParser {
                 }
             }
         }
-        
         // Join all parts with pipe separator
         return parts.joinToString("|")
     }
