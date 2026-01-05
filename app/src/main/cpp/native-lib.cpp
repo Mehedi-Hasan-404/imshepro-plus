@@ -94,10 +94,9 @@ Java_com_livetvpro_data_repository_NativeDataRepository_nativeStoreData(
     jstring jsonData
 ) {
     const char* jsonStr = env->GetStringUTFChars(jsonData, nullptr);
-    
     try {
         std::string json(jsonStr);
-        
+
         // Store in native memory
         appData.categoriesJson = json;
         appData.channelsJson = json;
@@ -119,6 +118,7 @@ Java_com_livetvpro_data_repository_NativeDataRepository_nativeStoreData(
                 size_t colonPos = json.find(":", urlPos);
                 size_t quoteStart = json.find("\"", colonPos);
                 size_t quoteEnd = json.find("\"", quoteStart + 1);
+                
                 if (quoteStart != std::string::npos && quoteEnd != std::string::npos) {
                     listenerState.directLinkUrl = json.substr(quoteStart + 1, quoteEnd - quoteStart - 1);
                 }
@@ -227,7 +227,7 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeShouldShowLink(
     }
     
     env->ReleaseStringUTFChars(pageType, pageTypeStr);
-    
+
     // Check if already triggered
     for (const auto& triggered : triggeredSessions) {
         if (triggered == sessionKey) {
@@ -237,7 +237,6 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeShouldShowLink(
     
     // Mark as triggered
     triggeredSessions.push_back(sessionKey);
-    
     LOGD("Showing link for session: %s", sessionKey.c_str());
     return JNI_TRUE;
 }
@@ -284,23 +283,14 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeIsConfigValid(
 }
 
 // ==================== REMOTE CONFIG ====================
+// CRITICAL FIX: The function names below now match NativeDataRepository instead of NativeRemoteConfigManager
 
 static std::string remoteConfigUrl = "";
 static bool remoteConfigFetched = false;
 
 extern "C"
-JNIEXPORT jstring JNICALL
-Java_com_livetvpro_utils_NativeRemoteConfigManager_nativeGetConfigKey(
-    JNIEnv* env,
-    jobject thiz
-) {
-    std::string key = decrypt(ENC_DATA_FILE_URL, 13);
-    return env->NewStringUTF(key.c_str());
-}
-
-extern "C"
 JNIEXPORT void JNICALL
-Java_com_livetvpro_utils_NativeRemoteConfigManager_nativeStoreConfigUrl(
+Java_com_livetvpro_data_repository_NativeDataRepository_nativeStoreConfigUrl(
     JNIEnv* env,
     jobject thiz,
     jstring configUrl
@@ -310,12 +300,12 @@ Java_com_livetvpro_utils_NativeRemoteConfigManager_nativeStoreConfigUrl(
     remoteConfigFetched = true;
     env->ReleaseStringUTFChars(configUrl, urlStr);
     
-    LOGD("Remote config URL stored");
+    LOGD("Remote config URL stored in native memory");
 }
 
 extern "C"
 JNIEXPORT jstring JNICALL
-Java_com_livetvpro_utils_NativeRemoteConfigManager_nativeGetConfigUrl(
+Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetConfigUrl(
     JNIEnv* env,
     jobject thiz
 ) {
@@ -325,11 +315,3 @@ Java_com_livetvpro_utils_NativeRemoteConfigManager_nativeGetConfigUrl(
     return env->NewStringUTF(remoteConfigUrl.c_str());
 }
 
-extern "C"
-JNIEXPORT jboolean JNICALL
-Java_com_livetvpro_utils_NativeRemoteConfigManager_nativeIsConfigReady(
-    JNIEnv* env,
-    jobject thiz
-) {
-    return remoteConfigFetched ? JNI_TRUE : JNI_FALSE;
-}
