@@ -10,15 +10,17 @@ import javax.inject.Singleton
 
 @Singleton
 class ChannelRepository @Inject constructor(
-    private val dataRepository: DataRepository,
+    private val dataRepository: NativeDataRepository,
     private val categoryRepository: CategoryRepository
 ) {
     suspend fun getChannelsByCategory(categoryId: String): List<Channel> = withContext(Dispatchers.IO) {
-        if (!dataRepository.isDataLoaded()) dataRepository.refreshData()
+        if (!dataRepository.isDataLoaded()) {
+            return@withContext emptyList()
+        }
 
         val allChannels = mutableListOf<Channel>()
 
-        // 1. Static channels from JSON
+        // 1. Static channels from native storage
         val staticChannels = dataRepository.getChannels().filter { it.categoryId == categoryId }
         allChannels.addAll(staticChannels)
 
@@ -37,4 +39,3 @@ class ChannelRepository @Inject constructor(
         return@withContext allChannels
     }
 }
-
