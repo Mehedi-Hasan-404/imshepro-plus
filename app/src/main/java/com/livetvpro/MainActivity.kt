@@ -80,7 +80,6 @@ class MainActivity : AppCompatActivity() {
         
         val navController = navHostFragment.navController
 
-
         val topLevelDestinations = setOf(
             R.id.homeFragment,
             R.id.liveEventsFragment,
@@ -277,47 +276,83 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupThemeToggle() {
-        updateThemeToggleUI(themeManager.getThemeMode())
+        // Find the included layout views using findViewById
+        val themeAutoButton = findViewById<View>(R.id.theme_auto_button)
+        val themeLightButton = findViewById<View>(R.id.theme_light_button)
+        val themeDarkButton = findViewById<View>(R.id.theme_dark_button)
         
-        binding.themeAutoButton.setOnClickListener {
+        val themeAutoIcon = findViewById<android.widget.ImageView>(R.id.theme_auto_icon)
+        val themeLightIcon = findViewById<android.widget.ImageView>(R.id.theme_light_icon)
+        val themeDarkIcon = findViewById<android.widget.ImageView>(R.id.theme_dark_icon)
+        val themeAutoText = findViewById<android.widget.TextView>(R.id.theme_auto_text)
+        val themeLightText = findViewById<android.widget.TextView>(R.id.theme_light_text)
+        val themeDarkText = findViewById<android.widget.TextView>(R.id.theme_dark_text)
+        
+        updateThemeToggleUI(
+            themeManager.getThemeMode(),
+            themeAutoIcon, themeLightIcon, themeDarkIcon,
+            themeAutoText, themeLightText, themeDarkText
+        )
+        
+        themeAutoButton?.setOnClickListener {
             themeManager.setThemeMode(ThemeManager.THEME_AUTO)
-            updateThemeToggleUI(ThemeManager.THEME_AUTO)
+            updateThemeToggleUI(
+                ThemeManager.THEME_AUTO,
+                themeAutoIcon, themeLightIcon, themeDarkIcon,
+                themeAutoText, themeLightText, themeDarkText
+            )
         }
         
-        binding.themeLightButton.setOnClickListener {
+        themeLightButton?.setOnClickListener {
             themeManager.setThemeMode(ThemeManager.THEME_LIGHT)
-            updateThemeToggleUI(ThemeManager.THEME_LIGHT)
+            updateThemeToggleUI(
+                ThemeManager.THEME_LIGHT,
+                themeAutoIcon, themeLightIcon, themeDarkIcon,
+                themeAutoText, themeLightText, themeDarkText
+            )
         }
         
-        binding.themeDarkButton.setOnClickListener {
+        themeDarkButton?.setOnClickListener {
             themeManager.setThemeMode(ThemeManager.THEME_DARK)
-            updateThemeToggleUI(ThemeManager.THEME_DARK)
+            updateThemeToggleUI(
+                ThemeManager.THEME_DARK,
+                themeAutoIcon, themeLightIcon, themeDarkIcon,
+                themeAutoText, themeLightText, themeDarkText
+            )
         }
     }
     
-    private fun updateThemeToggleUI(selectedMode: Int) {
+    private fun updateThemeToggleUI(
+        selectedMode: Int,
+        themeAutoIcon: android.widget.ImageView?,
+        themeLightIcon: android.widget.ImageView?,
+        themeDarkIcon: android.widget.ImageView?,
+        themeAutoText: android.widget.TextView?,
+        themeLightText: android.widget.TextView?,
+        themeDarkText: android.widget.TextView?
+    ) {
         val primaryColor = ContextCompat.getColor(this, R.color.accent)
         val normalColor = ContextCompat.getColor(this, R.color.text_secondary_dark)
         
-        binding.themeAutoIcon.setColorFilter(normalColor)
-        binding.themeLightIcon.setColorFilter(normalColor)
-        binding.themeDarkIcon.setColorFilter(normalColor)
-        binding.themeAutoText.setTextColor(normalColor)
-        binding.themeLightText.setTextColor(normalColor)
-        binding.themeDarkText.setTextColor(normalColor)
+        themeAutoIcon?.setColorFilter(normalColor)
+        themeLightIcon?.setColorFilter(normalColor)
+        themeDarkIcon?.setColorFilter(normalColor)
+        themeAutoText?.setTextColor(normalColor)
+        themeLightText?.setTextColor(normalColor)
+        themeDarkText?.setTextColor(normalColor)
         
         when (selectedMode) {
             ThemeManager.THEME_AUTO -> {
-                binding.themeAutoIcon.setColorFilter(primaryColor)
-                binding.themeAutoText.setTextColor(primaryColor)
+                themeAutoIcon?.setColorFilter(primaryColor)
+                themeAutoText?.setTextColor(primaryColor)
             }
             ThemeManager.THEME_LIGHT -> {
-                binding.themeLightIcon.setColorFilter(primaryColor)
-                binding.themeLightText.setTextColor(primaryColor)
+                themeLightIcon?.setColorFilter(primaryColor)
+                themeLightText?.setTextColor(primaryColor)
             }
             ThemeManager.THEME_DARK -> {
-                binding.themeDarkIcon.setColorFilter(primaryColor)
-                binding.themeDarkText.setTextColor(primaryColor)
+                themeDarkIcon?.setColorFilter(primaryColor)
+                themeDarkText?.setTextColor(primaryColor)
             }
         }
     }
