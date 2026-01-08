@@ -2,7 +2,6 @@ package com.livetvpro.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.appcompat.app.AppCompatDelegate
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.livetvpro.data.models.FavoriteChannel
@@ -22,7 +21,6 @@ class PreferencesManager @Inject constructor(
 
     companion object {
         private const val KEY_FAVORITES = "favorites"
-        private const val KEY_THEME_MODE = "theme_mode" // Changed from boolean to Int
     }
 
     fun getFavorites(): List<FavoriteChannel> {
@@ -38,15 +36,5 @@ class PreferencesManager @Inject constructor(
     fun saveFavorites(favorites: List<FavoriteChannel>) {
         val json = gson.toJson(favorites)
         prefs.edit().putString(KEY_FAVORITES, json).apply()
-    }
-
-    // New method: Get stored mode (Default to System)
-    fun getThemeMode(): Int {
-        return prefs.getInt(KEY_THEME_MODE, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
-    }
-
-    // New method: Save mode
-    fun setThemeMode(mode: Int) {
-        prefs.edit().putInt(KEY_THEME_MODE, mode).apply()
     }
 }
