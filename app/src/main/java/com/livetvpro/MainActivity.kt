@@ -4,14 +4,14 @@ import android.animation.ValueAnimator
 import android.os.Bundle
 import android.view.View
 import android.view.animation.DecelerateInterpolator
-import android.widget.ImageButton
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
 import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
 import com.livetvpro.data.local.PreferencesManager
+import com.livetvpro.data.local.ThemeManager
 import com.livetvpro.databinding.ActivityMainBinding
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -28,6 +28,9 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var preferencesManager: PreferencesManager
     
+    @Inject
+    lateinit var themeManager: ThemeManager
+    
     private var drawerToggle: ActionBarDrawerToggle? = null
     private var isSearchVisible = false
     private var lastSelectedView: View? = null 
@@ -37,66 +40,15 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        try {
-            // APPLY SAVED THEME IMMEDIATELY
-            val savedMode = preferencesManager.getThemeMode()
-            AppCompatDelegate.setDefaultNightMode(savedMode)
-
-            binding = ActivityMainBinding.inflate(layoutInflater)
-            setContentView(binding.root)
-            
-            setupToolbar() 
-            setupDrawer()  
-            setupNavigation()
-            setupSearch()
-            
-            // SETUP THEME TOGGLES
-            setupThemeToggles()
-            
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    private fun setupThemeToggles() {
-        val footer = binding.root.findViewById<View>(R.id.theme_footer)
-        val btnAuto = footer.findViewById<ImageButton>(R.id.btn_theme_auto)
-        val btnLight = footer.findViewById<ImageButton>(R.id.btn_theme_light)
-        val btnDark = footer.findViewById<ImageButton>(R.id.btn_theme_dark)
-
-        // Highlight current
-        updateThemeIcons(preferencesManager.getThemeMode(), btnAuto, btnLight, btnDark)
-
-        btnAuto.setOnClickListener {
-            updateAppTheme(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM, btnAuto, btnLight, btnDark)
-        }
-        btnLight.setOnClickListener {
-            updateAppTheme(AppCompatDelegate.MODE_NIGHT_NO, btnAuto, btnLight, btnDark)
-        }
-        btnDark.setOnClickListener {
-            updateAppTheme(AppCompatDelegate.MODE_NIGHT_YES, btnAuto, btnLight, btnDark)
-        }
-    }
-
-    private fun updateAppTheme(mode: Int, btnAuto: ImageButton, btnLight: ImageButton, btnDark: ImageButton) {
-        preferencesManager.setThemeMode(mode)
-        AppCompatDelegate.setDefaultNightMode(mode)
-        updateThemeIcons(mode, btnAuto, btnLight, btnDark)
-        binding.drawerLayout.closeDrawer(GravityCompat.START)
-    }
-
-    private fun updateThemeIcons(mode: Int, btnAuto: ImageButton, btnLight: ImageButton, btnDark: ImageButton) {
-        // Reset opacity
-        btnAuto.alpha = 0.4f
-        btnLight.alpha = 0.4f
-        btnDark.alpha = 0.4f
-
-        // Highlight selected
-        when (mode) {
-            AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM -> btnAuto.alpha = 1.0f
-            AppCompatDelegate.MODE_NIGHT_NO -> btnLight.alpha = 1.0f
-            AppCompatDelegate.MODE_NIGHT_YES -> btnDark.alpha = 1.0f
-        }
+        themeManager.applyTheme()
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        
+        setupToolbar()
+        setupDrawer()
+        setupNavigation()
+        setupSearch()
+        setupThemeToggle()
     }
 
     private fun setupToolbar() {
@@ -105,31 +57,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupDrawer() {
-        try {
-            drawerToggle = ActionBarDrawerToggle(
-                this,
-                binding.drawerLayout,
-                binding.toolbar,
-                R.string.navigation_drawer_open,
-                R.string.navigation_drawer_close
-            ).apply {
-                isDrawerIndicatorEnabled = true
-                isDrawerSlideAnimationEnabled = true
-                syncState()
-            }
-            
-            drawerToggle?.let {
-                binding.drawerLayout.addDrawerListener(it)
-            }
-            
-        } catch (e: Exception) {
+        drawerToggle = ActionBarDrawerToggle(
+            this,
+            binding.drawerLayout,
+            binding.toolbar,
+            R.string.navigation_drawer_open,
+            R.string.navigation_drawer_close
+        ).apply {
+            isDrawerIndicatorEnabled = true
+            isDrawerSlideAnimationEnabled = true
+            syncState()
+        }
+        
+        drawerToggle?.let {
+            binding.drawerLayout.addDrawerListener(it)
         }
     }
 
     private fun setupNavigation() {
         val navHostFragment = supportFragmentManager
             .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment ?: return
-            
+        
         val navController = navHostFragment.navController
 
         val topLevelDestinations = setOf(
@@ -191,6 +139,7 @@ class MainActivity : AppCompatActivity() {
             
             if (isTopLevel) {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
+                
                 animateNavigationIcon(0f) 
 
                 binding.toolbar.setNavigationOnClickListener {
@@ -208,6 +157,7 @@ class MainActivity : AppCompatActivity() {
 
             } else {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+                
                 animateNavigationIcon(1f)
                 
                 binding.toolbar.setNavigationOnClickListener {
@@ -218,7 +168,7 @@ class MainActivity : AppCompatActivity() {
                     lastSelectedView?.animate()
                         ?.scaleX(1.0f)
                         ?.scaleY(1.0f)
-                        ?.translationY(0f) 
+                        ?.translationY(0f)
                         ?.setDuration(150)
                         ?.start()
                     lastSelectedView = null
@@ -243,13 +193,13 @@ class MainActivity : AppCompatActivity() {
         val initialView = binding.bottomNavigation.findViewById<View>(initialItemId)
 
         if (initialView != null) {
-            val initialX = initialView.x + initialView.width * 0.25f 
-            val initialWidth = initialView.width * 0.5f 
+            val initialX = initialView.x + initialView.width * 0.25f
+            val initialWidth = initialView.width * 0.5f
             
             indicator.translationX = initialX
             indicator.layoutParams.width = initialWidth.toInt()
             indicator.requestLayout()
-            indicator.alpha = 1f 
+            indicator.alpha = 1f
         }
     }
     
@@ -258,7 +208,7 @@ class MainActivity : AppCompatActivity() {
         
         val duration = 300L 
         
-        indicator.alpha = 1f 
+        indicator.alpha = 1f
         
         val targetX = newSelectedView.x + newSelectedView.width * 0.25f 
         val targetWidth = newSelectedView.width * 0.5f 
@@ -286,7 +236,7 @@ class MainActivity : AppCompatActivity() {
         newSelectedView.animate()
             ?.scaleX(1.15f) 
             ?.scaleY(1.15f)
-            ?.translationY(-8f) 
+            ?.translationY(-8f)
             ?.setDuration(duration)
             ?.start()
             
@@ -322,6 +272,88 @@ class MainActivity : AppCompatActivity() {
         
         binding.btnSearchClear.setOnClickListener {
             binding.searchView.setQuery("", false)
+        }
+    }
+
+    private fun setupThemeToggle() {
+        // Find the included layout views using findViewById
+        val themeAutoButton = findViewById<View>(R.id.theme_auto_button)
+        val themeLightButton = findViewById<View>(R.id.theme_light_button)
+        val themeDarkButton = findViewById<View>(R.id.theme_dark_button)
+        
+        val themeAutoIcon = findViewById<android.widget.ImageView>(R.id.theme_auto_icon)
+        val themeLightIcon = findViewById<android.widget.ImageView>(R.id.theme_light_icon)
+        val themeDarkIcon = findViewById<android.widget.ImageView>(R.id.theme_dark_icon)
+        val themeAutoText = findViewById<android.widget.TextView>(R.id.theme_auto_text)
+        val themeLightText = findViewById<android.widget.TextView>(R.id.theme_light_text)
+        val themeDarkText = findViewById<android.widget.TextView>(R.id.theme_dark_text)
+        
+        updateThemeToggleUI(
+            themeManager.getThemeMode(),
+            themeAutoIcon, themeLightIcon, themeDarkIcon,
+            themeAutoText, themeLightText, themeDarkText
+        )
+        
+        themeAutoButton?.setOnClickListener {
+            themeManager.setThemeMode(ThemeManager.THEME_AUTO)
+            updateThemeToggleUI(
+                ThemeManager.THEME_AUTO,
+                themeAutoIcon, themeLightIcon, themeDarkIcon,
+                themeAutoText, themeLightText, themeDarkText
+            )
+        }
+        
+        themeLightButton?.setOnClickListener {
+            themeManager.setThemeMode(ThemeManager.THEME_LIGHT)
+            updateThemeToggleUI(
+                ThemeManager.THEME_LIGHT,
+                themeAutoIcon, themeLightIcon, themeDarkIcon,
+                themeAutoText, themeLightText, themeDarkText
+            )
+        }
+        
+        themeDarkButton?.setOnClickListener {
+            themeManager.setThemeMode(ThemeManager.THEME_DARK)
+            updateThemeToggleUI(
+                ThemeManager.THEME_DARK,
+                themeAutoIcon, themeLightIcon, themeDarkIcon,
+                themeAutoText, themeLightText, themeDarkText
+            )
+        }
+    }
+    
+    private fun updateThemeToggleUI(
+        selectedMode: Int,
+        themeAutoIcon: android.widget.ImageView?,
+        themeLightIcon: android.widget.ImageView?,
+        themeDarkIcon: android.widget.ImageView?,
+        themeAutoText: android.widget.TextView?,
+        themeLightText: android.widget.TextView?,
+        themeDarkText: android.widget.TextView?
+    ) {
+        val primaryColor = ContextCompat.getColor(this, R.color.accent)
+        val normalColor = ContextCompat.getColor(this, R.color.text_secondary_dark)
+        
+        themeAutoIcon?.setColorFilter(normalColor)
+        themeLightIcon?.setColorFilter(normalColor)
+        themeDarkIcon?.setColorFilter(normalColor)
+        themeAutoText?.setTextColor(normalColor)
+        themeLightText?.setTextColor(normalColor)
+        themeDarkText?.setTextColor(normalColor)
+        
+        when (selectedMode) {
+            ThemeManager.THEME_AUTO -> {
+                themeAutoIcon?.setColorFilter(primaryColor)
+                themeAutoText?.setTextColor(primaryColor)
+            }
+            ThemeManager.THEME_LIGHT -> {
+                themeLightIcon?.setColorFilter(primaryColor)
+                themeLightText?.setTextColor(primaryColor)
+            }
+            ThemeManager.THEME_DARK -> {
+                themeDarkIcon?.setColorFilter(primaryColor)
+                themeDarkText?.setTextColor(primaryColor)
+            }
         }
     }
 
