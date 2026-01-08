@@ -149,33 +149,33 @@
                 />
         </FrameLayout>
 
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- Navigation Drawer with Theme Toggle Footer -->
     <LinearLayout
-        android:id="@+id/sidebar_container"
         android:layout_width="wrap_content"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:orientation="vertical"
-        android:background="?attr/colorSurface"
-        android:fitsSystemWindows="true">
+        android:background="?attr/colorSurface">
 
+        <!-- Navigation View -->
         <com.google.android.material.navigation.NavigationView
             android:id="@+id/navigation_view"
-            android:layout_width="280dp"
+            android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
+            android:fitsSystemWindows="true"
             app:headerLayout="@layout/nav_header"
             app:menu="@menu/drawer_menu" />
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="?android:attr/listDivider"/>
-
+        <!-- Theme Toggle Footer -->
         <include 
-            android:id="@+id/theme_footer"
-            layout="@layout/layout_sidebar_footer" />
+            layout="@layout/theme_toggle_footer"
+            android:id="@+id/theme_toggle_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
 
     </LinearLayout>
 
