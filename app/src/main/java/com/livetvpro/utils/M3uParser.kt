@@ -83,10 +83,13 @@ object M3uParser {
                 val item = jsonArray.getJSONObject(i)
                 
                 val name = item.optString("name", "Unknown Channel")
-                val link = item.optString("link", "") 
+                var link = item.optString("link", "") 
                     .ifEmpty { item.optString("url", "") }
                     .ifEmpty { item.optString("stream", "") }
                     .ifEmpty { item.optString("streamUrl", "") }
+                
+                // Decode proxy URLs
+                link = decodeProxyUrl(link)
                 
                 val logo = item.optString("logo", "")
                     .ifEmpty { item.optString("logoUrl", "") }
@@ -163,6 +166,62 @@ object M3uParser {
             // Silent fail
         }
         return channels
+    }
+
+    /**
+     * Decode proxy URLs (e.g., proxysite.com URLs)
+     * Extracts the actual stream URL from proxy wrappers
+     */
+    private fun decodeProxyUrl(url: String): String {
+        if (url.isEmpty()) return url
+        
+        try {
+            // Check if it's a proxy URL
+            if (url.contains("proxysite.com/process.php")) {
+                // Extract the 'd' parameter
+                val dParamMatch = Regex("[?&]d=([^&]+)").find(url)
+                if (dParamMatch != null) {
+                    val encodedUrl = dParamMatch.groupValues[1]
+                    
+                    // URL decode
+                    val decoded = java.net.URLDecoder.decode(encodedUrl, "UTF-8")
+                    
+                    // Base64 decode (proxysite uses base64)
+                    return try {
+                        val base64Decoded = String(Base64.decode(decoded, Base64.DEFAULT))
+                        // Extract URL if it's still wrapped
+                        if (base64Decoded.startsWith("http")) {
+                            base64Decoded
+                        } else {
+                            url // Return original if decoding fails
+                        }
+                    } catch (e: Exception) {
+                        url // Return original if base64 decode fails
+                    }
+                }
+            }
+            
+            // Check for other common proxy patterns
+            if (url.contains("/process.php") && url.contains("d=")) {
+                val dParamMatch = Regex("[?&]d=([^&]+)").find(url)
+                if (dParamMatch != null) {
+                    val encodedUrl = dParamMatch.groupValues[1]
+                    val decoded = java.net.URLDecoder.decode(encodedUrl, "UTF-8")
+                    
+                    return try {
+                        val base64Decoded = String(Base64.decode(decoded, Base64.DEFAULT))
+                        if (base64Decoded.startsWith("http")) base64Decoded else url
+                    } catch (e: Exception) {
+                        url
+                    }
+                }
+            }
+            
+        } catch (e: Exception) {
+            // Return original URL if any error occurs
+        }
+        
+        return url
     }
 
     fun parseM3uContent(content: String): List<M3uChannel> {
