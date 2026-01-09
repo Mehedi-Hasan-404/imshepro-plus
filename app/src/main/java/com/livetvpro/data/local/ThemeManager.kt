@@ -28,7 +28,10 @@ class ThemeManager @Inject constructor(
     }
 
     fun setThemeMode(mode: Int) {
+        // Save to preferences
         prefs.edit().putInt(KEY_THEME_MODE, mode).apply()
+        
+        // Apply theme IMMEDIATELY
         applyTheme(mode)
     }
 
