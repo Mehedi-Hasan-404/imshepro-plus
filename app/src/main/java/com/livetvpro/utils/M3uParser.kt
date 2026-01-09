@@ -164,12 +164,51 @@ object M3uParser {
         if (url.isEmpty()) return url
         
         try {
+            // Proxysite.com format
             if (url.contains("proxysite.com/process.php")) {
                 return decodeProxySiteUrl(url)
             }
             
+            // HideMyAss proxy format
+            if (url.contains("hidemyass.com") || url.contains("hma.com")) {
+                return decodeHMAProxyUrl(url)
+            }
+            
+            // Generic /process.php proxies
             if (url.contains("/process.php") && url.contains("d=")) {
                 return decodeGenericProxyUrl(url)
+            }
+            
+            // KProxy format
+            if (url.contains("kproxy.com")) {
+                return decodeKProxyUrl(url)
+            }
+            
+            // Hide.me format
+            if (url.contains("hide.me/proxy")) {
+                return decodeHideMeProxyUrl(url)
+            }
+            
+            // CroxyProxy format
+            if (url.contains("croxyproxy.com")) {
+                return decodeCroxyProxyUrl(url)
+            }
+            
+            // Generic base64 in URL
+            val base64Pattern = Regex("([?&])(url|u|target|dest|destination|link|redirect|goto)=([A-Za-z0-9+/=_-]{20,})")
+            val base64Match = base64Pattern.find(url)
+            if (base64Match != null) {
+                try {
+                    val encoded = base64Match.groupValues[3]
+                    val decoded = try {
+                        String(Base64.decode(encoded, Base64.URL_SAFE or Base64.NO_WRAP))
+                    } catch (e: Exception) {
+                        String(Base64.decode(encoded, Base64.DEFAULT))
+                    }
+                    if (decoded.startsWith("http", ignoreCase = true)) {
+                        return decoded
+                    }
+                } catch (e: Exception) {}
             }
             
         } catch (e: Exception) {
@@ -217,6 +256,60 @@ object M3uParser {
             } else {
                 url
             }
+        } catch (e: Exception) {
+            return url
+        }
+    }
+    
+    private fun decodeHMAProxyUrl(url: String): String {
+        try {
+            val pattern = Regex("[?&](url|u|target)=([^&]+)")
+            val match = pattern.find(url) ?: return url
+            val encoded = match.groupValues[2]
+            val decoded = java.net.URLDecoder.decode(encoded, "UTF-8")
+            return if (decoded.startsWith("http", ignoreCase = true)) decoded else url
+        } catch (e: Exception) {
+            return url
+        }
+    }
+    
+    private fun decodeKProxyUrl(url: String): String {
+        try {
+            val pattern = Regex("kproxy\\.com/\\?([^&]+)")
+            val match = pattern.find(url) ?: return url
+            val encoded = match.groupValues[1]
+            val decoded = java.net.URLDecoder.decode(encoded, "UTF-8")
+            return if (decoded.startsWith("http", ignoreCase = true)) decoded else url
+        } catch (e: Exception) {
+            return url
+        }
+    }
+    
+    private fun decodeHideMeProxyUrl(url: String): String {
+        try {
+            val pattern = Regex("[?&]u=([^&]+)")
+            val match = pattern.find(url) ?: return url
+            val encoded = match.groupValues[1]
+            
+            val decoded = try {
+                String(Base64.decode(encoded, Base64.URL_SAFE or Base64.NO_WRAP))
+            } catch (e: Exception) {
+                java.net.URLDecoder.decode(encoded, "UTF-8")
+            }
+            
+            return if (decoded.startsWith("http", ignoreCase = true)) decoded else url
+        } catch (e: Exception) {
+            return url
+        }
+    }
+    
+    private fun decodeCroxyProxyUrl(url: String): String {
+        try {
+            val pattern = Regex("croxyproxy\\.com/\\?url=([^&]+)")
+            val match = pattern.find(url) ?: return url
+            val encoded = match.groupValues[1]
+            val decoded = java.net.URLDecoder.decode(encoded, "UTF-8")
+            return if (decoded.startsWith("http", ignoreCase = true)) decoded else url
         } catch (e: Exception) {
             return url
         }
