@@ -456,18 +456,33 @@ object M3uParser {
     }
 
     private fun parseInlineHeadersAndDrm(urlLine: String): Triple<String, Map<String, String>, Triple<String?, String?, String?>> {
-        val pipeIndex = urlLine.indexOf('|')
-        if (pipeIndex == -1) {
-            return Triple(urlLine.trim(), emptyMap(), Triple(null, null, null))
-        }
-        
-        val url = urlLine.substring(0, pipeIndex).trim()
-        val paramsString = urlLine.substring(pipeIndex + 1).trim()
-        
         val headers = mutableMapOf<String, String>()
         var drmScheme: String? = null
         var drmKeyId: String? = null
         var drmKey: String? = null
+        
+        // CRITICAL FIX: Handle JioStar-style embedded cookies in URL parameters
+        // Format: &xxx=%7Ccookie=VALUE where %7C is URL-encoded pipe (|)
+        var cleanUrl = urlLine.trim()
+        
+        // Check for inline cookie in URL parameter (JioStar format)
+        val cookieParamMatch = Regex("[&?]xxx=(%7C|\\|)cookie=([^&]+)").find(cleanUrl)
+        if (cookieParamMatch != null) {
+            val cookieValue = java.net.URLDecoder.decode(cookieParamMatch.groupValues[2], "UTF-8")
+            headers["Cookie"] = cookieValue
+            // Remove the xxx parameter from URL
+            cleanUrl = cleanUrl.replace(cookieParamMatch.value, "")
+            timber.log.Timber.d("Extracted inline cookie from URL: $cookieValue")
+        }
+        
+        // Now check for traditional pipe-separated metadata
+        val pipeIndex = cleanUrl.indexOf('|')
+        if (pipeIndex == -1) {
+            return Triple(cleanUrl, headers, Triple(null, null, null))
+        }
+        
+        val url = cleanUrl.substring(0, pipeIndex).trim()
+        val paramsString = cleanUrl.substring(pipeIndex + 1).trim()
 
         if (paramsString.isNotEmpty()) {
             val parts = paramsString.split(Regex("[&|]"))
@@ -543,13 +558,13 @@ object M3uParser {
     private fun buildStreamUrlWithMetadata(m3u: M3uChannel): String {
         val parts = mutableListOf<String>()
         
-        // Base URL
+        // Base URL (already clean from parseInlineHeadersAndDrm)
         parts.add(m3u.streamUrl)
         
         // User agent
         m3u.userAgent?.let { parts.add("User-Agent=$it") }
         
-        // HTTP headers
+        // HTTP headers (Cookie is now properly extracted)
         m3u.httpHeaders.forEach { (key, value) -> 
             parts.add("$key=$value")
         }
@@ -568,6 +583,11 @@ object M3uParser {
             }
         }
         
-        return parts.joinToString("|")
+        // IMPORTANT: Only use pipe separator if there are metadata parts
+        return if (parts.size > 1) {
+            parts.joinToString("|")
+        } else {
+            parts[0] // Just the URL, no metadata
+        }
     }
 }
