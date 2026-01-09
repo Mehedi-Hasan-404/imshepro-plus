@@ -88,9 +88,6 @@ object M3uParser {
                     .ifEmpty { item.optString("stream", "") }
                     .ifEmpty { item.optString("streamUrl", "") }
                 
-                // Decode proxy URLs
-                link = decodeProxyUrl(link)
-                
                 val logo = item.optString("logo", "")
                     .ifEmpty { item.optString("logoUrl", "") }
                     .ifEmpty { item.optString("icon", "") }
@@ -105,6 +102,22 @@ object M3uParser {
                 val referer = item.optString("referer", null) 
                     ?: item.optString("referrer", null)
                 val origin = item.optString("origin", null)
+                
+                // CRITICAL FIX: Build headers BEFORE decoding proxy URL
+                val headers = mutableMapOf<String, String>()
+                if (cookie.isNotEmpty()) {
+                    headers["Cookie"] = cookie
+                }
+                referer?.let { 
+                    headers["Referer"] = it
+                }
+                origin?.let { 
+                    headers["Origin"] = it
+                }
+                
+                // CRITICAL FIX: Decode proxy URL AFTER extracting headers
+                // This ensures authentication is preserved
+                link = decodeProxyUrl(link)
                 
                 var drmScheme = item.optString("drmScheme", null)
                     ?: item.optString("drm_scheme", null)
@@ -136,17 +149,6 @@ object M3uParser {
                     drmScheme = normalizeDrmScheme(drmScheme)
                 }
                 
-                val headers = mutableMapOf<String, String>()
-                if (cookie.isNotEmpty()) {
-                    headers["Cookie"] = cookie
-                }
-                referer?.let { 
-                    headers["Referer"] = it
-                }
-                origin?.let { 
-                    headers["Origin"] = it
-                }
-                
                 if (link.isNotEmpty()) {
                     channels.add(M3uChannel(
                         name = name,
@@ -163,65 +165,92 @@ object M3uParser {
             }
             
         } catch (e: Exception) {
-            // Silent fail
+            timber.log.Timber.e(e, "Error parsing JSON playlist")
         }
         return channels
     }
 
     /**
-     * Decode proxy URLs (e.g., proxysite.com URLs)
-     * Extracts the actual stream URL from proxy wrappers
+     * IMPROVED: Decode proxy URLs with better error handling
      */
     private fun decodeProxyUrl(url: String): String {
         if (url.isEmpty()) return url
         
         try {
-            // Check if it's a proxy URL
+            // Check for proxysite.com URLs
             if (url.contains("proxysite.com/process.php")) {
-                // Extract the 'd' parameter
-                val dParamMatch = Regex("[?&]d=([^&]+)").find(url)
-                if (dParamMatch != null) {
-                    val encodedUrl = dParamMatch.groupValues[1]
-                    
-                    // URL decode
-                    val decoded = java.net.URLDecoder.decode(encodedUrl, "UTF-8")
-                    
-                    // Base64 decode (proxysite uses base64)
-                    return try {
-                        val base64Decoded = String(Base64.decode(decoded, Base64.DEFAULT))
-                        // Extract URL if it's still wrapped
-                        if (base64Decoded.startsWith("http")) {
-                            base64Decoded
-                        } else {
-                            url // Return original if decoding fails
-                        }
-                    } catch (e: Exception) {
-                        url // Return original if base64 decode fails
-                    }
-                }
+                return decodeProxySiteUrl(url)
             }
             
-            // Check for other common proxy patterns
+            // Check for other proxy patterns
             if (url.contains("/process.php") && url.contains("d=")) {
-                val dParamMatch = Regex("[?&]d=([^&]+)").find(url)
-                if (dParamMatch != null) {
-                    val encodedUrl = dParamMatch.groupValues[1]
-                    val decoded = java.net.URLDecoder.decode(encodedUrl, "UTF-8")
-                    
-                    return try {
-                        val base64Decoded = String(Base64.decode(decoded, Base64.DEFAULT))
-                        if (base64Decoded.startsWith("http")) base64Decoded else url
-                    } catch (e: Exception) {
-                        url
-                    }
-                }
+                return decodeGenericProxyUrl(url)
             }
             
         } catch (e: Exception) {
-            // Return original URL if any error occurs
+            timber.log.Timber.e(e, "Error decoding proxy URL: $url")
         }
         
         return url
+    }
+    
+    /**
+     * NEW: Dedicated proxysite.com decoder
+     */
+    private fun decodeProxySiteUrl(url: String): String {
+        try {
+            // Extract the 'd' parameter
+            val dParamMatch = Regex("[?&]d=([^&]+)").find(url) ?: return url
+            val encodedUrl = dParamMatch.groupValues[1]
+            
+            // URL decode
+            val urlDecoded = java.net.URLDecoder.decode(encodedUrl, "UTF-8")
+            
+            // Base64 decode (proxysite uses URL-safe base64)
+            val base64Decoded = try {
+                String(Base64.decode(urlDecoded, Base64.URL_SAFE or Base64.NO_WRAP))
+            } catch (e: Exception) {
+                // Try standard base64 if URL-safe fails
+                String(Base64.decode(urlDecoded, Base64.DEFAULT))
+            }
+            
+            // Extract URL if it starts with http
+            return if (base64Decoded.startsWith("http", ignoreCase = true)) {
+                timber.log.Timber.d("Decoded proxysite URL: $base64Decoded")
+                base64Decoded
+            } else {
+                timber.log.Timber.w("Decoded value doesn't look like URL: $base64Decoded")
+                url // Return original if decode doesn't look valid
+            }
+        } catch (e: Exception) {
+            timber.log.Timber.e(e, "Failed to decode proxysite URL")
+            return url
+        }
+    }
+    
+    /**
+     * NEW: Generic proxy decoder for other proxy services
+     */
+    private fun decodeGenericProxyUrl(url: String): String {
+        try {
+            val dParamMatch = Regex("[?&]d=([^&]+)").find(url) ?: return url
+            val encodedUrl = dParamMatch.groupValues[1]
+            val decoded = java.net.URLDecoder.decode(encodedUrl, "UTF-8")
+            
+            val base64Decoded = try {
+                String(Base64.decode(decoded, Base64.URL_SAFE or Base64.NO_WRAP))
+            } catch (e: Exception) {
+                String(Base64.decode(decoded, Base64.DEFAULT))
+            }
+            
+            return if (base64Decoded.startsWith("http", ignoreCase = true)) {
+                base64Decoded
+            } else {
+                url
+            }
+        } catch (e: Exception) {
+            return url
+        }
     }
 
     fun parseM3uContent(content: String): List<M3uChannel> {
@@ -315,7 +344,7 @@ object M3uParser {
                             }
                         }
                     } catch (e: Exception) {
-                        // Silent fail
+                        timber.log.Timber.e(e, "Error parsing EXTHTTP")
                     }
                 }
                 
