@@ -2,11 +2,8 @@ package com.livetvpro.utils
 
 import android.util.Base64
 import com.livetvpro.data.models.Channel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import timber.log.Timber
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
@@ -29,13 +26,9 @@ object M3uParser {
 
     suspend fun parseM3uFromUrl(m3uUrl: String): List<M3uChannel> {
         return try {
-            Timber.d("📥 FETCHING M3U FROM: $m3uUrl")
-            
             val trimmedUrl = m3uUrl.trim()
             
-            // Check if it's JSON format (starts with [ or {)
             if (trimmedUrl.startsWith("[") || trimmedUrl.startsWith("{")) {
-                Timber.d("✅ Direct JSON content detected")
                 return parseJsonPlaylist(trimmedUrl)
             }
             
@@ -54,71 +47,54 @@ object M3uParser {
 
                 val trimmedContent = content.trim()
                 
-                // Check if fetched content is JSON
                 if (trimmedContent.startsWith("[") || trimmedContent.startsWith("{")) {
-                    Timber.d("✅ JSON content detected from URL")
                     return parseJsonPlaylist(trimmedContent)
                 }
 
-                // Otherwise parse as M3U
                 parseM3uContent(content)
             } else {
-                Timber.e("❌ Failed to fetch M3U: HTTP ${connection.responseCode}")
                 emptyList()
             }
         } catch (e: Exception) {
-            Timber.e(e, "❌ Error parsing M3U from URL")
             emptyList()
         }
     }
 
-    /**
-     * Parse JSON playlist format
-     * Supports formats:
-     * 1. Array of objects with: name, link, logo, cookie, user-agent, referer, origin, category
-     * 2. Object with channels array
-     */
     fun parseJsonPlaylist(jsonContent: String): List<M3uChannel> {
         val channels = mutableListOf<M3uChannel>()
         try {
-            Timber.d("╔═══════════════════════════════════════════════════════╗")
-            Timber.d("              🔍 PARSING JSON PLAYLIST")
-            Timber.d("╚═══════════════════════════════════════════════════════╝")
-            
             val trimmed = jsonContent.trim()
             
-            // Determine if it's an array or object
             val jsonArray = if (trimmed.startsWith("[")) {
                 JSONArray(trimmed)
             } else if (trimmed.startsWith("{")) {
                 val jsonObject = JSONObject(trimmed)
-                // Try to find an array within the object
                 when {
                     jsonObject.has("channels") -> jsonObject.getJSONArray("channels")
                     jsonObject.has("items") -> jsonObject.getJSONArray("items")
                     jsonObject.has("data") -> jsonObject.getJSONArray("data")
-                    else -> {
-                        Timber.e("❌ JSON object doesn't contain channels array")
-                        return emptyList()
-                    }
+                    else -> return emptyList()
                 }
             } else {
-                Timber.e("❌ Invalid JSON format")
                 return emptyList()
             }
-            
-            Timber.d("📊 Found ${jsonArray.length()} channels in JSON")
             
             for (i in 0 until jsonArray.length()) {
                 val item = jsonArray.getJSONObject(i)
                 
-                // Extract basic info
                 val name = item.optString("name", "Unknown Channel")
-                val link = item.optString("link", "")
-                val logo = item.optString("logo", "")
-                val category = item.optString("category", "")
+                val link = item.optString("link", "") 
+                    .ifEmpty { item.optString("url", "") }
+                    .ifEmpty { item.optString("stream", "") }
+                    .ifEmpty { item.optString("streamUrl", "") }
                 
-                // Extract headers
+                val logo = item.optString("logo", "")
+                    .ifEmpty { item.optString("logoUrl", "") }
+                    .ifEmpty { item.optString("icon", "") }
+                
+                val category = item.optString("category", "")
+                    .ifEmpty { item.optString("group", "") }
+                
                 val cookie = item.optString("cookie", "")
                 val userAgent = item.optString("user-agent", null) 
                     ?: item.optString("user_agent", null)
@@ -127,53 +103,64 @@ object M3uParser {
                     ?: item.optString("referrer", null)
                 val origin = item.optString("origin", null)
                 
-                // Build headers map
+                var drmScheme = item.optString("drmScheme", null)
+                    ?: item.optString("drm_scheme", null)
+                    ?: item.optString("drm", null)
+                
+                var drmKeyId: String? = null
+                var drmKey: String? = null
+                
+                val drmLicense = item.optString("drmLicense", null)
+                    ?: item.optString("drm_license", null)
+                    ?: item.optString("license", null)
+                
+                if (drmLicense != null && drmLicense.isNotEmpty()) {
+                    if (drmLicense.startsWith("http://", ignoreCase = true) || 
+                        drmLicense.startsWith("https://", ignoreCase = true)) {
+                        drmKeyId = drmLicense
+                        drmKey = "LICENSE_URL"
+                    } 
+                    else if (drmLicense.contains(":")) {
+                        val parts = drmLicense.split(":", limit = 2)
+                        if (parts.size == 2) {
+                            drmKeyId = parts[0].trim()
+                            drmKey = parts[1].trim()
+                        }
+                    }
+                }
+                
+                if (drmScheme != null) {
+                    drmScheme = normalizeDrmScheme(drmScheme)
+                }
+                
                 val headers = mutableMapOf<String, String>()
                 if (cookie.isNotEmpty()) {
                     headers["Cookie"] = cookie
-                    Timber.d("   🍪 Cookie: ${cookie.take(40)}...")
                 }
                 referer?.let { 
                     headers["Referer"] = it
-                    Timber.d("   🌐 Referer: ${it.take(40)}...")
                 }
                 origin?.let { 
                     headers["Origin"] = it
-                    Timber.d("   🌐 Origin: $it")
                 }
                 
                 if (link.isNotEmpty()) {
-                    Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                    Timber.d("${i + 1}. $name")
-                    if (category.isNotEmpty()) Timber.d("   📁 Category: $category")
-                    if (userAgent != null) Timber.d("   🖥️ User-Agent: ${userAgent.take(30)}...")
-                    if (headers.isNotEmpty()) Timber.d("   📦 Headers: ${headers.keys.joinToString(", ")}")
-                    Timber.d("   📍 URL: ${link.take(60)}...")
-                    
                     channels.add(M3uChannel(
                         name = name,
                         logoUrl = logo,
                         streamUrl = link,
                         groupTitle = category,
                         userAgent = userAgent,
-                        httpHeaders = headers
+                        httpHeaders = headers,
+                        drmScheme = drmScheme,
+                        drmKeyId = drmKeyId,
+                        drmKey = drmKey
                     ))
-                } else {
-                    Timber.w("⚠️ Skipping channel '$name' - no link provided")
                 }
             }
             
-            Timber.d("╔═══════════════════════════════════════════════════════╗")
-            Timber.d("📊 JSON PARSING SUMMARY")
-            Timber.d("   Total channels: ${channels.size}")
-            Timber.d("   With cookies: ${channels.count { it.httpHeaders.containsKey("Cookie") }}")
-            Timber.d("   With User-Agent: ${channels.count { it.userAgent != null }}")
-            Timber.d("   With headers: ${channels.count { it.httpHeaders.isNotEmpty() }}")
-            Timber.d("╚═══════════════════════════════════════════════════════╝")
-            
         } catch (e: Exception) {
-            Timber.e(e, "❌ Error parsing JSON playlist")
-            Timber.e("   Content preview: ${jsonContent.take(200)}")
+            // Silent fail
         }
         return channels
     }
@@ -193,21 +180,15 @@ object M3uParser {
         var currentDrmKeyId: String? = null
         var currentDrmKey: String? = null
 
-        Timber.d("╔═══════════════════════════════════════════════════════╗")
-        Timber.d("              📡 PARSING M3U CONTENT")
-        Timber.d("╚═══════════════════════════════════════════════════════╝")
-
         for (line in lines) {
             val trimmedLine = line.trim()
             if (trimmedLine.isEmpty()) continue
             if (trimmedLine.startsWith("#EXTM3U")) continue
 
             when {
-                // DRM Parsing (KODIPROP)
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_type=") -> {
                     val rawScheme = trimmedLine.substringAfter("=").trim().lowercase()
                     currentDrmScheme = normalizeDrmScheme(rawScheme)
-                    Timber.d("🔐 DRM Scheme: $currentDrmScheme")
                 }
                 
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_key=") -> {
@@ -218,14 +199,12 @@ object M3uParser {
                         keyValue.startsWith("https://", ignoreCase = true) -> {
                             currentDrmKeyId = keyValue
                             currentDrmKey = "LICENSE_URL"
-                            Timber.d("🌐 DRM License URL: ${keyValue.take(60)}...")
                         }
                         keyValue.contains(":") && !keyValue.startsWith("{") -> {
                             val parts = keyValue.split(":", limit = 2)
                             if (parts.size == 2) {
                                 currentDrmKeyId = parts[0].trim()
                                 currentDrmKey = parts[1].trim()
-                                Timber.d("🔑 DRM Keys: KeyID=${currentDrmKeyId?.take(16)}...")
                             }
                         }
                         keyValue.startsWith("{") -> {
@@ -233,7 +212,6 @@ object M3uParser {
                             if (keyId != null && key != null) {
                                 currentDrmKeyId = keyId
                                 currentDrmKey = key
-                                Timber.d("🔑 DRM Keys (JWK): KeyID=${keyId.take(16)}...")
                             }
                         }
                     }
@@ -246,15 +224,10 @@ object M3uParser {
                     currentName = extractChannelName(trimmedLine)
                     currentLogo = extractAttribute(trimmedLine, "tvg-logo")
                     currentGroup = extractAttribute(trimmedLine, "group-title")
-                    
-                    Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                    Timber.d("📺 Channel: $currentName")
                 }
                 
-                // Custom Header Parsing (VLC options)
                 trimmedLine.startsWith("#EXTVLCOPT:http-user-agent=") -> {
                     currentUserAgent = trimmedLine.substringAfter("=").trim()
-                    Timber.d("   🖥️ User-Agent: ${currentUserAgent?.take(40)}...")
                 }
                 
                 trimmedLine.startsWith("#EXTVLCOPT:http-origin=") -> {
@@ -265,7 +238,6 @@ object M3uParser {
                     currentHeaders["Referer"] = trimmedLine.substringAfter("=").trim()
                 }
 
-                // Parse #EXTHTTP JSON format
                 trimmedLine.startsWith("#EXTHTTP:") -> {
                     try {
                         val jsonPart = trimmedLine.substringAfter("#EXTHTTP:").trim()
@@ -284,7 +256,7 @@ object M3uParser {
                             }
                         }
                     } catch (e: Exception) {
-                        Timber.e(e, "❌ Error parsing #EXTHTTP")
+                        // Silent fail
                     }
                 }
                 
@@ -311,10 +283,6 @@ object M3uParser {
                             drmKey = finalDrmKey
                         ))
                         
-                        if (finalHeaders.isNotEmpty()) {
-                            Timber.d("   📦 Final Headers: ${finalHeaders.keys.joinToString(", ")}")
-                        }
-                        
                         currentDrmScheme = null
                         currentDrmKeyId = null
                         currentDrmKey = null
@@ -322,13 +290,6 @@ object M3uParser {
                 }
             }
         }
-        
-        Timber.d("╔═══════════════════════════════════════════════════════╗")
-        Timber.d("📊 M3U PARSING SUMMARY")
-        Timber.d("   Total channels: ${channels.size}")
-        Timber.d("   With DRM: ${channels.count { it.drmScheme != null }}")
-        Timber.d("   With headers: ${channels.count { it.httpHeaders.isNotEmpty() }}")
-        Timber.d("╚═══════════════════════════════════════════════════════╝")
         
         return channels
     }
@@ -384,7 +345,6 @@ object M3uParser {
                 null to null
             }
         } catch (e: Exception) {
-            Timber.e(e, "❌ Failed to parse JWK")
             null to null
         }
     }
@@ -403,7 +363,6 @@ object M3uParser {
             
             bytes.joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
-            Timber.e(e, "❌ Failed to convert base64url to hex")
             ""
         }
     }
@@ -479,23 +438,8 @@ object M3uParser {
         categoryId: String,
         categoryName: String
     ): List<Channel> {
-        Timber.d("╔═══════════════════════════════════════════════════════╗")
-        Timber.d("   🔄 CONVERTING TO CHANNELS")
-        Timber.d("╚═══════════════════════════════════════════════════════╝")
-        
-        return m3uChannels.mapIndexed { index, m3u ->
+        return m3uChannels.map { m3u ->
             val metaUrl = buildStreamUrlWithMetadata(m3u)
-            
-            Timber.d("${index + 1}. ${m3u.name}")
-            if (m3u.drmScheme != null) {
-                Timber.d("   🔐 DRM: ${m3u.drmScheme}")
-            }
-            if (m3u.httpHeaders.isNotEmpty()) {
-                Timber.d("   📦 Headers: ${m3u.httpHeaders.keys.joinToString(", ")}")
-            }
-            if (m3u.userAgent != null) {
-                Timber.d("   🖥️ User-Agent: ${m3u.userAgent.take(30)}...")
-            }
             
             Channel(
                 id = generateChannelId(m3u.streamUrl, m3u.name),
