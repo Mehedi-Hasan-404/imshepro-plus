@@ -1,10 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Refined Dark Theme Icon - Crescent Moon -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    
+    <!-- Crescent moon - smooth curved shape -->
     <path
+        android:pathData="M21.5,13.5 C20.4,16.8 17.3,19.2 13.7,19.5 C9.1,20 5,16.5 4.5,11.9 C4.1,8.3 6,5 9.3,3.5 C8.2,5.1 7.5,7.1 7.5,9.2 C7.5,13.9 11.1,17.7 15.8,17.9 C17.9,18 19.9,17.3 21.5,16 L21.5,13.5 Z"
+        android:fillColor="#FFFFFF" />
+    
+    <!-- Small star accent (optional) -->
+    <circle
+        android:cx="18"
+        android:cy="7"
+        android:radius="1"
         android:fillColor="#FFFFFF"
-        android:pathData="M12,3c-4.97,0 -9,4.03 -9,9s4.03,9 9,9 9,-4.03 9,-9c0,-0.46 -0.04,-0.92 -0.1,-1.36 -0.98,1.37 -2.58,2.26 -4.4,2.26 -2.98,0 -5.4,-2.42 -5.4,-5.4 0,-1.81 0.89,-3.42 2.26,-4.4 -0.44,-0.06 -0.9,-0.1 -1.36,-0.1z" />
+        android:alpha="0.8" />
+    <circle
+        android:cx="20"
+        android:cy="9.5"
+        android:radius="0.7"
+        android:fillColor="#FFFFFF"
+        android:alpha="0.6" />
 </vector>
