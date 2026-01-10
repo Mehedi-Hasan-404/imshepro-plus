@@ -305,9 +305,6 @@ class MainActivity : AppCompatActivity() {
                     themeAutoText, themeLightText, themeDarkText,
                     animated = true
                 )
-                binding.drawerLayout.postDelayed({
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                }, 150)
             }
         }
         
@@ -321,9 +318,6 @@ class MainActivity : AppCompatActivity() {
                     themeAutoText, themeLightText, themeDarkText,
                     animated = true
                 )
-                binding.drawerLayout.postDelayed({
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                }, 150)
             }
         }
         
@@ -337,9 +331,6 @@ class MainActivity : AppCompatActivity() {
                     themeAutoText, themeLightText, themeDarkText,
                     animated = true
                 )
-                binding.drawerLayout.postDelayed({
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                }, 150)
             }
         }
     }
