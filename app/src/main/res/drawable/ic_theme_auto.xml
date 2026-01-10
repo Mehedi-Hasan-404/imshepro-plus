@@ -1,37 +1,37 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- Refined Auto Theme Icon - Half Sun/Half Moon -->
+ <?xml version="1.0" encoding="utf-8"?>
+
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
     
-    <!-- Outer circle border -->
+ 
     <path
         android:pathData="M12,4 A8,8 0,1,1 12,20 A8,8 0,1,1 12,4 Z"
         android:strokeWidth="1.5"
         android:strokeColor="#FFFFFF"
         android:fillColor="#00000000" />
     
-    <!-- Left half - Sun (filled) -->
+    
     <path
         android:pathData="M12,4 A8,8 0,0,1 12,20 L12,12 Z"
         android:fillColor="#FFFFFF" />
     
-    <!-- Right half - Moon (outline only) -->
+    
     <path
         android:pathData="M12,4 L12,20"
         android:strokeWidth="1.5"
         android:strokeColor="#FFFFFF" />
     
-    <!-- Small sun rays on left side -->
+    
     <path
         android:pathData="M4,12 L2,12 M6.34,6.34 L5.05,5.05 M6.34,17.66 L5.05,18.95 M12,2 L12,3.5"
         android:strokeWidth="1.2"
         android:strokeColor="#FFFFFF"
         android:strokeLineCap="round" />
     
-    <!-- Small moon crater dots on right side -->
+    
     <circle
         android:cx="15.5"
         android:cy="10"
