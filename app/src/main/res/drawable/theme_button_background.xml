@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Individual theme button background with ripple effect -->
+
 <ripple xmlns:android="http://schemas.android.com/apk/res/android"
     android:color="#30FFFFFF">
     <item>
