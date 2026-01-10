@@ -1,9 +1,10 @@
 package com.livetvpro
 
+import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
 import android.os.Bundle
 import android.view.View
-import android.view.animation.DecelerateInterpolator
+import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -276,7 +277,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupThemeToggle() {
-        // Find the included layout views using findViewById
         val themeAutoButton = findViewById<View>(R.id.theme_auto_button)
         val themeLightButton = findViewById<View>(R.id.theme_light_button)
         val themeDarkButton = findViewById<View>(R.id.theme_dark_button)
@@ -291,34 +291,56 @@ class MainActivity : AppCompatActivity() {
         updateThemeToggleUI(
             themeManager.getThemeMode(),
             themeAutoIcon, themeLightIcon, themeDarkIcon,
-            themeAutoText, themeLightText, themeDarkText
+            themeAutoText, themeLightText, themeDarkText,
+            animated = false
         )
         
         themeAutoButton?.setOnClickListener {
-            themeManager.setThemeMode(ThemeManager.THEME_AUTO)
-            updateThemeToggleUI(
-                ThemeManager.THEME_AUTO,
-                themeAutoIcon, themeLightIcon, themeDarkIcon,
-                themeAutoText, themeLightText, themeDarkText
-            )
+            if (themeManager.getThemeMode() != ThemeManager.THEME_AUTO) {
+                animateButtonPress(themeAutoButton)
+                themeManager.setThemeMode(ThemeManager.THEME_AUTO)
+                updateThemeToggleUI(
+                    ThemeManager.THEME_AUTO,
+                    themeAutoIcon, themeLightIcon, themeDarkIcon,
+                    themeAutoText, themeLightText, themeDarkText,
+                    animated = true
+                )
+                binding.drawerLayout.postDelayed({
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                }, 150)
+            }
         }
         
         themeLightButton?.setOnClickListener {
-            themeManager.setThemeMode(ThemeManager.THEME_LIGHT)
-            updateThemeToggleUI(
-                ThemeManager.THEME_LIGHT,
-                themeAutoIcon, themeLightIcon, themeDarkIcon,
-                themeAutoText, themeLightText, themeDarkText
-            )
+            if (themeManager.getThemeMode() != ThemeManager.THEME_LIGHT) {
+                animateButtonPress(themeLightButton)
+                themeManager.setThemeMode(ThemeManager.THEME_LIGHT)
+                updateThemeToggleUI(
+                    ThemeManager.THEME_LIGHT,
+                    themeAutoIcon, themeLightIcon, themeDarkIcon,
+                    themeAutoText, themeLightText, themeDarkText,
+                    animated = true
+                )
+                binding.drawerLayout.postDelayed({
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                }, 150)
+            }
         }
         
         themeDarkButton?.setOnClickListener {
-            themeManager.setThemeMode(ThemeManager.THEME_DARK)
-            updateThemeToggleUI(
-                ThemeManager.THEME_DARK,
-                themeAutoIcon, themeLightIcon, themeDarkIcon,
-                themeAutoText, themeLightText, themeDarkText
-            )
+            if (themeManager.getThemeMode() != ThemeManager.THEME_DARK) {
+                animateButtonPress(themeDarkButton)
+                themeManager.setThemeMode(ThemeManager.THEME_DARK)
+                updateThemeToggleUI(
+                    ThemeManager.THEME_DARK,
+                    themeAutoIcon, themeLightIcon, themeDarkIcon,
+                    themeAutoText, themeLightText, themeDarkText,
+                    animated = true
+                )
+                binding.drawerLayout.postDelayed({
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                }, 150)
+            }
         }
     }
     
@@ -329,32 +351,102 @@ class MainActivity : AppCompatActivity() {
         themeDarkIcon: android.widget.ImageView?,
         themeAutoText: android.widget.TextView?,
         themeLightText: android.widget.TextView?,
-        themeDarkText: android.widget.TextView?
+        themeDarkText: android.widget.TextView?,
+        animated: Boolean = true
     ) {
         val primaryColor = ContextCompat.getColor(this, R.color.accent)
         val normalColor = ContextCompat.getColor(this, R.color.text_secondary_dark)
+        val selectedBg = ContextCompat.getDrawable(this, R.drawable.theme_button_selected)
+        val normalBg = ContextCompat.getDrawable(this, R.drawable.theme_button_background)
         
-        themeAutoIcon?.setColorFilter(normalColor)
-        themeLightIcon?.setColorFilter(normalColor)
-        themeDarkIcon?.setColorFilter(normalColor)
-        themeAutoText?.setTextColor(normalColor)
-        themeLightText?.setTextColor(normalColor)
-        themeDarkText?.setTextColor(normalColor)
+        val duration = if (animated) 200L else 0L
+        
+        val themeAutoButton = findViewById<View>(R.id.theme_auto_button)
+        val themeLightButton = findViewById<View>(R.id.theme_light_button)
+        val themeDarkButton = findViewById<View>(R.id.theme_dark_button)
+        
+        fun animateColorChange(
+            icon: android.widget.ImageView?, 
+            text: android.widget.TextView?, 
+            button: View?,
+            toColor: Int,
+            isSelected: Boolean
+        ) {
+            if (animated) {
+                val currentIconColor = icon?.imageTintList?.defaultColor ?: normalColor
+                val currentTextColor = text?.currentTextColor ?: normalColor
+                
+                icon?.let {
+                    ValueAnimator.ofObject(ArgbEvaluator(), currentIconColor, toColor).apply {
+                        this.duration = duration
+                        addUpdateListener { animator ->
+                            it.setColorFilter(animator.animatedValue as Int)
+                        }
+                        start()
+                    }
+                }
+                
+                text?.let {
+                    ValueAnimator.ofObject(ArgbEvaluator(), currentTextColor, toColor).apply {
+                        this.duration = duration
+                        addUpdateListener { animator ->
+                            it.setTextColor(animator.animatedValue as Int)
+                        }
+                        start()
+                    }
+                }
+                
+                button?.let {
+                    if (isSelected) {
+                        it.alpha = 0.7f
+                        it.background = selectedBg
+                        it.animate().alpha(1f).setDuration(duration).start()
+                    } else {
+                        it.animate().alpha(0.7f).setDuration(duration).withEndAction {
+                            it.background = normalBg
+                            it.alpha = 1f
+                        }.start()
+                    }
+                }
+            } else {
+                icon?.setColorFilter(toColor)
+                text?.setTextColor(toColor)
+                button?.background = if (isSelected) selectedBg else normalBg
+            }
+        }
+        
+        animateColorChange(themeAutoIcon, themeAutoText, themeAutoButton, normalColor, false)
+        animateColorChange(themeLightIcon, themeLightText, themeLightButton, normalColor, false)
+        animateColorChange(themeDarkIcon, themeDarkText, themeDarkButton, normalColor, false)
         
         when (selectedMode) {
             ThemeManager.THEME_AUTO -> {
-                themeAutoIcon?.setColorFilter(primaryColor)
-                themeAutoText?.setTextColor(primaryColor)
+                animateColorChange(themeAutoIcon, themeAutoText, themeAutoButton, primaryColor, true)
             }
             ThemeManager.THEME_LIGHT -> {
-                themeLightIcon?.setColorFilter(primaryColor)
-                themeLightText?.setTextColor(primaryColor)
+                animateColorChange(themeLightIcon, themeLightText, themeLightButton, primaryColor, true)
             }
             ThemeManager.THEME_DARK -> {
-                themeDarkIcon?.setColorFilter(primaryColor)
-                themeDarkText?.setTextColor(primaryColor)
+                animateColorChange(themeDarkIcon, themeDarkText, themeDarkButton, primaryColor, true)
             }
         }
+    }
+
+    private fun animateButtonPress(view: View) {
+        view.animate()
+            .scaleX(0.92f)
+            .scaleY(0.92f)
+            .setDuration(100)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                view.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(100)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .start()
+            }
+            .start()
     }
 
     private fun showSearch() {
@@ -419,7 +511,7 @@ class MainActivity : AppCompatActivity() {
             val slideOffset = valueAnimator.animatedValue as Float
             drawerToggle?.drawerArrowDrawable?.progress = slideOffset
         }
-        animator.interpolator = DecelerateInterpolator()
+        animator.interpolator = android.view.animation.DecelerateInterpolator()
         animator.duration = 300
         animator.start()
     }
