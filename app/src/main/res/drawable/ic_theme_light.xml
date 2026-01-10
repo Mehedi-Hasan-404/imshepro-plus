@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Refined Light Theme Icon - Sun with Rays -->
+
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
     
-    <!-- Center sun circle -->
+    
     <path
         android:pathData="M12,8 A4,4 0,1,1 12,16 A4,4 0,1,1 12,8 Z"
         android:fillColor="#FFFFFF" />
     
-    <!-- Sun rays (8 rays in circle) -->
+    
     <path
         android:pathData="M12,2 L12,5 M12,19 L12,22 M2,12 L5,12 M19,12 L22,12 M4.93,4.93 L7.05,7.05 M16.95,16.95 L19.07,19.07 M4.93,19.07 L7.05,16.95 M16.95,7.05 L19.07,4.93"
         android:strokeWidth="2"
