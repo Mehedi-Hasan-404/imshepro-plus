@@ -2,6 +2,7 @@ package com.livetvpro.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -9,7 +10,7 @@ import javax.inject.Singleton
 
 @Singleton
 class ThemeManager @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext private val context: Context
 ) {
     private val prefs: SharedPreferences = context.getSharedPreferences(
         "live_tv_pro_prefs",
@@ -28,11 +29,9 @@ class ThemeManager @Inject constructor(
     }
 
     fun setThemeMode(mode: Int) {
-        
         prefs.edit().putInt(KEY_THEME_MODE, mode).apply()
-        
-        
         applyTheme(mode)
+        recreateActivity()
     }
 
     fun applyTheme(mode: Int = getThemeMode()) {
@@ -40,6 +39,14 @@ class ThemeManager @Inject constructor(
             THEME_AUTO -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
             THEME_LIGHT -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
             THEME_DARK -> AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        }
+    }
+
+    private fun recreateActivity() {
+        try {
+            val activity = context as? AppCompatActivity
+            activity?.recreate()
+        } catch (e: Exception) {
         }
     }
 }
