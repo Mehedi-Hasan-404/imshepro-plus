@@ -9,14 +9,14 @@
     android:paddingStart="20dp"
     android:paddingEnd="20dp">
 
-    <!-- Divider -->
+    
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#2A2A2A"
         android:layout_marginBottom="18dp" />
-
-    <!-- Theme Label -->
+    
+    
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -29,7 +29,7 @@
         android:layout_marginStart="2dp"
         android:alpha="0.85" />
 
-    <!-- Theme Toggle Buttons Container with rounded background -->
+    
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -40,7 +40,7 @@
         android:paddingStart="4dp"
         android:paddingEnd="4dp">
 
-        <!-- Auto Button -->
+        
         <LinearLayout
             android:id="@+id/theme_auto_button"
             android:layout_width="0dp"
@@ -76,7 +76,7 @@
                 android:layout_marginTop="7dp" />
         </LinearLayout>
 
-        <!-- Light Button -->
+    
         <LinearLayout
             android:id="@+id/theme_light_button"
             android:layout_width="0dp"
@@ -113,7 +113,7 @@
                 android:layout_marginTop="7dp" />
         </LinearLayout>
 
-        <!-- Dark Button -->
+        
         <LinearLayout
             android:id="@+id/theme_dark_button"
             android:layout_width="0dp"
