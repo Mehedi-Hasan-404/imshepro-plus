@@ -61,11 +61,12 @@ class PlayerViewModel @Inject constructor(
                 }
 
                 val currentIndex = allChannels.indexOfFirst { it.id == currentChannelId }
+                val targetCount = 9 
                 
                 val related = if (currentIndex != -1) {
+                    val relatedList = mutableListOf<Channel>()
                     val beforeCount = 4
                     val afterCount = 5
-                    val relatedList = mutableListOf<Channel>()
                     
                     val beforeStart = maxOf(0, currentIndex - beforeCount)
                     for (i in beforeStart until currentIndex) {
@@ -77,16 +78,16 @@ class PlayerViewModel @Inject constructor(
                         if (allChannels[i].id != currentChannelId) relatedList.add(allChannels[i])
                     }
                     
-                    if (relatedList.size < 9 && availableChannels.size > relatedList.size) {
+                    if (relatedList.size < targetCount && availableChannels.size > relatedList.size) {
                         val extra = availableChannels
                             .filter { it !in relatedList }
                             .shuffled()
-                            .take(9 - relatedList.size)
+                            .take(targetCount - relatedList.size)
                         relatedList.addAll(extra)
                     }
-                    relatedList.take(9)
+                    relatedList
                 } else {
-                    availableChannels.shuffled().take(9)
+                    availableChannels.shuffled().take(targetCount)
                 }
                 
                 _relatedItems.postValue(related)
