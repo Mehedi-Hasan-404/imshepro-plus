@@ -152,14 +152,14 @@ class PlayerActivity : AppCompatActivity() {
 
         fun startWithChannel(context: Context, channel: Channel) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
-                putExtra(EXTRA_CHANNEL, channel)
+                putExtra(EXTRA_CHANNEL, channel as Parcelable)
             }
             context.startActivity(intent)
         }
 
         fun startWithEvent(context: Context, event: LiveEvent) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
-                putExtra(EXTRA_EVENT, event)
+                putExtra(EXTRA_EVENT, event as Parcelable)
             }
             context.startActivity(intent)
         }
@@ -221,8 +221,19 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun parseIntent() {
-        channelData = intent.getParcelableExtra(EXTRA_CHANNEL)
-        eventData = intent.getParcelableExtra(EXTRA_EVENT)
+        channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_CHANNEL)
+        }
+        
+        eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_EVENT)
+        }
 
         if (channelData != null) {
             contentType = ContentType.CHANNEL
