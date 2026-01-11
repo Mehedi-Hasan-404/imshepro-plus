@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/categories/CategoryChannelsFragment.kt
 package com.livetvpro.ui.categories
 
 import android.os.Bundle
@@ -15,7 +14,7 @@ import com.livetvpro.SearchableFragment
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentCategoryChannelsBinding
 import com.livetvpro.ui.adapters.ChannelAdapter
-import com.livetvpro.ui.player.ChannelPlayerActivity
+import com.livetvpro.ui.player.PlayerActivity  // CHANGED: Use PlayerActivity instead
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -31,7 +30,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     @Inject
     lateinit var listenerManager: NativeListenerManager
 
-    // We store the current category ID to pass to the listener manager
     private var currentCategoryId: String? = null
 
     override fun onSearchQuery(query: String) {
@@ -46,7 +44,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        // Get Category ID from arguments
         currentCategoryId = arguments?.getString("categoryId")
 
         try {
@@ -69,8 +66,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                // CHANGED: Pass the currentCategoryId as the unique ID
-                // This implies: "Show ad once per Category"
                 val shouldBlock = listenerManager.onPageInteraction(
                     ListenerConfig.PAGE_CHANNELS, 
                     uniqueId = currentCategoryId
@@ -80,8 +75,8 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
                     return@ChannelAdapter
                 }
                 
-                // Open Player
-                ChannelPlayerActivity.start(requireContext(), channel)
+                // CHANGED: Use PlayerActivity.startWithChannel
+                PlayerActivity.startWithChannel(requireContext(), channel)
             },
             onFavoriteToggle = { channel ->
                 viewModel.toggleFavorite(channel)
