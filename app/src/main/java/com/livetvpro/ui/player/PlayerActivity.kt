@@ -28,7 +28,8 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -242,8 +243,11 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupRelatedChannels() {
-        relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel ->
-            switchToChannel(relatedChannel)
+        relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
+            when (contentType) {
+                ContentType.CHANNEL -> switchToChannel(relatedItem)
+                ContentType.EVENT -> switchToEvent(relatedItem)
+            }
         }
         val recyclerView = binding.relatedChannelsRecycler
         recyclerView.layoutManager = GridLayoutManager(this, 3)
@@ -259,7 +263,9 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             ContentType.EVENT -> {
-                binding.relatedChannelsSection.visibility = View.GONE
+                eventData?.let { event ->
+                    viewModel.loadRelatedEvents(event.id)
+                }
             }
         }
 
@@ -273,13 +279,14 @@ class PlayerActivity : AppCompatActivity() {
             }
             binding.relatedLoadingProgress.visibility = View.GONE
             binding.relatedChannelsRecycler.visibility = View.VISIBLE
-            binding.relatedCount.text = channels.size.toString()
+            binding.relatedCount.visibility = View.GONE
         }
     }
 
     private fun switchToChannel(newChannel: Channel) {
         releasePlayer()
         channelData = newChannel
+        eventData = null
         contentType = ContentType.CHANNEL
         contentId = newChannel.id
         contentName = newChannel.name
@@ -289,6 +296,32 @@ class PlayerActivity : AppCompatActivity() {
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
         loadRelatedContent()
+    }
+
+    private fun switchToEvent(eventItem: Channel) {
+        lifecycleScope.launch {
+            try {
+                val events = viewModel.getAllEvents()
+                val selectedEvent = events.find { it.id == eventItem.id }
+                selectedEvent?.let { event ->
+                    runOnUiThread {
+                        releasePlayer()
+                        channelData = null
+                        eventData = event
+                        contentType = ContentType.EVENT
+                        contentId = event.id
+                        contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
+                        streamUrl = event.links.firstOrNull()?.url ?: ""
+                        tvChannelName?.text = contentName
+                        setupPlayer()
+                        binding.relatedLoadingProgress.visibility = View.VISIBLE
+                        binding.relatedChannelsRecycler.visibility = View.GONE
+                        loadRelatedContent()
+                    }
+                }
+            } catch (e: Exception) {
+            }
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
