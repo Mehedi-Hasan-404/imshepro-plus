@@ -68,17 +68,37 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     // Controller views - only bind once
     private var controllerViewsBound = false
-    private var btnBack: ImageButton? = null
-    private var btnPip: ImageButton? = null
-    private var btnSettings: ImageButton? = null
-    private var btnLock: ImageButton? = null
-    private var btnMute: ImageButton? = null
-    private var btnRewind: ImageButton? = null
-    private var btnPlayPause: ImageButton? = null
-    private var btnForward: ImageButton? = null
-    private var btnFullscreen: ImageButton? = null
-    private var btnAspectRatio: ImageButton? = null
-    private var tvChannelName: TextView? = null
+    private var isInitialSetup = true
+    private val controllerViews = ControllerViews()
+    
+    // Nested class to hold all controller views
+    private class ControllerViews {
+        var btnBack: ImageButton? = null
+        var btnPip: ImageButton? = null
+        var btnSettings: ImageButton? = null
+        var btnLock: ImageButton? = null
+        var btnMute: ImageButton? = null
+        var btnRewind: ImageButton? = null
+        var btnPlayPause: ImageButton? = null
+        var btnForward: ImageButton? = null
+        var btnFullscreen: ImageButton? = null
+        var btnAspectRatio: ImageButton? = null
+        var tvChannelName: TextView? = null
+        
+        fun clear() {
+            btnBack = null
+            btnPip = null
+            btnSettings = null
+            btnLock = null
+            btnMute = null
+            btnRewind = null
+            btnPlayPause = null
+            btnForward = null
+            btnFullscreen = null
+            btnAspectRatio = null
+            tvChannelName = null
+        }
+    }
 
     private var isInPipMode = false
     private var isLocked = false
@@ -190,14 +210,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         setupPlayer()
 
-        // Bind controller views ONCE after a delay
+        // Remove layout change listener that was causing rebinding
+        // Bind controller views ONCE with protection against rebinding
         binding.playerView.postDelayed({
-            if (!controllerViewsBound) {
-                bindControllerViews()
-                setupControlListeners()
-                controllerViewsBound = true
-            }
-        }, 300)
+            bindControllerViewsOnce()
+        }, 500)
 
         configurePlayerInteractions()
         setupLockOverlay()
@@ -234,7 +251,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private fun switchToChannel(newChannel: Channel) {
         releasePlayer()
         channel = newChannel
-        tvChannelName?.text = channel.name
+        controllerViews.tvChannelName?.text = channel.name
         setupPlayer()
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
@@ -285,7 +302,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.dimensionRatio = null
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+            controllerViews.btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             binding.relatedChannelsSection.visibility = View.GONE
         } else {
             binding.playerView.controllerAutoShow = false
@@ -295,7 +312,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             params.dimensionRatio = "16:9"
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+            controllerViews.btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             if (relatedChannels.isNotEmpty()) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
             }
@@ -382,6 +399,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacksAndMessages(null)
+        controllerViews.clear() // Clear all view references
         releasePlayer()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -759,110 +777,141 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun updatePlayPauseIcon(isPlaying: Boolean) {
-        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+        controllerViews.btnPlayPause?.setImageResource(
+            if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+        )
     }
 
     /**
-     * Bind controller views ONLY ONCE - fixes flickering issue
+     * Bind controller views with absolute protection against rebinding
      */
-    private fun bindControllerViews() {
-        if (controllerViewsBound) return
-        
-        with(binding.playerView) {
-            btnBack = findViewById(R.id.exo_back)
-            btnPip = findViewById(R.id.exo_pip)
-            btnSettings = findViewById(R.id.exo_settings)
-            btnLock = findViewById(R.id.exo_lock)
-            btnMute = findViewById(R.id.exo_mute)
-            btnRewind = findViewById(R.id.exo_rewind)
-            btnPlayPause = findViewById(R.id.exo_play_pause)
-            btnForward = findViewById(R.id.exo_forward)
-            btnFullscreen = findViewById(R.id.exo_fullscreen)
-            btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
-            tvChannelName = findViewById(R.id.exo_channel_name)
+    private fun bindControllerViewsOnce() {
+        // Triple-check to prevent any rebinding
+        if (controllerViewsBound) {
+            Log.d(TAG, "Controller views already bound, skipping")
+            return
         }
         
-        // Set initial button states
-        btnBack?.setImageResource(R.drawable.ic_arrow_back)
-        btnPip?.setImageResource(R.drawable.ic_pip)
-        btnSettings?.setImageResource(R.drawable.ic_settings)
-        btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
-        updateMuteIcon()
-        btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-        updatePlayPauseIcon(player?.isPlaying == true)
-        btnForward?.setImageResource(R.drawable.ic_skip_forward)
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        btnFullscreen?.setImageResource(if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen)
-        btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
+        // Mark as bound IMMEDIATELY to prevent race conditions
+        controllerViewsBound = true
         
-        // Enable all buttons
-        listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-            it?.apply { 
-                isClickable = true
-                isFocusable = true
-                isEnabled = true
+        try {
+            with(binding.playerView) {
+                controllerViews.btnBack = findViewById(R.id.exo_back)
+                controllerViews.btnPip = findViewById(R.id.exo_pip)
+                controllerViews.btnSettings = findViewById(R.id.exo_settings)
+                controllerViews.btnLock = findViewById(R.id.exo_lock)
+                controllerViews.btnMute = findViewById(R.id.exo_mute)
+                controllerViews.btnRewind = findViewById(R.id.exo_rewind)
+                controllerViews.btnPlayPause = findViewById(R.id.exo_play_pause)
+                controllerViews.btnForward = findViewById(R.id.exo_forward)
+                controllerViews.btnFullscreen = findViewById(R.id.exo_fullscreen)
+                controllerViews.btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
+                controllerViews.tvChannelName = findViewById(R.id.exo_channel_name)
             }
+            
+            // Set initial states
+            updateControllerState()
+            
+            // Setup listeners ONCE
+            setupControlListenersOnce()
+            
+            Log.d(TAG, "Controller views bound successfully")
+            
+        } catch (e: Exception) {
+            Log.e(TAG, "Error binding controller views", e)
+            controllerViewsBound = false // Allow retry on error
         }
-        
-        btnAspectRatio?.visibility = View.VISIBLE
-        btnPip?.visibility = View.VISIBLE
-        btnFullscreen?.visibility = View.VISIBLE
-        tvChannelName?.text = channel.name
+    }
+    
+    /**
+     * Update controller button states without rebinding
+     */
+    private fun updateControllerState() {
+        with(controllerViews) {
+            btnBack?.setImageResource(R.drawable.ic_arrow_back)
+            btnPip?.setImageResource(R.drawable.ic_pip)
+            btnSettings?.setImageResource(R.drawable.ic_settings)
+            btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
+            updateMuteIcon()
+            btnRewind?.setImageResource(R.drawable.ic_skip_backward)
+            updatePlayPauseIcon(player?.isPlaying == true)
+            btnForward?.setImageResource(R.drawable.ic_skip_forward)
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            btnFullscreen?.setImageResource(if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen)
+            btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
+            
+            // Enable all buttons
+            listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
+                it?.apply { 
+                    isClickable = true
+                    isFocusable = true
+                    isEnabled = true
+                }
+            }
+            
+            btnAspectRatio?.visibility = View.VISIBLE
+            btnPip?.visibility = View.VISIBLE
+            btnFullscreen?.visibility = View.VISIBLE
+            tvChannelName?.text = channel.name
+        }
     }
 
     /**
-     * Setup controller listeners ONLY ONCE
+     * Setup controller listeners with protection
      */
-    private fun setupControlListeners() {
-        btnBack?.setOnClickListener { if (!isLocked) finish() }
-        
-        btnPip?.setOnClickListener {
-            if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                userRequestedPip = true
-                enterPipMode()
+    private fun setupControlListenersOnce() {
+        with(controllerViews) {
+            btnBack?.setOnClickListener { if (!isLocked) finish() }
+            
+            btnPip?.setOnClickListener {
+                if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    userRequestedPip = true
+                    enterPipMode()
+                }
             }
-        }
-        
-        btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
-        btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
-        btnLock?.setOnClickListener { toggleLock() }
-        
-        btnRewind?.setOnClickListener {
-            if (!isLocked) player?.let { p ->
-                val newPosition = p.currentPosition - skipMs
-                p.seekTo(if (newPosition < 0) 0 else newPosition)
+            
+            btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
+            btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
+            btnLock?.setOnClickListener { toggleLock() }
+            
+            btnRewind?.setOnClickListener {
+                if (!isLocked) player?.let { p ->
+                    val newPosition = p.currentPosition - skipMs
+                    p.seekTo(if (newPosition < 0) 0 else newPosition)
+                }
             }
-        }
-        
-        btnPlayPause?.setOnClickListener {
-            if (!isLocked) {
-                if (binding.errorView.visibility == View.VISIBLE) {
-                    binding.errorView.visibility = View.GONE
-                    binding.progressBar.visibility = View.VISIBLE
-                    player?.release()
-                    player = null
-                    setupPlayer()
-                } else {
-                    player?.let { p ->
-                        if (p.isPlaying) p.pause() else p.play()
+            
+            btnPlayPause?.setOnClickListener {
+                if (!isLocked) {
+                    if (binding.errorView.visibility == View.VISIBLE) {
+                        binding.errorView.visibility = View.GONE
+                        binding.progressBar.visibility = View.VISIBLE
+                        player?.release()
+                        player = null
+                        setupPlayer()
+                    } else {
+                        player?.let { p ->
+                            if (p.isPlaying) p.pause() else p.play()
+                        }
                     }
                 }
             }
-        }
-        
-        btnForward?.setOnClickListener {
-            if (!isLocked) player?.let { p ->
-                val newPosition = p.currentPosition + skipMs
-                if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
-                    p.seekTo(p.duration)
-                } else {
-                    p.seekTo(newPosition)
+            
+            btnForward?.setOnClickListener {
+                if (!isLocked) player?.let { p ->
+                    val newPosition = p.currentPosition + skipMs
+                    if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
+                        p.seekTo(p.duration)
+                    } else {
+                        p.seekTo(newPosition)
+                    }
                 }
             }
+            
+            btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
+            btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
         }
-        
-        btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
-        btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
     }
 
     private fun toggleMute() {
@@ -874,7 +923,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun updateMuteIcon() {
-        btnMute?.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
+        controllerViews.btnMute?.setImageResource(
+            if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+        )
     }
 
     private fun toggleAspectRatio() {
@@ -938,13 +989,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
             binding.lockOverlay.isClickable = true
             binding.lockOverlay.isFocusable = true
             showUnlockButton()
-            btnLock?.setImageResource(R.drawable.ic_lock_closed)
+            controllerViews.btnLock?.setImageResource(R.drawable.ic_lock_closed)
             Toast.makeText(this, "Controls locked", Toast.LENGTH_SHORT).show()
         } else {
             binding.playerView.useController = true
             binding.lockOverlay.visibility = View.GONE
             hideUnlockButton()
-            btnLock?.setImageResource(R.drawable.ic_lock_open)
+            controllerViews.btnLock?.setImageResource(R.drawable.ic_lock_open)
             binding.playerView.showController()
             Toast.makeText(this, "Controls unlocked", Toast.LENGTH_SHORT).show()
         }
