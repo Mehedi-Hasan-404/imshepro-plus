@@ -102,9 +102,13 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val allEvents = liveEventRepository.getLiveEvents()
-                val availableEvents = allEvents.filter { it.id != currentEventId }
+                val liveAndUpcomingEvents = allEvents.filter { event ->
+                    event.id != currentEventId && 
+                    (event.status.equals("live", ignoreCase = true) || 
+                     event.status.equals("upcoming", ignoreCase = true))
+                }
 
-                val eventsToShow = availableEvents.take(5).map { event ->
+                val eventsToShow = liveAndUpcomingEvents.take(5).map { event ->
                     Channel(
                         id = event.id,
                         name = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" },
