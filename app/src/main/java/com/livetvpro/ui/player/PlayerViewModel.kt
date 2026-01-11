@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.FavoriteChannel
+import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import com.livetvpro.data.repository.LiveEventRepository
@@ -120,6 +121,12 @@ class PlayerViewModel @Inject constructor(
             }
         }
     }
+
+    suspend fun getAllEvents(): List<LiveEvent> {
+        return try {
+            liveEventRepository.getLiveEvents()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
 }
-
-
