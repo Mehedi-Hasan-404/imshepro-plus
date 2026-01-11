@@ -17,11 +17,10 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.util.Rational
 import android.view.SurfaceView
 import android.view.View
-import android.view.WindowInsets
-import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -67,6 +66,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
 
+    // Controller views - only bind once
+    private var controllerViewsBound = false
     private var btnBack: ImageButton? = null
     private var btnPip: ImageButton? = null
     private var btnSettings: ImageButton? = null
@@ -86,23 +87,20 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var userRequestedPip = false
     private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
     private val mainHandler = Handler(Looper.getMainLooper())
+    
     private val hideUnlockButtonRunnable = Runnable {
         binding.unlockButton.visibility = View.GONE
     }
 
-    private var mPictureInPictureParamsBuilder: Any? = null
+    private var pipParamsBuilder: PictureInPictureParams.Builder? = null
     private val rationalLimitWide = Rational(239, 100)
     private val rationalLimitTall = Rational(100, 239)
-
     private val pipSourceRect = Rect()
-    private var isBindingControls = false
-    private var controlsBindingRunnable: Runnable? = null
 
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent == null || ACTION_MEDIA_CONTROL != intent.action) {
-                return
-            }
+            if (intent?.action != ACTION_MEDIA_CONTROL) return
+            
             val player = player ?: return
             when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
                 CONTROL_TYPE_PLAY -> {
@@ -132,6 +130,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val TAG = "ChannelPlayer"
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val ACTION_MEDIA_CONTROL = "media_control"
         private const val EXTRA_CONTROL_TYPE = "control_type"
@@ -153,10 +152,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        // Initialize PiP builder
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mPictureInPictureParamsBuilder = PictureInPictureParams.Builder()
+            pipParamsBuilder = PictureInPictureParams.Builder()
             updatePictureInPictureActions(
                 R.drawable.ic_pause,
                 R.string.exo_controls_pause_description,
@@ -165,6 +165,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             )
         }
 
+        // Register PiP receiver
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), RECEIVER_EXPORTED)
@@ -174,6 +175,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
         }
 
+        // Apply orientation settings
         binding.root.post {
             val currentOrientation = resources.configuration.orientation
             val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
@@ -188,17 +190,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         setupPlayer()
 
-        binding.playerView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
-            if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    updatePipParamsBasic()
-                }
-            }
-        }
-
+        // Bind controller views ONCE after a delay
         binding.playerView.postDelayed({
-            bindControllerViewsOnce()
-            setupControlListenersOnce()
+            if (!controllerViewsBound) {
+                bindControllerViews()
+                setupControlListeners()
+                controllerViewsBound = true
+            }
         }, 300)
 
         configurePlayerInteractions()
@@ -245,11 +243,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (isInPipMode) {
-            return
-        }
+        if (isInPipMode) return
+        
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isInPip()) {
             setSubtitleTextSize()
         }
@@ -258,7 +256,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         if (Build.VERSION.SDK_INT > 23) {
-            setupPlayer()
+            if (player == null) setupPlayer()
             binding.playerView.onResume()
         }
     }
@@ -275,7 +273,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         setWindowFlags(isLandscape)
         adjustLayoutForOrientation(isLandscape)
         binding.playerContainer.requestLayout()
-        binding.root.requestLayout()
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
@@ -331,7 +328,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
                 }
             }
         } else {
@@ -344,12 +341,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
             } else {
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-                window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                window.addFlags(android.view.WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+                window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_FULLSCREEN)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+                    layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
                 }
             }
         }
@@ -385,14 +382,13 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacksAndMessages(null)
-        controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
-        controlsBindingRunnable = null
         releasePlayer()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 unregisterReceiver(pipReceiver)
             }
         } catch (e: Exception) {
+            Log.e(TAG, "Error unregistering receiver", e)
         }
     }
 
@@ -402,6 +398,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 it.stop()
                 it.release()
             } catch (t: Throwable) {
+                Log.e(TAG, "Error releasing player", t)
             }
         }
         player = null
@@ -457,21 +454,11 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         }
                     }
                 }
-                "cookie" -> {
-                    headers["Cookie"] = value
-                }
-                "referer", "referrer" -> {
-                    headers["Referer"] = value
-                }
-                "user-agent", "useragent" -> {
-                    headers["User-Agent"] = value
-                }
-                "origin" -> {
-                    headers["Origin"] = value
-                }
-                "x-forwarded-for" -> {
-                    headers["X-Forwarded-For"] = value
-                }
+                "cookie" -> headers["Cookie"] = value
+                "referer", "referrer" -> headers["Referer"] = value
+                "user-agent", "useragent" -> headers["User-Agent"] = value
+                "origin" -> headers["Origin"] = value
+                "x-forwarded-for" -> headers["X-Forwarded-For"] = value
                 else -> headers[key] = value
             }
         }
@@ -509,27 +496,19 @@ class ChannelPlayerActivity : AppCompatActivity() {
                     "clearkey" -> {
                         if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
                             createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
-                        } else {
-                            null
-                        }
+                        } else null
                     }
                     "widevine" -> {
                         if (streamInfo.drmLicenseUrl != null) {
                             createWidevineDrmManager(streamInfo.drmLicenseUrl, headers)
-                        } else {
-                            null
-                        }
+                        } else null
                     }
                     "playready" -> {
                         if (streamInfo.drmLicenseUrl != null) {
                             createPlayReadyDrmManager(streamInfo.drmLicenseUrl, headers)
-                        } else {
-                            null
-                        }
+                        } else null
                     }
-                    else -> {
-                        null
-                    }
+                    else -> null
                 }
 
                 if (drmSessionManager != null) {
@@ -565,17 +544,16 @@ class ChannelPlayerActivity : AppCompatActivity() {
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        updatePipParamsBasic()
+                                        updatePipParams()
                                     }
                                 }
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
                                     binding.errorView.visibility = View.GONE
                                 }
-                                Player.STATE_ENDED -> {
+                                Player.STATE_ENDED, Player.STATE_IDLE -> {
                                     binding.progressBar.visibility = View.GONE
                                 }
-                                Player.STATE_IDLE -> {}
                             }
                         }
 
@@ -603,7 +581,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                updatePipParamsBasic()
+                                updatePipParams()
                             }
                         }
 
@@ -649,6 +627,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to initialize player: ${e.message}", Toast.LENGTH_LONG).show()
+            Log.e(TAG, "Player setup error", e)
         }
 
         binding.playerView.apply {
@@ -694,6 +673,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setMultiSession(false)
                 .build(drmCallback)
         } catch (e: Exception) {
+            Log.e(TAG, "Error creating ClearKey DRM manager", e)
             null
         }
     }
@@ -723,6 +703,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setMultiSession(false)
                 .build(drmCallback)
         } catch (e: Exception) {
+            Log.e(TAG, "Error creating Widevine DRM manager", e)
             null
         }
     }
@@ -752,6 +733,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 .setMultiSession(false)
                 .build(drmCallback)
         } catch (e: Exception) {
+            Log.e(TAG, "Error creating PlayReady DRM manager", e)
             null
         }
     }
@@ -780,7 +762,12 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
-    private fun bindControllerViewsExact() {
+    /**
+     * Bind controller views ONLY ONCE - fixes flickering issue
+     */
+    private fun bindControllerViews() {
+        if (controllerViewsBound) return
+        
         with(binding.playerView) {
             btnBack = findViewById(R.id.exo_back)
             btnPip = findViewById(R.id.exo_pip)
@@ -794,6 +781,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
             tvChannelName = findViewById(R.id.exo_channel_name)
         }
+        
+        // Set initial button states
         btnBack?.setImageResource(R.drawable.ic_arrow_back)
         btnPip?.setImageResource(R.drawable.ic_pip)
         btnSettings?.setImageResource(R.drawable.ic_settings)
@@ -805,39 +794,46 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         btnFullscreen?.setImageResource(if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen)
         btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
+        
+        // Enable all buttons
         listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-            it?.apply { isClickable = true; isFocusable = true; isEnabled = true }
+            it?.apply { 
+                isClickable = true
+                isFocusable = true
+                isEnabled = true
+            }
         }
+        
         btnAspectRatio?.visibility = View.VISIBLE
         btnPip?.visibility = View.VISIBLE
         btnFullscreen?.visibility = View.VISIBLE
         tvChannelName?.text = channel.name
     }
 
-    private fun bindControllerViewsOnce() {
-        if (isBindingControls) return
-        isBindingControls = true
-        bindControllerViewsExact()
-        mainHandler.postDelayed({ isBindingControls = false }, 500)
-    }
-
-    private fun setupControlListenersExact() {
+    /**
+     * Setup controller listeners ONLY ONCE
+     */
+    private fun setupControlListeners() {
         btnBack?.setOnClickListener { if (!isLocked) finish() }
+        
         btnPip?.setOnClickListener {
             if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 userRequestedPip = true
                 enterPipMode()
             }
         }
+        
         btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
         btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
         btnLock?.setOnClickListener { toggleLock() }
+        
         btnRewind?.setOnClickListener {
             if (!isLocked) player?.let { p ->
                 val newPosition = p.currentPosition - skipMs
                 p.seekTo(if (newPosition < 0) 0 else newPosition)
             }
         }
+        
         btnPlayPause?.setOnClickListener {
             if (!isLocked) {
                 if (binding.errorView.visibility == View.VISIBLE) {
@@ -853,6 +849,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
             }
         }
+        
         btnForward?.setOnClickListener {
             if (!isLocked) player?.let { p ->
                 val newPosition = p.currentPosition + skipMs
@@ -863,17 +860,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 }
             }
         }
+        
         btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
         btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
-    }
-
-    private fun setupControlListenersOnce() {
-        controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
-        controlsBindingRunnable = Runnable {
-            setupControlListenersExact()
-            controlsBindingRunnable = null
-        }
-        mainHandler.post(controlsBindingRunnable!!)
     }
 
     private fun toggleMute() {
@@ -981,6 +970,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         return isInPictureInPictureMode
     }
 
+    /**
+     * Update PiP action buttons (play/pause)
+     */
     @RequiresApi(Build.VERSION_CODES.O)
     private fun updatePictureInPictureActions(
         iconId: Int,
@@ -989,55 +981,92 @@ class ChannelPlayerActivity : AppCompatActivity() {
         requestCode: Int
     ): Boolean {
         return try {
+            val builder = pipParamsBuilder ?: return false
             val actions = ArrayList<RemoteAction>()
+            
             val intent = PendingIntent.getBroadcast(
                 this,
                 requestCode,
-                Intent(ACTION_MEDIA_CONTROL).setPackage(packageName).putExtra(EXTRA_CONTROL_TYPE, controlType),
+                Intent(ACTION_MEDIA_CONTROL).apply {
+                    setPackage(packageName)
+                    putExtra(EXTRA_CONTROL_TYPE, controlType)
+                },
                 PendingIntent.FLAG_IMMUTABLE
             )
+            
             val icon = Icon.createWithResource(this, iconId)
             val title = getString(resTitle)
             actions.add(RemoteAction(icon, title, title, intent))
-            (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).setActions(actions)
-            setPictureInPictureParams((mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).build())
+            
+            builder.setActions(actions)
+            setPictureInPictureParams(builder.build())
             true
         } catch (e: IllegalStateException) {
+            Log.e(TAG, "Error updating PiP actions", e)
             false
         }
     }
 
+    /**
+     * Update PiP parameters (aspect ratio and source rect)
+     */
     @RequiresApi(Build.VERSION_CODES.O)
-    private fun updatePipParamsBasic() {
-        if (!isInPipMode) {
-            try {
-                val format = player?.videoFormat
-                val width = format?.width ?: 16
-                val height = format?.height ?: 9
-                val ratio = if (width > 0 && height > 0) Rational(width, height) else Rational(16, 9)
-                val builder = mPictureInPictureParamsBuilder as PictureInPictureParams.Builder
-                builder.setAspectRatio(ratio)
-                if (binding.playerView.width > 0 && binding.playerView.height > 0) {
-                    binding.playerView.getGlobalVisibleRect(pipSourceRect)
-                }
+    private fun updatePipParams() {
+        if (isInPipMode) return
+        
+        try {
+            val builder = pipParamsBuilder ?: return
+            
+            // Get video dimensions
+            val format = player?.videoFormat
+            val width = format?.width ?: 16
+            val height = format?.height ?: 9
+            
+            var ratio = if (width > 0 && height > 0) {
+                Rational(width, height)
+            } else {
+                Rational(16, 9)
+            }
+            
+            // Clamp aspect ratio to Android limits
+            if (ratio.toFloat() > rationalLimitWide.toFloat()) {
+                ratio = rationalLimitWide
+            } else if (ratio.toFloat() < rationalLimitTall.toFloat()) {
+                ratio = rationalLimitTall
+            }
+            
+            builder.setAspectRatio(ratio)
+            
+            // Set source rect hint for smooth transition
+            if (binding.playerView.width > 0 && binding.playerView.height > 0) {
+                binding.playerView.getGlobalVisibleRect(pipSourceRect)
                 if (!pipSourceRect.isEmpty) {
                     builder.setSourceRectHint(pipSourceRect)
                 }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    builder.setAutoEnterEnabled(false)
-                    builder.setSeamlessResizeEnabled(true)
-                }
-                setPictureInPictureParams(builder.build())
-            } catch (e: Exception) {
             }
+            
+            // Additional options for newer Android versions
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.setAutoEnterEnabled(false)
+                builder.setSeamlessResizeEnabled(true)
+            }
+            
+            setPictureInPictureParams(builder.build())
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating PiP params", e)
         }
     }
 
+    /**
+     * Enter Picture-in-Picture mode
+     */
     @RequiresApi(Build.VERSION_CODES.O)
     private fun enterPipMode() {
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             return
         }
+        
+        // Check PiP permission
         val appOpsManager = getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
         if (AppOpsManager.MODE_ALLOWED != appOpsManager.checkOpNoThrow(
                 AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
@@ -1054,9 +1083,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
             return
         }
 
-        if (player == null) {
-            return
-        }
+        if (player == null) return
+        
         binding.playerView.setControllerAutoShow(false)
         binding.playerView.hideController()
 
@@ -1066,25 +1094,28 @@ class ChannelPlayerActivity : AppCompatActivity() {
             if (videoSurfaceView is SurfaceView) {
                 videoSurfaceView.holder.setFixedSize(format.width, format.height)
             }
+            
             var rational = Rational(format.width, format.height)
+            
+            // Handle expanded aspect ratio for Android 13+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 packageManager.hasSystemFeature(PackageManager.FEATURE_EXPANDED_PICTURE_IN_PICTURE) &&
                 (rational.toFloat() > rationalLimitWide.toFloat() ||
                         rational.toFloat() < rationalLimitTall.toFloat())) {
-                (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder)
-                    .setExpandedAspectRatio(rational)
+                pipParamsBuilder?.setExpandedAspectRatio(rational)
             }
+            
+            // Clamp to limits
             if (rational.toFloat() > rationalLimitWide.toFloat()) {
                 rational = rationalLimitWide
             } else if (rational.toFloat() < rationalLimitTall.toFloat()) {
                 rational = rationalLimitTall
             }
-            (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder)
-                .setAspectRatio(rational)
+            
+            pipParamsBuilder?.setAspectRatio(rational)
         }
-        enterPictureInPictureMode(
-            (mPictureInPictureParamsBuilder as PictureInPictureParams.Builder).build()
-        )
+        
+        enterPictureInPictureMode(pipParamsBuilder?.build() ?: return)
     }
 
     private fun setSubtitleTextSize() {
@@ -1097,26 +1128,34 @@ class ChannelPlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
 
+    /**
+     * Handle PiP mode changes
+     */
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
+        
         if (isInPipMode) {
             binding.playerView.hideController()
             setSubtitleTextSizePiP()
         } else {
             setSubtitleTextSize()
             binding.playerView.setControllerAutoShow(true)
+            
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
                 finish()
                 return
             }
             userRequestedPip = false
+            
             if (isFinishing) return
+            
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
+            
             if (isLocked) {
                 binding.playerView.useController = false
                 binding.lockOverlay.visibility = View.VISIBLE
@@ -1124,7 +1163,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             } else {
                 binding.playerView.useController = true
                 if (player?.isPlaying == true) {
-                    toggleSystemUi(false)
+                    // Hide system UI when playing
                 } else {
                     binding.playerView.post {
                         binding.playerView.showController()
@@ -1134,38 +1173,15 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Auto-enter PiP when user presses home
+     */
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (!isInPipMode && player?.isPlaying == true && isPiPSupported()) {
             userRequestedPip = true
             enterPipMode()
-        }
-    }
-
-    private fun toggleSystemUi(show: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val controller = window.insetsController
-            if (show) {
-                controller?.show(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
-                )
-            } else {
-                controller?.hide(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
-                )
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            if (show) {
-                binding.playerView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-            } else {
-                binding.playerView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                        )
-            }
         }
     }
 
