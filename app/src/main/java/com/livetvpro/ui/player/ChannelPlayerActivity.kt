@@ -8,7 +8,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Rect
@@ -72,7 +71,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
     
-    // Controls
     private var btnBack: ImageButton? = null
     private var btnPip: ImageButton? = null
     private var btnSettings: ImageButton? = null
@@ -85,7 +83,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnAspectRatio: ImageButton? = null
     private var tvChannelName: TextView? = null
     
-    // State
     private var isInPipMode = false
     private var isLocked = false
     private var isMuted = false
@@ -181,8 +178,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         loadRelatedChannels()
     }
 
-    // ==================== Key Event Handling (Integrated from Marlboro) ====================
-
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (isLocked && keyCode != KeyEvent.KEYCODE_BACK) {
             showUnlockButton()
@@ -190,77 +185,112 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
 
         when (keyCode) {
-            KeyEvent.KEYCODE_VOLUME_UP -> {
-                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
-                return true
-            }
-            KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                if (!binding.playerView.isControllerFullyVisible) {
-                    binding.playerView.showController()
-                }
-                rewind()
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                if (!binding.playerView.isControllerFullyVisible) {
-                    binding.playerView.showController()
-                }
-                forward()
-                return true
-            }
-            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                togglePlayPause()
-                if (!binding.playerView.isControllerFullyVisible) {
-                    binding.playerView.showController()
-                }
-                return true
-            }
-            KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                player?.play()
-                binding.playerView.showController()
-                return true
-            }
-            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                player?.pause()
-                binding.playerView.showController()
-                return true
-            }
-            KeyEvent.KEYCODE_MEDIA_STOP -> {
-                finish()
-                return true
-            }
             KeyEvent.KEYCODE_DPAD_UP -> {
                 if (!binding.playerView.isControllerFullyVisible) {
                     binding.playerView.showController()
                     return true
                 }
+                return super.onKeyDown(keyCode, event)
             }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
+
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (!binding.playerView.isControllerFullyVisible) {
                     binding.playerView.showController()
+                    
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                        forward()
+                        return true
+                    }
+                    if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                        rewind()
+                        return true
+                    }
+                    return true 
+                }
+
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (currentFocus == null || !currentFocus!!.isClickable) {
+                            forward()
+                            return true
+                        }
+                    }
+                    KeyEvent.KEYCODE_DPAD_LEFT -> {
+                        if (currentFocus == null || !currentFocus!!.isClickable) {
+                            rewind()
+                            return true
+                        }
+                    }
+                }
+                return super.onKeyDown(keyCode, event)
+            }
+
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                if (!binding.playerView.isControllerFullyVisible) {
+                    binding.playerView.showController()
+                    togglePlayPause()
                     return true
                 }
-                // If visible, let standard focus handling work to avoid "going upward"
+                return super.onKeyDown(keyCode, event)
             }
+
+            KeyEvent.KEYCODE_SPACE -> {
+                togglePlayPause()
+                return true
+            }
+
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+                return true
+            }
+
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                return true
+            }
+
+            KeyEvent.KEYCODE_MEDIA_STOP -> {
+                finish()
+                return true
+            }
+
+            KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                rewind()
+                return true
+            }
+
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                forward()
+                return true
+            }
+            
+            KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                player?.play()
+                return true
+            }
+            
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                player?.pause()
+                return true
+            }
+            
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                togglePlayPause()
+                return true
+            }
+
+            else -> return super.onKeyDown(keyCode, event)
         }
-        return super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        // Prevent double actions if handled in Down
         return when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_UP,
             KeyEvent.KEYCODE_VOLUME_DOWN,
-            KeyEvent.KEYCODE_DPAD_LEFT,
             KeyEvent.KEYCODE_MEDIA_REWIND,
-            KeyEvent.KEYCODE_DPAD_RIGHT,
             KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_ENTER,
             KeyEvent.KEYCODE_SPACE,
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
             KeyEvent.KEYCODE_MEDIA_PLAY,
@@ -269,8 +299,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             else -> super.onKeyUp(keyCode, event)
         }
     }
-
-    // ==================== Player Actions ====================
 
     private fun togglePlayPause() {
         if (binding.errorView.visibility == View.VISIBLE) {
@@ -290,6 +318,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         player?.let { p ->
             val newPosition = p.currentPosition - skipMs
             p.seekTo(max(0, newPosition))
+            binding.playerView.showController()
         }
     }
 
@@ -301,10 +330,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
             } else {
                 p.seekTo(newPosition)
             }
+            binding.playerView.showController()
         }
     }
-
-    // ==================== Setup & Initialization ====================
 
     private fun setupRelatedChannels() {
         relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel -> switchToChannel(relatedChannel) }
@@ -351,13 +379,19 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         if (Build.VERSION.SDK_INT <= 23 || player == null) { setupPlayer(); binding.playerView.onResume() }
+        hideSystemUI()
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
-        setWindowFlags(isLandscape)
         adjustLayoutForOrientation(isLandscape)
         binding.playerContainer.requestLayout()
         binding.root.requestLayout()
+        
+        if (isLandscape) {
+            hideSystemUI()
+        } else {
+            showSystemUI()
+        }
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
@@ -384,37 +418,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
             if (relatedChannels.isNotEmpty()) binding.relatedChannelsSection.visibility = View.VISIBLE
         }
         binding.playerContainer.layoutParams = params
-    }
-
-    private fun setWindowFlags(isLandscape: Boolean) {
-        if (isLandscape) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(false)
-                window.insetsController?.let { controller ->
-                    controller.hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
-                    controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES }
-            }
-        } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true)
-                window.insetsController?.show(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
-            } else {
-                @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-                window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                window.attributes = window.attributes.apply { layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT }
-            }
-        }
     }
 
     override fun onPause() {
@@ -444,8 +447,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         player?.let { try { it.stop(); it.release() } catch (t: Throwable) {} }
         player = null
     }
-
-    // ==================== Parsing & Stream Setup ====================
 
     private data class StreamInfo(val url: String, val headers: Map<String, String>, val drmScheme: String?, val drmKeyId: String?, val drmKey: String?, val drmLicenseUrl: String? = null)
 
@@ -569,8 +570,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.apply { useController = true; controllerShowTimeoutMs = 5000; controllerHideOnTouch = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING); controllerAutoShow = false }
     }
 
-    // ==================== DRM Configuration ====================
-
     private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
         return try {
             val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
@@ -613,8 +612,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun updatePlayPauseIcon(isPlaying: Boolean) { btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play) }
-
-    // ==================== UI Bindings & Listeners ====================
 
     private fun bindControllerViewsExact() {
         with(binding.playerView) {
@@ -894,7 +891,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             } else {
                 binding.playerView.useController = true
                 if (player?.isPlaying == true) {
-                    toggleSystemUi(false)
+                    hideSystemUI()
                 } else {
                     binding.playerView.post { binding.playerView.showController() }
                 }
@@ -911,21 +908,30 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun toggleSystemUi(show: Boolean) {
+    private fun hideSystemUI() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val controller = window.insetsController
-            if (show) {
-                controller?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-            } else {
-                controller?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+            window.insetsController?.apply {
+                hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
             }
         } else {
             @Suppress("DEPRECATION")
-            if (show) {
-                binding.playerView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-            } else {
-                binding.playerView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_FULLSCREEN)
-            }
+            window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_FULLSCREEN)
+        }
+    }
+
+    private fun showSystemUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN)
         }
     }
 
@@ -940,4 +946,5 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 }
+
 
