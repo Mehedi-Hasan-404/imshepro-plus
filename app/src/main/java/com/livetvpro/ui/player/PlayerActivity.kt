@@ -47,7 +47,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.R
-import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.databinding.ActivityPlayerBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
