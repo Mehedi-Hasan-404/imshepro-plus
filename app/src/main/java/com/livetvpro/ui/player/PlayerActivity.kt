@@ -1,14 +1,22 @@
 package com.livetvpro.ui.player
 
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
+import android.content.res.Configuration
+import android.os.Build
 import android.os.Bundle
+import android.util.Rational
 import android.view.View
 import android.view.WindowManager
+import android.widget.ImageButton
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -16,7 +24,9 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.databinding.ActivityPlayerBinding
@@ -35,9 +45,11 @@ class PlayerActivity : AppCompatActivity() {
     
     private var currentChannel: Channel? = null
     private var currentEvent: LiveEvent? = null
-    
     private lateinit var relatedAdapter: RelatedChannelAdapter
+    
     private var isFullscreen = false
+    private var isControlsLocked = false
+    private var resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
 
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
@@ -84,41 +96,56 @@ class PlayerActivity : AppCompatActivity() {
         setupRelatedList()
         
         if (currentChannel != null) {
-            initializePlayerForChannel(currentChannel!!)
+            initializePlayer(currentChannel!!.streamUrl)
             viewModel.loadRelatedChannels(currentChannel!!.categoryId, currentChannel!!.id)
+            updateTitle(currentChannel!!.name)
         } else if (currentEvent != null) {
-            initializePlayerForEvent(currentEvent!!)
+            val url = currentEvent!!.links.firstOrNull()?.url ?: ""
+            initializePlayer(url)
             viewModel.loadRelatedEvents(currentEvent!!.id)
+            updateTitle(currentEvent!!.title.ifEmpty { "${currentEvent!!.team1Name} vs ${currentEvent!!.team2Name}" })
         }
     }
 
     private fun setupUI() {
+        val backBtn = binding.playerView.findViewById<View>(resources.getIdentifier("exo_back", "id", packageName))
+        backBtn?.setOnClickListener { finish() }
+
+        val settingsBtn = binding.playerView.findViewById<View>(resources.getIdentifier("exo_settings", "id", packageName))
+        settingsBtn?.setOnClickListener { showSettings() }
+
+        val fullScreenBtn = binding.playerView.findViewById<ImageButton>(resources.getIdentifier("exo_fullscreen", "id", packageName))
+        fullScreenBtn?.setOnClickListener { toggleFullscreen() }
+
+        val pipBtn = binding.playerView.findViewById<View>(resources.getIdentifier("exo_pip", "id", packageName))
+        pipBtn?.setOnClickListener { enterPipMode() }
+
+        val lockBtn = binding.playerView.findViewById<View>(resources.getIdentifier("exo_lock", "id", packageName))
+        lockBtn?.setOnClickListener { toggleLockMode() }
+
+        val resizeBtn = binding.playerView.findViewById<View>(resources.getIdentifier("exo_aspect_ratio", "id", packageName))
+        resizeBtn?.setOnClickListener { toggleResizeMode() }
+
+        binding.unlockButton.setOnClickListener { toggleLockMode() }
+        
+        binding.playerView.setControllerVisibilityListener(androidx.media3.ui.PlayerView.ControllerVisibilityListener { visibility ->
+            if (isControlsLocked && visibility == View.VISIBLE) {
+                binding.playerView.hideController()
+                binding.lockOverlay.visibility = View.VISIBLE
+            }
+        })
+    }
+    
+    private fun updateTitle(title: String) {
         val titleView = binding.playerView.findViewById<android.widget.TextView>(
             resources.getIdentifier("exo_channel_name", "id", packageName)
         )
-        
-        if (currentChannel != null) {
-            titleView?.text = currentChannel!!.name
-        } else if (currentEvent != null) {
-            titleView?.text = currentEvent!!.title.ifEmpty { "${currentEvent!!.team1Name} vs ${currentEvent!!.team2Name}" }
-        }
-
-        binding.playerView.findViewById<View>(
-            resources.getIdentifier("exo_back", "id", packageName)
-        )?.setOnClickListener { finish() }
-
-        binding.playerView.findViewById<View>(
-            resources.getIdentifier("exo_fullscreen", "id", packageName)
-        )?.setOnClickListener { toggleFullscreen() }
-
-        binding.playerView.findViewById<View>(
-            resources.getIdentifier("exo_settings", "id", packageName)
-        )?.setOnClickListener { showSettings() }
+        titleView?.text = title
     }
 
     private fun setupRelatedList() {
-        relatedAdapter = RelatedChannelAdapter { channelItem ->
-            switchContent(channelItem)
+        relatedAdapter = RelatedChannelAdapter { item ->
+            switchContent(item)
         }
         binding.relatedChannelsRecycler.apply {
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
@@ -127,11 +154,7 @@ class PlayerActivity : AppCompatActivity() {
 
         viewModel.relatedItems.observe(this) { list ->
             relatedAdapter.submitList(list)
-            if (list.isNullOrEmpty()) {
-                binding.relatedChannelsContainer.visibility = View.GONE
-            } else {
-                binding.relatedChannelsContainer.visibility = View.VISIBLE
-            }
+            binding.relatedChannelsContainer.visibility = if (list.isNullOrEmpty()) View.GONE else View.VISIBLE
         }
     }
 
@@ -139,38 +162,24 @@ class PlayerActivity : AppCompatActivity() {
         player?.release()
         
         if (currentEvent != null) {
-            val titleView = binding.playerView.findViewById<android.widget.TextView>(
-                resources.getIdentifier("exo_channel_name", "id", packageName)
-            )
-            titleView?.text = item.name
+            updateTitle(item.name)
             initializePlayer(item.streamUrl)
             viewModel.loadRelatedEvents(item.id)
         } else {
             currentChannel = item
-            val titleView = binding.playerView.findViewById<android.widget.TextView>(
-                resources.getIdentifier("exo_channel_name", "id", packageName)
-            )
-            titleView?.text = item.name
-            initializePlayerForChannel(item)
+            updateTitle(item.name)
+            initializePlayer(item.streamUrl)
             viewModel.loadRelatedChannels(item.categoryId, item.id)
         }
     }
 
-    private fun initializePlayerForChannel(channel: Channel) {
-        initializePlayer(channel.streamUrl)
-    }
-
-    private fun initializePlayerForEvent(event: LiveEvent) {
-        val url = event.links.firstOrNull()?.url ?: ""
-        if (url.isNotEmpty()) {
-            initializePlayer(url)
-        } else {
-            binding.errorView.visibility = View.VISIBLE
-            binding.errorText.text = "No stream link available"
-        }
-    }
-
     private fun initializePlayer(url: String) {
+        if (url.isEmpty()) {
+            binding.errorView.visibility = View.VISIBLE
+            binding.errorText.text = "Stream URL not available"
+            return
+        }
+
         try {
             val parts = url.split("|")
             val streamUrl = parts[0]
@@ -178,8 +187,7 @@ class PlayerActivity : AppCompatActivity() {
             var userAgent = "LiveTVPro/1.0"
             var drmScheme: String? = null
             var drmLicense: String? = null
-            var drmKey: String? = null
-
+            
             if (parts.size > 1) {
                 for (i in 1 until parts.size) {
                     val p = parts[i]
@@ -190,17 +198,7 @@ class PlayerActivity : AppCompatActivity() {
                         when (key) {
                             "User-Agent" -> userAgent = value
                             "drmScheme" -> drmScheme = value
-                            "drmLicense" -> {
-                                if (value.contains(":") && !value.startsWith("http")) {
-                                    val dParts = value.split(":", limit = 2)
-                                    if (dParts.size == 2) {
-                                        drmLicense = dParts[0]
-                                        drmKey = dParts[1]
-                                    }
-                                } else {
-                                    drmLicense = value
-                                }
-                            }
+                            "drmLicense" -> drmLicense = value
                             else -> headers[key] = value
                         }
                     }
@@ -222,6 +220,7 @@ class PlayerActivity : AppCompatActivity() {
                 .build()
 
             binding.playerView.player = player
+            binding.playerView.resizeMode = resizeMode
             binding.playerView.keepScreenOn = true
 
             val mediaItemBuilder = MediaItem.Builder().setUri(streamUrl)
@@ -231,7 +230,12 @@ class PlayerActivity : AppCompatActivity() {
                 if (uuid != null) {
                     val drmConfig = MediaItem.DrmConfiguration.Builder(uuid)
                     if (drmLicense != null) {
-                        drmConfig.setLicenseUri(drmLicense)
+                        if (drmLicense.contains(":") && !drmLicense.startsWith("http")) {
+                            val dParts = drmLicense.split(":", limit = 2)
+                            if (dParts.size == 2) drmConfig.setLicenseUri(dParts[0])
+                        } else {
+                            drmConfig.setLicenseUri(drmLicense)
+                        }
                     }
                     mediaItemBuilder.setDrmConfiguration(drmConfig.build())
                 }
@@ -252,9 +256,7 @@ class PlayerActivity : AppCompatActivity() {
                             binding.loadingProgress.visibility = View.GONE
                             binding.errorView.visibility = View.GONE
                         }
-                        Player.STATE_ENDED -> {
-                            binding.loadingProgress.visibility = View.GONE
-                        }
+                        Player.STATE_ENDED -> binding.loadingProgress.visibility = View.GONE
                         Player.STATE_IDLE -> {}
                     }
                 }
@@ -262,13 +264,13 @@ class PlayerActivity : AppCompatActivity() {
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     binding.loadingProgress.visibility = View.GONE
                     binding.errorView.visibility = View.VISIBLE
-                    binding.errorText.text = "Playback Error"
+                    binding.errorText.text = "Error: ${error.message}"
                 }
             })
 
         } catch (e: Exception) {
             binding.errorView.visibility = View.VISIBLE
-            binding.errorText.text = "Error initializing player"
+            binding.errorText.text = "Init Error: ${e.message}"
         }
     }
 
@@ -283,9 +285,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun toggleFullscreen() {
         isFullscreen = !isFullscreen
-        val icon = binding.playerView.findViewById<android.widget.ImageButton>(
-            resources.getIdentifier("exo_fullscreen", "id", packageName)
-        )
+        val icon = binding.playerView.findViewById<ImageButton>(resources.getIdentifier("exo_fullscreen", "id", packageName))
         
         if (isFullscreen) {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
@@ -293,39 +293,91 @@ class PlayerActivity : AppCompatActivity() {
             icon?.setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
         } else {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            if (relatedAdapter.currentList.isNotEmpty()) {
+            if (!relatedAdapter.currentList.isEmpty()) {
                 binding.relatedChannelsContainer.visibility = View.VISIBLE
             }
             icon?.setImageResource(android.R.drawable.ic_menu_gallery)
         }
     }
 
+    private fun toggleLockMode() {
+        isControlsLocked = !isControlsLocked
+        if (isControlsLocked) {
+            binding.playerView.hideController()
+            binding.playerView.useController = false
+            binding.lockOverlay.visibility = View.VISIBLE
+        } else {
+            binding.playerView.useController = true
+            binding.playerView.showController()
+            binding.lockOverlay.visibility = View.GONE
+        }
+    }
+
+    private fun toggleResizeMode() {
+        resizeMode = when (resizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        binding.playerView.resizeMode = resizeMode
+    }
+
     private fun showSettings() {
-        player?.let {
-            PlayerSettingsDialog(this, it).show()
+        player?.let { PlayerSettingsDialog(this, it).show() }
+    }
+
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (player?.isPlaying == true) {
+            enterPipMode()
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (isInPictureInPictureMode) {
+            binding.playerView.hideController()
+            binding.relatedChannelsContainer.visibility = View.GONE
+        } else {
+            binding.playerView.showController()
+            if (!relatedAdapter.currentList.isEmpty()) {
+                binding.relatedChannelsContainer.visibility = View.VISIBLE
+            }
         }
     }
 
     private fun hideSystemUI() {
-        window.decorView.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            or View.SYSTEM_UI_FLAG_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        )
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, binding.root).let { controller ->
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        player?.pause()
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N || !isInPictureInPictureMode) {
+            player?.pause()
+        }
     }
 
     override fun onStop() {
         super.onStop()
-        player?.release()
-        player = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
+           // Continue playing
+        } else {
+            player?.release()
+            player = null
+        }
     }
 
     override fun onDestroy() {
