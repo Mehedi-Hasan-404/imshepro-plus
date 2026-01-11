@@ -8,16 +8,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Rect
 import android.graphics.drawable.Icon
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.util.Rational
+import android.view.KeyEvent
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowInsets
@@ -53,6 +57,8 @@ import com.livetvpro.databinding.ActivityChannelPlayerBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.UUID
+import kotlin.math.max
+import kotlin.math.min
 
 @UnstableApi
 @AndroidEntryPoint
@@ -65,6 +71,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private lateinit var channel: Channel
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
+    
+    // Controls
     private var btnBack: ImageButton? = null
     private var btnPip: ImageButton? = null
     private var btnSettings: ImageButton? = null
@@ -76,6 +84,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private var btnFullscreen: ImageButton? = null
     private var btnAspectRatio: ImageButton? = null
     private var tvChannelName: TextView? = null
+    
+    // State
     private var isInPipMode = false
     private var isLocked = false
     private var isMuted = false
@@ -90,6 +100,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     private val pipSourceRect = Rect()
     private var isBindingControls = false
     private var controlsBindingRunnable: Runnable? = null
+    
+    private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -120,6 +132,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         private const val CONTROL_TYPE_PAUSE = 2
         private const val REQUEST_PLAY = 1
         private const val REQUEST_PAUSE = 2
+        
         fun start(context: Context, channel: Channel) {
             val intent = Intent(context, ChannelPlayerActivity::class.java).apply { putExtra(EXTRA_CHANNEL, channel) }
             context.startActivity(intent)
@@ -132,6 +145,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             mPictureInPictureParamsBuilder = PictureInPictureParams.Builder()
             updatePictureInPictureActions(R.drawable.ic_pause, R.string.exo_controls_pause_description, CONTROL_TYPE_PAUSE, REQUEST_PAUSE)
@@ -142,25 +156,155 @@ class ChannelPlayerActivity : AppCompatActivity() {
                 registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
             }
         }
+        
         binding.root.post {
             val currentOrientation = resources.configuration.orientation
             val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
         }
+        
         channel = intent.getParcelableExtra(EXTRA_CHANNEL) ?: run { finish(); return }
         binding.progressBar.visibility = View.GONE
+        
         setupPlayer()
+        
         binding.playerView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) updatePipParamsBasic()
             }
         }
+        
         binding.playerView.postDelayed({ bindControllerViewsOnce(); setupControlListenersOnce() }, 300)
         configurePlayerInteractions()
         setupLockOverlay()
         setupRelatedChannels()
         loadRelatedChannels()
     }
+
+    // ==================== Key Event Handling (Integrated from Marlboro) ====================
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (isLocked && keyCode != KeyEvent.KEYCODE_BACK) {
+            showUnlockButton()
+            return true
+        }
+
+        when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP -> {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI)
+                return true
+            }
+            KeyEvent.KEYCODE_VOLUME_DOWN -> {
+                audioManager.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                if (!binding.playerView.isControllerFullyVisible) {
+                    binding.playerView.showController()
+                }
+                rewind()
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                if (!binding.playerView.isControllerFullyVisible) {
+                    binding.playerView.showController()
+                }
+                forward()
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_SPACE, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                togglePlayPause()
+                if (!binding.playerView.isControllerFullyVisible) {
+                    binding.playerView.showController()
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PLAY -> {
+                player?.play()
+                binding.playerView.showController()
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
+                player?.pause()
+                binding.playerView.showController()
+                return true
+            }
+            KeyEvent.KEYCODE_MEDIA_STOP -> {
+                finish()
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_UP -> {
+                if (!binding.playerView.isControllerFullyVisible) {
+                    binding.playerView.showController()
+                    return true
+                }
+            }
+            KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (!binding.playerView.isControllerFullyVisible) {
+                    binding.playerView.showController()
+                    return true
+                }
+                // If visible, let standard focus handling work to avoid "going upward"
+            }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        // Prevent double actions if handled in Down
+        return when (keyCode) {
+            KeyEvent.KEYCODE_VOLUME_UP,
+            KeyEvent.KEYCODE_VOLUME_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_MEDIA_REWIND,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD,
+            KeyEvent.KEYCODE_DPAD_CENTER,
+            KeyEvent.KEYCODE_ENTER,
+            KeyEvent.KEYCODE_SPACE,
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_PLAY,
+            KeyEvent.KEYCODE_MEDIA_PAUSE,
+            KeyEvent.KEYCODE_MEDIA_STOP -> true
+            else -> super.onKeyUp(keyCode, event)
+        }
+    }
+
+    // ==================== Player Actions ====================
+
+    private fun togglePlayPause() {
+        if (binding.errorView.visibility == View.VISIBLE) {
+            binding.errorView.visibility = View.GONE
+            binding.progressBar.visibility = View.VISIBLE
+            player?.release()
+            player = null
+            setupPlayer()
+        } else {
+            player?.let { p ->
+                if (p.isPlaying) p.pause() else p.play()
+            }
+        }
+    }
+
+    private fun rewind() {
+        player?.let { p ->
+            val newPosition = p.currentPosition - skipMs
+            p.seekTo(max(0, newPosition))
+        }
+    }
+
+    private fun forward() {
+        player?.let { p ->
+            val newPosition = p.currentPosition + skipMs
+            if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
+                p.seekTo(p.duration)
+            } else {
+                p.seekTo(newPosition)
+            }
+        }
+    }
+
+    // ==================== Setup & Initialization ====================
 
     private fun setupRelatedChannels() {
         relatedChannelsAdapter = RelatedChannelAdapter { relatedChannel -> switchToChannel(relatedChannel) }
@@ -301,6 +445,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         player = null
     }
 
+    // ==================== Parsing & Stream Setup ====================
+
     private data class StreamInfo(val url: String, val headers: Map<String, String>, val drmScheme: String?, val drmKeyId: String?, val drmKey: String?, val drmLicenseUrl: String? = null)
 
     private fun parseStreamUrl(streamUrl: String): StreamInfo {
@@ -423,6 +569,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerView.apply { useController = true; controllerShowTimeoutMs = 5000; controllerHideOnTouch = true; setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING); controllerAutoShow = false }
     }
 
+    // ==================== DRM Configuration ====================
+
     private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
         return try {
             val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
@@ -465,6 +613,8 @@ class ChannelPlayerActivity : AppCompatActivity() {
     }
 
     private fun updatePlayPauseIcon(isPlaying: Boolean) { btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play) }
+
+    // ==================== UI Bindings & Listeners ====================
 
     private fun bindControllerViewsExact() {
         with(binding.playerView) {
@@ -518,35 +668,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
         btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
         btnLock?.setOnClickListener { toggleLock() }
-        btnRewind?.setOnClickListener {
-            if (!isLocked) player?.let { p ->
-                val newPosition = p.currentPosition - skipMs
-                p.seekTo(if (newPosition < 0) 0 else newPosition)
-            }
-        }
-        btnPlayPause?.setOnClickListener {
-            if (!isLocked) {
-                if (binding.errorView.visibility == View.VISIBLE) {
-                    binding.errorView.visibility = View.GONE
-                    binding.progressBar.visibility = View.VISIBLE
-                    player?.release()
-                    player = null
-                    setupPlayer()
-                } else {
-                    player?.let { p -> if (p.isPlaying) p.pause() else p.play() }
-                }
-            }
-        }
-        btnForward?.setOnClickListener {
-            if (!isLocked) player?.let { p ->
-                val newPosition = p.currentPosition + skipMs
-                if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
-                    p.seekTo(p.duration)
-                } else {
-                    p.seekTo(newPosition)
-                }
-            }
-        }
+        btnRewind?.setOnClickListener { if (!isLocked) rewind() }
+        btnPlayPause?.setOnClickListener { if (!isLocked) togglePlayPause() }
+        btnForward?.setOnClickListener { if (!isLocked) forward() }
         btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
         btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
     }
@@ -816,3 +940,4 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 }
+
