@@ -263,7 +263,7 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        viewModel.relatedChannels.observe(this) { channels ->
+        viewModel.relatedItems.observe(this) { channels ->
             relatedChannels = channels
             relatedChannelsAdapter.submitList(channels)
             binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
