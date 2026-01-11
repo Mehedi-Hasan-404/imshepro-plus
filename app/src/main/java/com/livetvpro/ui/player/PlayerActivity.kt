@@ -11,6 +11,7 @@ import android.util.Rational
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
+import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
@@ -19,12 +20,14 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
@@ -128,7 +131,7 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.unlockButton.setOnClickListener { toggleLockMode() }
         
-        binding.playerView.setControllerVisibilityListener(androidx.media3.ui.PlayerView.ControllerVisibilityListener { visibility ->
+        binding.playerView.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
             if (isControlsLocked && visibility == View.VISIBLE) {
                 binding.playerView.hideController()
                 binding.lockOverlay.visibility = View.VISIBLE
@@ -137,7 +140,7 @@ class PlayerActivity : AppCompatActivity() {
     }
     
     private fun updateTitle(title: String) {
-        val titleView = binding.playerView.findViewById<android.widget.TextView>(
+        val titleView = binding.playerView.findViewById<TextView>(
             resources.getIdentifier("exo_channel_name", "id", packageName)
         )
         titleView?.text = title
@@ -176,7 +179,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun initializePlayer(url: String) {
         if (url.isEmpty()) {
             binding.errorView.visibility = View.VISIBLE
-            binding.errorText.text = "Stream URL not available"
+            binding.errorText.text = getString(R.string.no_data)
             return
         }
 
@@ -261,16 +264,16 @@ class PlayerActivity : AppCompatActivity() {
                     }
                 }
 
-                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                override fun onPlayerError(error: PlaybackException) {
                     binding.loadingProgress.visibility = View.GONE
                     binding.errorView.visibility = View.VISIBLE
-                    binding.errorText.text = "Error: ${error.message}"
+                    binding.errorText.text = error.message
                 }
             })
 
         } catch (e: Exception) {
             binding.errorView.visibility = View.VISIBLE
-            binding.errorText.text = "Init Error: ${e.message}"
+            binding.errorText.text = e.message
         }
     }
 
@@ -373,7 +376,6 @@ class PlayerActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
-           // Continue playing
         } else {
             player?.release()
             player = null
@@ -386,5 +388,3 @@ class PlayerActivity : AppCompatActivity() {
         player = null
     }
 }
-
-
