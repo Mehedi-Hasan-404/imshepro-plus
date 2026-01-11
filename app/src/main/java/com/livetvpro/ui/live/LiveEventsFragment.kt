@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/live/LiveEventsFragment.kt
 package com.livetvpro.ui.live
 
 import android.os.Bundle
@@ -15,6 +14,7 @@ import com.livetvpro.data.models.EventStatus
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentLiveEventsBinding
 import com.livetvpro.ui.adapters.LiveEventAdapter
+import com.livetvpro.ui.player.PlayerActivity  // CHANGED: Use PlayerActivity instead
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -47,16 +47,14 @@ class LiveEventsFragment : Fragment() {
     private fun setupRecyclerView() {
         eventAdapter = LiveEventAdapter { event ->
             try {
-                // CHANGED: No uniqueId passed.
-                // This implies: "Show ad once for the entire Live Events section"
                 val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
                 
                 if (shouldBlock) {
                     return@LiveEventAdapter
                 }
                 
-                // Open Player
-                EventPlayerActivity.start(requireContext(), event.id)
+                // CHANGED: Use PlayerActivity.startWithEvent
+                PlayerActivity.startWithEvent(requireContext(), event)
                 
             } catch (e: Exception) {
                 Log.e("LiveEvents", "Error starting event player", e)
