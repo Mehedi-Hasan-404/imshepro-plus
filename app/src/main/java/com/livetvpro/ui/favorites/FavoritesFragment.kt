@@ -1,4 +1,3 @@
-// File: app/src/main/java/com/livetvpro/ui/favorites/FavoritesFragment.kt
 package com.livetvpro.ui.favorites
 
 import android.os.Bundle
@@ -15,7 +14,7 @@ import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentFavoritesBinding
 import com.livetvpro.ui.adapters.FavoriteAdapter
-import com.livetvpro.ui.player.ChannelPlayerActivity
+import com.livetvpro.ui.player.PlayerActivity  // CHANGED: Use PlayerActivity instead
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -46,15 +45,13 @@ class FavoritesFragment : Fragment() {
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
             onChannelClick = { favChannel ->
-                // CHANGED: No uniqueId passed. 
-                // This implies: "Show ad once for the entire Favorites section"
                 val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
                 
                 if (shouldBlock) {
                     return@FavoriteAdapter
                 }
                 
-                // Open Player
+                // CHANGED: Use PlayerActivity.startWithChannel
                 val channel = Channel(
                     id = favChannel.id,
                     name = favChannel.name,
@@ -63,7 +60,7 @@ class FavoritesFragment : Fragment() {
                     categoryId = favChannel.categoryId,
                     categoryName = favChannel.categoryName
                 )
-                ChannelPlayerActivity.start(requireContext(), channel)
+                PlayerActivity.startWithChannel(requireContext(), channel)
             },
             onFavoriteToggle = { favChannel -> 
                 showRemoveConfirmation(favChannel) 
