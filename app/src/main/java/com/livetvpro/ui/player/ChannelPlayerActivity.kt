@@ -18,12 +18,10 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.util.Base64
 import android.util.Rational
 import android.view.KeyEvent
 import android.view.SurfaceView
 import android.view.View
-import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
@@ -32,6 +30,9 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -57,7 +58,6 @@ import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import java.util.UUID
 import kotlin.math.max
-import kotlin.math.min
 
 @UnstableApi
 @AndroidEntryPoint
@@ -100,6 +100,10 @@ class ChannelPlayerActivity : AppCompatActivity() {
     
     private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
+    private val windowInsetsController: WindowInsetsControllerCompat by lazy {
+        WindowCompat.getInsetsController(window, window.decorView)
+    }
+
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent == null || ACTION_MEDIA_CONTROL != intent.action) return
@@ -141,7 +145,9 @@ class ChannelPlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityChannelPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
+        setupWindowFlags()
+        setupSystemUI()
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             mPictureInPictureParamsBuilder = PictureInPictureParams.Builder()
@@ -176,6 +182,40 @@ class ChannelPlayerActivity : AppCompatActivity() {
         setupLockOverlay()
         setupRelatedChannels()
         loadRelatedChannels()
+    }
+
+    private fun setupWindowFlags() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        )
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.attributes.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+    }
+
+    private fun setupSystemUI() {
+        windowInsetsController.apply {
+            hide(WindowInsetsCompat.Type.statusBars())
+            hide(WindowInsetsCompat.Type.navigationBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    private fun enterPipUIMode() {
+        window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        windowInsetsController.apply {
+            show(WindowInsetsCompat.Type.systemBars())
+            show(WindowInsetsCompat.Type.navigationBars())
+        }
+    }
+
+    private fun exitPipUIMode() {
+        setupWindowFlags()
+        setupSystemUI()
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
@@ -369,17 +409,21 @@ class ChannelPlayerActivity : AppCompatActivity() {
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isInPip()) setSubtitleTextSize()
+        
+        setupWindowFlags()
+        setupSystemUI()
     }
 
     override fun onStart() {
         super.onStart()
         if (Build.VERSION.SDK_INT > 23) { setupPlayer(); binding.playerView.onResume() }
+        setupSystemUI()
     }
 
     override fun onResume() {
         super.onResume()
         if (Build.VERSION.SDK_INT <= 23 || player == null) { setupPlayer(); binding.playerView.onResume() }
-        hideSystemUI()
+        setupSystemUI()
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
@@ -387,11 +431,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
         binding.playerContainer.requestLayout()
         binding.root.requestLayout()
         
-        if (isLandscape) {
-            hideSystemUI()
-        } else {
-            showSystemUI()
-        }
+        setupSystemUI()
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
@@ -870,10 +910,14 @@ class ChannelPlayerActivity : AppCompatActivity() {
     override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
         isInPipMode = isInPictureInPictureMode
-        if (isInPipMode) {
+        binding.playerView.alpha = if (isInPictureInPictureMode) 1f else 1f
+        
+        if (isInPictureInPictureMode) {
+            enterPipUIMode()
             binding.playerView.hideController()
             setSubtitleTextSizePiP()
         } else {
+            exitPipUIMode()
             setSubtitleTextSize()
             binding.playerView.setControllerAutoShow(true)
             if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
@@ -891,7 +935,7 @@ class ChannelPlayerActivity : AppCompatActivity() {
             } else {
                 binding.playerView.useController = true
                 if (player?.isPlaying == true) {
-                    hideSystemUI()
+                    setupSystemUI()
                 } else {
                     binding.playerView.post { binding.playerView.showController() }
                 }
@@ -908,33 +952,6 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun hideSystemUI() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.apply {
-                hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN)
-        }
-    }
-
-    private fun showSystemUI() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-        } else {
-            @Suppress("DEPRECATION")
-            window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN)
-        }
-    }
-
     override fun finish() {
         try {
             releasePlayer()
@@ -946,5 +963,4 @@ class ChannelPlayerActivity : AppCompatActivity() {
         }
     }
 }
-
 
