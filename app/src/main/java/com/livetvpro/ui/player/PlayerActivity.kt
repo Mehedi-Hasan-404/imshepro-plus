@@ -26,7 +26,6 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.viewModels
-import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.lifecycle.Lifecycle
@@ -165,7 +164,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
@@ -1012,13 +1010,14 @@ class PlayerActivity : AppCompatActivity() {
                 packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun updatePictureInPictureActions(
         iconId: Int,
         resTitle: Int,
         controlType: Int,
         requestCode: Int
     ): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        
         return try {
             val actions = ArrayList<RemoteAction>()
             val intent = PendingIntent.getBroadcast(
@@ -1038,8 +1037,9 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
     private fun updatePipParamsBasic() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        
         if (!isInPipMode) {
             try {
                 val format = player?.videoFormat
@@ -1064,8 +1064,9 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
             return
         }
@@ -1152,12 +1153,13 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!isInPipMode && player?.isPlaying == true && isPiPSupported()) {
-            userRequestedPip = true
-            enterPipMode()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!isInPipMode && player?.isPlaying == true && isPiPSupported()) {
+                userRequestedPip = true
+                enterPipMode()
+            }
         }
     }
 
