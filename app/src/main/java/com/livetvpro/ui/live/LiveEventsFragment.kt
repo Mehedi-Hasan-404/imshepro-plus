@@ -124,14 +124,23 @@ class LiveEventsFragment : Fragment() {
         val dialog = LinkSelectionDialog(
             requireContext(),
             event.links,
-            null  // No current link yet
+            null
         ) { selectedLink ->
-            // Create a modified event with only the selected link
+            // CRITICAL FIX: To ensure the "Multiple Links" box shows in the player,
+            // we must pass the FULL list of links, not just the selected one.
+            // We reorder the list so the selected link is at index 0 (default).
+            
+            val reorderedLinks = event.links.toMutableList()
+            reorderedLinks.remove(selectedLink)
+            reorderedLinks.add(0, selectedLink) // Put selected first
+
             val modifiedEvent = event.copy(
-                links = listOf(selectedLink)
+                links = reorderedLinks
             )
             PlayerActivity.startWithEvent(requireContext(), modifiedEvent)
         }
         dialog.show()
     }
 }
+
+
