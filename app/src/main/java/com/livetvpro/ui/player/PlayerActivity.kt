@@ -207,7 +207,6 @@ class PlayerActivity : AppCompatActivity() {
             val currentOrientation = resources.configuration.orientation
             val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
-            updateLinksVisibility(isLandscape)
         }
 
         binding.progressBar.visibility = View.GONE
@@ -390,28 +389,6 @@ class PlayerActivity : AppCompatActivity() {
         }
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
-        updateLinksVisibility(isLandscape)
-    }
-
-    private fun updateLinksVisibility(isLandscape: Boolean) {
-        if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            binding.linksSection.visibility = if (isLandscape) View.GONE else View.VISIBLE
-            val exoLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-            exoLinksRecycler?.visibility = if (isLandscape) View.VISIBLE else View.GONE
-            if (exoLinksRecycler?.adapter == null && isLandscape) {
-                val landscapeLinkAdapter = LinkChipAdapter { link, position ->
-                    switchToLink(link, position)
-                }
-                exoLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-                exoLinksRecycler.adapter = landscapeLinkAdapter
-                landscapeLinkAdapter.submitList(allEventLinks)
-                landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
-            }
-        } else {
-            binding.linksSection.visibility = View.GONE
-            val exoLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-            exoLinksRecycler?.visibility = View.GONE
-        }
     }
 
     override fun onStart() {
