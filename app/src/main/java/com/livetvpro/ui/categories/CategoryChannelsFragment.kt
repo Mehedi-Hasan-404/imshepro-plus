@@ -64,32 +64,31 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     }
 
     private fun setupRecyclerView() {
-        channelAdapter = ChannelAdapter(
-            onChannelClick = { channel ->
-                val shouldBlock = listenerManager.onPageInteraction(
-                    ListenerConfig.PAGE_CHANNELS, 
-                    uniqueId = currentCategoryId
-                )
+    channelAdapter = ChannelAdapter(
+        onChannelClick = { channel ->
+            val shouldBlock = listenerManager.onPageInteraction(
+                ListenerConfig.PAGE_CHANNELS, 
+                uniqueId = currentCategoryId
+            )
 
-                if (shouldBlock) {
-                    return@ChannelAdapter
-                }
-                
-                // CHANGED: Use PlayerActivity.startWithChannel
-                PlayerActivity.startWithChannel(requireContext(), channel)
-            },
-            onFavoriteToggle = { channel ->
-                viewModel.toggleFavorite(channel)
-                binding.root.postDelayed({ channelAdapter.refreshItem(channel.id) }, 100)
-            },
-            isFavorite = { channelId -> viewModel.isFavorite(channelId) }
-        )
+            if (shouldBlock) {
+                return@ChannelAdapter
+            }
+            
+            PlayerActivity.startWithChannel(requireContext(), channel)
+        },
+        onFavoriteToggle = { channel ->
+            viewModel.toggleFavorite(channel)
+            binding.root.postDelayed({ channelAdapter.refreshItem(channel.id) }, 100)
+        },
+        isFavorite = { channelId -> viewModel.isFavorite(channelId) }
+    )
 
-        binding.recyclerViewChannels.apply {
-            layoutManager = GridLayoutManager(context, 3)
-            adapter = channelAdapter
-            setHasFixedSize(true)
-        }
+    binding.recyclerViewChannels.apply {
+        layoutManager = GridLayoutManager(context, 3)
+        adapter = channelAdapter
+        // REMOVED: setHasFixedSize(true)
+    }
     }
 
     private fun observeViewModel() {
