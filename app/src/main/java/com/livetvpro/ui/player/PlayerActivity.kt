@@ -393,7 +393,7 @@ class PlayerActivity : AppCompatActivity() {
             params.height = 0
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            if (relatedChannels.isNotEmpty() && contentType == ContentType.CHANNEL) {
+            if (relatedChannels.isNotEmpty()) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
             }
         }
