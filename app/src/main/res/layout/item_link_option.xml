@@ -14,12 +14,13 @@
     android:gravity="center_vertical"
     android:minHeight="48dp">
 
+    <!-- Hardcoded to #FFFFFF to ensure visibility on dark dialog backgrounds -->
     <TextView
         android:id="@+id/linkTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Link Name"
-        android:textColor="?android:attr/textColorPrimary"
+        android:textColor="#FFFFFF"
         android:textSize="16sp"
         android:ellipsize="end"
         android:maxLines="1" />
