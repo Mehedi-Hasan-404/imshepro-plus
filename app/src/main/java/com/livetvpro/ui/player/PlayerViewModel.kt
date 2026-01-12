@@ -98,26 +98,30 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    // FIXED: Keep events as events, use proper display with league badges
     fun loadRelatedEvents(currentEventId: String) {
         viewModelScope.launch {
             try {
                 val allEvents = liveEventRepository.getLiveEvents()
-                val liveAndUpcomingEvents = allEvents.filter { event ->
-                    event.id != currentEventId && event.isLive
+                
+                // Filter: Get live and upcoming events, exclude current
+                val relatedEvents = allEvents.filter { event ->
+                    event.id != currentEventId && (event.isLive || event.getStatus(System.currentTimeMillis()) == com.livetvpro.data.models.EventStatus.UPCOMING)
                 }
 
-                val eventsToShow = liveAndUpcomingEvents.take(9).map { event ->
+                // Convert to Channel format for display (with league badge support)
+                val eventsAsChannels = relatedEvents.take(9).map { event ->
                     Channel(
                         id = event.id,
                         name = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" },
                         logoUrl = event.team1Logo.ifEmpty { event.team2Logo },
                         streamUrl = event.links.firstOrNull()?.url ?: "",
-                        categoryId = "live_events",
-                        categoryName = event.league
+                        categoryId = "live_events", // IMPORTANT: This triggers league badge in adapter
+                        categoryName = event.league // This is displayed in the badge
                     )
                 }
 
-                _relatedItems.postValue(eventsToShow)
+                _relatedItems.postValue(eventsAsChannels)
             } catch (e: Exception) {
                 _relatedItems.postValue(emptyList())
             }
