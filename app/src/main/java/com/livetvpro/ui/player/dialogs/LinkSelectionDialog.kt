@@ -2,6 +2,8 @@ package com.livetvpro.ui.player.dialogs
 
 import android.app.Dialog
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.ViewGroup
 import android.view.Window
@@ -17,7 +19,7 @@ class LinkSelectionDialog(
     private val links: List<LiveEventLink>,
     private val currentLink: String?,
     private val onLinkSelected: (LiveEventLink) -> Unit
-) : Dialog(context) {
+) : Dialog(context, R.style.Theme_LiveTVPro) {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,11 +27,13 @@ class LinkSelectionDialog(
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         setContentView(R.layout.dialog_link_selection)
         
+        // Make dialog background transparent to show card with rounded corners
+        window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        
         val displayMetrics = context.resources.displayMetrics
-        val dialogWidth = (displayMetrics.widthPixels * 0.85).toInt()
+        val dialogWidth = (displayMetrics.widthPixels * 0.90).toInt()
         
         window?.setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
-        window?.setBackgroundDrawableResource(android.R.color.transparent)
         
         setupViews()
     }
@@ -69,6 +73,9 @@ class LinkSelectionDialog(
             val link = links[position]
             holder.title.text = link.label
             
+            // Ensure text is always visible with high contrast
+            holder.title.setTextColor(Color.WHITE)
+            
             // Show tick icon if this is the current link
             val isCurrentLink = currentLink == link.url
             holder.indicator.visibility = if (isCurrentLink) {
@@ -77,6 +84,7 @@ class LinkSelectionDialog(
                 android.view.View.GONE
             }
             
+            // Add ripple effect on click
             holder.view.setOnClickListener {
                 onLinkClick(link)
             }
