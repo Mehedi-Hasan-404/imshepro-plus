@@ -2,54 +2,44 @@ package com.livetvpro.ui.player.dialogs
 
 import android.app.Dialog
 import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.ViewGroup
 import android.view.Window
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.models.LiveEventLink
-
 
 class LinkSelectionDialog(
     context: Context,
     private val links: List<LiveEventLink>,
     private val currentLink: String?,
     private val onLinkSelected: (LiveEventLink) -> Unit
-) : Dialog(context, R.style.Theme_LiveTVPro) {
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        
-        requestWindowFeature(Window.FEATURE_NO_TITLE)
-        setContentView(R.layout.dialog_link_selection)
-        
-        // Make dialog background transparent to show card with rounded corners
-        window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        
-        val displayMetrics = context.resources.displayMetrics
-        val dialogWidth = (displayMetrics.widthPixels * 0.90).toInt()
-        
-        window?.setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
-        
-        setupViews()
-    }
+) {
     
-    private fun setupViews() {
-        val recyclerView = findViewById<RecyclerView>(R.id.linksRecyclerView)
-        val btnCancel = findViewById<MaterialButton>(R.id.btnCancel)
+    fun show() {
+        val dialogView = android.view.LayoutInflater.from(context)
+            .inflate(R.layout.dialog_link_selection, null)
+        
+        val recyclerView = dialogView.findViewById<RecyclerView>(R.id.linksRecyclerView)
+        val btnCancel = dialogView.findViewById<MaterialButton>(R.id.btnCancel)
         
         recyclerView.layoutManager = LinearLayoutManager(context)
         val adapter = LinkAdapter(links, currentLink) { selectedLink ->
             onLinkSelected(selectedLink)
-            dismiss()
+            dialog.dismiss()
         }
         recyclerView.adapter = adapter
         
-        btnCancel.setOnClickListener { dismiss() }
+        val dialog = MaterialAlertDialogBuilder(context)
+            .setView(dialogView)
+            .create()
+        
+        btnCancel.setOnClickListener { dialog.dismiss() }
+        
+        dialog.show()
     }
     
     private class LinkAdapter(
@@ -73,10 +63,6 @@ class LinkSelectionDialog(
             val link = links[position]
             holder.title.text = link.label
             
-            // Ensure text is always visible with high contrast
-            holder.title.setTextColor(Color.WHITE)
-            
-            // Show tick icon if this is the current link
             val isCurrentLink = currentLink == link.url
             holder.indicator.visibility = if (isCurrentLink) {
                 android.view.View.VISIBLE
@@ -84,7 +70,6 @@ class LinkSelectionDialog(
                 android.view.View.GONE
             }
             
-            // Add ripple effect on click
             holder.view.setOnClickListener {
                 onLinkClick(link)
             }
