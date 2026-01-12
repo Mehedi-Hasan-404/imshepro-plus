@@ -4,9 +4,7 @@ import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.RadioButton
 import android.widget.TextView
-import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -21,20 +19,21 @@ class LinkSelectionDialog(
 ) {
 
     fun show() {
-        // We use a RecyclerView inside the dialog to list the links
+        // Create a RecyclerView for the list of options
         val recyclerView = RecyclerView(context).apply {
             layoutManager = LinearLayoutManager(context)
             overScrollMode = View.OVER_SCROLL_NEVER
-            setPadding(0, 16, 0, 0) // Add a little top padding
+            // Minimal padding top/bottom to look like a standard list dialog
+            setPadding(0, 8, 0, 8) 
         }
 
         val dialog = MaterialAlertDialogBuilder(context)
-            .setTitle("Select Stream") // Standard Dialog Title
-            .setView(recyclerView)     // The list of links
-            .setNegativeButton("Cancel", null) // Standard Cancel button
+            .setTitle("Select Stream")
+            .setView(recyclerView)
+            .setNegativeButton("Cancel", null)
             .create()
 
-        val adapter = LinkAdapter(links, currentLink) { selectedLink ->
+        val adapter = LinkAdapter(links) { selectedLink ->
             onLinkSelected(selectedLink)
             dialog.dismiss()
         }
@@ -45,13 +44,11 @@ class LinkSelectionDialog(
 
     private class LinkAdapter(
         private val links: List<LiveEventLink>,
-        private val currentLink: String?,
         private val onLinkClick: (LiveEventLink) -> Unit
     ) : RecyclerView.Adapter<LinkAdapter.ViewHolder>() {
 
         inner class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
             val title: TextView = view.findViewById(R.id.linkTitle)
-            val radioButton: RadioButton = view.findViewById(R.id.linkRadioButton)
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -64,12 +61,6 @@ class LinkSelectionDialog(
             val link = links[position]
             holder.title.text = link.label
 
-            // If a link is currently playing, check the radio button
-            // If currentLink is null (first load), check the first one optionally, 
-            // or leave unchecked. Here we leave unchecked unless it matches.
-            val isSelected = currentLink == link.url
-            holder.radioButton.isChecked = isSelected
-
             holder.view.setOnClickListener {
                 onLinkClick(link)
             }
@@ -78,4 +69,5 @@ class LinkSelectionDialog(
         override fun getItemCount() = links.size
     }
 }
+
 
