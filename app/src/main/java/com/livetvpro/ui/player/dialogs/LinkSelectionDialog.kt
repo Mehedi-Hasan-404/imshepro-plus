@@ -1,72 +1,31 @@
 package com.livetvpro.ui.player.dialogs
 
 import android.content.Context
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.livetvpro.R
 import com.livetvpro.data.models.LiveEventLink
 
 class LinkSelectionDialog(
     private val context: Context,
     private val links: List<LiveEventLink>,
-    private val currentLink: String?,
+    private val currentLink: String?, // Kept for compatibility, though standard list doesn't show selection state
     private val onLinkSelected: (LiveEventLink) -> Unit
 ) {
 
     fun show() {
-        // Create a RecyclerView for the list of options
-        val recyclerView = RecyclerView(context).apply {
-            layoutManager = LinearLayoutManager(context)
-            overScrollMode = View.OVER_SCROLL_NEVER
-            // Minimal padding top/bottom to look like a standard list dialog
-            setPadding(0, 8, 0, 8) 
-        }
+        // Convert the list of link objects to a simple array of Strings (labels)
+        val labels = links.map { it.label }.toTypedArray()
 
-        val dialog = MaterialAlertDialogBuilder(context)
+        MaterialAlertDialogBuilder(context)
             .setTitle("Select Stream")
-            .setView(recyclerView)
-            .setNegativeButton("Cancel", null)
-            .create()
-
-        val adapter = LinkAdapter(links) { selectedLink ->
-            onLinkSelected(selectedLink)
-            dialog.dismiss()
-        }
-        recyclerView.adapter = adapter
-
-        dialog.show()
-    }
-
-    private class LinkAdapter(
-        private val links: List<LiveEventLink>,
-        private val onLinkClick: (LiveEventLink) -> Unit
-    ) : RecyclerView.Adapter<LinkAdapter.ViewHolder>() {
-
-        inner class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
-            val title: TextView = view.findViewById(R.id.linkTitle)
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-            val view = LayoutInflater.from(parent.context)
-                .inflate(R.layout.item_link_option, parent, false)
-            return ViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-            val link = links[position]
-            holder.title.text = link.label
-
-            holder.view.setOnClickListener {
-                onLinkClick(link)
+            .setItems(labels) { dialog, which ->
+                // 'which' is the index of the item clicked
+                if (which in links.indices) {
+                    onLinkSelected(links[which])
+                }
+                dialog.dismiss()
             }
-        }
-
-        override fun getItemCount() = links.size
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 }
 
