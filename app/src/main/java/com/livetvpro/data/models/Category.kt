@@ -1,6 +1,7 @@
 package com.livetvpro.data.models
 
 import android.os.Parcelable
+import com.google.gson.annotations.SerializedName
 import kotlinx.parcelize.Parcelize
 
 @Parcelize
@@ -75,6 +76,8 @@ data class LiveEvent(
 
 @Parcelize
 data class LiveEventLink(
+    // FIX: Map "quality" or "name" from JSON to this label field
+    @SerializedName(value = "label", alternate = ["quality", "name"])
     val label: String = "",
     val url: String = ""
 ) : Parcelable
