@@ -1,6 +1,7 @@
 package com.livetvpro.ui.adapters
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -45,6 +46,14 @@ class RelatedChannelAdapter(
             
             // CRITICAL FIX: Enable marquee scrolling
             binding.channelName.isSelected = true
+
+            // Show league badge for events (categoryId = "live_events")
+            if (channel.categoryId == "live_events" && channel.categoryName.isNotEmpty()) {
+                binding.leagueBadge.visibility = View.VISIBLE
+                binding.leagueBadge.text = channel.categoryName
+            } else {
+                binding.leagueBadge.visibility = View.GONE
+            }
 
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
