@@ -55,6 +55,8 @@ import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
+import com.livetvpro.ui.adapters.LinkChipAdapter
+import com.livetvpro.data.models.LiveEventLink
 
 
 @UnstableApi
@@ -68,6 +70,7 @@ class PlayerActivity : AppCompatActivity() {
     
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
+    private lateinit var linkChipAdapter: LinkChipAdapter
 
     private var btnBack: ImageButton? = null
     private var btnPip: ImageButton? = null
@@ -100,11 +103,13 @@ class PlayerActivity : AppCompatActivity() {
     private var controlsBindingRunnable: Runnable? = null
 
     private var contentType: ContentType = ContentType.CHANNEL
-    private var channelData: Channel? = null
-    private var eventData: LiveEvent? = null
-    private var contentId: String = ""
-    private var contentName: String = ""
-    private var streamUrl: String = ""
+private var channelData: Channel? = null
+private var eventData: LiveEvent? = null
+private var allEventLinks = listOf<LiveEventLink>()
+private var currentLinkIndex = 0
+private var contentId: String = ""
+private var contentName: String = ""
+private var streamUrl: String = ""
 
     enum class ContentType {
         CHANNEL, EVENT
@@ -220,9 +225,10 @@ class PlayerActivity : AppCompatActivity() {
         }, 300)
 
         configurePlayerInteractions()
-        setupLockOverlay()
-        setupRelatedChannels()
-        loadRelatedContent()
+setupLockOverlay()
+setupRelatedChannels()
+setupLinksUI()
+loadRelatedContent()
     }
 
     private fun parseIntent() {
@@ -247,12 +253,14 @@ class PlayerActivity : AppCompatActivity() {
             contentName = channel.name
             streamUrl = channel.streamUrl
         } else if (eventData != null) {
-            contentType = ContentType.EVENT
-            val event = eventData!!
-            contentId = event.id
-            contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
-            streamUrl = event.links.firstOrNull()?.url ?: ""
-        } else {
+    contentType = ContentType.EVENT
+    val event = eventData!!
+    contentId = event.id
+    contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
+    allEventLinks = event.links
+    currentLinkIndex = 0
+    streamUrl = allEventLinks.firstOrNull()?.url ?: ""
+} else {
             finish()
             return
         }
@@ -270,6 +278,25 @@ class PlayerActivity : AppCompatActivity() {
         recyclerView.adapter = relatedChannelsAdapter
         recyclerView.setHasFixedSize(true)
     }
+    
+    private fun setupLinksUI() {
+    linkChipAdapter = LinkChipAdapter { link, position ->
+        switchToLink(link, position)
+    }
+    
+    val linksRecyclerView = binding.linksRecyclerView
+    linksRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+    linksRecyclerView.adapter = linkChipAdapter
+    
+    // Show links section only for events with multiple links
+    if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+        binding.linksSection.visibility = View.VISIBLE
+        linkChipAdapter.submitList(allEventLinks)
+        linkChipAdapter.setSelectedPosition(currentLinkIndex)
+    } else {
+        binding.linksSection.visibility = View.GONE
+    }
+}
 
     private fun loadRelatedContent() {
         when (contentType) {
@@ -315,30 +342,44 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun switchToEvent(eventItem: Channel) {
-        lifecycleScope.launch {
-            try {
-                val events = viewModel.getAllEvents()
-                val selectedEvent = events.find { it.id == eventItem.id }
-                selectedEvent?.let { event ->
-                    runOnUiThread {
-                        releasePlayer()
-                        channelData = null
-                        eventData = event
-                        contentType = ContentType.EVENT
-                        contentId = event.id
-                        contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
-                        streamUrl = event.links.firstOrNull()?.url ?: ""
-                        tvChannelName?.text = contentName
-                        setupPlayer()
-                        binding.relatedLoadingProgress.visibility = View.VISIBLE
-                        binding.relatedChannelsRecycler.visibility = View.GONE
-                        loadRelatedContent()
-                    }
+    lifecycleScope.launch {
+        try {
+            val events = viewModel.getAllEvents()
+            val selectedEvent = events.find { it.id == eventItem.id }
+            selectedEvent?.let { event ->
+                runOnUiThread {
+                    releasePlayer()
+                    channelData = null
+                    eventData = event
+                    contentType = ContentType.EVENT
+                    contentId = event.id
+                    contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
+                    allEventLinks = event.links
+                    currentLinkIndex = 0
+                    streamUrl = allEventLinks.firstOrNull()?.url ?: ""
+                    tvChannelName?.text = contentName
+                    setupPlayer()
+                    setupLinksUI()
+                    binding.relatedLoadingProgress.visibility = View.VISIBLE
+                    binding.relatedChannelsRecycler.visibility = View.GONE
+                    loadRelatedContent()
                 }
-            } catch (e: Exception) {
             }
+        } catch (e: Exception) {
         }
     }
+}
+
+private fun switchToLink(link: LiveEventLink, position: Int) {
+    if (position == currentLinkIndex) return
+    
+    currentLinkIndex = position
+    streamUrl = link.url
+    linkChipAdapter.setSelectedPosition(position)
+    
+    releasePlayer()
+    setupPlayer()
+}
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -865,37 +906,33 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun bindControllerViewsExact() {
-        with(binding.playerView) {
-            btnBack = findViewById(R.id.exo_back)
-            btnPip = findViewById(R.id.exo_pip)
-            btnSettings = findViewById(R.id.exo_settings)
-            btnLock = findViewById(R.id.exo_lock)
-            btnMute = findViewById(R.id.exo_mute)
-            btnRewind = findViewById(R.id.exo_rewind)
-            btnPlayPause = findViewById(R.id.exo_play_pause)
-            btnForward = findViewById(R.id.exo_forward)
-            btnFullscreen = findViewById(R.id.exo_fullscreen)
-            btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
-            tvChannelName = findViewById(R.id.exo_channel_name)
+    with(binding.playerView) {
+        btnBack = findViewById(R.id.exo_back)
+        btnPip = findViewById(R.id.exo_pip)
+        btnSettings = findViewById(R.id.exo_settings)
+        btnLock = findViewById(R.id.exo_lock)
+        btnMute = findViewById(R.id.exo_mute)
+        btnRewind = findViewById(R.id.exo_rewind)
+        btnPlayPause = findViewById(R.id.exo_play_pause)
+        btnForward = findViewById(R.id.exo_forward)
+        btnFullscreen = findViewById(R.id.exo_fullscreen)
+        btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
+        tvChannelName = findViewById(R.id.exo_channel_name)
+        
+        // Setup landscape links
+        val exoLinksRecycler = findViewById<RecyclerView>(R.id.exo_links_recycler)
+        if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+            exoLinksRecycler?.visibility = View.VISIBLE
+            val landscapeLinkAdapter = LinkChipAdapter { link, position ->
+                switchToLink(link, position)
+            }
+            exoLinksRecycler?.layoutManager = LinearLayoutManager(this@PlayerActivity, LinearLayoutManager.HORIZONTAL, false)
+            exoLinksRecycler?.adapter = landscapeLinkAdapter
+            landscapeLinkAdapter.submitList(allEventLinks)
+            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+        } else {
+            exoLinksRecycler?.visibility = View.GONE
         }
-        btnBack?.setImageResource(R.drawable.ic_arrow_back)
-        btnPip?.setImageResource(R.drawable.ic_pip)
-        btnSettings?.setImageResource(R.drawable.ic_settings)
-        btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
-        updateMuteIcon()
-        btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-        updatePlayPauseIcon(player?.isPlaying == true)
-        btnForward?.setImageResource(R.drawable.ic_skip_forward)
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        btnFullscreen?.setImageResource(if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen)
-        btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
-        listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-            it?.apply { isClickable = true; isFocusable = true; isEnabled = true }
-        }
-        btnAspectRatio?.visibility = View.VISIBLE
-        btnPip?.visibility = View.VISIBLE
-        btnFullscreen?.visibility = View.VISIBLE
-        tvChannelName?.text = contentName
     }
 
     private fun bindControllerViewsOnce() {
