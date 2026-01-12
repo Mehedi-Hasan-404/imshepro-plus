@@ -26,12 +26,22 @@ class LinkSelectionDialog(
             .setView(dialogView)
             .create()
         
+        // Setup RecyclerView with proper layout manager
         recyclerView.layoutManager = LinearLayoutManager(context)
+        recyclerView.setHasFixedSize(false)
+        
+        // Create and set adapter
         val adapter = LinkAdapter(links, currentLink) { selectedLink ->
             onLinkSelected(selectedLink)
             dialog.dismiss()
         }
         recyclerView.adapter = adapter
+        
+        // Debug: Check if links are populated
+        android.util.Log.d("LinkSelectionDialog", "Links count: ${links.size}")
+        links.forEachIndexed { index, link ->
+            android.util.Log.d("LinkSelectionDialog", "Link $index: ${link.label} - ${link.url}")
+        }
         
         btnCancel.setOnClickListener { dialog.dismiss() }
         
