@@ -59,7 +59,6 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 import com.livetvpro.ui.adapters.LinkChipAdapter
 import com.livetvpro.data.models.LiveEventLink
-import com.livetvpro.ui.player.PlayerViewModel
 
 @UnstableApi
 @AndroidEntryPoint
@@ -293,6 +292,7 @@ class PlayerActivity : AppCompatActivity() {
         
         // Show links section only for events with multiple links
         if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+            binding.linksSection.visibility = View.VISIBLE
             linkChipAdapter.submitList(allEventLinks)
             linkChipAdapter.setSelectedPosition(currentLinkIndex)
         } else {
@@ -942,6 +942,21 @@ class PlayerActivity : AppCompatActivity() {
             btnFullscreen = findViewById(R.id.exo_fullscreen)
             btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
             tvChannelName = findViewById(R.id.exo_channel_name)
+            
+            // Setup landscape links
+            val exoLinksRecycler = findViewById<RecyclerView>(R.id.exo_links_recycler)
+            if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+                exoLinksRecycler?.visibility = View.VISIBLE
+                val landscapeLinkAdapter = LinkChipAdapter { link, position ->
+                    switchToLink(link, position)
+                }
+                exoLinksRecycler?.layoutManager = LinearLayoutManager(this@PlayerActivity, LinearLayoutManager.HORIZONTAL, false)
+                exoLinksRecycler?.adapter = landscapeLinkAdapter
+                landscapeLinkAdapter.submitList(allEventLinks)
+                landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+            } else {
+                exoLinksRecycler?.visibility = View.GONE
+            }
         }
     }
 
