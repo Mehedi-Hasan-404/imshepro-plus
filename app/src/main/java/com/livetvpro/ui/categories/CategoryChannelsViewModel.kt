@@ -12,6 +12,7 @@ import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
@@ -37,11 +38,11 @@ class CategoryChannelsViewModel @Inject constructor(
     private val _error = MutableLiveData<String?>(null)
     val error: LiveData<String?> = _error
 
-    // FIXED: Removed .context to resolve compilation failure
+    // FIXED: Removed .context and used viewModelScope.coroutineContext
     val filteredChannels: LiveData<List<Channel>> = combine(_channels, _searchQuery) { list, query ->
         if (query.isEmpty()) list
         else list.filter { it.name.contains(query, ignoreCase = true) }
-    }.asLiveData()
+    }.asLiveData(viewModelScope.coroutineContext + Dispatchers.Main)
 
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
@@ -80,4 +81,3 @@ class CategoryChannelsViewModel @Inject constructor(
 
     fun isFavorite(channelId: String): Boolean = favoritesRepository.isFavorite(channelId)
 }
-
