@@ -12,9 +12,11 @@ import com.google.android.material.chip.Chip
 import com.livetvpro.R
 import com.livetvpro.data.models.EventStatus
 import com.livetvpro.data.models.ListenerConfig
+import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.databinding.FragmentLiveEventsBinding
 import com.livetvpro.ui.adapters.LiveEventAdapter
-import com.livetvpro.ui.player.PlayerActivity  // CHANGED: Use PlayerActivity instead
+import com.livetvpro.ui.player.PlayerActivity
+import com.livetvpro.ui.player.dialogs.LinkSelectionDialog
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -53,8 +55,13 @@ class LiveEventsFragment : Fragment() {
                     return@LiveEventAdapter
                 }
                 
-                // CHANGED: Use PlayerActivity.startWithEvent
-                PlayerActivity.startWithEvent(requireContext(), event)
+                // Check if event has multiple links
+                if (event.links.size > 1) {
+                    showLinkSelectionDialog(event)
+                } else {
+                    // Single link - play directly
+                    PlayerActivity.startWithEvent(requireContext(), event)
+                }
                 
             } catch (e: Exception) {
                 Log.e("LiveEvents", "Error starting event player", e)
@@ -111,5 +118,20 @@ class LiveEventsFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+    
+    private fun showLinkSelectionDialog(event: LiveEvent) {
+        val dialog = LinkSelectionDialog(
+            requireContext(),
+            event.links,
+            null  // No current link yet
+        ) { selectedLink ->
+            // Create a modified event with only the selected link
+            val modifiedEvent = event.copy(
+                links = listOf(selectedLink)
+            )
+            PlayerActivity.startWithEvent(requireContext(), modifiedEvent)
+        }
+        dialog.show()
     }
 }
