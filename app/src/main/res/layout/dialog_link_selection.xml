@@ -5,7 +5,8 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="24dp"
-    android:background="?attr/colorSurface">
+    android:background="?attr/colorSurface"
+    android:minWidth="280dp">
 
     <!-- Title -->
     <TextView
@@ -27,13 +28,17 @@
         android:alpha="0.7"
         android:paddingBottom="16dp" />
 
-    <!-- Links List -->
+    <!-- Links List with fixed min height -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/linksRecyclerView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="100dp"
         android:maxHeight="300dp"
-        android:scrollbars="vertical" />
+        android:scrollbars="vertical"
+        android:clipToPadding="false"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp" />
 
     <!-- Buttons -->
     <LinearLayout
@@ -49,7 +54,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="CANCEL"
-            android:textColor="?attr/colorOnSurface" />
+            android:textColor="?attr/colorOnSurface"
+            android:minWidth="64dp" />
 
     </LinearLayout>
 
