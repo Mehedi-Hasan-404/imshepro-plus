@@ -103,7 +103,7 @@ class PlayerViewModel @Inject constructor(
             try {
                 val allEvents = liveEventRepository.getLiveEvents()
                 val liveAndUpcomingEvents = allEvents.filter { event ->
-                    event.id != currentEventId && !event.isFinished
+                    event.id != currentEventId && event.isLive
                 }
 
                 val eventsToShow = liveAndUpcomingEvents.take(5).map { event ->
