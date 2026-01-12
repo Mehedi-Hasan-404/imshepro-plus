@@ -28,6 +28,7 @@ import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.lifecycle.Lifecycle  
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import androidx.media3.common.C
@@ -47,8 +48,8 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.R
-import com.livetvpro.data.models.LiveEvent
-import com.livetvpro.data.models.LiveEvent
+import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.LiveEvent  
 import com.livetvpro.databinding.ActivityPlayerBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
