@@ -170,6 +170,8 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
+        requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             mPictureInPictureParamsBuilder = PictureInPictureParams.Builder()
