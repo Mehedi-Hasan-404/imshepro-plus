@@ -106,14 +106,14 @@ class PlayerViewModel @Inject constructor(
                     event.id != currentEventId && event.isLive
                 }
 
-                val eventsToShow = liveAndUpcomingEvents.take(5).map { event ->
+                val eventsToShow = liveAndUpcomingEvents.take(9).map { event ->
                     Channel(
                         id = event.id,
                         name = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" },
                         logoUrl = event.team1Logo.ifEmpty { event.team2Logo },
                         streamUrl = event.links.firstOrNull()?.url ?: "",
                         categoryId = "live_events",
-                        categoryName = "Live Events"
+                        categoryName = event.league
                     )
                 }
 
