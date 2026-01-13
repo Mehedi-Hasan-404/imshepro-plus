@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Save as: app/src/main/res/anim/live_pulse_animation.xml -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:interpolator="@android:anim/accelerate_decelerate_interpolator">
     
-    <!-- Pulse Scale Animation - Creates expanding rings effect -->
     <scale
         android:fromXScale="1.0"
         android:toXScale="1.6"
@@ -15,7 +13,6 @@
         android:repeatCount="infinite"
         android:repeatMode="restart" />
     
-    <!-- Fade Out Animation - Creates broadcast wave effect -->
     <alpha
         android:fromAlpha="0.8"
         android:toAlpha="0.0"
