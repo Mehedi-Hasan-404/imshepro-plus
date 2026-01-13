@@ -268,17 +268,21 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupRelatedChannels() {
-        relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
-            when (contentType) {
-                ContentType.CHANNEL -> switchToChannel(relatedItem)
-                ContentType.EVENT -> switchToEvent(relatedItem)
-            }
+    relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
+        when (contentType) {
+            ContentType.CHANNEL -> switchToChannel(relatedItem)
+            ContentType.EVENT -> switchToEvent(relatedItem)
         }
-        val recyclerView = binding.relatedChannelsRecycler
-        recyclerView.layoutManager = GridLayoutManager(this, 3)
-        recyclerView.adapter = relatedChannelsAdapter
-       // recyclerView.setHasFixedSize(true)
     }
+    val recyclerView = binding.relatedChannelsRecycler
+    
+    recyclerView.layoutManager = if (contentType == ContentType.EVENT) {
+        LinearLayoutManager(this)  
+    } else {
+        GridLayoutManager(this, 3)  
+    }
+    recyclerView.adapter = relatedChannelsAdapter
+}
     
     private fun setupLinksUI() {
         linkChipAdapter = LinkChipAdapter { link, position ->
