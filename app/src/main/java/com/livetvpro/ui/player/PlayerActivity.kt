@@ -277,7 +277,7 @@ class PlayerActivity : AppCompatActivity() {
         val recyclerView = binding.relatedChannelsRecycler
         recyclerView.layoutManager = GridLayoutManager(this, 3)
         recyclerView.adapter = relatedChannelsAdapter
-        recyclerView.setHasFixedSize(true)
+       // recyclerView.setHasFixedSize(true)
     }
     
     private fun setupLinksUI() {
