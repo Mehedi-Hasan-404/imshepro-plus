@@ -59,7 +59,7 @@ class RelatedChannelAdapter(
         }
     }
 
-    // Event ViewHolder
+    // ✅ EVENT VIEW HOLDER - Horizontal card with Team 1 vs Team 2
     inner class EventViewHolder(
         private val binding: ItemRelatedEventBinding
     ) : RecyclerView.ViewHolder(binding.root) {
@@ -74,37 +74,48 @@ class RelatedChannelAdapter(
         }
 
         fun bind(channel: Channel) {
-            // Parse team names from the title
-            val teams = channel.name.split(" vs ", ignoreCase = true)
-            val team1Name = teams.getOrNull(0) ?: ""
-            val team2Name = teams.getOrNull(1) ?: ""
-            
+            // Event title (e.g., "Arsenal vs Chelsea")
             binding.eventTitle.text = channel.name
+            
+            // League name (e.g., "Premier League")
             binding.eventLeague.text = channel.categoryName
             
-            // Load team logos (you'll need to add team1LogoUrl and team2LogoUrl to Channel model)
-            // For now, using the same logo for both teams as placeholder
+            // ✅ Load ACTUAL team logos from event data
             Glide.with(binding.team1Logo)
-                .load(channel.logoUrl)
+                .load(channel.team1Logo.ifEmpty { channel.logoUrl })
                 .placeholder(R.drawable.ic_channel_placeholder)
                 .error(R.drawable.ic_channel_placeholder)
                 .centerInside()
                 .into(binding.team1Logo)
             
             Glide.with(binding.team2Logo)
-                .load(channel.logoUrl)
+                .load(channel.team2Logo.ifEmpty { channel.logoUrl })
                 .placeholder(R.drawable.ic_channel_placeholder)
                 .error(R.drawable.ic_channel_placeholder)
                 .centerInside()
                 .into(binding.team2Logo)
             
-            // Show live indicator if it's a live event
-            // You'd need to pass this information through the Channel model
-            binding.liveIndicatorContainer.visibility = View.GONE
+            // ✅ Format start time (e.g., "Jan 13, 14:30")
+            val formattedTime = try {
+                val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm", java.util.Locale.getDefault())
+                val outputFormat = java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+                val date = inputFormat.parse(channel.startTime)
+                if (date != null) outputFormat.format(date) else channel.startTime
+            } catch (e: Exception) {
+                channel.startTime
+            }
+            binding.eventStartTime.text = formattedTime
+            
+            // ✅ Show live indicator if event is live
+            binding.liveIndicatorContainer.visibility = if (channel.isLive) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
         }
     }
 
-    // Regular Channel ViewHolder
+    // Regular Channel ViewHolder - Grid card (unchanged)
     inner class ChannelViewHolder(
         private val binding: ItemRelatedChannelModernBinding
     ) : RecyclerView.ViewHolder(binding.root) {
