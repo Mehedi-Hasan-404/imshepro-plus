@@ -105,7 +105,6 @@
                 android:focusable="true" />
         </LinearLayout>
         
-        <!-- FIXED: This will only show in LANDSCAPE mode -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/exo_links_recycler"
             android:layout_width="match_parent"
@@ -163,7 +162,6 @@
                 android:gravity="center" />
         </LinearLayout>
 
-        <!-- FIXED: Reordered buttons - fullscreen is now beside forward -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -220,7 +218,6 @@
                 android:clickable="true"
                 android:focusable="true" />
 
-            <!-- FIXED: Fullscreen button now beside forward button -->
             <ImageButton
                 android:id="@+id/exo_fullscreen"
                 android:layout_width="40dp"
