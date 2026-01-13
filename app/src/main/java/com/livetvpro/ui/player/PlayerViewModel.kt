@@ -98,7 +98,9 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    // FIXED: Keep events as events, use proper display with league badges
+    /**
+     * ✅ FIXED: Load related events with proper event-specific data
+     */
     fun loadRelatedEvents(currentEventId: String) {
         viewModelScope.launch {
             try {
@@ -106,18 +108,25 @@ class PlayerViewModel @Inject constructor(
                 
                 // Filter: Get live and upcoming events, exclude current
                 val relatedEvents = allEvents.filter { event ->
-                    event.id != currentEventId && (event.isLive || event.getStatus(System.currentTimeMillis()) == com.livetvpro.data.models.EventStatus.UPCOMING)
+                    event.id != currentEventId && 
+                    (event.isLive || event.getStatus(System.currentTimeMillis()) == com.livetvpro.data.models.EventStatus.UPCOMING)
                 }
 
-                // Convert to Channel format for display (with league badge support)
+                // ✅ Convert to Channel format WITH event-specific fields
                 val eventsAsChannels = relatedEvents.take(9).map { event ->
                     Channel(
                         id = event.id,
                         name = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" },
-                        logoUrl = event.team1Logo.ifEmpty { event.team2Logo },
+                        logoUrl = event.team1Logo.ifEmpty { event.team2Logo }, // Fallback to team2 if team1 is empty
                         streamUrl = event.links.firstOrNull()?.url ?: "",
-                        categoryId = "live_events", // IMPORTANT: This triggers league badge in adapter
-                        categoryName = event.league // This is displayed in the badge
+                        categoryId = "live_events", // This triggers event-specific UI
+                        categoryName = event.league,
+                        
+                        // ✅ Store event-specific data
+                        team1Logo = event.team1Logo,
+                        team2Logo = event.team2Logo,
+                        isLive = event.isLive,
+                        startTime = event.startTime
                     )
                 }
 
@@ -128,6 +137,9 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Get all events (used for switching between events)
+     */
     suspend fun getAllEvents(): List<LiveEvent> {
         return try {
             liveEventRepository.getLiveEvents()
