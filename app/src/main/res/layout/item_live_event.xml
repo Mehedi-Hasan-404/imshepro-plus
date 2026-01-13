@@ -156,16 +156,16 @@
 
                     </FrameLayout>
 
-                    <!-- "LIVE" Text Below Icon -->
-                    <TextView
-                        android:id="@+id/live_text"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Live"
-                        android:textSize="16sp"
-                        android:textStyle="bold"
-                        android:textColor="#EF4444"
-                        android:layout_marginTop="4dp" />
+                    <!-- "Live" Text -->
+<TextView
+    android:id="@+id/live_text"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:text="Live"
+    android:textSize="16sp"
+    android:textStyle="bold"
+    android:textColor="#EF4444"
+    android:visibility="gone" />
 
                 </LinearLayout>
 
