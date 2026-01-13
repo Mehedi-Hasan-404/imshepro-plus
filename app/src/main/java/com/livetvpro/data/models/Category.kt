@@ -21,7 +21,13 @@ data class Channel(
     val logoUrl: String = "",
     val streamUrl: String = "",
     val categoryId: String = "",
-    val categoryName: String = ""
+    val categoryName: String = "",
+    
+    // ✅ Event-specific fields (for when Channel is used to represent events)
+    val team1Logo: String = "",
+    val team2Logo: String = "",
+    val isLive: Boolean = false,
+    val startTime: String = ""
 ) : Parcelable
 
 @Parcelize
@@ -29,7 +35,7 @@ data class FavoriteChannel(
     val id: String = "",
     val name: String = "",
     val logoUrl: String = "",
-    val streamUrl: String = "", // Added to fix "Stream not available"
+    val streamUrl: String = "",
     val categoryId: String = "",
     val categoryName: String = "",
     val addedAt: Long = System.currentTimeMillis()
@@ -76,7 +82,6 @@ data class LiveEvent(
 
 @Parcelize
 data class LiveEventLink(
-    // FIX: Map "quality" or "name" from JSON to this label field
     @SerializedName(value = "label", alternate = ["quality", "name"])
     val label: String = "",
     val url: String = ""
@@ -85,4 +90,3 @@ data class LiveEventLink(
 enum class EventStatus {
     LIVE, UPCOMING, RECENT
 }
-
