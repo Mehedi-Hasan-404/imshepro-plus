@@ -27,7 +27,8 @@ data class Channel(
     val team1Logo: String = "",
     val team2Logo: String = "",
     val isLive: Boolean = false,
-    val startTime: String = ""
+    val startTime: String = "",
+    val endTime: String = ""  // ✅ ADDED: endTime field
 ) : Parcelable
 
 @Parcelize
