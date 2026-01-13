@@ -11,6 +11,8 @@ import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ItemRelatedChannelModernBinding
 import com.livetvpro.databinding.ItemRelatedEventBinding
+import java.text.SimpleDateFormat
+import java.util.*
 
 class RelatedChannelAdapter(
     private val onChannelClick: (Channel) -> Unit
@@ -95,19 +97,28 @@ class RelatedChannelAdapter(
                 .centerInside()
                 .into(binding.team2Logo)
             
-            // ✅ Format start time (e.g., "Jan 13, 14:30")
-            val formattedTime = try {
-                val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm", java.util.Locale.getDefault())
-                val outputFormat = java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
-                val date = inputFormat.parse(channel.startTime)
-                if (date != null) outputFormat.format(date) else channel.startTime
+            // ✅ SMART LIVE DETECTION: Check if current time is between start and end
+            val isCurrentlyLive = try {
+                val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }
+                
+                val startTime = inputFormat.parse(channel.startTime)?.time ?: 0L
+                val endTime = if (channel.endTime.isNotEmpty()) {
+                    inputFormat.parse(channel.endTime)?.time ?: Long.MAX_VALUE
+                } else {
+                    Long.MAX_VALUE
+                }
+                val currentTime = System.currentTimeMillis()
+                
+                // Check if current time is between start and end
+                currentTime in startTime..endTime
             } catch (e: Exception) {
-                channel.startTime
+                channel.isLive // Fallback to API's isLive flag
             }
-            binding.eventStartTime.text = formattedTime
             
-            // ✅ Show live indicator if event is live
-            binding.liveIndicatorContainer.visibility = if (channel.isLive) {
+            // ✅ Show live indicator based on calculated live status
+            binding.liveIndicatorContainer.visibility = if (isActuallyLive) {
                 View.VISIBLE
             } else {
                 View.GONE
