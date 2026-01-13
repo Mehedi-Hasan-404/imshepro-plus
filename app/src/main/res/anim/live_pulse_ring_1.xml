@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Save as: app/src/main/res/anim/live_pulse_ring_1.xml -->
 <set xmlns:android="http://schemas.android.com/apk/res/android"
     android:interpolator="@android:anim/accelerate_decelerate_interpolator">
     
-    <!-- First ring - fastest, smallest expansion -->
     <scale
         android:fromXScale="1.0"
         android:toXScale="1.5"
