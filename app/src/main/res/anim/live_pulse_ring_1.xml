@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Save as: app/src/main/res/anim/live_pulse_ring_1.xml -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:interpolator="@android:anim/accelerate_decelerate_interpolator">
+    
+    <!-- First ring - fastest, smallest expansion -->
+    <scale
+        android:fromXScale="1.0"
+        android:toXScale="1.5"
+        android:fromYScale="1.0"
+        android:toYScale="1.5"
+        android:pivotX="50%"
+        android:pivotY="50%"
+        android:duration="1200"
+        android:repeatCount="infinite"
+        android:repeatMode="restart" />
+    
+    <alpha
+        android:fromAlpha="0.9"
+        android:toAlpha="0.0"
+        android:duration="1200"
+        android:repeatCount="infinite"
+        android:repeatMode="restart" />
+    
+</set>
