@@ -926,9 +926,10 @@ class PlayerActivity : AppCompatActivity() {
         btnRewind = findViewById(R.id.exo_rewind)
         btnPlayPause = findViewById(R.id.exo_play_pause)
         btnForward = findViewById(R.id.exo_forward)
-        btnFullscreen = findViewById(R.id.exo_fullscreen)
+        btnFullscreen = findViewById(R.id.exo_fullscreen)  
         btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
         tvChannelName = findViewById(R.id.exo_channel_name)
+        
         
         // Setup landscape links with orientation check
         val exoLinksRecycler = findViewById<RecyclerView>(R.id.exo_links_recycler)
