@@ -81,7 +81,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:text="BaÅakÅehir"
+                    android:text="Başakşehir"
                     android:textSize="16sp"
                     android:textStyle="bold"
                     android:textColor="#FFFFFF"
@@ -156,29 +156,18 @@
 
                     </FrameLayout>
 
-                    <!-- "Live" Text -->
-<TextView
-    android:id="@+id/live_text"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:text="Live"
-    android:textSize="16sp"
-    android:textStyle="bold"
-    android:textColor="#EF4444"
-    android:visibility="gone" />
+                    <!-- "Live" Text Below Icon -->
+                    <TextView
+                        android:id="@+id/live_text"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Live"
+                        android:textSize="16sp"
+                        android:textStyle="bold"
+                        android:textColor="#EF4444"
+                        android:layout_marginTop="4dp" />
 
                 </LinearLayout>
-
-                <!-- "Live" Text -->
-                <TextView
-                    android:id="@+id/live_text"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Live"
-                    android:textSize="16sp"
-                    android:textStyle="bold"
-                    android:textColor="#EF4444"
-                    android:visibility="gone" />
 
                 <!-- Match Time (for live events) OR Start Time (for upcoming) -->
                 <TextView
