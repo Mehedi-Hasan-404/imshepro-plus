@@ -76,52 +76,144 @@ class RelatedChannelAdapter(
         }
 
         fun bind(channel: Channel) {
-            // Event title (e.g., "Arsenal vs Chelsea")
-            binding.eventTitle.text = channel.name
+            // Extract team names from event title (e.g., "BaÅakÅehir vs Boluspor")
+            val teamNames = channel.name.split(" vs ", ignoreCase = true)
+            val team1Name = teamNames.getOrNull(0)?.trim() ?: ""
+            val team2Name = teamNames.getOrNull(1)?.trim() ?: ""
             
-            // League name (e.g., "Premier League")
+            // Set team names
+            val team1NameView = binding.root.findViewById<android.widget.TextView>(R.id.team1_name)
+            val team2NameView = binding.root.findViewById<android.widget.TextView>(R.id.team2_name)
+            team1NameView?.text = team1Name
+            team2NameView?.text = team2Name
+            
+            // League name with category (e.g., "Football | Turkiye Kupasi, Group A")
             binding.eventLeague.text = channel.categoryName
             
-            // ✅ Load ACTUAL team logos from event data
+            // Category icon (Football/Cricket icon)
+            val categoryIconView = binding.root.findViewById<android.widget.ImageView>(R.id.category_icon)
+            categoryIconView?.let {
+                Glide.with(it)
+                    .load(channel.logoUrl)
+                    .placeholder(R.drawable.ic_channel_placeholder)
+                    .error(R.drawable.ic_channel_placeholder)
+                    .into(it)
+            }
+            
+            // Load team logos with circular crop
             Glide.with(binding.team1Logo)
                 .load(channel.team1Logo.ifEmpty { channel.logoUrl })
                 .placeholder(R.drawable.ic_channel_placeholder)
                 .error(R.drawable.ic_channel_placeholder)
-                .centerInside()
+                .circleCrop()
                 .into(binding.team1Logo)
             
             Glide.with(binding.team2Logo)
                 .load(channel.team2Logo.ifEmpty { channel.logoUrl })
                 .placeholder(R.drawable.ic_channel_placeholder)
                 .error(R.drawable.ic_channel_placeholder)
-                .centerInside()
+                .circleCrop()
                 .into(binding.team2Logo)
             
-            // ✅ SMART LIVE DETECTION: Check if current time is between start and end
+            // Get views for time display
+            val eventTimeView = binding.root.findViewById<android.widget.TextView>(R.id.event_time)
+            val eventDateView = binding.root.findViewById<android.widget.TextView>(R.id.event_date)
+            val eventCountdownView = binding.root.findViewById<android.widget.TextView>(R.id.event_countdown)
+            
+            // Check if event is live
             val isCurrentlyLive = try {
-                val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).apply {
-                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
                 }
                 
                 val startTime = inputFormat.parse(channel.startTime)?.time ?: 0L
-                val endTime = if (channel.endTime.isNotEmpty()) {
+                val endTimeValue = if (channel.endTime.isNotEmpty()) {
                     inputFormat.parse(channel.endTime)?.time ?: Long.MAX_VALUE
                 } else {
                     Long.MAX_VALUE
                 }
                 val currentTime = System.currentTimeMillis()
                 
-                // Check if current time is between start and end
-                currentTime in startTime..endTime
+                currentTime in startTime..endTimeValue
             } catch (e: Exception) {
-                channel.isLive // Fallback to API's isLive flag
+                channel.isLive
             }
             
-            // ✅ Show live indicator based on calculated live status
-            binding.liveIndicatorContainer.visibility = if (isActuallyLive) {
-                View.VISIBLE
+            if (isCurrentlyLive) {
+                // LIVE EVENT: Show animated broadcast icon with "Live" text below
+                binding.liveIndicatorContainer.visibility = View.VISIBLE
+                eventDateView?.visibility = View.GONE
+                eventCountdownView?.visibility = View.GONE
+                
+                // Start broadcast-style pulsing animations on all three rings
+                val pulseBg = binding.root.findViewById<android.widget.ImageView>(R.id.live_pulse_bg)
+                val pulseRing2 = binding.root.findViewById<android.widget.ImageView>(R.id.live_pulse_ring_2)
+                val pulseRing3 = binding.root.findViewById<android.widget.ImageView>(R.id.live_pulse_ring_3)
+                
+                // Apply different animations to create staggered broadcast effect
+                pulseBg?.let {
+                    val animation = android.view.animation.AnimationUtils.loadAnimation(
+                        binding.root.context,
+                        R.anim.live_pulse_ring_1
+                    )
+                    it.startAnimation(animation)
+                }
+                
+                pulseRing2?.let {
+                    val animation = android.view.animation.AnimationUtils.loadAnimation(
+                        binding.root.context,
+                        R.anim.live_pulse_ring_2
+                    )
+                    it.startAnimation(animation)
+                }
+                
+                pulseRing3?.let {
+                    val animation = android.view.animation.AnimationUtils.loadAnimation(
+                        binding.root.context,
+                        R.anim.live_pulse_ring_3
+                    )
+                    it.startAnimation(animation)
+                }
+                
+                // Show match time (e.g., "00:01")
+                eventTimeView?.text = "00:00" // You can implement actual match time tracking
+                
             } else {
-                View.GONE
+                // UPCOMING EVENT: Show start time, date, and countdown
+                binding.liveIndicatorContainer.visibility = View.GONE
+                eventDateView?.visibility = View.VISIBLE
+                eventCountdownView?.visibility = View.VISIBLE
+                
+                // Parse and format start time
+                try {
+                    val inputFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
+                        timeZone = TimeZone.getTimeZone("UTC")
+                    }
+                    val date = inputFormat.parse(channel.startTime)
+                    
+                    // Format time (e.g., "06:30 pm")
+                    val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+                    eventTimeView?.text = timeFormat.format(date)
+                    
+                    // Format date (e.g., "13/01/2026")
+                    val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+                    eventDateView?.text = dateFormat.format(date)
+                    
+                    // Calculate countdown
+                    val currentTime = System.currentTimeMillis()
+                    val startTime = date?.time ?: 0L
+                    val diff = startTime - currentTime
+                    
+                    if (diff > 0) {
+                        val hours = diff / (1000 * 60 * 60)
+                        val minutes = (diff % (1000 * 60 * 60)) / (1000 * 60)
+                        val seconds = (diff % (1000 * 60)) / 1000
+                        eventCountdownView?.text = "Match Starting in $hours:${String.format("%02d", minutes)}:${String.format("%02d", seconds)}"
+                    }
+                    
+                } catch (e: Exception) {
+                    eventTimeView?.text = channel.startTime
+                }
             }
         }
     }
