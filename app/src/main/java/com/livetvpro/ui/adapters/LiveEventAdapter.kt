@@ -1,4 +1,4 @@
-package com.livetvpro.ui.adapter // Adjust package name as needed
+package com.livetvpro.ui.adapters // Adjust package name as needed
 
 import android.content.Context
 import android.graphics.Color
@@ -9,7 +9,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.livetvpro.R
 import com.livetvpro.databinding.ItemLiveEventBinding
-import com.livetvpro.models.LiveEvent // Ensure this matches your model location
+import com.livetvpro.data.models.LiveEvent // FIXED: Correct import path
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
@@ -61,7 +61,7 @@ class LiveEventAdapter(
              binding.matchTitle.text = event.title
         }
 
-        // 4. Load Logos
+        // 4. Load Logos - FIXED: Use correct placeholder
         Glide.with(context).load(event.team1Logo).placeholder(R.drawable.ic_placeholder_team).into(binding.team1Logo)
         Glide.with(context).load(event.team2Logo).placeholder(R.drawable.ic_placeholder_team).into(binding.team2Logo)
 
