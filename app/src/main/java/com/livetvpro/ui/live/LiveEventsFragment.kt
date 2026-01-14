@@ -102,54 +102,93 @@ class LiveEventsFragment : Fragment() {
 
     private fun observeViewModel() {
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
-            // Filter by actual live status (between start and end time)
             val currentTime = System.currentTimeMillis()
-            val actuallyFilteredEvents = events.filter { event ->
-                val apiDateFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).apply {
-                    timeZone = java.util.TimeZone.getTimeZone("UTC")
-                }
-                
-                try {
-                    val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
-                    val endTime = if (!event.endTime.isNullOrEmpty()) {
-                        apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
-                    } else {
-                        Long.MAX_VALUE
-                    }
-                    
-                    // Check which filter is active
-                    when (viewModel.isLoading.value) {
-                        true -> true // Show all when loading
-                        else -> {
-                            // Determine actual status
-                            when {
-                                currentTime >= startTime && currentTime <= endTime -> {
-                                    // Actually LIVE - show in LIVE tab
-                                    binding.chipLive.isChecked
-                                }
-                                currentTime < startTime -> {
-                                    // UPCOMING
-                                    binding.chipUpcoming.isChecked || binding.chipAll.isChecked
-                                }
-                                else -> {
-                                    // ENDED
-                                    binding.chipRecent.isChecked || binding.chipAll.isChecked
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    true // Show all on error
-                }
+            val apiDateFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
             }
             
-            eventAdapter.updateData(actuallyFilteredEvents)
-            binding.emptyView.visibility = if (actuallyFilteredEvents.isEmpty()) View.VISIBLE else View.GONE
-            binding.recyclerViewEvents.visibility = if (actuallyFilteredEvents.isEmpty()) View.GONE else View.VISIBLE
+            // Filter based on selected chip
+            val filteredEvents = when {
+                binding.chipAll.isChecked -> {
+                    // Show ALL events sorted by: Live first, then Upcoming, then Recent
+                    events.sortedWith(compareBy<LiveEvent> { event ->
+                        try {
+                            val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
+                            val endTime = if (!event.endTime.isNullOrEmpty()) {
+                                apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
+                            } else {
+                                Long.MAX_VALUE
+                            }
+                            
+                            when {
+                                currentTime >= startTime && currentTime <= endTime -> 0 // Live first
+                                currentTime < startTime -> 1 // Upcoming second
+                                else -> 2 // Ended last
+                            }
+                        } catch (e: Exception) {
+                            3 // Unknown status last
+                        }
+                    }.thenBy { it.startTime }) // Then sort by start time within each group
+                }
+                
+                binding.chipLive.isChecked -> {
+                    // Show only LIVE events (between start and end time)
+                    events.filter { event ->
+                        try {
+                            val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
+                            val endTime = if (!event.endTime.isNullOrEmpty()) {
+                                apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
+                            } else {
+                                Long.MAX_VALUE
+                            }
+                            currentTime >= startTime && currentTime <= endTime
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }.sortedBy { it.startTime }
+                }
+                
+                binding.chipUpcoming.isChecked -> {
+                    // Show only UPCOMING events
+                    events.filter { event ->
+                        try {
+                            val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
+                            currentTime < startTime
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }.sortedBy { it.startTime }
+                }
+                
+                binding.chipRecent.isChecked -> {
+                    // Show only ENDED events
+                    events.filter { event ->
+                        try {
+                            val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
+                            val endTime = if (!event.endTime.isNullOrEmpty()) {
+                                apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
+                            } else {
+                                Long.MAX_VALUE
+                            }
+                            currentTime > endTime
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }.sortedByDescending { it.startTime }
+                }
+                
+                else -> events
+            }
+            
+            eventAdapter.updateData(filteredEvents)
+            binding.emptyView.visibility = if (filteredEvents.isEmpty()) View.VISIBLE else View.GONE
+            binding.recyclerViewEvents.visibility = if (filteredEvents.isEmpty()) View.GONE else View.VISIBLE
         }
+        
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
         }
+        
         viewModel.error.observe(viewLifecycleOwner) { error ->
             binding.errorView.visibility = if (error != null) View.VISIBLE else View.GONE
             if (error != null) binding.errorText.text = error
