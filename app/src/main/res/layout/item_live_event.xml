@@ -73,38 +73,46 @@
             android:background="#3A3A3A"
             app:layout_constraintTop_toBottomOf="@+id/leagueLogo" />
 
-        <!-- Team 1 Logo (CIRCULAR) -->
-        <ImageView
-            android:id="@+id/team1Logo"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_marginTop="10dp"
-            android:contentDescription="Team 1"
-            android:scaleType="centerCrop"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/divider"
-            tools:srcCompat="@tools:sample/avatars" />
-
-        <!-- Team 1 Name -->
-        <TextView
-            android:id="@+id/team1Name"
+        <!-- Team 1 Section -->
+        <LinearLayout
+            android:id="@+id/team1Section"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:layout_marginEnd="6dp"
-            android:ellipsize="end"
-            android:fontFamily="sans-serif-black"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="8dp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:maxLines="2"
-            android:text="Team A"
-            android:textColor="#FFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold"
+            app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/centerSection"
-            app:layout_constraintStart_toStartOf="@+id/team1Logo"
-            app:layout_constraintTop_toBottomOf="@+id/team1Logo" />
+            app:layout_constraintTop_toBottomOf="@+id/divider">
 
-        <!-- Center Section -->
+            <!-- Team 1 Logo (CIRCULAR) -->
+            <ImageView
+                android:id="@+id/team1Logo"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:contentDescription="Team 1"
+                android:scaleType="centerCrop"
+                tools:srcCompat="@tools:sample/avatars" />
+
+            <!-- Team 1 Name (DIRECTLY BELOW LOGO) -->
+            <TextView
+                android:id="@+id/team1Name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-black"
+                android:gravity="center"
+                android:maxLines="2"
+                android:text="Team A"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+        </LinearLayout>
+
+        <!-- Center Section (Live/Time/Status) -->
         <LinearLayout
             android:id="@+id/centerSection"
             android:layout_width="wrap_content"
@@ -113,10 +121,10 @@
             android:gravity="center"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            app:layout_constraintBottom_toBottomOf="@+id/team1Name"
-            app:layout_constraintEnd_toStartOf="@+id/team2Logo"
-            app:layout_constraintStart_toEndOf="@+id/team1Logo"
-            app:layout_constraintTop_toTopOf="@+id/team1Logo">
+            app:layout_constraintBottom_toBottomOf="@+id/team1Section"
+            app:layout_constraintEnd_toStartOf="@+id/team2Section"
+            app:layout_constraintStart_toEndOf="@+id/team1Section"
+            app:layout_constraintTop_toTopOf="@+id/team1Section">
 
             <!-- Larger Lottie Animation for LIVE (80x60) -->
             <com.airbnb.lottie.LottieAnimationView
@@ -171,35 +179,43 @@
 
         </LinearLayout>
 
-        <!-- Team 2 Logo (CIRCULAR) -->
-        <ImageView
-            android:id="@+id/team2Logo"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:contentDescription="Team 2"
-            android:scaleType="centerCrop"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="@+id/team1Logo"
-            tools:srcCompat="@tools:sample/avatars" />
-
-        <!-- Team 2 Name -->
-        <TextView
-            android:id="@+id/team2Name"
+        <!-- Team 2 Section -->
+        <LinearLayout
+            android:id="@+id/team2Section"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
-            android:layout_marginTop="6dp"
-            android:ellipsize="end"
-            android:fontFamily="sans-serif-black"
+            android:layout_marginStart="8dp"
+            android:orientation="vertical"
             android:gravity="center"
-            android:maxLines="2"
-            android:text="Team B"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            app:layout_constraintEnd_toEndOf="@+id/team2Logo"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toEndOf="@+id/centerSection"
-            app:layout_constraintTop_toBottomOf="@+id/team2Logo" />
+            app:layout_constraintTop_toTopOf="@+id/team1Section">
+
+            <!-- Team 2 Logo (CIRCULAR) -->
+            <ImageView
+                android:id="@+id/team2Logo"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
+                android:contentDescription="Team 2"
+                android:scaleType="centerCrop"
+                tools:srcCompat="@tools:sample/avatars" />
+
+            <!-- Team 2 Name (DIRECTLY BELOW LOGO) -->
+            <TextView
+                android:id="@+id/team2Name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:ellipsize="end"
+                android:fontFamily="sans-serif-black"
+                android:gravity="center"
+                android:maxLines="2"
+                android:text="Team B"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF" />
+
+        </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.cardview.widget.CardView>
