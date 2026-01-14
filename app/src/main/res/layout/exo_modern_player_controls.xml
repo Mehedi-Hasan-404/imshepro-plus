@@ -162,6 +162,7 @@
                 android:gravity="center" />
         </LinearLayout>
 
+        <!-- ✅ FIXED: Fullscreen button now properly included -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -173,12 +174,11 @@
                 android:id="@+id/exo_aspect_ratio"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:layout_marginEnd="12dp"
+                android:layout_marginEnd="8dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_aspect_ratio"
                 android:tint="@android:color/white"
                 android:contentDescription="Aspect ratio"
-                android:visibility="visible"
                 android:clickable="true"
                 android:focusable="true" />
 
@@ -186,7 +186,7 @@
                 android:id="@+id/exo_rewind"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:layout_marginEnd="16dp"
+                android:layout_marginEnd="12dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_skip_backward"
                 android:tint="@android:color/white"
@@ -198,7 +198,6 @@
                 android:id="@+id/exo_play_pause"
                 android:layout_width="64dp"
                 android:layout_height="64dp"
-                android:layout_marginEnd="16dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_play"
                 android:tint="@android:color/white"
@@ -210,7 +209,7 @@
                 android:id="@+id/exo_forward"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
-                android:layout_marginEnd="16dp"
+                android:layout_marginStart="12dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_skip_forward"
                 android:tint="@android:color/white"
@@ -222,6 +221,7 @@
                 android:id="@+id/exo_fullscreen"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
+                android:layout_marginStart="8dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_fullscreen"
                 android:tint="@android:color/white"
