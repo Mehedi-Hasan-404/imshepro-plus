@@ -110,6 +110,7 @@ class PlayerActivity : AppCompatActivity() {
     private var currentLinkIndex = 0
     private var contentId: String = ""
     private var contentName: String = ""
+    private var isLandscape = false
     private var streamUrl: String = ""
 
     enum class ContentType {
@@ -286,60 +287,69 @@ class PlayerActivity : AppCompatActivity() {
 }
     
     private fun setupLinksUI() {
-        linkChipAdapter = LinkChipAdapter { link, position ->
-            switchToLink(link, position)
-        }
-        
-        val linksRecyclerView = binding.linksRecyclerView
-        linksRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        linksRecyclerView.adapter = linkChipAdapter
-        
-        // Show links section only for events with multiple links
-        if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            binding.linksSection.visibility = View.VISIBLE
-            linkChipAdapter.submitList(allEventLinks)
-            linkChipAdapter.setSelectedPosition(currentLinkIndex)
-        } else {
-            binding.linksSection.visibility = View.GONE
-        }
+    linkChipAdapter = LinkChipAdapter { link, position ->
+        switchToLink(link, position)
     }
     
+    val linksRecyclerView = binding.linksRecyclerView
+    linksRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+    linksRecyclerView.adapter = linkChipAdapter
+    
+    // Show links section ONLY for events with multiple links (in portrait)
+    if (contentType == ContentType.EVENT && allEventLinks.size > 1 && !isLandscape) {
+        binding.linksSection.visibility = View.VISIBLE
+        linkChipAdapter.submitList(allEventLinks)
+        linkChipAdapter.setSelectedPosition(currentLinkIndex)
+    } else {
+        binding.linksSection.visibility = View.GONE
+    }
+}
+    
     private fun updateLinksVisibilityForOrientation(isLandscape: Boolean) {
-    binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)?.visibility = 
-        if (isLandscape && contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            View.VISIBLE
-        } else {
-            View.GONE
-        }
+    // Portrait: Show links below player
+    if (!isLandscape && contentType == ContentType.EVENT && allEventLinks.size > 1) {
+        binding.linksSection.visibility = View.VISIBLE
+    } else {
+        binding.linksSection.visibility = View.GONE
+    }
+    
+    // Landscape: Show links in player controls
+    val exoLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+    if (isLandscape && contentType == ContentType.EVENT && allEventLinks.size > 1) {
+        exoLinksRecycler?.visibility = View.VISIBLE
+    } else {
+        exoLinksRecycler?.visibility = View.GONE
+    }
 }
 
-    private fun loadRelatedContent() {
-        when (contentType) {
-            ContentType.CHANNEL -> {
-                channelData?.let { channel ->
-                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
-                }
-            }
-            ContentType.EVENT -> {
-                eventData?.let { event ->
-                    viewModel.loadRelatedEvents(event.id)
-                }
+    // ===== REPLACE loadRelatedContent() function in PlayerActivity.kt =====
+private fun loadRelatedContent() {
+    when (contentType) {
+        ContentType.CHANNEL -> {
+            channelData?.let { channel ->
+                viewModel.loadRelatedChannels(channel.categoryId, channel.id)
             }
         }
-
-        viewModel.relatedItems.observe(this) { channels ->
-            relatedChannels = channels
-            relatedChannelsAdapter.submitList(channels)
-            binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
-                View.GONE
-            } else {
-                View.VISIBLE
+        ContentType.EVENT -> {
+            eventData?.let { event ->
+                viewModel.loadRelatedEvents(event.id)
             }
-            binding.relatedLoadingProgress.visibility = View.GONE
-            binding.relatedChannelsRecycler.visibility = View.VISIBLE
-            binding.relatedCount.visibility = View.GONE
         }
     }
+
+    viewModel.relatedItems.observe(this) { channels ->
+        relatedChannels = channels
+        relatedChannelsAdapter.submitList(channels)
+        binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
+            View.GONE
+        } else {
+            View.VISIBLE
+        }
+        binding.relatedLoadingProgress.visibility = View.GONE
+        binding.relatedChannelsRecycler.visibility = View.VISIBLE
+        // ✅ REMOVED: binding.relatedCount.visibility = View.GONE (this view doesn't exist anymore)
+    }
+}
 
     private fun switchToChannel(newChannel: Channel) {
         releasePlayer()
@@ -422,40 +432,46 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
+    this.isLandscape = isLandscape
     setWindowFlags(isLandscape)
     adjustLayoutForOrientation(isLandscape)
-    updateLinksVisibilityForOrientation(isLandscape) 
+    updateLinksVisibilityForOrientation(isLandscape)
     binding.playerContainer.requestLayout()
     binding.root.requestLayout()
 }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
-        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        if (isLandscape) {
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            params.dimensionRatio = null
-            params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
-            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            binding.relatedChannelsSection.visibility = View.GONE
-        } else {
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 5000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            params.dimensionRatio = "16:9"
-            params.height = 0
-            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            if (relatedChannels.isNotEmpty()) {
-                binding.relatedChannelsSection.visibility = View.VISIBLE
-            }
+    val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+    if (isLandscape) {
+        binding.playerView.controllerAutoShow = false
+        binding.playerView.controllerShowTimeoutMs = 3000
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+        params.dimensionRatio = null
+        params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+        params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+        binding.relatedChannelsSection.visibility = View.GONE
+        binding.linksSection.visibility = View.GONE
+    } else {
+        binding.playerView.controllerAutoShow = false
+        binding.playerView.controllerShowTimeoutMs = 5000
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        params.dimensionRatio = "16:9"
+        params.height = 0
+        params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        if (relatedChannels.isNotEmpty()) {
+            binding.relatedChannelsSection.visibility = View.VISIBLE
         }
-        binding.playerContainer.layoutParams = params
+        // Show links in portrait if event has multiple links
+        if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+            binding.linksSection.visibility = View.VISIBLE
+        }
     }
+    binding.playerContainer.layoutParams = params
+}
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
@@ -931,10 +947,9 @@ class PlayerActivity : AppCompatActivity() {
         btnRewind = findViewById(R.id.exo_rewind)
         btnPlayPause = findViewById(R.id.exo_play_pause)
         btnForward = findViewById(R.id.exo_forward)
-        btnFullscreen = findViewById(R.id.exo_fullscreen)  
+        btnFullscreen = findViewById(R.id.exo_fullscreen) 
         btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
         tvChannelName = findViewById(R.id.exo_channel_name)
-        
         
         // Setup landscape links with orientation check
         val exoLinksRecycler = findViewById<RecyclerView>(R.id.exo_links_recycler)
@@ -952,6 +967,14 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             exoLinksRecycler?.visibility = View.GONE
         }
+    }
+    
+    
+    val currentOrientation = resources.configuration.orientation
+    if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+    } else {
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
     }
 }
 
