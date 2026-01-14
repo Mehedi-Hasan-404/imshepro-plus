@@ -26,7 +26,8 @@ class LiveEventAdapter(
         timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    private val displayDateFormat = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
+    private val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+    private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault())
     
     // Handler for countdown updates
     private val handler = Handler(Looper.getMainLooper())
@@ -38,7 +39,6 @@ class LiveEventAdapter(
     }
 
     init {
-        // Start countdown timer
         handler.post(updateRunnable)
     }
 
@@ -56,25 +56,26 @@ class LiveEventAdapter(
         // 1. Set League Name and Category
         binding.leagueName.text = event.league ?: "Unknown League"
         binding.categoryTag.text = event.category ?: "Sports"
-        
-        if (event.category.equals("Cricket", ignoreCase = true)) {
-             binding.categoryTag.setBackgroundResource(R.drawable.bg_category_pill)
-        }
 
         // 2. Set Team Names
         binding.team1Name.text = event.team1Name
         binding.team2Name.text = event.team2Name
-        
-        // 3. Set Match Title
-        if (event.title.contains("vs", ignoreCase = true)) {
-             binding.matchTitle.text = "VS"
-        } else {
-             binding.matchTitle.text = event.title
-        }
 
-        // 4. Load Logos
-        Glide.with(context).load(event.team1Logo).placeholder(R.drawable.ic_placeholder_team).into(binding.team1Logo)
-        Glide.with(context).load(event.team2Logo).placeholder(R.drawable.ic_placeholder_team).into(binding.team2Logo)
+        // 3. Load Team Logos with CIRCULAR CROP
+        Glide.with(context)
+            .load(event.team1Logo)
+            .placeholder(R.drawable.ic_placeholder_team)
+            .circleCrop()
+            .into(binding.team1Logo)
+
+        Glide.with(context)
+            .load(event.team2Logo)
+            .placeholder(R.drawable.ic_placeholder_team)
+            .circleCrop()
+            .into(binding.team2Logo)
+
+        // 4. Show "VS" text in center
+        binding.matchTitle.text = "VS"
 
         // 5. Logic: LIVE vs UPCOMING with real-time countdown
         try {
@@ -94,20 +95,22 @@ class LiveEventAdapter(
             }
             
             when {
-                // LIVE EVENT - Show match timer
-                event.isLive || (currentTime >= startTimeMillis && currentTime <= endTimeMillis) -> {
-                    // SHOW LOTTIE ANIMATION
+                // LIVE EVENT - Between start and end time
+                currentTime >= startTimeMillis && currentTime <= endTimeMillis -> {
+                    // SHOW LARGER LOTTIE ANIMATION
                     binding.liveAnimation.visibility = View.VISIBLE
                     binding.liveAnimation.playAnimation()
                     
-                    // Calculate elapsed time since match started
+                    // Calculate elapsed time since match started (hh:mm:ss)
                     val elapsedMillis = currentTime - startTimeMillis
-                    val minutes = (elapsedMillis / 1000 / 60).toInt()
+                    val hours = (elapsedMillis / 1000 / 3600).toInt()
+                    val minutes = ((elapsedMillis / 1000 / 60) % 60).toInt()
                     val seconds = ((elapsedMillis / 1000) % 60).toInt()
                     
-                    // Show match timer (starts from 00:00)
-                    binding.statusText.text = String.format("%02d:%02d", minutes, seconds)
-                    binding.statusText.setTextColor(Color.RED)
+                    // Show match timer in hh:mm:ss format
+                    binding.statusText.text = String.format("%02d:%02d:%02d", hours, minutes, seconds)
+                    binding.statusText.setTextColor(Color.parseColor("#EF4444")) // Red
+                    binding.statusText.textSize = 18f
                     binding.statusText.visibility = View.VISIBLE
                 }
                 
@@ -117,28 +120,11 @@ class LiveEventAdapter(
                     binding.liveAnimation.visibility = View.GONE
                     binding.liveAnimation.pauseAnimation()
                     
-                    // Calculate time until match starts
-                    val timeUntilStart = startTimeMillis - currentTime
-                    
-                    if (timeUntilStart > 0) {
-                        val days = (timeUntilStart / (1000 * 60 * 60 * 24)).toInt()
-                        val hours = ((timeUntilStart / (1000 * 60 * 60)) % 24).toInt()
-                        val minutes = ((timeUntilStart / (1000 * 60)) % 60).toInt()
-                        val seconds = ((timeUntilStart / 1000) % 60).toInt()
-                        
-                        // Format countdown display
-                        val countdownText = when {
-                            days > 0 -> String.format("Starts in %dd %02dh", days, hours)
-                            hours > 0 -> String.format("Starts in %02d:%02d:%02d", hours, minutes, seconds)
-                            else -> String.format("Starts in %02d:%02d", minutes, seconds)
-                        }
-                        
-                        binding.statusText.text = countdownText
-                        binding.statusText.setTextColor(Color.parseColor("#FFA500")) // Orange
-                        binding.statusText.visibility = View.VISIBLE
-                    } else {
-                        binding.statusText.text = "Starting soon..."
-                        binding.statusText.setTextColor(Color.LTGRAY)
+                    // Show START TIME (instead of VS)
+                    if (startDate != null) {
+                        binding.statusText.text = timeFormat.format(startDate)
+                        binding.statusText.setTextColor(Color.parseColor("#10B981")) // Green
+                        binding.statusText.textSize = 20f
                         binding.statusText.visibility = View.VISIBLE
                     }
                 }
@@ -150,6 +136,7 @@ class LiveEventAdapter(
                     
                     binding.statusText.text = "Ended"
                     binding.statusText.setTextColor(Color.GRAY)
+                    binding.statusText.textSize = 16f
                     binding.statusText.visibility = View.VISIBLE
                 }
             }
@@ -160,6 +147,7 @@ class LiveEventAdapter(
             binding.liveAnimation.pauseAnimation()
             binding.statusText.text = "Unknown"
             binding.statusText.setTextColor(Color.LTGRAY)
+            binding.statusText.textSize = 14f
             binding.statusText.visibility = View.VISIBLE
         }
 
