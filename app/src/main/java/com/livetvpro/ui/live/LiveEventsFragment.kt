@@ -47,7 +47,7 @@ class LiveEventsFragment : Fragment() {
     }
 
     private fun setupRecyclerView() {
-        eventAdapter = LiveEventAdapter(requireContext()) { event ->
+        eventAdapter = LiveEventAdapter(requireContext(), emptyList()) { event ->
             try {
                 val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
                 
