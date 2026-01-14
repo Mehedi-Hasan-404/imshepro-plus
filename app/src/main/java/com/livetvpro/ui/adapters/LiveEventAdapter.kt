@@ -103,7 +103,8 @@ class LiveEventAdapter(
             
             when {
                 // ===== LIVE EVENT =====
-                currentTime >= startTimeMillis && currentTime <= endTimeMillis -> {
+                // Show as LIVE if: (time is between start-end) OR isLive flag is true
+                (currentTime >= startTimeMillis && currentTime <= endTimeMillis) || event.isLive -> {
                     // Show LARGER Lottie animation
                     binding.liveAnimation.visibility = View.VISIBLE
                     binding.liveAnimation.playAnimation()
