@@ -1,7 +1,9 @@
 package com.livetvpro.ui.adapters
 
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AnimationUtils
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -40,38 +42,67 @@ class LiveEventAdapter(
         }
 
         fun bind(event: LiveEvent) {
-            binding.tvTitle.text = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
-            binding.tvLeague.text = event.league
-            binding.tvTeams.text = "${event.team1Name} • ${event.team2Name}"
+            // 1. Set Text Data (using correct IDs from layout)
+            binding.eventLeague.text = event.league
+            binding.team1Name.text = event.team1Name
+            binding.team2Name.text = event.team2Name
 
-            // Load team logos if available (fallback to placeholder)
-            if (event.team1Logo.isNotEmpty()) {
-                Glide.with(binding.imgTeam1).load(event.team1Logo).placeholder(R.drawable.ic_channel_placeholder).into(binding.imgTeam1)
-            } else {
-                binding.imgTeam1.setImageResource(R.drawable.ic_channel_placeholder)
-            }
-            if (event.team2Logo.isNotEmpty()) {
-                Glide.with(binding.imgTeam2).load(event.team2Logo).placeholder(R.drawable.ic_channel_placeholder).into(binding.imgTeam2)
-            } else {
-                binding.imgTeam2.setImageResource(R.drawable.ic_channel_placeholder)
-            }
+            // 2. Load Logos
+            Glide.with(binding.team1Logo)
+                .load(event.team1Logo)
+                .placeholder(R.drawable.ic_channel_placeholder)
+                .error(R.drawable.ic_channel_placeholder)
+                .into(binding.team1Logo)
 
-            // start time formatting
-            val formatted = try {
-                val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault())
-                val date = fmt.parse(event.startTime)
-                if (date != null) SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(date) else event.startTime
-            } catch (e: Exception) { event.startTime }
+            Glide.with(binding.team2Logo)
+                .load(event.team2Logo)
+                .placeholder(R.drawable.ic_channel_placeholder)
+                .error(R.drawable.ic_channel_placeholder)
+                .into(binding.team2Logo)
 
-            binding.tvStartTime.text = formatted
+            // 3. Handle Status (Live vs Upcoming)
+            if (event.isLive) {
+                // LIVE STATE
+                binding.liveIndicatorContainer.visibility = View.VISIBLE
+                binding.eventDate.visibility = View.GONE
+                binding.eventCountdown.visibility = View.GONE
+                binding.eventTime.text = "LIVE" 
 
-            // Status indicator
-            binding.statusIndicator.setImageResource(
-                when {
-                    event.isLive -> R.drawable.ic_live_indicator
-                    else -> R.drawable.ic_clock
+                // Start Pulse Animation
+                try {
+                    val pulseAnim = AnimationUtils.loadAnimation(binding.root.context, R.anim.live_pulse_ring_1)
+                    binding.livePulseBg.startAnimation(pulseAnim)
+                } catch (e: Exception) {
+                    // Ignore animation errors
                 }
-            )
+            } else {
+                // UPCOMING STATE
+                binding.liveIndicatorContainer.visibility = View.GONE
+                binding.eventDate.visibility = View.VISIBLE
+                binding.eventCountdown.visibility = View.VISIBLE
+                binding.livePulseBg.clearAnimation()
+
+                // Format Time
+                try {
+                    // Try parsing ISO format first
+                    val inputFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault())
+                    val date = inputFmt.parse(event.startTime)
+                    
+                    if (date != null) {
+                        val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
+                        val dateFmt = SimpleDateFormat("dd MMM", Locale.getDefault())
+                        
+                        binding.eventTime.text = timeFmt.format(date)
+                        binding.eventDate.text = dateFmt.format(date)
+                    } else {
+                        binding.eventTime.text = event.startTime
+                        binding.eventDate.text = ""
+                    }
+                } catch (e: Exception) {
+                    binding.eventTime.text = event.startTime
+                    binding.eventDate.text = ""
+                }
+            }
         }
     }
 
