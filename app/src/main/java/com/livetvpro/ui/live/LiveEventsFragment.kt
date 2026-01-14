@@ -47,7 +47,7 @@ class LiveEventsFragment : Fragment() {
     }
 
     private fun setupRecyclerView() {
-        eventAdapter = LiveEventAdapter { event ->
+        eventAdapter = LiveEventAdapter(requireContext()) { event ->
             try {
                 val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
                 
@@ -102,7 +102,7 @@ class LiveEventsFragment : Fragment() {
 
     private fun observeViewModel() {
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
-            eventAdapter.submitList(events)
+            eventAdapter.updateData(events)
             binding.emptyView.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
             binding.recyclerViewEvents.visibility = if (events.isEmpty()) View.GONE else View.VISIBLE
         }
@@ -115,24 +115,15 @@ class LiveEventsFragment : Fragment() {
         }
     }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        _binding = null
-    }
-    
     private fun showLinkSelectionDialog(event: LiveEvent) {
         val dialog = LinkSelectionDialog(
             requireContext(),
             event.links,
             null
         ) { selectedLink ->
-            // CRITICAL FIX: To ensure the "Multiple Links" box shows in the player,
-            // we must pass the FULL list of links, not just the selected one.
-            // We reorder the list so the selected link is at index 0 (default).
-            
             val reorderedLinks = event.links.toMutableList()
             reorderedLinks.remove(selectedLink)
-            reorderedLinks.add(0, selectedLink) // Put selected first
+            reorderedLinks.add(0, selectedLink)
 
             val modifiedEvent = event.copy(
                 links = reorderedLinks
@@ -141,6 +132,11 @@ class LiveEventsFragment : Fragment() {
         }
         dialog.show()
     }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        // IMPORTANT: Stop countdown timer to prevent memory leaks
+        eventAdapter.stopCountdown()
+        _binding = null
+    }
 }
-
-
