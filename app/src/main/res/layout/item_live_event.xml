@@ -17,19 +17,34 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
+        <!-- League Logo (NEW) -->
+        <ImageView
+            android:id="@+id/leagueLogo"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_channel_placeholder"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
         <!-- League Name -->
         <TextView
             android:id="@+id/leagueName"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
             android:fontFamily="sans-serif-medium"
             android:text="League Name"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            app:layout_constraintBottom_toBottomOf="@+id/leagueLogo"
             app:layout_constraintEnd_toStartOf="@+id/categoryTag"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
+            app:layout_constraintStart_toEndOf="@+id/leagueLogo"
+            app:layout_constraintTop_toTopOf="@+id/leagueLogo" />
 
         <!-- Category Tag -->
         <TextView
@@ -55,13 +70,13 @@
             android:layout_height="1dp"
             android:layout_marginTop="12dp"
             android:background="#3A3A3A"
-            app:layout_constraintTop_toBottomOf="@+id/leagueName" />
+            app:layout_constraintTop_toBottomOf="@+id/leagueLogo" />
 
         <!-- Team 1 Logo (CIRCULAR) -->
         <ImageView
             android:id="@+id/team1Logo"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
             android:layout_marginTop="16dp"
             android:contentDescription="Team 1"
             android:scaleType="centerCrop"
@@ -76,11 +91,12 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
             android:gravity="center"
             android:maxLines="2"
             android:text="Team A"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="@+id/team1Logo"
             app:layout_constraintStart_toStartOf="@+id/team1Logo"
@@ -89,8 +105,8 @@
         <!-- Team 2 Logo (CIRCULAR) -->
         <ImageView
             android:id="@+id/team2Logo"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
             android:contentDescription="Team 2"
             android:scaleType="centerCrop"
             app:layout_constraintEnd_toEndOf="parent"
@@ -104,11 +120,12 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
             android:gravity="center"
             android:maxLines="2"
             android:text="Team B"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="15sp"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="@+id/team2Logo"
             app:layout_constraintStart_toStartOf="@+id/team2Logo"
@@ -120,46 +137,62 @@
             android:layout_height="wrap_content"
             android:gravity="center"
             android:orientation="vertical"
+            android:paddingHorizontal="8dp"
             app:layout_constraintBottom_toBottomOf="@+id/team1Name"
             app:layout_constraintEnd_toStartOf="@+id/team2Logo"
             app:layout_constraintStart_toEndOf="@+id/team1Logo"
             app:layout_constraintTop_toTopOf="@+id/team1Logo">
 
-            <!-- VS Text -->
-            <TextView
-                android:id="@+id/matchTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="sans-serif-black"
-                android:text="VS"
-                android:textColor="#B0BEC5"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <!-- Larger Lottie Animation for LIVE -->
+            <!-- Larger Lottie Animation for LIVE (80x60) -->
             <com.airbnb.lottie.LottieAnimationView
                 android:id="@+id/liveAnimation"
-                android:layout_width="60dp"
-                android:layout_height="40dp"
-                android:layout_marginTop="8dp"
+                android:layout_width="80dp"
+                android:layout_height="60dp"
                 android:visibility="gone"
                 app:lottie_autoPlay="true"
                 app:lottie_loop="true"
                 app:lottie_rawRes="@raw/live_animation"
                 tools:visibility="visible" />
 
-            <!-- Status Text (Time/Countdown) - BIGGER SIZE -->
+            <!-- Match Time (for upcoming events) -->
+            <TextView
+                android:id="@+id/matchTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="sans-serif-black"
+                android:text="06:30 PM"
+                android:textColor="#10B981"
+                android:textSize="22sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+            <!-- Match Date (for upcoming events) -->
+            <TextView
+                android:id="@+id/matchDate"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:fontFamily="sans-serif-medium"
+                android:text="Wed, 15 Jan 2026"
+                android:textColor="#B0BEC5"
+                android:textSize="13sp"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+            <!-- Status Text (Timer for live, "Ended" for finished) -->
             <TextView
                 android:id="@+id/statusText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:fontFamily="sans-serif-medium"
-                android:text="10:00 PM"
-                android:textColor="#10B981"
-                android:textSize="20sp"
+                android:fontFamily="sans-serif-black"
+                android:text="00:45:23"
+                android:textColor="#EF4444"
+                android:textSize="22sp"
                 android:textStyle="bold"
-                android:visibility="visible" />
+                android:visibility="gone"
+                tools:visibility="gone" />
 
         </LinearLayout>
 
