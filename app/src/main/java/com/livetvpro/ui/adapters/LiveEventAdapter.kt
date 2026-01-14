@@ -1,113 +1,124 @@
-package com.livetvpro.ui.adapters
+package com.livetvpro.ui.adapter // Adjust package name as needed
 
+import android.content.Context
+import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.AnimationUtils
-import androidx.recyclerview.widget.DiffUtil
-import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.livetvpro.R
-import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.databinding.ItemLiveEventBinding
+import com.livetvpro.models.LiveEvent // Ensure this matches your model location
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Locale
+import java.util.TimeZone
 
 class LiveEventAdapter(
+    private val context: Context,
+    private var events: List<LiveEvent>,
     private val onEventClick: (LiveEvent) -> Unit
-) : ListAdapter<LiveEvent, LiveEventAdapter.EventViewHolder>(LiveEventDiffCallback()) {
+) : RecyclerView.Adapter<LiveEventAdapter.EventViewHolder>() {
+
+    // Date formatter for parsing API dates (ISO 8601)
+    private val apiDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
+
+    // Date formatter for display (e.g., "12 Jan, 10:00 PM")
+    private val displayDateFormat = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
+
+    inner class EventViewHolder(val binding: ItemLiveEventBinding) : RecyclerView.ViewHolder(binding.root)
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EventViewHolder {
-        val binding = ItemLiveEventBinding.inflate(
-            LayoutInflater.from(parent.context),
-            parent,
-            false
-        )
+        val binding = ItemLiveEventBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return EventViewHolder(binding)
     }
 
     override fun onBindViewHolder(holder: EventViewHolder, position: Int) {
-        holder.bind(getItem(position))
-    }
+        val event = events[position]
+        val binding = holder.binding
 
-    inner class EventViewHolder(private val binding: ItemLiveEventBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        init {
-            binding.root.setOnClickListener {
-                val pos = bindingAdapterPosition
-                if (pos != RecyclerView.NO_POSITION) onEventClick(getItem(pos))
-            }
+        // 1. Set League Name and Category
+        binding.leagueName.text = event.league ?: "Unknown League"
+        binding.categoryTag.text = event.category ?: "Sports"
+        
+        // Dynamic Category Color (Optional example)
+        if (event.category.equals("Cricket", ignoreCase = true)) {
+             binding.categoryTag.setBackgroundResource(R.drawable.bg_category_pill) // Define blue/red etc
         }
 
-        fun bind(event: LiveEvent) {
-            // 1. Set Text Data (using correct IDs from layout)
-            binding.eventLeague.text = event.league
-            binding.team1Name.text = event.team1Name
-            binding.team2Name.text = event.team2Name
+        // 2. Set Team Names
+        binding.team1Name.text = event.team1Name
+        binding.team2Name.text = event.team2Name
+        
+        // 3. Set Match Title (VS or specific title)
+        // If the title is just "Team A vs Team B", we might prefer just "VS" in the center, 
+        // but if the title is special like "Final", we show it.
+        if (event.title.contains("vs", ignoreCase = true)) {
+             binding.matchTitle.text = "VS"
+        } else {
+             binding.matchTitle.text = event.title
+        }
 
-            // 2. Load Logos
-            Glide.with(binding.team1Logo)
-                .load(event.team1Logo)
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .error(R.drawable.ic_channel_placeholder)
-                .into(binding.team1Logo)
+        // 4. Load Logos
+        Glide.with(context).load(event.team1Logo).placeholder(R.drawable.ic_placeholder_team).into(binding.team1Logo)
+        Glide.with(context).load(event.team2Logo).placeholder(R.drawable.ic_placeholder_team).into(binding.team2Logo)
 
-            Glide.with(binding.team2Logo)
-                .load(event.team2Logo)
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .error(R.drawable.ic_channel_placeholder)
-                .into(binding.team2Logo)
+        // 5. Logic: LIVE vs UPCOMING
+        if (event.isLive) {
+            // SHOW LOTTIE
+            binding.liveAnimation.visibility = View.VISIBLE
+            binding.liveAnimation.playAnimation()
+            
+            // Hide Time / Show 'LIVE' text if preferred, or hide status text entirely
+            binding.statusText.text = "LIVE"
+            binding.statusText.setTextColor(Color.RED)
+            binding.statusText.visibility = View.VISIBLE
+        } else {
+            // HIDE LOTTIE
+            binding.liveAnimation.visibility = View.GONE
+            binding.liveAnimation.pauseAnimation()
 
-            // 3. Handle Status (Live vs Upcoming)
-            if (event.isLive) {
-                // LIVE STATE
-                binding.liveIndicatorContainer.visibility = View.VISIBLE
-                binding.eventDate.visibility = View.GONE
-                binding.eventCountdown.visibility = View.GONE
-                binding.eventTime.text = "LIVE" 
-
-                // Start Pulse Animation
-                try {
-                    val pulseAnim = AnimationUtils.loadAnimation(binding.root.context, R.anim.live_pulse_ring_1)
-                    binding.livePulseBg.startAnimation(pulseAnim)
-                } catch (e: Exception) {
-                    // Ignore animation errors
-                }
-            } else {
-                // UPCOMING STATE
-                binding.liveIndicatorContainer.visibility = View.GONE
-                binding.eventDate.visibility = View.VISIBLE
-                binding.eventCountdown.visibility = View.VISIBLE
-                binding.livePulseBg.clearAnimation()
-
-                // Format Time
-                try {
-                    // Try parsing ISO format first
-                    val inputFmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm", Locale.getDefault())
-                    val date = inputFmt.parse(event.startTime)
+            // CALCULATE TIME
+            try {
+                val startDate = apiDateFormat.parse(event.startTime)
+                val serverDate = if (event.serverTimeUTC != null) apiDateFormat.parse(event.serverTimeUTC) else null
+                
+                if (startDate != null) {
+                    // Display the formatted start time
+                    binding.statusText.text = displayDateFormat.format(startDate)
+                    binding.statusText.setTextColor(Color.LTGRAY)
+                    binding.statusText.visibility = View.VISIBLE
                     
-                    if (date != null) {
-                        val timeFmt = SimpleDateFormat("HH:mm", Locale.getDefault())
-                        val dateFmt = SimpleDateFormat("dd MMM", Locale.getDefault())
-                        
-                        binding.eventTime.text = timeFmt.format(date)
-                        binding.eventDate.text = dateFmt.format(date)
-                    } else {
-                        binding.eventTime.text = event.startTime
-                        binding.eventDate.text = ""
+                    // Optional: If you want a countdown like "Starts in 2h"
+                    /*
+                    if (serverDate != null) {
+                        val diff = startDate.time - serverDate.time
+                        if (diff > 0) {
+                            val hours = diff / (1000 * 60 * 60)
+                            binding.statusText.text = "Starts in ${hours}h"
+                        }
                     }
-                } catch (e: Exception) {
-                    binding.eventTime.text = event.startTime
-                    binding.eventDate.text = ""
+                    */
+                } else {
+                    binding.statusText.text = "Upcoming"
                 }
+            } catch (e: Exception) {
+                binding.statusText.text = "Upcoming"
             }
+        }
+
+        // Click Listener
+        holder.itemView.setOnClickListener {
+            onEventClick(event)
         }
     }
 
-    private class LiveEventDiffCallback : DiffUtil.ItemCallback<LiveEvent>() {
-        override fun areItemsTheSame(oldItem: LiveEvent, newItem: LiveEvent) = oldItem.id == newItem.id
-        override fun areContentsTheSame(oldItem: LiveEvent, newItem: LiveEvent) = oldItem == newItem
+    override fun getItemCount(): Int = events.size
+
+    fun updateData(newEvents: List<LiveEvent>) {
+        events = newEvents
+        notifyDataSetChanged()
     }
 }
