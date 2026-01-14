@@ -122,61 +122,72 @@ class LiveEventsFragment : Fragment() {
                             
                             when {
                                 // LIVE: Either time-based OR isLive flag
-                                (currentTime >= startTime && currentTime <= endTime) || event.isLive -> 0 // Live first
-                                currentTime < startTime -> 1 // Upcoming second
-                                else -> 2 // Ended last
+                                event.isLive || (currentTime >= startTime && currentTime <= endTime) -> 0
+                                currentTime < startTime -> 1 // Upcoming
+                                else -> 2 // Ended
                             }
                         } catch (e: Exception) {
-                            // If parsing fails, check isLive flag
-                            if (event.isLive) 0 else 3 // Unknown status last
+                            if (event.isLive) 0 else 3
                         }
-                    }.thenBy { it.startTime }) // Then sort by start time within each group
+                    }.thenBy { it.startTime })
                 }
                 
                 binding.chipLive.isChecked -> {
-                    // Show only LIVE events (between start and end time OR isLive flag is true)
+                    // ✅ FIX: Show LIVE events (isLive flag OR time-based check)
                     events.filter { event ->
-                        try {
-                            val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
-                            val endTime = if (!event.endTime.isNullOrEmpty()) {
-                                apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
-                            } else {
-                                Long.MAX_VALUE
+                        // Primary check: isLive flag
+                        if (event.isLive) {
+                            true
+                        } else {
+                            // Secondary check: time-based (between start and end)
+                            try {
+                                val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
+                                val endTime = if (!event.endTime.isNullOrEmpty()) {
+                                    apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
+                                } else {
+                                    Long.MAX_VALUE
+                                }
+                                currentTime >= startTime && currentTime <= endTime
+                            } catch (e: Exception) {
+                                false
                             }
-                            // Show if EITHER the time is between start-end OR isLive flag is true
-                            (currentTime >= startTime && currentTime <= endTime) || event.isLive
-                        } catch (e: Exception) {
-                            // If time parsing fails, check isLive flag
-                            event.isLive
                         }
                     }.sortedBy { it.startTime }
                 }
                 
                 binding.chipUpcoming.isChecked -> {
-                    // Show only UPCOMING events
+                    // Show UPCOMING events (not live, start time in future)
                     events.filter { event ->
-                        try {
-                            val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
-                            currentTime < startTime
-                        } catch (e: Exception) {
+                        if (event.isLive) {
                             false
+                        } else {
+                            try {
+                                val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
+                                currentTime < startTime
+                            } catch (e: Exception) {
+                                false
+                            }
                         }
                     }.sortedBy { it.startTime }
                 }
                 
                 binding.chipRecent.isChecked -> {
-                    // Show only ENDED events
+                    // Show ENDED events
                     events.filter { event ->
-                        try {
-                            val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
-                            val endTime = if (!event.endTime.isNullOrEmpty()) {
-                                apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
-                            } else {
-                                Long.MAX_VALUE
-                            }
-                            currentTime > endTime
-                        } catch (e: Exception) {
+                        if (event.isLive) {
                             false
+                        } else {
+                            try {
+                                val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
+                                val endTime = if (!event.endTime.isNullOrEmpty()) {
+                                    apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
+                                } else {
+                                    Long.MAX_VALUE
+                                }
+                                currentTime > endTime
+                            } catch (e: Exception) {
+                                false
+                            }
                         }
                     }.sortedByDescending { it.startTime }
                 }
