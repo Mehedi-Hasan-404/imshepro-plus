@@ -54,17 +54,24 @@ class LiveEventAdapter(
         val event = events[position]
         val binding = holder.binding
 
-        // 1. Set League Name
+        // 1. Set League Name with bold font
         binding.leagueName.text = event.league ?: "Unknown League"
         
         // 2. Set Category Tag
         binding.categoryTag.text = event.category ?: "Sports"
+        
+        // 3. Load League Logo (left of league name)
+        Glide.with(context)
+            .load(event.category) // You might want to map category to logo URL
+            .placeholder(R.drawable.ic_channel_placeholder)
+            .circleCrop()
+            .into(binding.leagueLogo)
 
-        // 3. Set Team Names
+        // 4. Set Team Names with bold font
         binding.team1Name.text = event.team1Name
         binding.team2Name.text = event.team2Name
 
-        // 4. Load Team Logos with CIRCULAR CROP
+        // 5. Load Team Logos with CIRCULAR CROP
         Glide.with(context)
             .load(event.team1Logo)
             .placeholder(R.drawable.ic_placeholder_team)
@@ -77,7 +84,7 @@ class LiveEventAdapter(
             .circleCrop()
             .into(binding.team2Logo)
 
-        // 5. Logic: LIVE vs UPCOMING with real-time countdown
+        // 6. Logic: LIVE vs UPCOMING vs ENDED
         try {
             val startDate = apiDateFormat.parse(event.startTime)
             val startTimeMillis = startDate?.time ?: 0L
@@ -95,57 +102,86 @@ class LiveEventAdapter(
             }
             
             when {
-                // LIVE EVENT - Between start and end time
+                // ===== LIVE EVENT =====
                 currentTime >= startTimeMillis && currentTime <= endTimeMillis -> {
-                    // SHOW LARGER LOTTIE ANIMATION
+                    // Show LARGER Lottie animation
                     binding.liveAnimation.visibility = View.VISIBLE
                     binding.liveAnimation.playAnimation()
                     
-                    // HIDE TIME AND DATE (show only lottie)
+                    // Hide time and date
                     binding.matchTime.visibility = View.GONE
                     binding.matchDate.visibility = View.GONE
                     
-                    // Calculate elapsed time since match started (hh:mm:ss)
+                    // Show elapsed time (hh:mm:ss)
                     val elapsedMillis = currentTime - startTimeMillis
                     val hours = (elapsedMillis / 1000 / 3600).toInt()
                     val minutes = ((elapsedMillis / 1000 / 60) % 60).toInt()
                     val seconds = ((elapsedMillis / 1000) % 60).toInt()
                     
-                    // Show match timer in hh:mm:ss format
                     binding.statusText.text = String.format("%02d:%02d:%02d", hours, minutes, seconds)
                     binding.statusText.setTextColor(Color.parseColor("#EF4444"))
                     binding.statusText.visibility = View.VISIBLE
                 }
                 
-                // UPCOMING EVENT - Show start time and date
+                // ===== UPCOMING EVENT =====
                 currentTime < startTimeMillis -> {
-                    // HIDE LOTTIE
+                    // Hide Lottie
                     binding.liveAnimation.visibility = View.GONE
                     binding.liveAnimation.pauseAnimation()
                     
-                    // HIDE STATUS TEXT
-                    binding.statusText.visibility = View.GONE
-                    
-                    // SHOW START TIME in user's local timezone
+                    // Show START TIME in local timezone (12:30 PM format)
                     if (startDate != null) {
                         binding.matchTime.text = timeFormat.format(startDate)
                         binding.matchTime.setTextColor(Color.parseColor("#10B981"))
                         binding.matchTime.visibility = View.VISIBLE
                         
-                        // SHOW DATE below time
+                        // Show DATE (Wed, 15 Jan 2026)
                         binding.matchDate.text = dateFormat.format(startDate)
                         binding.matchDate.visibility = View.VISIBLE
+                        
+                        // Show "Starts in X" countdown
+                        val diff = startTimeMillis - currentTime
+                        val hours = (diff / 1000 / 3600).toInt()
+                        val minutes = ((diff / 1000 / 60) % 60).toInt()
+                        
+                        binding.statusText.text = when {
+                            hours > 24 -> {
+                                val days = hours / 24
+                                "Starts in ${days}d ${hours % 24}h"
+                            }
+                            hours > 0 -> "Starts in ${hours}h ${minutes}m"
+                            minutes > 0 -> "Starts in ${minutes}m"
+                            else -> "Starting soon"
+                        }
+                        binding.statusText.setTextColor(Color.parseColor("#10B981"))
+                        binding.statusText.visibility = View.VISIBLE
                     }
                 }
                 
-                // FINISHED EVENT
+                // ===== ENDED EVENT =====
                 else -> {
+                    // Hide Lottie
                     binding.liveAnimation.visibility = View.GONE
                     binding.liveAnimation.pauseAnimation()
                     
-                    binding.matchTime.visibility = View.GONE
-                    binding.matchDate.visibility = View.GONE
+                    // Show END TIME
+                    val endDate = if (endTimeMillis != Long.MAX_VALUE) {
+                        apiDateFormat.parse(event.endTime)
+                    } else {
+                        startDate
+                    }
                     
+                    if (endDate != null) {
+                        binding.matchTime.text = timeFormat.format(endDate)
+                        binding.matchTime.setTextColor(Color.GRAY)
+                        binding.matchTime.visibility = View.VISIBLE
+                        
+                        // Show END DATE
+                        binding.matchDate.text = dateFormat.format(endDate)
+                        binding.matchDate.visibility = View.VISIBLE
+                    }
+                    
+                    // Show "Ended"
                     binding.statusText.text = "Ended"
                     binding.statusText.setTextColor(Color.GRAY)
                     binding.statusText.visibility = View.VISIBLE
