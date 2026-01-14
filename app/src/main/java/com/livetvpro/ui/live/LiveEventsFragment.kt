@@ -102,9 +102,50 @@ class LiveEventsFragment : Fragment() {
 
     private fun observeViewModel() {
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
-            eventAdapter.updateData(events)
-            binding.emptyView.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
-            binding.recyclerViewEvents.visibility = if (events.isEmpty()) View.GONE else View.VISIBLE
+            // Filter by actual live status (between start and end time)
+            val currentTime = System.currentTimeMillis()
+            val actuallyFilteredEvents = events.filter { event ->
+                val apiDateFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).apply {
+                    timeZone = java.util.TimeZone.getTimeZone("UTC")
+                }
+                
+                try {
+                    val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
+                    val endTime = if (!event.endTime.isNullOrEmpty()) {
+                        apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
+                    } else {
+                        Long.MAX_VALUE
+                    }
+                    
+                    // Check which filter is active
+                    when (viewModel.isLoading.value) {
+                        true -> true // Show all when loading
+                        else -> {
+                            // Determine actual status
+                            when {
+                                currentTime >= startTime && currentTime <= endTime -> {
+                                    // Actually LIVE - show in LIVE tab
+                                    binding.chipLive.isChecked
+                                }
+                                currentTime < startTime -> {
+                                    // UPCOMING
+                                    binding.chipUpcoming.isChecked || binding.chipAll.isChecked
+                                }
+                                else -> {
+                                    // ENDED
+                                    binding.chipRecent.isChecked || binding.chipAll.isChecked
+                                }
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    true // Show all on error
+                }
+            }
+            
+            eventAdapter.updateData(actuallyFilteredEvents)
+            binding.emptyView.visibility = if (actuallyFilteredEvents.isEmpty()) View.VISIBLE else View.GONE
+            binding.recyclerViewEvents.visibility = if (actuallyFilteredEvents.isEmpty()) View.GONE else View.VISIBLE
         }
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
