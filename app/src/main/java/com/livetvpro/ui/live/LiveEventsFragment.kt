@@ -121,18 +121,20 @@ class LiveEventsFragment : Fragment() {
                             }
                             
                             when {
-                                currentTime >= startTime && currentTime <= endTime -> 0 // Live first
+                                // LIVE: Either time-based OR isLive flag
+                                (currentTime >= startTime && currentTime <= endTime) || event.isLive -> 0 // Live first
                                 currentTime < startTime -> 1 // Upcoming second
                                 else -> 2 // Ended last
                             }
                         } catch (e: Exception) {
-                            3 // Unknown status last
+                            // If parsing fails, check isLive flag
+                            if (event.isLive) 0 else 3 // Unknown status last
                         }
                     }.thenBy { it.startTime }) // Then sort by start time within each group
                 }
                 
                 binding.chipLive.isChecked -> {
-                    // Show only LIVE events (between start and end time)
+                    // Show only LIVE events (between start and end time OR isLive flag is true)
                     events.filter { event ->
                         try {
                             val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
@@ -141,9 +143,11 @@ class LiveEventsFragment : Fragment() {
                             } else {
                                 Long.MAX_VALUE
                             }
-                            currentTime >= startTime && currentTime <= endTime
+                            // Show if EITHER the time is between start-end OR isLive flag is true
+                            (currentTime >= startTime && currentTime <= endTime) || event.isLive
                         } catch (e: Exception) {
-                            false
+                            // If time parsing fails, check isLive flag
+                            event.isLive
                         }
                     }.sortedBy { it.startTime }
                 }
