@@ -26,6 +26,14 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
+      # ✅ CRITICAL FIX: Install NDK for native code compilation
+      - name: Install Android NDK
+        run: |
+          echo "Installing NDK 25.1.8937393..."
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393"
+          echo "NDK installed successfully"
+          ls -la $ANDROID_HOME/ndk/
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -54,17 +62,17 @@ jobs:
           ICON_EOF
             cp app/src/main/res/mipmap-$dpi/ic_launcher.xml app/src/main/res/mipmap-$dpi/ic_launcher_round.xml
           done
-          echo "✓ Created placeholder launcher icons"
+          echo "✅ Created placeholder launcher icons"
 
       - name: Create google-services.json from secrets
         run: |
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
-          echo "✓ Created google-services.json from secrets"
+          echo "✅ Created google-services.json from secrets"
 
       - name: Decode Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
-          echo "✓ Keystore decoded successfully"
+          echo "✅ Keystore decoded successfully"
           ls -lh release-keystore.jks
 
       - name: Build Release APK
