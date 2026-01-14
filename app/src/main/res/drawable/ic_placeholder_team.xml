@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="64dp"
+    android:height="64dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    
+    <!-- Circle background -->
+    <path
+        android:fillColor="#3A3A3A"
+        android:pathData="M32,4 A28,28 0,1,1 32,60 A28,28 0,1,1 32,4 Z" />
+    
+    <!-- Shield icon -->
+    <path
+        android:fillColor="#888888"
+        android:pathData="M32,16 L24,20 L24,32 Q24,40 32,48 Q40,40 40,32 L40,20 Z" />
+    
+    <!-- Star in center -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M32,26 L33.5,30.5 L38,30.5 L34.5,33 L36,37.5 L32,35 L28,37.5 L29.5,33 L26,30.5 L30.5,30.5 Z" />
+</vector>
