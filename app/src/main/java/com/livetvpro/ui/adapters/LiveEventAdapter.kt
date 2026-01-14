@@ -28,7 +28,7 @@ class LiveEventAdapter(
 
     // Local time formats (user's timezone)
     private val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
-    private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault())
+    private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()) // Full date with year
     
     // Handler for countdown updates
     private val handler = Handler(Looper.getMainLooper())
@@ -135,23 +135,22 @@ class LiveEventAdapter(
                         binding.matchTime.setTextColor(Color.parseColor("#10B981"))
                         binding.matchTime.visibility = View.VISIBLE
                         
-                        // Show DATE (Wed, 15 Jan 2026)
+                        // Show DATE (Wed, 15 Jan)
                         binding.matchDate.text = dateFormat.format(startDate)
                         binding.matchDate.visibility = View.VISIBLE
                         
-                        // Show "Starts in X" countdown
+                        // Show LIVE countdown timer (updates every second)
                         val diff = startTimeMillis - currentTime
-                        val hours = (diff / 1000 / 3600).toInt()
-                        val minutes = ((diff / 1000 / 60) % 60).toInt()
+                        val days = (diff / (1000 * 60 * 60 * 24)).toInt()
+                        val hours = ((diff / (1000 * 60 * 60)) % 24).toInt()
+                        val minutes = ((diff / (1000 * 60)) % 60).toInt()
+                        val seconds = ((diff / 1000) % 60).toInt()
                         
                         binding.statusText.text = when {
-                            hours > 24 -> {
-                                val days = hours / 24
-                                "Starts in ${days}d ${hours % 24}h"
-                            }
-                            hours > 0 -> "Starts in ${hours}h ${minutes}m"
-                            minutes > 0 -> "Starts in ${minutes}m"
-                            else -> "Starting soon"
+                            days > 0 -> String.format("%dd %02dh %02dm %02ds", days, hours, minutes, seconds)
+                            hours > 0 -> String.format("%02dh %02dm %02ds", hours, minutes, seconds)
+                            minutes > 0 -> String.format("%02dm %02ds", minutes, seconds)
+                            else -> String.format("%02ds", seconds)
                         }
                         binding.statusText.setTextColor(Color.parseColor("#10B981"))
                         binding.statusText.visibility = View.VISIBLE
