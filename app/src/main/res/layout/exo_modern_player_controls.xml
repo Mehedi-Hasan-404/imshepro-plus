@@ -148,7 +148,7 @@
 
             <!-- Current Position -->
             <TextView
-                android:id="@+id/exo_position"
+                android:id="@id/exo_position"
                 android:layout_width="48dp"
                 android:layout_height="wrap_content"
                 android:text="0:00"
@@ -167,7 +167,7 @@
 
             <!-- Total Duration -->
             <TextView
-                android:id="@+id/exo_duration"
+                android:id="@id/exo_duration"
                 android:layout_width="48dp"
                 android:layout_height="wrap_content"
                 android:text="0:00"
