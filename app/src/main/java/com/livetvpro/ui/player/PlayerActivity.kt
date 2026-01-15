@@ -947,28 +947,20 @@ private fun loadRelatedContent() {
         btnRewind = findViewById(R.id.exo_rewind)
         btnPlayPause = findViewById(R.id.exo_play_pause)
         btnForward = findViewById(R.id.exo_forward)
-        btnFullscreen = findViewById(R.id.exo_fullscreen) 
         btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
         tvChannelName = findViewById(R.id.exo_channel_name)
         
-        // Setup landscape links with orientation check
-        val exoLinksRecycler = findViewById<RecyclerView>(R.id.exo_links_recycler)
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        // ✅ CRITICAL: Force fullscreen button to be visible
+        btnFullscreen = findViewById(R.id.exo_fullscreen)
+        btnFullscreen?.visibility = View.VISIBLE
         
-        if (isLandscape && contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            exoLinksRecycler?.visibility = View.VISIBLE
-            val landscapeLinkAdapter = LinkChipAdapter { link, position ->
-                switchToLink(link, position)
-            }
-            exoLinksRecycler?.layoutManager = LinearLayoutManager(this@PlayerActivity, LinearLayoutManager.HORIZONTAL, false)
-            exoLinksRecycler?.adapter = landscapeLinkAdapter
-            landscapeLinkAdapter.submitList(allEventLinks)
-            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+        // Debug log to verify button exists
+        if (btnFullscreen == null) {
+            Timber.e("❌ FULLSCREEN BUTTON NOT FOUND!")
         } else {
-            exoLinksRecycler?.visibility = View.GONE
+            Timber.d("✅ Fullscreen button found and visible")
         }
     }
-    
     
     val currentOrientation = resources.configuration.orientation
     if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
@@ -977,13 +969,6 @@ private fun loadRelatedContent() {
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
     }
 }
-
-    private fun bindControllerViewsOnce() {
-        if (isBindingControls) return
-        isBindingControls = true
-        bindControllerViewsExact()
-        mainHandler.postDelayed({ isBindingControls = false }, 500)
-    }
 
     private fun setupControlListenersExact() {
         btnBack?.setOnClickListener { if (!isLocked) finish() }
