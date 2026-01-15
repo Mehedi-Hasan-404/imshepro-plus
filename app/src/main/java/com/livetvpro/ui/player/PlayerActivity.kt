@@ -223,9 +223,9 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         binding.playerView.postDelayed({
-    bindControllerViewsExact()
-    setupControlListenersExact()
-}, 300)
+            bindControllerViewsOnce()
+            setupControlListenersOnce()
+        }, 300)
 
         configurePlayerInteractions()
         setupLockOverlay()
@@ -944,10 +944,10 @@ private fun loadRelatedContent() {
         btnSettings = findViewById(R.id.exo_settings)
         btnLock = findViewById(R.id.exo_lock)
         btnMute = findViewById(R.id.exo_mute)
-        btnRewind = findViewById(R.id.exo_rew)
+        btnRewind = findViewById(R.id.exo_rewind)
         btnPlayPause = findViewById(R.id.exo_play_pause)
-        btnForward = findViewById(R.id.exo_ffwd)
-        btnFullscreen = findViewById(R.id.exo_fullscreen)
+        btnForward = findViewById(R.id.exo_forward)
+        btnFullscreen = findViewById(R.id.exo_fullscreen) 
         btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
         tvChannelName = findViewById(R.id.exo_channel_name)
         
@@ -969,6 +969,7 @@ private fun loadRelatedContent() {
         }
     }
     
+    
     val currentOrientation = resources.configuration.orientation
     if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
         btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
@@ -977,51 +978,58 @@ private fun loadRelatedContent() {
     }
 }
 
-private fun setupControlListenersExact() {
-    btnBack?.setOnClickListener { if (!isLocked) finish() }
-    btnPip?.setOnClickListener {
-        if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            userRequestedPip = true
-            enterPipMode()
-        }
+    private fun bindControllerViewsOnce() {
+        if (isBindingControls) return
+        isBindingControls = true
+        bindControllerViewsExact()
+        mainHandler.postDelayed({ isBindingControls = false }, 500)
     }
-    btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
-    btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
-    btnLock?.setOnClickListener { toggleLock() }
-    btnRewind?.setOnClickListener {
-        if (!isLocked) player?.let { p ->
-            val newPosition = p.currentPosition - skipMs
-            p.seekTo(if (newPosition < 0) 0 else newPosition)
+
+    private fun setupControlListenersExact() {
+        btnBack?.setOnClickListener { if (!isLocked) finish() }
+        btnPip?.setOnClickListener {
+            if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                userRequestedPip = true
+                enterPipMode()
+            }
         }
-    }
-    btnPlayPause?.setOnClickListener {
-        if (!isLocked) {
-            if (binding.errorView.visibility == View.VISIBLE) {
-                binding.errorView.visibility = View.GONE
-                binding.progressBar.visibility = View.VISIBLE
-                player?.release()
-                player = null
-                setupPlayer()
-            } else {
-                player?.let { p ->
-                    if (p.isPlaying) p.pause() else p.play()
+        btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
+        btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
+        btnLock?.setOnClickListener { toggleLock() }
+        btnRewind?.setOnClickListener {
+            if (!isLocked) player?.let { p ->
+                val newPosition = p.currentPosition - skipMs
+                p.seekTo(if (newPosition < 0) 0 else newPosition)
+            }
+        }
+        btnPlayPause?.setOnClickListener {
+            if (!isLocked) {
+                if (binding.errorView.visibility == View.VISIBLE) {
+                    binding.errorView.visibility = View.GONE
+                    binding.progressBar.visibility = View.VISIBLE
+                    player?.release()
+                    player = null
+                    setupPlayer()
+                } else {
+                    player?.let { p ->
+                        if (p.isPlaying) p.pause() else p.play()
+                    }
                 }
             }
         }
-    }
-    btnForward?.setOnClickListener {
-        if (!isLocked) player?.let { p ->
-            val newPosition = p.currentPosition + skipMs
-            if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
-                p.seekTo(p.duration)
-            } else {
-                p.seekTo(newPosition)
+        btnForward?.setOnClickListener {
+            if (!isLocked) player?.let { p ->
+                val newPosition = p.currentPosition + skipMs
+                if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
+                    p.seekTo(p.duration)
+                } else {
+                    p.seekTo(newPosition)
+                }
             }
         }
+        btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
+        btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
     }
-    btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
-    btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
-}
 
     private fun setupControlListenersOnce() {
         controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
