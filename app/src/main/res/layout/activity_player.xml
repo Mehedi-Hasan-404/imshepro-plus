@@ -8,6 +8,7 @@
     android:layout_height="match_parent"
     tools:context="com.livetvpro.ui.player.PlayerActivity">
 
+    <!-- Player Container -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -17,6 +18,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintDimensionRatio="16:9">
 
+        <!-- PlayerView -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/playerView"
             android:layout_width="0dp"
@@ -31,6 +33,7 @@
             app:use_controller="true"
             app:controller_layout_id="@layout/exo_modern_player_controls" />
 
+        <!-- Loading Progress -->
         <ProgressBar
             android:id="@+id/progressBar"
             style="?android:attr/progressBarStyleLarge"
@@ -42,6 +45,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"/>
 
+        <!-- Lock Overlay -->
         <FrameLayout
             android:id="@+id/lockOverlay"
             android:layout_width="match_parent"
@@ -59,6 +63,7 @@
                 android:visibility="gone"/>
         </FrameLayout>
 
+        <!-- Error View -->
         <LinearLayout
             android:id="@+id/errorView"
             android:layout_width="wrap_content"
