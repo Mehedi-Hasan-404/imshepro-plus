@@ -1,24 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/exo_controller_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:clipToPadding="false">
 
+    <!-- Top gradient overlay -->
     <View
         android:layout_width="match_parent"
         android:layout_height="120dp"
         android:layout_gravity="top"
         android:background="@drawable/gradient_overlay_top" />
 
+    <!-- Bottom gradient overlay -->
     <View
         android:layout_width="match_parent"
         android:layout_height="200dp"
         android:layout_gravity="bottom"
         android:background="@drawable/gradient_overlay_bottom" />
 
-    <!-- TOP BAR -->
+    <!-- ========== TOP CONTROL BAR ========== -->
     <LinearLayout
         android:id="@+id/exo_top_bar"
         android:layout_width="match_parent"
@@ -27,7 +28,7 @@
         android:layout_gravity="top"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
-        android:paddingTop="8dp"
+        android:paddingTop="0dp"
         android:paddingBottom="4dp">
         
         <LinearLayout
@@ -36,6 +37,7 @@
             android:orientation="horizontal"
             android:gravity="center_vertical">
 
+            <!-- Back Button -->
             <ImageButton
                 android:id="@+id/exo_back"
                 android:layout_width="40dp"
@@ -47,6 +49,7 @@
                 android:clickable="true"
                 android:focusable="true" />
 
+            <!-- Channel Name -->
             <TextView
                 android:id="@+id/exo_channel_name"
                 android:layout_width="0dp"
@@ -60,6 +63,7 @@
                 android:ellipsize="end"
                 android:text="Channel" />
 
+            <!-- PiP Button -->
             <ImageButton
                 android:id="@+id/exo_pip"
                 android:layout_width="40dp"
@@ -71,6 +75,7 @@
                 android:clickable="true"
                 android:focusable="true" />
 
+            <!-- Settings Button -->
             <ImageButton
                 android:id="@+id/exo_settings"
                 android:layout_width="40dp"
@@ -82,6 +87,7 @@
                 android:clickable="true"
                 android:focusable="true" />
 
+            <!-- Mute Button -->
             <ImageButton
                 android:id="@+id/exo_mute"
                 android:layout_width="40dp"
@@ -93,6 +99,7 @@
                 android:clickable="true"
                 android:focusable="true" />
 
+            <!-- Lock Button -->
             <ImageButton
                 android:id="@+id/exo_lock"
                 android:layout_width="40dp"
@@ -119,7 +126,7 @@
             
     </LinearLayout>
 
-    <!-- BOTTOM BAR -->
+    <!-- ========== BOTTOM CONTROL BAR ========== -->
     <LinearLayout
         android:id="@+id/exo_bottom_bar"
         android:layout_width="match_parent"
@@ -127,18 +134,19 @@
         android:orientation="vertical"
         android:paddingStart="12dp"
         android:paddingEnd="12dp"
-        android:paddingBottom="12dp"
+        android:paddingBottom="8dp"
         android:layout_gravity="bottom">
 
-        <!-- Progress Bar -->
+        <!-- Progress Bar Section -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingTop="8dp"
-            android:paddingBottom="12dp">
+            android:paddingTop="4dp"
+            android:paddingBottom="8dp">
 
+            <!-- Current Position -->
             <TextView
                 android:id="@+id/exo_position"
                 android:layout_width="48dp"
@@ -148,18 +156,16 @@
                 android:textSize="12sp"
                 android:gravity="center" />
 
+            <!-- Progress/Seek Bar -->
             <androidx.media3.ui.DefaultTimeBar
                 android:id="@id/exo_progress"
                 android:layout_width="0dp"
-                android:layout_height="26dp"
+                android:layout_height="20dp"
                 android:layout_weight="1"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="8dp"
-                app:played_color="@color/accent"
-                app:scrubber_color="@color/accent"
-                app:buffered_color="#80FFFFFF"
-                app:unplayed_color="#40FFFFFF" />
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp" />
 
+            <!-- Total Duration -->
             <TextView
                 android:id="@+id/exo_duration"
                 android:layout_width="48dp"
@@ -170,12 +176,12 @@
                 android:gravity="center" />
         </LinearLayout>
 
-        <!-- Control Buttons -->
+        <!-- Control Buttons - FIXED LAYOUT -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center_vertical"
+            android:gravity="center"
             android:paddingTop="4dp"
             android:paddingBottom="4dp">
 
@@ -192,20 +198,20 @@
                 android:focusable="true" />
 
             <!-- Spacer -->
-            <Space
+            <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
             <!-- Rewind Button -->
             <ImageButton
-                android:id="@+id/exo_rew"
+                android:id="@+id/exo_rewind"
                 android:layout_width="52dp"
                 android:layout_height="52dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_skip_backward"
                 android:tint="@android:color/white"
-                android:contentDescription="Rewind"
+                android:contentDescription="Rewind 10 seconds"
                 android:clickable="true"
                 android:focusable="true" />
 
@@ -225,23 +231,23 @@
 
             <!-- Forward Button -->
             <ImageButton
-                android:id="@+id/exo_ffwd"
+                android:id="@+id/exo_forward"
                 android:layout_width="52dp"
                 android:layout_height="52dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_skip_forward"
                 android:tint="@android:color/white"
-                android:contentDescription="Forward"
+                android:contentDescription="Forward 10 seconds"
                 android:clickable="true"
                 android:focusable="true" />
 
             <!-- Spacer -->
-            <Space
+            <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
-            <!-- Fullscreen Button -->
+            <!-- ✅ FULLSCREEN BUTTON - NOW VISIBLE -->
             <ImageButton
                 android:id="@+id/exo_fullscreen"
                 android:layout_width="44dp"
@@ -249,7 +255,7 @@
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_fullscreen"
                 android:tint="@android:color/white"
-                android:contentDescription="Fullscreen"
+                android:contentDescription="Toggle fullscreen"
                 android:clickable="true"
                 android:focusable="true" />
 
