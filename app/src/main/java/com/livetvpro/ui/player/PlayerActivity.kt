@@ -719,6 +719,10 @@ private fun loadRelatedContent() {
                 .setSeekForwardIncrementMs(skipMs)
                 .build().also { exo ->
                     binding.playerView.player = exo
+                    // Force show controls initially
+binding.playerView.post {
+    binding.playerView.showController()
+}
                     val mediaItem = MediaItem.fromUri(streamInfo.url)
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
@@ -1076,13 +1080,18 @@ private fun loadRelatedContent() {
         }
     }
 
-    private fun configurePlayerInteractions() {
-        binding.playerView.apply {
-            setControllerHideDuringAds(false)
-            controllerShowTimeoutMs = 5000
-            controllerHideOnTouch = true
-        }
+    binding.playerView.apply {
+    useController = true
+    controllerShowTimeoutMs = 5000
+    controllerHideOnTouch = true
+    setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
+    controllerAutoShow = true  // CHANGED: Show controls on start
+    
+    // Ensure controls are visible
+    post {
+        showController()
     }
+}
 
     private fun setupLockOverlay() {
         binding.unlockButton.setOnClickListener { toggleLock() }
