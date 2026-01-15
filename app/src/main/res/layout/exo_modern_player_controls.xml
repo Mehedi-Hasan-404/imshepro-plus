@@ -170,7 +170,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center"
+            android:gravity="center_vertical"
             android:paddingTop="4dp"
             android:paddingBottom="4dp">
 
@@ -184,7 +184,8 @@
                 android:tint="@android:color/white"
                 android:contentDescription="Aspect ratio"
                 android:clickable="true"
-                android:focusable="true" />
+                android:focusable="true"
+                android:visibility="visible" />
 
             <!-- Spacer -->
             <View
@@ -202,7 +203,8 @@
                 android:tint="@android:color/white"
                 android:contentDescription="Rewind 10 seconds"
                 android:clickable="true"
-                android:focusable="true" />
+                android:focusable="true"
+                android:visibility="visible" />
 
             <!-- Play/Pause Button -->
             <ImageButton
@@ -216,7 +218,8 @@
                 android:tint="@android:color/white"
                 android:contentDescription="Play/Pause"
                 android:clickable="true"
-                android:focusable="true" />
+                android:focusable="true"
+                android:visibility="visible" />
 
             <!-- Forward Button -->
             <ImageButton
@@ -228,7 +231,8 @@
                 android:tint="@android:color/white"
                 android:contentDescription="Forward 10 seconds"
                 android:clickable="true"
-                android:focusable="true" />
+                android:focusable="true"
+                android:visibility="visible" />
 
             <!-- Spacer -->
             <View
@@ -246,7 +250,8 @@
                 android:tint="@android:color/white"
                 android:contentDescription="Toggle fullscreen"
                 android:clickable="true"
-                android:focusable="true" />
+                android:focusable="true"
+                android:visibility="visible" />
 
         </LinearLayout>
     </LinearLayout>
