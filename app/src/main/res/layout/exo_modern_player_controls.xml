@@ -176,7 +176,7 @@
                 android:gravity="center" />
         </LinearLayout>
 
-        <!-- Control Buttons - FIXED LAYOUT -->
+        <!-- Control Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -247,7 +247,7 @@
                 android:layout_height="1dp"
                 android:layout_weight="1" />
 
-            <!-- ✅ FULLSCREEN BUTTON - NOW VISIBLE -->
+            <!-- Fullscreen Button -->
             <ImageButton
                 android:id="@+id/exo_fullscreen"
                 android:layout_width="44dp"
