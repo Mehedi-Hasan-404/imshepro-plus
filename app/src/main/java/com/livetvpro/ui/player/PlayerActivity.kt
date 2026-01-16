@@ -475,6 +475,13 @@ class PlayerActivity : AppCompatActivity() {
     updateLinksForOrientation(isLandscape)
 }
 
+    private fun applyOrientationSettings(isLandscape: Boolean) {
+        adjustLayoutForOrientation(isLandscape)
+        setWindowFlags(isLandscape)
+        updateLinksVisibilityForOrientation(isLandscape)
+    }
+    
+
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         if (isLandscape) {
