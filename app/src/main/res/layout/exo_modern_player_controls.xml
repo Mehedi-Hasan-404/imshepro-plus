@@ -110,38 +110,20 @@
     </LinearLayout>
 
     <!-- ========== LANDSCAPE LINKS (only visible in landscape for events) ========== -->
-    <LinearLayout
-        android:id="@+id/exo_links_container"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/exo_links_recycler"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
         android:layout_gravity="center_vertical|start"
         android:layout_marginStart="16dp"
-        android:visibility="gone">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Streams"
-            android:textColor="@android:color/white"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:paddingBottom="4dp"
-            android:background="#99000000"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="4dp" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/exo_links_recycler"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="#99000000"
-            android:padding="4dp"
-            android:clipToPadding="false"
-            android:visibility="gone" />
-    </LinearLayout>
+        android:orientation="vertical"
+        android:background="#CC000000"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
+        android:visibility="gone" />
 
     <!-- ========== BOTTOM CONTROL BAR ========== -->
     <LinearLayout
