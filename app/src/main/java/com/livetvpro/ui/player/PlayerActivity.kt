@@ -29,6 +29,7 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
@@ -87,13 +88,12 @@ class PlayerActivity : AppCompatActivity() {
     private var tvChannelName: TextView? = null
 
     private var isInPipMode = false
-private var isLocked = false
-private var isMuted = false
-private val skipMs = 10_000L
-private var userRequestedPip = false
-private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-private var isReturningFromPip = false  
-private val mainHandler = Handler(Looper.getMainLooper())
+    private var isLocked = false
+    private var isMuted = false
+    private val skipMs = 10_000L
+    private var userRequestedPip = false
+    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val hideUnlockButtonRunnable = Runnable {
         binding.unlockButton.visibility = View.GONE
     }
@@ -289,78 +289,78 @@ private val mainHandler = Handler(Looper.getMainLooper())
     }
     
     private fun setupLinksUI() {
-    linkChipAdapter = LinkChipAdapter { link, position ->
-        switchToLink(link, position)
-    }
-    
-    // Setup portrait links RecyclerView
-    val portraitLinksRecycler = binding.linksRecyclerView
-    portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-    portraitLinksRecycler.adapter = linkChipAdapter
-    
-    // Setup landscape links RecyclerView (inside player controls, now horizontal)
-    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-    landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-    
-    // Create separate adapter for landscape
-    val landscapeLinkAdapter = LinkChipAdapter { link, position ->
-        switchToLink(link, position)
-    }
-    landscapeLinksRecycler?.adapter = landscapeLinkAdapter
-    
-    // Update visibility based on orientation and content type
-    if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
-        val currentOrientation = resources.configuration.orientation
-        val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-        
-        if (isCurrentlyLandscape) {
-            // Landscape: show in player controls (horizontal below title), hide portrait section
-            binding.linksSection.visibility = View.GONE
-            landscapeLinksRecycler?.visibility = View.VISIBLE
-            landscapeLinkAdapter.submitList(allEventLinks)
-            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
-        } else {
-            // Portrait: show in portrait section, hide landscape
-            binding.linksSection.visibility = View.VISIBLE
-            landscapeLinksRecycler?.visibility = View.GONE
-            linkChipAdapter.submitList(allEventLinks)
-            linkChipAdapter.setSelectedPosition(currentLinkIndex)
+        linkChipAdapter = LinkChipAdapter { link, position ->
+            switchToLink(link, position)
         }
-    } else {
-        binding.linksSection.visibility = View.GONE
-        landscapeLinksRecycler?.visibility = View.GONE
-    }
-}
-
-    private fun updateLinksForOrientation(isLandscape: Boolean) {
-    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-    
-    if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
-        if (isLandscape) {
-            // Landscape: show in player controls (horizontal below title)
-            binding.linksSection.visibility = View.GONE
-            landscapeLinksRecycler?.visibility = View.VISIBLE
+        
+        // Setup portrait links RecyclerView
+        val portraitLinksRecycler = binding.linksRecyclerView
+        portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        portraitLinksRecycler.adapter = linkChipAdapter
+        
+        // Setup landscape links RecyclerView (inside player controls)
+        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+        
+        // Create separate adapter for landscape
+        val landscapeLinkAdapter = LinkChipAdapter { link, position ->
+            switchToLink(link, position)
+        }
+        landscapeLinksRecycler?.adapter = landscapeLinkAdapter
+        
+        // Update visibility based on orientation and content type
+        if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+            val currentOrientation = resources.configuration.orientation
+            val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
             
-            // Update landscape adapter
-            val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
-            if (landscapeAdapter != null) {
-                landscapeAdapter.submitList(allEventLinks)
-                landscapeAdapter.setSelectedPosition(currentLinkIndex)
+            if (isCurrentlyLandscape) {
+                // Landscape: show in player controls, hide portrait section
+                binding.linksSection.visibility = View.GONE
+                landscapeLinksRecycler?.visibility = View.VISIBLE
+                landscapeLinkAdapter.submitList(allEventLinks)
+                landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+            } else {
+                // Portrait: show in portrait section, hide landscape
+                binding.linksSection.visibility = View.VISIBLE
+                landscapeLinksRecycler?.visibility = View.GONE
+                linkChipAdapter.submitList(allEventLinks)
+                linkChipAdapter.setSelectedPosition(currentLinkIndex)
             }
         } else {
-            // Portrait: show in bottom section
-            binding.linksSection.visibility = View.VISIBLE
+            binding.linksSection.visibility = View.GONE
             landscapeLinksRecycler?.visibility = View.GONE
-            
-            // Update portrait adapter
-            linkChipAdapter.submitList(allEventLinks)
-            linkChipAdapter.setSelectedPosition(currentLinkIndex)
         }
-    } else {
-        binding.linksSection.visibility = View.GONE
-        landscapeLinksRecycler?.visibility = View.GONE
     }
-}
+
+    private fun updateLinksForOrientation(isLandscape: Boolean) {
+        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        
+        if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+            if (isLandscape) {
+                // Landscape: show in player controls
+                binding.linksSection.visibility = View.GONE
+                landscapeLinksRecycler?.visibility = View.VISIBLE
+                
+                // Update landscape adapter
+                val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
+                if (landscapeAdapter != null) {
+                    landscapeAdapter.submitList(allEventLinks)
+                    landscapeAdapter.setSelectedPosition(currentLinkIndex)
+                }
+            } else {
+                // Portrait: show in bottom section
+                binding.linksSection.visibility = View.VISIBLE
+                landscapeLinksRecycler?.visibility = View.GONE
+                
+                // Update portrait adapter
+                linkChipAdapter.submitList(allEventLinks)
+                linkChipAdapter.setSelectedPosition(currentLinkIndex)
+            }
+        } else {
+            binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.GONE
+        }
+    }
 
     private fun loadRelatedContent() {
         when (contentType) {
@@ -434,21 +434,15 @@ private val mainHandler = Handler(Looper.getMainLooper())
     }
 
     private fun switchToLink(link: LiveEventLink, position: Int) {
-    if (position == currentLinkIndex) return
-    
-    currentLinkIndex = position
-    streamUrl = link.url
-    
-    // Update BOTH adapters
-    linkChipAdapter.setSelectedPosition(position)
-    
-    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-    val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
-    landscapeAdapter?.setSelectedPosition(position)
-    
-    releasePlayer()
-    setupPlayer()
-}
+        if (position == currentLinkIndex) return
+        
+        currentLinkIndex = position
+        streamUrl = link.url
+        linkChipAdapter.setSelectedPosition(position)
+        
+        releasePlayer()
+        setupPlayer()
+    }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -479,8 +473,8 @@ private val mainHandler = Handler(Looper.getMainLooper())
     }
 
     private fun updateLinksVisibilityForOrientation(isLandscape: Boolean) {
-    updateLinksForOrientation(isLandscape)
-}
+        updateLinksForOrientation(isLandscape)
+    }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
         adjustLayoutForOrientation(isLandscape)
@@ -488,7 +482,6 @@ private val mainHandler = Handler(Looper.getMainLooper())
         updateLinksVisibilityForOrientation(isLandscape)
     }
     
-
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         if (isLandscape) {
@@ -996,8 +989,6 @@ private val mainHandler = Handler(Looper.getMainLooper())
             btnFullscreen = findViewById(R.id.exo_fullscreen) 
             btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
             tvChannelName = findViewById(R.id.exo_channel_name)
-            
-            
         }
         
         btnBack?.setImageResource(R.drawable.ic_arrow_back)
@@ -1093,15 +1084,6 @@ private val mainHandler = Handler(Looper.getMainLooper())
             updateMuteIcon()
         }
     }
-    
-    private fun ensureControlsBinding() {
-    if (isReturningFromPip) {
-        binding.playerView.postDelayed({
-            bindControllerViewsOnce()
-            setupControlListenersOnce()
-        }, 200)
-    }
-}
 
     private fun updateMuteIcon() {
         btnMute?.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
@@ -1268,8 +1250,6 @@ private val mainHandler = Handler(Looper.getMainLooper())
         if (player == null) {
             return
         }
-        binding.playerView.setControllerAutoShow(false)
-        binding.playerView.hideController()
 
         val format = player?.videoFormat
         if (format != null) {
@@ -1309,51 +1289,122 @@ private val mainHandler = Handler(Looper.getMainLooper())
     }
 
     override fun onPictureInPictureModeChanged(
-    isInPictureInPictureMode: Boolean,
-    newConfig: Configuration
-) {
-    super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-    isInPipMode = isInPictureInPictureMode
-    if (isInPipMode) {
-        binding.playerView.hideController()
-        setSubtitleTextSizePiP()
-    } else {
-        setSubtitleTextSize()
-        if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
-            finish()
-            return
-        }
-        userRequestedPip = false
-        if (isFinishing) return
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        isInPipMode = isInPictureInPictureMode
         
-        // Mark that we're returning from PiP
-        isReturningFromPip = true
-        
-        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-        applyOrientationSettings(isLandscape)
-        if (isLocked) {
-            binding.playerView.useController = false
-            binding.lockOverlay.visibility = View.VISIBLE
-            showUnlockButton()
+        if (isInPipMode) {
+            // Entering PiP
+            enterPipUIMode()
         } else {
-            binding.playerView.useController = true
-            if (player?.isPlaying == true) {
-                toggleSystemUi(false)
+            // Exiting PiP
+            exitPipUIMode()
+            
+            // Handle restoration
+            if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
+                finish()
+                return
+            }
+            userRequestedPip = false
+            
+            if (isFinishing) return
+            
+            // Apply orientation settings
+            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+            
+            // Restore controls state based on lock
+            if (isLocked) {
+                binding.playerView.useController = false
+                binding.lockOverlay.visibility = View.VISIBLE
+                showUnlockButton()
             } else {
-                binding.playerView.post {
+                binding.playerView.useController = true
+                if (player?.isPlaying == true) {
+                    // Let auto-hide work naturally
+                    binding.playerView.hideController()
+                } else {
                     binding.playerView.showController()
                 }
             }
         }
-        
-        // Re-bind controls after returning from PiP
-        binding.playerView.postDelayed({
-            bindControllerViewsOnce()
-            setupControlListenersOnce()
-            isReturningFromPip = false
-        }, 300)
     }
-}
+
+    private fun enterPipUIMode() {
+        // Hide player controls
+        binding.playerView.hideController()
+        
+        // Enlarge subtitles for PiP
+        setSubtitleTextSizePiP()
+        
+        // Clear immersive flags
+        window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+        
+        // Show system UI
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.apply {
+                show(WindowInsets.Type.systemBars())
+                show(WindowInsets.Type.navigationBars())
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun exitPipUIMode() {
+        // Restore subtitle size
+        setSubtitleTextSize()
+        
+        // Restore window flags
+        setupWindowFlagsForPlayer()
+        
+        // Restore system UI (immersive mode)
+        setupSystemUIForPlayer()
+    }
+
+    private fun setupWindowFlagsForPlayer() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        )
+        
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+    }
+
+    private fun setupSystemUIForPlayer() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.apply {
+                hide(WindowInsets.Type.statusBars())
+                hide(WindowInsets.Type.navigationBars())
+                systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_FULLSCREEN
+            )
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
+    }
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
@@ -1361,32 +1412,6 @@ private val mainHandler = Handler(Looper.getMainLooper())
         if (!isInPipMode && player?.isPlaying == true && isPiPSupported()) {
             userRequestedPip = true
             enterPipMode()
-        }
-    }
-
-    private fun toggleSystemUi(show: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val controller = window.insetsController
-            if (show) {
-                controller?.show(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
-                )
-            } else {
-                controller?.hide(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
-                )
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            if (show) {
-                binding.playerView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-            } else {
-                binding.playerView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                        )
-            }
         }
     }
 
