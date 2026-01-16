@@ -24,106 +24,123 @@
         android:id="@+id/exo_top_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
+        android:orientation="horizontal"
         android:layout_gravity="top"
         android:paddingStart="4dp"
         android:paddingEnd="4dp"
         android:paddingTop="0dp"
-        android:paddingBottom="4dp">
-        
-        <LinearLayout
-            android:layout_width="match_parent"
+        android:paddingBottom="4dp"
+        android:gravity="center_vertical">
+
+        <!-- Back Button -->
+        <ImageButton
+            android:id="@+id/exo_back"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/button_hover_effect"
+            android:src="@drawable/ic_arrow_back"
+            android:tint="@android:color/white"
+            android:contentDescription="Back"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <!-- Channel Name -->
+        <TextView
+            android:id="@+id/exo_channel_name"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:textColor="@android:color/white"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="Channel" />
 
-            <!-- Back Button -->
-            <ImageButton
-                android:id="@+id/exo_back"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@drawable/button_hover_effect"
-                android:src="@drawable/ic_arrow_back"
-                android:tint="@android:color/white"
-                android:contentDescription="Back"
-                android:clickable="true"
-                android:focusable="true" />
+        <!-- PiP Button -->
+        <ImageButton
+            android:id="@+id/exo_pip"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/button_hover_effect"
+            android:src="@drawable/ic_pip"
+            android:tint="@android:color/white"
+            android:contentDescription="Picture in Picture"
+            android:visibility="visible"
+            android:clickable="true"
+            android:focusable="true" />
 
-            <!-- Channel Name -->
-            <TextView
-                android:id="@+id/exo_channel_name"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="12dp"
-                android:textColor="@android:color/white"
-                android:textStyle="bold"
-                android:textSize="16sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:text="Channel" />
+        <!-- Settings Button -->
+        <ImageButton
+            android:id="@+id/exo_settings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/button_hover_effect"
+            android:src="@drawable/ic_settings"
+            android:tint="@android:color/white"
+            android:contentDescription="Settings"
+            android:clickable="true"
+            android:focusable="true" />
 
-            <!-- PiP Button -->
-            <ImageButton
-                android:id="@+id/exo_pip"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@drawable/button_hover_effect"
-                android:src="@drawable/ic_pip"
-                android:tint="@android:color/white"
-                android:contentDescription="Picture in Picture"
-                android:clickable="true"
-                android:focusable="true" />
+        <!-- Mute Button -->
+        <ImageButton
+            android:id="@+id/exo_mute"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/button_hover_effect"
+            android:src="@drawable/ic_volume_up"
+            android:tint="@android:color/white"
+            android:contentDescription="Mute"
+            android:clickable="true"
+            android:focusable="true" />
 
-            <!-- Settings Button -->
-            <ImageButton
-                android:id="@+id/exo_settings"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@drawable/button_hover_effect"
-                android:src="@drawable/ic_settings"
-                android:tint="@android:color/white"
-                android:contentDescription="Settings"
-                android:clickable="true"
-                android:focusable="true" />
+        <!-- Lock Button -->
+        <ImageButton
+            android:id="@+id/exo_lock"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/button_hover_effect"
+            android:src="@drawable/ic_lock_open"
+            android:tint="@android:color/white"
+            android:contentDescription="Lock controls"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
 
-            <!-- Mute Button -->
-            <ImageButton
-                android:id="@+id/exo_mute"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@drawable/button_hover_effect"
-                android:src="@drawable/ic_volume_up"
-                android:tint="@android:color/white"
-                android:contentDescription="Mute"
-                android:clickable="true"
-                android:focusable="true" />
+    <!-- ========== LANDSCAPE LINKS (only visible in landscape for events) ========== -->
+    <LinearLayout
+        android:id="@+id/exo_links_container"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_gravity="center_vertical|start"
+        android:layout_marginStart="16dp"
+        android:visibility="gone">
 
-            <!-- Lock Button -->
-            <ImageButton
-                android:id="@+id/exo_lock"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_marginStart="4dp"
-                android:background="@drawable/button_hover_effect"
-                android:src="@drawable/ic_lock_open"
-                android:tint="@android:color/white"
-                android:contentDescription="Lock controls"
-                android:clickable="true"
-                android:focusable="true" />
-        </LinearLayout>
-        
-        <!-- Links RecyclerView (Landscape Mode) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Streams"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:paddingBottom="4dp"
+            android:background="#99000000"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/exo_links_recycler"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:layout_marginStart="48dp"
-            android:paddingBottom="4dp"
-            android:visibility="gone"
-            android:orientation="horizontal" />
-            
+            android:orientation="vertical"
+            android:background="#99000000"
+            android:padding="4dp"
+            android:clipToPadding="false"
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- ========== BOTTOM CONTROL BAR ========== -->
@@ -132,9 +149,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:paddingBottom="8dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="0dp"
         android:layout_gravity="bottom">
 
         <!-- Progress Bar Section -->
@@ -144,11 +161,11 @@
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:paddingTop="4dp"
-            android:paddingBottom="8dp">
+            android:paddingBottom="4dp">
 
             <!-- Current Position -->
             <TextView
-                android:id="@id/exo_position"
+                android:id="@+id/exo_position"
                 android:layout_width="48dp"
                 android:layout_height="wrap_content"
                 android:text="0:00"
@@ -167,7 +184,7 @@
 
             <!-- Total Duration -->
             <TextView
-                android:id="@id/exo_duration"
+                android:id="@+id/exo_duration"
                 android:layout_width="48dp"
                 android:layout_height="wrap_content"
                 android:text="0:00"
@@ -176,38 +193,34 @@
                 android:gravity="center" />
         </LinearLayout>
 
-        <!-- Control Buttons -->
+        <!-- Playback Control Buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp">
+            android:paddingBottom="8dp">
 
-            <!-- Aspect Ratio Button -->
+            <!-- Aspect Ratio Button (Left) -->
             <ImageButton
                 android:id="@+id/exo_aspect_ratio"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="12dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_aspect_ratio"
                 android:tint="@android:color/white"
                 android:contentDescription="Aspect ratio"
+                android:visibility="visible"
                 android:clickable="true"
                 android:focusable="true" />
 
-            <!-- Spacer -->
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <!-- Rewind Button -->
+            <!-- Rewind 10s Button -->
             <ImageButton
                 android:id="@+id/exo_rewind"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="16dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_skip_backward"
                 android:tint="@android:color/white"
@@ -215,12 +228,11 @@
                 android:clickable="true"
                 android:focusable="true" />
 
-            <!-- Play/Pause Button -->
+            <!-- Play/Pause Button (Large Center Button) -->
             <ImageButton
                 android:id="@+id/exo_play_pause"
                 android:layout_width="64dp"
                 android:layout_height="64dp"
-                android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_play"
@@ -229,11 +241,12 @@
                 android:clickable="true"
                 android:focusable="true" />
 
-            <!-- Forward Button -->
+            <!-- Forward 10s Button -->
             <ImageButton
                 android:id="@+id/exo_forward"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="12dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_skip_forward"
                 android:tint="@android:color/white"
@@ -241,24 +254,17 @@
                 android:clickable="true"
                 android:focusable="true" />
 
-            <!-- Spacer -->
-            <View
-                android:layout_width="0dp"
-                android:layout_height="1dp"
-                android:layout_weight="1" />
-
-            <!-- Fullscreen Button -->
+            <!-- Fullscreen Button (Right) -->
             <ImageButton
                 android:id="@+id/exo_fullscreen"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:background="@drawable/button_hover_effect"
                 android:src="@drawable/ic_fullscreen"
                 android:tint="@android:color/white"
                 android:contentDescription="Toggle fullscreen"
                 android:clickable="true"
                 android:focusable="true" />
-
         </LinearLayout>
     </LinearLayout>
 
