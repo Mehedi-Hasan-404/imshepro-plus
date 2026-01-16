@@ -297,9 +297,9 @@ class PlayerActivity : AppCompatActivity() {
     portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
     portraitLinksRecycler.adapter = linkChipAdapter
     
-    // Setup landscape links RecyclerView (inside player controls)
+    // Setup landscape links RecyclerView (inside player controls, now horizontal)
     val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-    landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+    landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
     
     // Create separate adapter for landscape
     val landscapeLinkAdapter = LinkChipAdapter { link, position ->
@@ -313,7 +313,7 @@ class PlayerActivity : AppCompatActivity() {
         val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         
         if (isCurrentlyLandscape) {
-            // Landscape: show in player controls, hide portrait section
+            // Landscape: show in player controls (horizontal below title), hide portrait section
             binding.linksSection.visibility = View.GONE
             landscapeLinksRecycler?.visibility = View.VISIBLE
             landscapeLinkAdapter.submitList(allEventLinks)
@@ -336,7 +336,7 @@ class PlayerActivity : AppCompatActivity() {
     
     if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
         if (isLandscape) {
-            // Landscape: show in player controls
+            // Landscape: show in player controls (horizontal below title)
             binding.linksSection.visibility = View.GONE
             landscapeLinksRecycler?.visibility = View.VISIBLE
             
@@ -433,15 +433,21 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun switchToLink(link: LiveEventLink, position: Int) {
-        if (position == currentLinkIndex) return
-        
-        currentLinkIndex = position
-        streamUrl = link.url
-        linkChipAdapter.setSelectedPosition(position)
-        
-        releasePlayer()
-        setupPlayer()
-    }
+    if (position == currentLinkIndex) return
+    
+    currentLinkIndex = position
+    streamUrl = link.url
+    
+    // Update BOTH adapters
+    linkChipAdapter.setSelectedPosition(position)
+    
+    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+    val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
+    landscapeAdapter?.setSelectedPosition(position)
+    
+    releasePlayer()
+    setupPlayer()
+}
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
