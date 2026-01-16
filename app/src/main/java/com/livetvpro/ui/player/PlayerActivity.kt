@@ -87,12 +87,13 @@ class PlayerActivity : AppCompatActivity() {
     private var tvChannelName: TextView? = null
 
     private var isInPipMode = false
-    private var isLocked = false
-    private var isMuted = false
-    private val skipMs = 10_000L
-    private var userRequestedPip = false
-    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    private val mainHandler = Handler(Looper.getMainLooper())
+private var isLocked = false
+private var isMuted = false
+private val skipMs = 10_000L
+private var userRequestedPip = false
+private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+private var isReturningFromPip = false  
+private val mainHandler = Handler(Looper.getMainLooper())
     private val hideUnlockButtonRunnable = Runnable {
         binding.unlockButton.visibility = View.GONE
     }
@@ -1092,6 +1093,15 @@ class PlayerActivity : AppCompatActivity() {
             updateMuteIcon()
         }
     }
+    
+    private fun ensureControlsBinding() {
+    if (isReturningFromPip) {
+        binding.playerView.postDelayed({
+            bindControllerViewsOnce()
+            setupControlListenersOnce()
+        }, 200)
+    }
+}
 
     private fun updateMuteIcon() {
         btnMute?.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
@@ -1299,40 +1309,51 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onPictureInPictureModeChanged(
-        isInPictureInPictureMode: Boolean,
-        newConfig: Configuration
-    ) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        isInPipMode = isInPictureInPictureMode
-        if (isInPipMode) {
-            binding.playerView.hideController()
-            setSubtitleTextSizePiP()
+    isInPictureInPictureMode: Boolean,
+    newConfig: Configuration
+) {
+    super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+    isInPipMode = isInPictureInPictureMode
+    if (isInPipMode) {
+        binding.playerView.hideController()
+        setSubtitleTextSizePiP()
+    } else {
+        setSubtitleTextSize()
+        if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
+            finish()
+            return
+        }
+        userRequestedPip = false
+        if (isFinishing) return
+        
+        // Mark that we're returning from PiP
+        isReturningFromPip = true
+        
+        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        applyOrientationSettings(isLandscape)
+        if (isLocked) {
+            binding.playerView.useController = false
+            binding.lockOverlay.visibility = View.VISIBLE
+            showUnlockButton()
         } else {
-            setSubtitleTextSize()
-            if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
-                finish()
-                return
-            }
-            userRequestedPip = false
-            if (isFinishing) return
-            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            applyOrientationSettings(isLandscape)
-            if (isLocked) {
-                binding.playerView.useController = false
-                binding.lockOverlay.visibility = View.VISIBLE
-                showUnlockButton()
+            binding.playerView.useController = true
+            if (player?.isPlaying == true) {
+                toggleSystemUi(false)
             } else {
-                binding.playerView.useController = true
-                if (player?.isPlaying == true) {
-                    toggleSystemUi(false)
-                } else {
-                    binding.playerView.post {
-                        binding.playerView.showController()
-                    }
+                binding.playerView.post {
+                    binding.playerView.showController()
                 }
             }
         }
+        
+        // Re-bind controls after returning from PiP
+        binding.playerView.postDelayed({
+            bindControllerViewsOnce()
+            setupControlListenersOnce()
+            isReturningFromPip = false
+        }, 300)
     }
+}
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
