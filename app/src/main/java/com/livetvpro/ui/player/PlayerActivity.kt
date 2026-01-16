@@ -288,37 +288,78 @@ class PlayerActivity : AppCompatActivity() {
     }
     
     private fun setupLinksUI() {
-        linkChipAdapter = LinkChipAdapter { link, position ->
-            switchToLink(link, position)
-        }
-        
-        val linksRecyclerView = binding.linksRecyclerView
-        linksRecyclerView.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        linksRecyclerView.adapter = linkChipAdapter
-        
-        if (contentType == ContentType.EVENT && allEventLinks.size > 1 && !isLandscape) {
-            binding.linksSection.visibility = View.VISIBLE
-            linkChipAdapter.submitList(allEventLinks)
-            linkChipAdapter.setSelectedPosition(currentLinkIndex)
-        } else {
-            binding.linksSection.visibility = View.GONE
-        }
+    linkChipAdapter = LinkChipAdapter { link, position ->
+        switchToLink(link, position)
     }
     
-    private fun updateLinksVisibilityForOrientation(isLandscape: Boolean) {
-        if (!isLandscape && contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            binding.linksSection.visibility = View.VISIBLE
-        } else {
-            binding.linksSection.visibility = View.GONE
-        }
-        
-        val exoLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-        if (isLandscape && contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            exoLinksRecycler?.visibility = View.VISIBLE
-        } else {
-            exoLinksRecycler?.visibility = View.GONE
-        }
+    // Setup portrait links RecyclerView
+    val portraitLinksRecycler = binding.linksRecyclerView
+    portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+    portraitLinksRecycler.adapter = linkChipAdapter
+    
+    // Setup landscape links RecyclerView (inside player controls)
+    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+    landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+    
+    // Create separate adapter for landscape
+    val landscapeLinkAdapter = LinkChipAdapter { link, position ->
+        switchToLink(link, position)
     }
+    landscapeLinksRecycler?.adapter = landscapeLinkAdapter
+    
+    // Update visibility based on orientation and content type
+    if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+        val currentOrientation = resources.configuration.orientation
+        val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        if (isCurrentlyLandscape) {
+            // Landscape: show in player controls, hide portrait section
+            binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.VISIBLE
+            landscapeLinkAdapter.submitList(allEventLinks)
+            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+        } else {
+            // Portrait: show in portrait section, hide landscape
+            binding.linksSection.visibility = View.VISIBLE
+            landscapeLinksRecycler?.visibility = View.GONE
+            linkChipAdapter.submitList(allEventLinks)
+            linkChipAdapter.setSelectedPosition(currentLinkIndex)
+        }
+    } else {
+        binding.linksSection.visibility = View.GONE
+        landscapeLinksRecycler?.visibility = View.GONE
+    }
+}
+
+    private fun updateLinksForOrientation(isLandscape: Boolean) {
+    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+    
+    if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+        if (isLandscape) {
+            // Landscape: show in player controls
+            binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.VISIBLE
+            
+            // Update landscape adapter
+            val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
+            if (landscapeAdapter != null) {
+                landscapeAdapter.submitList(allEventLinks)
+                landscapeAdapter.setSelectedPosition(currentLinkIndex)
+            }
+        } else {
+            // Portrait: show in bottom section
+            binding.linksSection.visibility = View.VISIBLE
+            landscapeLinksRecycler?.visibility = View.GONE
+            
+            // Update portrait adapter
+            linkChipAdapter.submitList(allEventLinks)
+            linkChipAdapter.setSelectedPosition(currentLinkIndex)
+        }
+    } else {
+        binding.linksSection.visibility = View.GONE
+        landscapeLinksRecycler?.visibility = View.GONE
+    }
+}
 
     private fun loadRelatedContent() {
         when (contentType) {
@@ -430,14 +471,9 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun applyOrientationSettings(isLandscape: Boolean) {
-        this.isLandscape = isLandscape
-        setWindowFlags(isLandscape)
-        adjustLayoutForOrientation(isLandscape)
-        updateLinksVisibilityForOrientation(isLandscape)
-        binding.playerContainer.requestLayout()
-        binding.root.requestLayout()
-    }
+    private fun updateLinksVisibilityForOrientation(isLandscape: Boolean) {
+    updateLinksForOrientation(isLandscape)
+}
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
@@ -934,59 +970,45 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun bindControllerViewsExact() {
-    with(binding.playerView) {
-        btnBack = findViewById(R.id.exo_back)
-        btnPip = findViewById(R.id.exo_pip)
-        btnSettings = findViewById(R.id.exo_settings)
-        btnLock = findViewById(R.id.exo_lock)
-        btnMute = findViewById(R.id.exo_mute)
-        btnRewind = findViewById(R.id.exo_rewind)
-        btnPlayPause = findViewById(R.id.exo_play_pause)
-        btnForward = findViewById(R.id.exo_forward)
-        btnFullscreen = findViewById(R.id.exo_fullscreen) 
-        btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
-        tvChannelName = findViewById(R.id.exo_channel_name)
-        
-        val exoLinksRecycler = findViewById<RecyclerView>(R.id.exo_links_recycler)
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        
-        if (isLandscape && contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            exoLinksRecycler?.visibility = View.VISIBLE
-            val landscapeLinkAdapter = LinkChipAdapter { link, position ->
-                switchToLink(link, position)
-            }
-            exoLinksRecycler?.layoutManager = LinearLayoutManager(this@PlayerActivity, LinearLayoutManager.VERTICAL, false)
-            exoLinksRecycler?.adapter = landscapeLinkAdapter
-            landscapeLinkAdapter.submitList(allEventLinks)
-            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
-        } else {
-            exoLinksRecycler?.visibility = View.GONE
+        with(binding.playerView) {
+            btnBack = findViewById(R.id.exo_back)
+            btnPip = findViewById(R.id.exo_pip)
+            btnSettings = findViewById(R.id.exo_settings)
+            btnLock = findViewById(R.id.exo_lock)
+            btnMute = findViewById(R.id.exo_mute)
+            btnRewind = findViewById(R.id.exo_rewind)
+            btnPlayPause = findViewById(R.id.exo_play_pause)
+            btnForward = findViewById(R.id.exo_forward)
+            btnFullscreen = findViewById(R.id.exo_fullscreen) 
+            btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
+            tvChannelName = findViewById(R.id.exo_channel_name)
+            
+            
         }
+        
+        btnBack?.setImageResource(R.drawable.ic_arrow_back)
+        btnPip?.setImageResource(R.drawable.ic_pip)
+        btnSettings?.setImageResource(R.drawable.ic_settings)
+        btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
+        updateMuteIcon()
+        btnRewind?.setImageResource(R.drawable.ic_skip_backward)
+        updatePlayPauseIcon(player?.isPlaying == true)
+        btnForward?.setImageResource(R.drawable.ic_skip_forward)
+        val currentOrientation = resources.configuration.orientation
+        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+        } else {
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        }
+        btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
+        listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
+            it?.apply { isClickable = true; isFocusable = true; isEnabled = true }
+        }
+        btnAspectRatio?.visibility = View.VISIBLE
+        btnPip?.visibility = View.VISIBLE
+        btnFullscreen?.visibility = View.VISIBLE
+        tvChannelName?.text = contentName
     }
-    
-    btnBack?.setImageResource(R.drawable.ic_arrow_back)
-    btnPip?.setImageResource(R.drawable.ic_pip)
-    btnSettings?.setImageResource(R.drawable.ic_settings)
-    btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
-    updateMuteIcon()
-    btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-    updatePlayPauseIcon(player?.isPlaying == true)
-    btnForward?.setImageResource(R.drawable.ic_skip_forward)
-    val currentOrientation = resources.configuration.orientation
-    if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-    } else {
-        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-    }
-    btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
-    listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-        it?.apply { isClickable = true; isFocusable = true; isEnabled = true }
-    }
-    btnAspectRatio?.visibility = View.VISIBLE
-    btnPip?.visibility = View.VISIBLE
-    btnFullscreen?.visibility = View.VISIBLE
-    tvChannelName?.text = contentName
-}
 
     private fun bindControllerViewsOnce() {
         if (isBindingControls) return
