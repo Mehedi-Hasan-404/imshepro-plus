@@ -117,6 +117,18 @@ class PlayerActivity : AppCompatActivity() {
                         pipHelper.updatePlaybackAction(false)
                     }
                 }
+                CONTROL_TYPE_REWIND -> {
+                    val newPosition = player.currentPosition - skipMs
+                    player.seekTo(if (newPosition < 0) 0 else newPosition)
+                }
+                CONTROL_TYPE_FORWARD -> {
+                    val newPosition = player.currentPosition + skipMs
+                    if (player.isCurrentWindowLive && player.duration != C.TIME_UNSET && newPosition >= player.duration) {
+                        player.seekTo(player.duration)
+                    } else {
+                        player.seekTo(newPosition)
+                    }
+                }
             }
         }
     }
@@ -128,6 +140,8 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_CONTROL_TYPE = "control_type"
         private const val CONTROL_TYPE_PLAY = 1
         private const val CONTROL_TYPE_PAUSE = 2
+        private const val CONTROL_TYPE_REWIND = 3
+        private const val CONTROL_TYPE_FORWARD = 4
 
         fun startWithChannel(context: Context, channel: Channel) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
@@ -465,6 +479,7 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         binding.playerContainer.layoutParams = params
+        binding.playerContainer.requestLayout()
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
@@ -1108,6 +1123,11 @@ class PlayerActivity : AppCompatActivity() {
             if (isFinishing) return
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            
+            binding.playerView.post {
+                bindControllerViews()
+            }
+            
             applyOrientationSettings(isLandscape)
             
             if (isLocked) {
@@ -1116,9 +1136,9 @@ class PlayerActivity : AppCompatActivity() {
                 showUnlockButton()
             } else {
                 binding.playerView.useController = true
-                binding.playerView.post {
+                binding.playerView.postDelayed({
                     binding.playerView.showController()
-                }
+                }, 100)
             }
         }
     }
