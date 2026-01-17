@@ -24,8 +24,6 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -248,8 +246,6 @@ class PlayerActivity : AppCompatActivity() {
         }
         landscapeLinksRecycler?.adapter = landscapeLinkAdapter
         
-        binding.linksSection.findViewById<TextView>(R.id.links_title)?.visibility = View.GONE
-        
         if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
             val currentOrientation = resources.configuration.orientation
             val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
@@ -314,11 +310,10 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.relatedItems.observe(this) { channels ->
             relatedChannels = channels
             relatedChannelsAdapter.submitList(channels)
-            if (channels.isEmpty()) {
-                binding.relatedChannelsSection.visibility = View.GONE
+            binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
+                View.GONE
             } else {
-                binding.relatedChannelsSection.visibility = View.VISIBLE
-                binding.relatedChannelsSection.findViewById<TextView>(R.id.related_title)?.visibility = View.GONE
+                View.VISIBLE
             }
             binding.relatedLoadingProgress.visibility = View.GONE
             binding.relatedChannelsRecycler.visibility = View.VISIBLE
@@ -403,41 +398,12 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && pipHelper.isPipSupported()) {
-            setPictureInPictureParams(createPipParams())
-        }
-        
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
-        @Suppress("DEPRECATION")
-        binding.root.systemUiVisibility =
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-            View.SYSTEM_UI_FLAG_LOW_PROFILE
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.let { controller ->
-                controller.hide(WindowInsetsCompat.Type.systemBars())
-                controller.hide(WindowInsetsCompat.Type.navigationBars())
-                controller.systemBarsBehavior = 
-                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            }
-        }
-        
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.attributes.layoutInDisplayCutoutMode = 
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        }
-        
         if (Build.VERSION.SDK_INT > 23) {
             setupPlayer()
             binding.playerView.onResume()
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && pipHelper.isPipSupported()) {
+            setPictureInPictureParams(createPipParams())
         }
     }
 
@@ -509,7 +475,6 @@ class PlayerActivity : AppCompatActivity() {
                                 or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                                 or View.SYSTEM_UI_FLAG_FULLSCREEN
-                                or View.SYSTEM_UI_FLAG_LOW_PROFILE
                         )
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -526,8 +491,9 @@ class PlayerActivity : AppCompatActivity() {
                 )
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
                 window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
