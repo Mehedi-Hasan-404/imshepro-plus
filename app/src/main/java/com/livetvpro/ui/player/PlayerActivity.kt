@@ -120,6 +120,9 @@ class PlayerActivity : AppCompatActivity() {
                 CONTROL_TYPE_REWIND -> {
                     val newPosition = player.currentPosition - skipMs
                     player.seekTo(if (newPosition < 0) 0 else newPosition)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        pipHelper.updatePlaybackAction(player.isPlaying)
+                    }
                 }
                 CONTROL_TYPE_FORWARD -> {
                     val newPosition = player.currentPosition + skipMs
@@ -127,6 +130,9 @@ class PlayerActivity : AppCompatActivity() {
                         player.seekTo(player.duration)
                     } else {
                         player.seekTo(newPosition)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        pipHelper.updatePlaybackAction(player.isPlaying)
                     }
                 }
             }
