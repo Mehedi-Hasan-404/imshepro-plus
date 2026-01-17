@@ -104,9 +104,13 @@ class PlayerActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent == null || ACTION_MEDIA_CONTROL != intent.action) return
             val player = player ?: return
+            
+            val hasError = binding.errorView.visibility == View.VISIBLE
+            val hasEnded = player.playbackState == Player.STATE_ENDED
+            
             when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
                 CONTROL_TYPE_PLAY -> {
-                    if (binding.errorView.visibility == View.VISIBLE) {
+                    if (hasError || hasEnded) {
                         binding.errorView.visibility = View.GONE
                         binding.progressBar.visibility = View.VISIBLE
                         player.release()
@@ -114,13 +118,13 @@ class PlayerActivity : AppCompatActivity() {
                         setupPlayer()
                     } else {
                         player.play()
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        pipHelper.updatePlaybackAction(true)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            pipHelper.updatePlaybackAction(true)
+                        }
                     }
                 }
                 CONTROL_TYPE_PAUSE -> {
-                    if (binding.errorView.visibility == View.VISIBLE) {
+                    if (hasError || hasEnded) {
                         binding.errorView.visibility = View.GONE
                         binding.progressBar.visibility = View.VISIBLE
                         player.release()
@@ -128,27 +132,31 @@ class PlayerActivity : AppCompatActivity() {
                         setupPlayer()
                     } else {
                         player.pause()
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        pipHelper.updatePlaybackAction(false)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            pipHelper.updatePlaybackAction(false)
+                        }
                     }
                 }
                 CONTROL_TYPE_REWIND -> {
-                    val newPosition = player.currentPosition - skipMs
-                    player.seekTo(if (newPosition < 0) 0 else newPosition)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        pipHelper.updatePlaybackAction(player.isPlaying)
+                    if (!hasError && !hasEnded) {
+                        val newPosition = player.currentPosition - skipMs
+                        player.seekTo(if (newPosition < 0) 0 else newPosition)
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            pipHelper.updatePlaybackAction(player.isPlaying)
+                        }
                     }
                 }
                 CONTROL_TYPE_FORWARD -> {
-                    val newPosition = player.currentPosition + skipMs
-                    if (player.isCurrentWindowLive && player.duration != C.TIME_UNSET && newPosition >= player.duration) {
-                        player.seekTo(player.duration)
-                    } else {
-                        player.seekTo(newPosition)
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        pipHelper.updatePlaybackAction(player.isPlaying)
+                    if (!hasError && !hasEnded) {
+                        val newPosition = player.currentPosition + skipMs
+                        if (player.isCurrentWindowLive && player.duration != C.TIME_UNSET && newPosition >= player.duration) {
+                            player.seekTo(player.duration)
+                        } else {
+                            player.seekTo(newPosition)
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            pipHelper.updatePlaybackAction(player.isPlaying)
+                        }
                     }
                 }
             }
@@ -1024,7 +1032,10 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun handlePlayPauseClick() {
-        if (binding.errorView.visibility == View.VISIBLE) {
+        val hasError = binding.errorView.visibility == View.VISIBLE
+        val hasEnded = player?.playbackState == Player.STATE_ENDED
+        
+        if (hasError || hasEnded) {
             binding.errorView.visibility = View.GONE
             binding.progressBar.visibility = View.VISIBLE
             player?.release()
@@ -1164,24 +1175,27 @@ class PlayerActivity : AppCompatActivity() {
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             
+            val currentPlayer = player
+            binding.playerView.player = null
             binding.playerView.useController = false
+            
             binding.playerView.postDelayed({
+                binding.playerView.player = currentPlayer
                 binding.playerView.useController = true
                 bindControllerViews()
                 setupControlListeners()
-            }, 50)
-            
-            applyOrientationSettings(isLandscape)
-            
-            if (isLocked) {
-                binding.playerView.useController = false
-                binding.lockOverlay.visibility = View.VISIBLE
-                showUnlockButton()
-            } else {
-                binding.playerView.postDelayed({
-                    binding.playerView.showController()
-                }, 150)
-            }
+                applyOrientationSettings(isLandscape)
+                
+                if (isLocked) {
+                    binding.playerView.useController = false
+                    binding.lockOverlay.visibility = View.VISIBLE
+                    showUnlockButton()
+                } else {
+                    binding.playerView.postDelayed({
+                        binding.playerView.showController()
+                    }, 100)
+                }
+            }, 100)
         }
     }
 
