@@ -106,13 +106,29 @@ class PlayerActivity : AppCompatActivity() {
             val player = player ?: return
             when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
                 CONTROL_TYPE_PLAY -> {
-                    player.play()
+                    if (binding.errorView.visibility == View.VISIBLE) {
+                        binding.errorView.visibility = View.GONE
+                        binding.progressBar.visibility = View.VISIBLE
+                        player.release()
+                        this@PlayerActivity.player = null
+                        setupPlayer()
+                    } else {
+                        player.play()
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         pipHelper.updatePlaybackAction(true)
                     }
                 }
                 CONTROL_TYPE_PAUSE -> {
-                    player.pause()
+                    if (binding.errorView.visibility == View.VISIBLE) {
+                        binding.errorView.visibility = View.GONE
+                        binding.progressBar.visibility = View.VISIBLE
+                        player.release()
+                        this@PlayerActivity.player = null
+                        setupPlayer()
+                    } else {
+                        player.pause()
+                    }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         pipHelper.updatePlaybackAction(false)
                     }
@@ -796,8 +812,15 @@ class PlayerActivity : AppCompatActivity() {
                                 else -> "Playback Error"
                             }
 
+                            binding.errorText.apply {
+                                text = errorMessage
+                                setTextColor(android.graphics.Color.WHITE)
+                                textSize = 16f
+                                setPadding(48, 24, 48, 24)
+                                setBackgroundColor(android.graphics.Color.parseColor("#2196F3"))
+                                elevation = 8f
+                            }
                             binding.errorView.visibility = View.VISIBLE
-                            binding.errorText.text = errorMessage
                         }
                     })
                 }
@@ -979,19 +1002,11 @@ class PlayerActivity : AppCompatActivity() {
                 p.seekTo(if (newPosition < 0) 0 else newPosition)
             }
         }
-        btnPlayPause?.setOnClickListener {
-            if (!isLocked) {
-                if (binding.errorView.visibility == View.VISIBLE) {
-                    binding.errorView.visibility = View.GONE
-                    binding.progressBar.visibility = View.VISIBLE
-                    player?.release()
-                    player = null
-                    setupPlayer()
-                } else {
-                    player?.let { p ->
-                        if (p.isPlaying) p.pause() else p.play()
-                    }
-                }
+        btnPlayPause?.apply {
+            isClickable = true
+            isFocusable = true
+            setOnClickListener {
+                handlePlayPauseClick()
             }
         }
         btnForward?.setOnClickListener {
@@ -1006,6 +1021,22 @@ class PlayerActivity : AppCompatActivity() {
         }
         btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
         btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
+    }
+
+    private fun handlePlayPauseClick() {
+        if (binding.errorView.visibility == View.VISIBLE) {
+            binding.errorView.visibility = View.GONE
+            binding.progressBar.visibility = View.VISIBLE
+            player?.release()
+            player = null
+            setupPlayer()
+        } else {
+            if (!isLocked) {
+                player?.let { p ->
+                    if (p.isPlaying) p.pause() else p.play()
+                }
+            }
+        }
     }
 
     private fun toggleMute() {
@@ -1071,9 +1102,12 @@ class PlayerActivity : AppCompatActivity() {
         if (isLocked) {
             binding.playerView.useController = false
             binding.playerView.hideController()
-            binding.lockOverlay.visibility = View.VISIBLE
-            binding.lockOverlay.isClickable = true
-            binding.lockOverlay.isFocusable = true
+            binding.lockOverlay.apply {
+                visibility = View.VISIBLE
+                isClickable = true
+                isFocusable = true
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            }
             showUnlockButton()
             btnLock?.setImageResource(R.drawable.ic_lock_closed)
         } else {
@@ -1130,9 +1164,12 @@ class PlayerActivity : AppCompatActivity() {
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             
-            binding.playerView.post {
+            binding.playerView.useController = false
+            binding.playerView.postDelayed({
+                binding.playerView.useController = true
                 bindControllerViews()
-            }
+                setupControlListeners()
+            }, 50)
             
             applyOrientationSettings(isLandscape)
             
@@ -1141,10 +1178,9 @@ class PlayerActivity : AppCompatActivity() {
                 binding.lockOverlay.visibility = View.VISIBLE
                 showUnlockButton()
             } else {
-                binding.playerView.useController = true
                 binding.playerView.postDelayed({
                     binding.playerView.showController()
-                }, 100)
+                }, 150)
             }
         }
     }
