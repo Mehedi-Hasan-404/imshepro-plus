@@ -1153,50 +1153,47 @@ class PlayerActivity : AppCompatActivity() {
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration
     ) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        isInPipMode = isInPictureInPictureMode
-        
-        if (isInPipMode) {
+        if (isInPictureInPictureMode) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                pipHelper.updatePictureInPictureParams()
+            }
+            isInPipMode = true
             binding.playerView.hideController()
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
             player?.playWhenReady = true
             setSubtitleTextSizePiP()
-        } else {
-            setSubtitleTextSize()
-            
-            if (!userRequestedPip) {
-                finish()
-                return
-            }
-            userRequestedPip = false
-            
-            if (isFinishing) return
-            
-            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            
-            val currentPlayer = player
-            binding.playerView.player = null
-            binding.playerView.useController = false
-            
-            binding.playerView.postDelayed({
-                binding.playerView.player = currentPlayer
-                binding.playerView.useController = true
-                bindControllerViews()
-                setupControlListeners()
-                applyOrientationSettings(isLandscape)
-                
-                if (isLocked) {
-                    binding.playerView.useController = false
-                    binding.lockOverlay.visibility = View.VISIBLE
-                    showUnlockButton()
-                } else {
-                    binding.playerView.postDelayed({
-                        binding.playerView.showController()
-                    }, 100)
-                }
-            }, 100)
+            super.onPictureInPictureModeChanged(true, newConfig)
+            return
         }
+        
+        isInPipMode = false
+        pipHelper.updatePictureInPictureParams()
+        
+        setSubtitleTextSize()
+        
+        if (!userRequestedPip) {
+            finish()
+            return
+        }
+        userRequestedPip = false
+        
+        if (isFinishing) return
+        
+        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        applyOrientationSettings(isLandscape)
+        
+        if (isLocked) {
+            binding.playerView.useController = false
+            binding.lockOverlay.visibility = View.VISIBLE
+            showUnlockButton()
+        } else {
+            binding.playerView.useController = true
+            binding.playerView.showController()
+        }
+        
+        super.onPictureInPictureModeChanged(false, newConfig)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
