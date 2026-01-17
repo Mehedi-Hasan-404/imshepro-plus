@@ -248,6 +248,8 @@ class PlayerActivity : AppCompatActivity() {
         }
         landscapeLinksRecycler?.adapter = landscapeLinkAdapter
         
+        binding.linksSection.findViewById<TextView>(R.id.links_title)?.visibility = View.GONE
+        
         if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
             val currentOrientation = resources.configuration.orientation
             val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
@@ -312,10 +314,11 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.relatedItems.observe(this) { channels ->
             relatedChannels = channels
             relatedChannelsAdapter.submitList(channels)
-            binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
-                View.GONE
+            if (channels.isEmpty()) {
+                binding.relatedChannelsSection.visibility = View.GONE
             } else {
-                View.VISIBLE
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+                binding.relatedChannelsSection.findViewById<TextView>(R.id.related_title)?.visibility = View.GONE
             }
             binding.relatedLoadingProgress.visibility = View.GONE
             binding.relatedChannelsRecycler.visibility = View.VISIBLE
