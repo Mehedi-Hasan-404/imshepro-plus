@@ -132,8 +132,7 @@ class PipHelper(
                 PendingIntent.FLAG_IMMUTABLE
             )
             val rewindIcon = Icon.createWithResource(activity, R.drawable.ic_skip_backward)
-            val rewindTitle = activity.getString(R.string.exo_controls_rewind_description)
-            actions.add(RemoteAction(rewindIcon, rewindTitle, rewindTitle, rewindIntent))
+            actions.add(RemoteAction(rewindIcon, "Rewind", "Rewind", rewindIntent))
             
             if (isPlaying) {
                 val pauseIntent = PendingIntent.getBroadcast(
@@ -145,7 +144,7 @@ class PipHelper(
                     PendingIntent.FLAG_IMMUTABLE
                 )
                 val pauseIcon = Icon.createWithResource(activity, R.drawable.ic_pause)
-                val pauseTitle = activity.getString(R.string.exo_controls_pause_description)
+                val pauseTitle = activity.getString(R.string.pause)
                 actions.add(RemoteAction(pauseIcon, pauseTitle, pauseTitle, pauseIntent))
             } else {
                 val playIntent = PendingIntent.getBroadcast(
@@ -157,7 +156,7 @@ class PipHelper(
                     PendingIntent.FLAG_IMMUTABLE
                 )
                 val playIcon = Icon.createWithResource(activity, R.drawable.ic_play)
-                val playTitle = activity.getString(R.string.exo_controls_play_description)
+                val playTitle = activity.getString(R.string.play)
                 actions.add(RemoteAction(playIcon, playTitle, playTitle, playIntent))
             }
             
@@ -170,8 +169,7 @@ class PipHelper(
                 PendingIntent.FLAG_IMMUTABLE
             )
             val forwardIcon = Icon.createWithResource(activity, R.drawable.ic_skip_forward)
-            val forwardTitle = activity.getString(R.string.exo_controls_fastforward_description)
-            actions.add(RemoteAction(forwardIcon, forwardTitle, forwardTitle, forwardIntent))
+            actions.add(RemoteAction(forwardIcon, "Forward", "Forward", forwardIntent))
             
             pictureInPictureParamsBuilder.setActions(actions)
             activity.setPictureInPictureParams(pictureInPictureParamsBuilder.build())
@@ -243,8 +241,7 @@ class PipHelper(
                 PendingIntent.FLAG_IMMUTABLE
             )
             val rewindIcon = Icon.createWithResource(activity, R.drawable.ic_skip_backward)
-            val rewindTitle = activity.getString(R.string.exo_controls_rewind_description)
-            actions.add(RemoteAction(rewindIcon, rewindTitle, rewindTitle, rewindIntent))
+            actions.add(RemoteAction(rewindIcon, "Rewind", "Rewind", rewindIntent))
             
             val pauseIntent = PendingIntent.getBroadcast(
                 activity,
@@ -255,7 +252,7 @@ class PipHelper(
                 PendingIntent.FLAG_IMMUTABLE
             )
             val pauseIcon = Icon.createWithResource(activity, R.drawable.ic_pause)
-            val pauseTitle = activity.getString(R.string.exo_controls_pause_description)
+            val pauseTitle = activity.getString(R.string.pause)
             actions.add(RemoteAction(pauseIcon, pauseTitle, pauseTitle, pauseIntent))
             
             val forwardIntent = PendingIntent.getBroadcast(
@@ -267,8 +264,7 @@ class PipHelper(
                 PendingIntent.FLAG_IMMUTABLE
             )
             val forwardIcon = Icon.createWithResource(activity, R.drawable.ic_skip_forward)
-            val forwardTitle = activity.getString(R.string.exo_controls_fastforward_description)
-            actions.add(RemoteAction(forwardIcon, forwardTitle, forwardTitle, forwardIntent))
+            actions.add(RemoteAction(forwardIcon, "Forward", "Forward", forwardIntent))
             
             pictureInPictureParamsBuilder.setActions(actions)
         } catch (e: Exception) {
