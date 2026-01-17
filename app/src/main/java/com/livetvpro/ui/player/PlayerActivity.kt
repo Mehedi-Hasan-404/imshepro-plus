@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -20,7 +19,6 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -89,9 +87,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
 
-    private var isBindingControls = false
-    private var controlsBindingRunnable: Runnable? = null
-
     private var contentType: ContentType = ContentType.CHANNEL
     private var channelData: Channel? = null
     private var eventData: LiveEvent? = null
@@ -107,9 +102,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private val pipReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent == null || ACTION_MEDIA_CONTROL != intent.action) {
-                return
-            }
+            if (intent == null || ACTION_MEDIA_CONTROL != intent.action) return
             val player = player ?: return
             when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
                 CONTROL_TYPE_PLAY -> {
@@ -160,13 +153,11 @@ class PlayerActivity : AppCompatActivity() {
         
         requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
 
-        // Initialize PipHelper
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             pipHelper = PipHelper(this, binding.playerView) { player }
             pipHelper.initialize()
         }
 
-        // Register PiP broadcast receiver
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), Context.RECEIVER_EXPORTED)
@@ -187,18 +178,17 @@ class PlayerActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         setupPlayer()
 
-        // Update PiP params when layout changes
         binding.playerView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
             if (left != oldLeft || top != oldTop || right != oldRight || bottom != oldBottom) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !isInPipMode) {
                     pipHelper.updatePictureInPictureParams()
                 }
             }
         }
 
         binding.playerView.postDelayed({
-            bindControllerViewsOnce()
-            setupControlListenersOnce()
+            bindControllerViews()
+            setupControlListeners()
         }, 300)
 
         configurePlayerInteractions()
@@ -413,11 +403,11 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        if (isInPipMode) {
-            return
-        }
+        if (isInPipMode) return
+        
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !isInPictureInPictureMode) {
             setSubtitleTextSize()
         }
@@ -556,8 +546,6 @@ class PlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacksAndMessages(null)
-        controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
-        controlsBindingRunnable = null
         releasePlayer()
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -914,7 +902,7 @@ class PlayerActivity : AppCompatActivity() {
         btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
-    private fun bindControllerViewsExact() {
+    private fun bindControllerViews() {
         with(binding.playerView) {
             btnBack = findViewById(R.id.exo_back)
             btnPip = findViewById(R.id.exo_pip)
@@ -953,14 +941,7 @@ class PlayerActivity : AppCompatActivity() {
         tvChannelName?.text = contentName
     }
 
-    private fun bindControllerViewsOnce() {
-        if (isBindingControls) return
-        isBindingControls = true
-        bindControllerViewsExact()
-        mainHandler.postDelayed({ isBindingControls = false }, 500)
-    }
-
-    private fun setupControlListenersExact() {
+    private fun setupControlListeners() {
         btnBack?.setOnClickListener { if (!isLocked) finish() }
         btnPip?.setOnClickListener {
             if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1004,15 +985,6 @@ class PlayerActivity : AppCompatActivity() {
         }
         btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
         btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
-    }
-
-    private fun setupControlListenersOnce() {
-        controlsBindingRunnable?.let { mainHandler.removeCallbacks(it) }
-        controlsBindingRunnable = Runnable {
-            setupControlListenersExact()
-            controlsBindingRunnable = null
-        }
-        mainHandler.post(controlsBindingRunnable!!)
     }
 
     private fun toggleMute() {
@@ -1119,30 +1091,15 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // ENTERING PiP MODE
             binding.playerView.hideController()
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
-            
-            // Ensure video continues playing
             player?.playWhenReady = true
-            
-            // Hide system UI
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.insetsController?.hide(
-                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
-                )
-            }
-            
-            // Increase subtitle size for PiP
             setSubtitleTextSizePiP()
-            
         } else {
-            // EXITING PiP MODE
             setSubtitleTextSize()
             
-            // Check if user dismissed PiP window
-            if (!userRequestedPip && lifecycle.currentState == Lifecycle.State.CREATED) {
+            if (!userRequestedPip) {
                 finish()
                 return
             }
@@ -1150,23 +1107,17 @@ class PlayerActivity : AppCompatActivity() {
             
             if (isFinishing) return
             
-            // Restore orientation-based UI
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
             
-            // Handle locked state
             if (isLocked) {
                 binding.playerView.useController = false
                 binding.lockOverlay.visibility = View.VISIBLE
                 showUnlockButton()
             } else {
                 binding.playerView.useController = true
-                if (player?.isPlaying == true) {
-                    hideSystemUI()
-                } else {
-                    binding.playerView.post {
-                        binding.playerView.showController()
-                    }
+                binding.playerView.post {
+                    binding.playerView.showController()
                 }
             }
         }
@@ -1175,25 +1126,9 @@ class PlayerActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Auto-enter PiP when user presses home button
         if (!isInPipMode && player?.isPlaying == true && pipHelper.isPipSupported()) {
             userRequestedPip = true
             pipHelper.enterPipMode()
-        }
-    }
-
-    private fun hideSystemUI() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.hide(
-                WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            binding.playerView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            or View.SYSTEM_UI_FLAG_FULLSCREEN
-                    )
         }
     }
 
