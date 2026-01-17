@@ -398,6 +398,38 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && pipHelper.isPipSupported()) {
+            setPictureInPictureParams(createPipParams())
+        }
+        
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.setFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS, WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
+        @Suppress("DEPRECATION")
+        binding.root.systemUiVisibility =
+            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+            View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+            View.SYSTEM_UI_FLAG_LOW_PROFILE
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.let { controller ->
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                controller.hide(WindowInsetsCompat.Type.navigationBars())
+                controller.systemBarsBehavior = 
+                    android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
+        
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode = 
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        
         if (Build.VERSION.SDK_INT > 23) {
             setupPlayer()
             binding.playerView.onResume()
@@ -472,6 +504,7 @@ class PlayerActivity : AppCompatActivity() {
                                 or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                                 or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_LOW_PROFILE
                         )
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -488,9 +521,8 @@ class PlayerActivity : AppCompatActivity() {
                 )
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                 window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
@@ -1112,7 +1144,6 @@ class PlayerActivity : AppCompatActivity() {
             setSubtitleTextSize()
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            applyOrientationSettings(isLandscape)
             
             if (isLocked) {
                 binding.playerView.useController = false
@@ -1120,8 +1151,14 @@ class PlayerActivity : AppCompatActivity() {
                 showUnlockButton()
             } else {
                 binding.playerView.useController = true
-                binding.playerView.showController()
             }
+            
+            binding.playerView.postDelayed({
+                applyOrientationSettings(isLandscape)
+                if (!isLocked) {
+                    binding.playerView.showController()
+                }
+            }, 50)
             return
         }
         
@@ -1132,7 +1169,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.hideController()
         binding.relatedChannelsSection.visibility = View.GONE
         binding.linksSection.visibility = View.GONE
-        player?.playWhenReady = true
         setSubtitleTextSizePiP()
         
         if (pipReceiver == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
