@@ -31,12 +31,16 @@ class PipHelper(
     private val rationalLimitTall = Rational(100, 239)
     
     companion object {
-        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
-        private const val EXTRA_CONTROL_TYPE = "control_type"
-        private const val CONTROL_TYPE_PLAY = 1
-        private const val CONTROL_TYPE_PAUSE = 2
+        const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
+        const val EXTRA_CONTROL_TYPE = "control_type"
+        const val CONTROL_TYPE_PLAY = 1
+        const val CONTROL_TYPE_PAUSE = 2
+        const val CONTROL_TYPE_REWIND = 3
+        const val CONTROL_TYPE_FORWARD = 4
         private const val REQUEST_PLAY = 1
         private const val REQUEST_PAUSE = 2
+        private const val REQUEST_REWIND = 3
+        private const val REQUEST_FORWARD = 4
     }
     
     fun isPipSupported(): Boolean {
@@ -114,20 +118,64 @@ class PipHelper(
     }
     
     fun updatePlaybackAction(isPlaying: Boolean) {
-        if (isPlaying) {
-            updatePictureInPictureActions(
-                R.drawable.ic_pause,
-                R.string.exo_controls_pause_description,
-                CONTROL_TYPE_PAUSE,
-                REQUEST_PAUSE
+        if (!isPipSupported()) return
+        
+        try {
+            val actions = ArrayList<RemoteAction>()
+            
+            val rewindIntent = PendingIntent.getBroadcast(
+                activity,
+                REQUEST_REWIND,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(activity.packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_REWIND),
+                PendingIntent.FLAG_IMMUTABLE
             )
-        } else {
-            updatePictureInPictureActions(
-                R.drawable.ic_play,
-                R.string.exo_controls_play_description,
-                CONTROL_TYPE_PLAY,
-                REQUEST_PLAY
+            val rewindIcon = Icon.createWithResource(activity, R.drawable.ic_skip_backward)
+            val rewindTitle = activity.getString(R.string.exo_controls_rewind_description)
+            actions.add(RemoteAction(rewindIcon, rewindTitle, rewindTitle, rewindIntent))
+            
+            if (isPlaying) {
+                val pauseIntent = PendingIntent.getBroadcast(
+                    activity,
+                    REQUEST_PAUSE,
+                    Intent(ACTION_MEDIA_CONTROL)
+                        .setPackage(activity.packageName)
+                        .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
+                    PendingIntent.FLAG_IMMUTABLE
+                )
+                val pauseIcon = Icon.createWithResource(activity, R.drawable.ic_pause)
+                val pauseTitle = activity.getString(R.string.exo_controls_pause_description)
+                actions.add(RemoteAction(pauseIcon, pauseTitle, pauseTitle, pauseIntent))
+            } else {
+                val playIntent = PendingIntent.getBroadcast(
+                    activity,
+                    REQUEST_PLAY,
+                    Intent(ACTION_MEDIA_CONTROL)
+                        .setPackage(activity.packageName)
+                        .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PLAY),
+                    PendingIntent.FLAG_IMMUTABLE
+                )
+                val playIcon = Icon.createWithResource(activity, R.drawable.ic_play)
+                val playTitle = activity.getString(R.string.exo_controls_play_description)
+                actions.add(RemoteAction(playIcon, playTitle, playTitle, playIntent))
+            }
+            
+            val forwardIntent = PendingIntent.getBroadcast(
+                activity,
+                REQUEST_FORWARD,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(activity.packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_FORWARD),
+                PendingIntent.FLAG_IMMUTABLE
             )
+            val forwardIcon = Icon.createWithResource(activity, R.drawable.ic_skip_forward)
+            val forwardTitle = activity.getString(R.string.exo_controls_fastforward_description)
+            actions.add(RemoteAction(forwardIcon, forwardTitle, forwardTitle, forwardIntent))
+            
+            pictureInPictureParamsBuilder.setActions(actions)
+            activity.setPictureInPictureParams(pictureInPictureParamsBuilder.build())
+        } catch (e: Exception) {
         }
     }
     
@@ -183,11 +231,47 @@ class PipHelper(
     fun initialize() {
         if (!isPipSupported()) return
         
-        updatePictureInPictureActions(
-            R.drawable.ic_pause,
-            R.string.exo_controls_pause_description,
-            CONTROL_TYPE_PAUSE,
-            REQUEST_PAUSE
-        )
+        try {
+            val actions = ArrayList<RemoteAction>()
+            
+            val rewindIntent = PendingIntent.getBroadcast(
+                activity,
+                REQUEST_REWIND,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(activity.packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_REWIND),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            val rewindIcon = Icon.createWithResource(activity, R.drawable.ic_skip_backward)
+            val rewindTitle = activity.getString(R.string.exo_controls_rewind_description)
+            actions.add(RemoteAction(rewindIcon, rewindTitle, rewindTitle, rewindIntent))
+            
+            val pauseIntent = PendingIntent.getBroadcast(
+                activity,
+                REQUEST_PAUSE,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(activity.packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            val pauseIcon = Icon.createWithResource(activity, R.drawable.ic_pause)
+            val pauseTitle = activity.getString(R.string.exo_controls_pause_description)
+            actions.add(RemoteAction(pauseIcon, pauseTitle, pauseTitle, pauseIntent))
+            
+            val forwardIntent = PendingIntent.getBroadcast(
+                activity,
+                REQUEST_FORWARD,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(activity.packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_FORWARD),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            val forwardIcon = Icon.createWithResource(activity, R.drawable.ic_skip_forward)
+            val forwardTitle = activity.getString(R.string.exo_controls_fastforward_description)
+            actions.add(RemoteAction(forwardIcon, forwardTitle, forwardTitle, forwardIntent))
+            
+            pictureInPictureParamsBuilder.setActions(actions)
+        } catch (e: Exception) {
+        }
     }
 }
