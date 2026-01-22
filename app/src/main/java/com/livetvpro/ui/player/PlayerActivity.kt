@@ -152,12 +152,15 @@ class PlayerActivity : AppCompatActivity() {
 
         parseIntent()
 
-        // Apply initial orientation settings immediately
-        val currentOrientation = resources.configuration.orientation
-        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-        applyOrientationSettings(isLandscape)
-
         binding.progressBar.visibility = View.GONE
+        
+        // Apply orientation settings AFTER view is laid out to prevent jumping
+        binding.root.post {
+            val currentOrientation = resources.configuration.orientation
+            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+        }
+        
         setupPlayer()
 
         binding.playerView.addOnLayoutChangeListener { _, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom ->
@@ -386,6 +389,8 @@ class PlayerActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         
+        android.util.Log.d("PlayerActivity", "onConfigurationChanged: orientation=${newConfig.orientation}, inPip=$isInPictureInPictureMode")
+        
         // Don't process orientation changes while in PiP mode
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
             binding.playerView.hideController()
@@ -396,12 +401,14 @@ class PlayerActivity : AppCompatActivity() {
         isTransitioningOrientation = true
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        android.util.Log.d("PlayerActivity", "Applying orientation: landscape=$isLandscape")
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
         
         // Reset transition flag after layout is complete
         binding.playerView.post {
             isTransitioningOrientation = false
+            android.util.Log.d("PlayerActivity", "Orientation transition complete")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !isInPipMode) {
                 pipHelper.updatePictureInPictureParams()
             }
@@ -466,9 +473,12 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
+        android.util.Log.d("PlayerActivity", "setWindowFlags: isLandscape=$isLandscape, SDK=${Build.VERSION.SDK_INT}")
+        
         if (isLandscape) {
             // Use sticky immersive mode in landscape - this prevents jumping
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.util.Log.d("PlayerActivity", "Landscape: Using WindowInsetsController (API 30+)")
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.hide(
@@ -479,6 +489,7 @@ class PlayerActivity : AppCompatActivity() {
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
             } else {
+                android.util.Log.d("PlayerActivity", "Landscape: Using legacy systemUiVisibility")
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -497,12 +508,14 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             // In portrait, ensure layout starts below status bar
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.util.Log.d("PlayerActivity", "Portrait: Using WindowInsetsController (API 30+)")
                 window.setDecorFitsSystemWindows(true)
                 window.insetsController?.show(
                     WindowInsets.Type.statusBars() or
                             WindowInsets.Type.navigationBars()
                 )
             } else {
+                android.util.Log.d("PlayerActivity", "Portrait: Using legacy systemUiVisibility")
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
                         View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -517,6 +530,8 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
+        
+        android.util.Log.d("PlayerActivity", "setWindowFlags: Complete")
     }
 
     override fun onPause() {
