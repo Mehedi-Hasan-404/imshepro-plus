@@ -244,6 +244,14 @@ class PlayerActivity : AppCompatActivity() {
             val currentOrientation = resources.configuration.orientation
             val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
             
+            // Hide the "Streams" title text if it exists
+            try {
+                val linksTitle = binding.linksSection.findViewById<TextView>(R.id.linksTitle)
+                linksTitle?.visibility = View.GONE
+            } catch (e: Exception) {
+                // Title doesn't exist, ignore
+            }
+            
             if (isCurrentlyLandscape) {
                 binding.linksSection.visibility = View.GONE
                 landscapeLinksRecycler?.visibility = View.VISIBLE
@@ -265,6 +273,14 @@ class PlayerActivity : AppCompatActivity() {
         val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
         
         if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+            // Hide the "Streams" title text if it exists
+            try {
+                val linksTitle = binding.linksSection.findViewById<TextView>(R.id.linksTitle)
+                linksTitle?.visibility = View.GONE
+            } catch (e: Exception) {
+                // Title doesn't exist, ignore
+            }
+            
             if (isLandscape) {
                 binding.linksSection.visibility = View.GONE
                 landscapeLinksRecycler?.visibility = View.VISIBLE
@@ -304,9 +320,18 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.relatedItems.observe(this) { channels ->
             relatedChannels = channels
             relatedChannelsAdapter.submitList(channels)
+            
+            // Hide section title and show only recycler
             binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
                 View.GONE
             } else {
+                // Hide the title text if it exists
+                try {
+                    val titleView = binding.relatedChannelsSection.findViewById<TextView>(R.id.relatedTitle)
+                    titleView?.visibility = View.GONE
+                } catch (e: Exception) {
+                    // Title view doesn't exist, ignore
+                }
                 View.VISIBLE
             }
             binding.relatedLoadingProgress.visibility = View.GONE
@@ -412,6 +437,7 @@ class PlayerActivity : AppCompatActivity() {
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             params.dimensionRatio = null
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+            params.topMargin = 0
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
@@ -424,8 +450,7 @@ class PlayerActivity : AppCompatActivity() {
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             params.dimensionRatio = "16:9"
             params.height = 0
-            // Add top margin to push player down slightly
-            params.topMargin = (24 * resources.displayMetrics.density).toInt() // 24dp margin from top
+            params.topMargin = 0 // No top margin
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
