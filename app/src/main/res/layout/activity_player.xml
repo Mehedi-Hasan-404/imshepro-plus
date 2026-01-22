@@ -7,7 +7,6 @@
     android:background="@android:color/black"
     android:fitsSystemWindows="false">
 
-    <!-- Player Container -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -17,7 +16,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
-        <!-- Video Player -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
             android:layout_width="match_parent"
@@ -28,7 +26,6 @@
             app:use_controller="true"
             app:show_timeout="5000" />
 
-        <!-- Lock Overlay (when controls are locked) -->
         <FrameLayout
             android:id="@+id/lock_overlay"
             android:layout_width="match_parent"
@@ -50,7 +47,6 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <!-- Loading Progress -->
         <ProgressBar
             android:id="@+id/progress_bar"
             android:layout_width="wrap_content"
@@ -61,7 +57,6 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Error View -->
         <LinearLayout
             android:id="@+id/error_view"
             android:layout_width="wrap_content"
@@ -86,7 +81,6 @@
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Links Section (for events with multiple links - portrait only) -->
     <LinearLayout
         android:id="@+id/links_section"
         android:layout_width="0dp"
@@ -100,17 +94,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/player_container">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Streams"
-            android:textColor="@android:color/white"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="4dp" />
-
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/links_recycler_view"
             android:layout_width="match_parent"
@@ -121,7 +104,6 @@
             android:clipToPadding="false" />
     </LinearLayout>
 
-    <!-- Related Channels/Events Section -->
     <LinearLayout
         android:id="@+id/related_channels_section"
         android:layout_width="0dp"
@@ -136,7 +118,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/links_section">
 
-        <!-- Section Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -144,18 +125,8 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:paddingBottom="8dp"
-            android:gravity="center_vertical">
+            android:gravity="center_vertical|end"> 
 
-            <TextView
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Related"
-                android:textColor="@android:color/white"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <!-- Loading indicator for related content -->
             <ProgressBar
                 android:id="@+id/related_loading_progress"
                 style="?android:attr/progressBarStyleSmall"
@@ -164,7 +135,6 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <!-- Related Content RecyclerView -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/related_channels_recycler"
             android:layout_width="match_parent"
