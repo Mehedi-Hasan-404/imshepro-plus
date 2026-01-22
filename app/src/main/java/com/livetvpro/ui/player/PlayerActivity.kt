@@ -145,21 +145,19 @@ class PlayerActivity : AppCompatActivity() {
 
         parseIntent()
 
-        binding.progressBar.visibility = View.GONE
-        
-        // Get current orientation and apply settings
-        binding.root.post {
-            val currentOrientation = resources.configuration.orientation
-            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-            applyOrientationSettings(isLandscape)
-        }
+        binding.progressBar.visibility = View.VISIBLE
         
         setupPlayer()
-
+        
+        // Bind controls and apply settings after a short delay
         binding.playerView.postDelayed({
             bindControllerViews()
             setupControlListeners()
-        }, 300)
+            
+            val currentOrientation = resources.configuration.orientation
+            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+        }, 100)
 
         configurePlayerInteractions()
         setupLockOverlay()
@@ -414,6 +412,7 @@ class PlayerActivity : AppCompatActivity() {
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             params.dimensionRatio = null
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             binding.relatedChannelsSection.visibility = View.GONE
@@ -425,6 +424,9 @@ class PlayerActivity : AppCompatActivity() {
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             params.dimensionRatio = "16:9"
             params.height = 0
+            // Add top margin to push player down slightly
+            params.topMargin = (24 * resources.displayMetrics.density).toInt() // 24dp margin from top
+            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             if (relatedChannels.isNotEmpty()) {
@@ -603,6 +605,12 @@ class PlayerActivity : AppCompatActivity() {
 
         try {
             val streamInfo = parseStreamUrl(streamUrl)
+            
+            // Validate stream URL
+            if (streamInfo.url.isBlank()) {
+                showError("Invalid stream URL")
+                return
+            }
 
             val headers = streamInfo.headers.toMutableMap()
             if (!headers.containsKey("User-Agent")) {
@@ -727,21 +735,14 @@ class PlayerActivity : AppCompatActivity() {
                                 else -> "Playback Error"
                             }
 
-                            binding.errorText.apply {
-                                text = errorMessage
-                                setTextColor(android.graphics.Color.WHITE)
-                                textSize = 16f
-                                setPadding(48, 24, 48, 24)
-                                setBackgroundColor(android.graphics.Color.parseColor("#2196F3"))
-                                elevation = 8f
-                            }
-                            binding.errorView.visibility = View.VISIBLE
+                            showError(errorMessage)
                         }
                     }.also { listener ->
                         exo.addListener(listener)
                     }
                 }
         } catch (e: Exception) {
+            showError("Failed to initialize player: ${e.message}")
         }
 
         binding.playerView.apply {
@@ -751,6 +752,19 @@ class PlayerActivity : AppCompatActivity() {
             setShowBuffering(PlayerView.SHOW_BUFFERING_WHEN_PLAYING)
             controllerAutoShow = false
         }
+    }
+    
+    private fun showError(message: String) {
+        binding.progressBar.visibility = View.GONE
+        binding.errorText.apply {
+            text = message
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 16f
+            setPadding(48, 24, 48, 24)
+            setBackgroundColor(android.graphics.Color.parseColor("#2196F3"))
+            elevation = 8f
+        }
+        binding.errorView.visibility = View.VISIBLE
     }
 
     private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
