@@ -192,14 +192,16 @@ class PlayerActivity : AppCompatActivity() {
         contentId = channel.id
         contentName = channel.name
         
-        // ✅ FIX: Handle channel links properly
+        // ✅ Handle channel links properly
         if (channel.links != null && channel.links.isNotEmpty()) {
+            // Convert channel links to LiveEventLink format
             allEventLinks = channel.links.map { 
                 LiveEventLink(label = it.quality, url = it.url) 
             }
             currentLinkIndex = 0
             streamUrl = allEventLinks.firstOrNull()?.url ?: channel.streamUrl
         } else {
+            // No links available, use direct stream URL
             streamUrl = channel.streamUrl
             allEventLinks = emptyList()
         }
@@ -236,17 +238,14 @@ class PlayerActivity : AppCompatActivity() {
     }
     
     private fun setupLinksUI() {
-    // Initialize adapters
     linkChipAdapter = LinkChipAdapter { link, position ->
         switchToLink(link, position)
     }
     
-    // Setup portrait mode links (below player)
     val portraitLinksRecycler = binding.linksRecyclerView
     portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
     portraitLinksRecycler.adapter = linkChipAdapter
     
-    // Setup landscape mode links (inside player controls)
     val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
     landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
     
@@ -255,48 +254,23 @@ class PlayerActivity : AppCompatActivity() {
     }
     landscapeLinksRecycler?.adapter = landscapeLinkAdapter
     
-    // ✅ FIX: Check if we have multiple links and display them
-    if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+    // ✅ Check if we have multiple links (works for BOTH channels and events now)
+    if (allEventLinks.size > 1) {
         val currentOrientation = resources.configuration.orientation
         val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         
         if (isCurrentlyLandscape) {
-            // Landscape: Show links inside player controls
             binding.linksSection.visibility = View.GONE
             landscapeLinksRecycler?.visibility = View.VISIBLE
             landscapeLinkAdapter.submitList(allEventLinks)
             landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
         } else {
-            // Portrait: Show links below player
             binding.linksSection.visibility = View.VISIBLE
             landscapeLinksRecycler?.visibility = View.GONE
             linkChipAdapter.submitList(allEventLinks)
             linkChipAdapter.setSelectedPosition(currentLinkIndex)
         }
-    } else if (contentType == ContentType.CHANNEL && channelData?.links != null && channelData!!.links!!.size > 1) {
-        // ✅ NEW: Support for channels with multiple links
-        val channelLinks = channelData!!.links!!.map { 
-            LiveEventLink(label = it.quality, url = it.url) 
-        }
-        allEventLinks = channelLinks
-        currentLinkIndex = 0
-        
-        val currentOrientation = resources.configuration.orientation
-        val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-        
-        if (isCurrentlyLandscape) {
-            binding.linksSection.visibility = View.GONE
-            landscapeLinksRecycler?.visibility = View.VISIBLE
-            landscapeLinkAdapter.submitList(channelLinks)
-            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
-        } else {
-            binding.linksSection.visibility = View.VISIBLE
-            landscapeLinksRecycler?.visibility = View.GONE
-            linkChipAdapter.submitList(channelLinks)
-            linkChipAdapter.setSelectedPosition(currentLinkIndex)
-        }
     } else {
-        // No multiple links - hide everything
         binding.linksSection.visibility = View.GONE
         landscapeLinksRecycler?.visibility = View.GONE
     }
@@ -320,17 +294,25 @@ class PlayerActivity : AppCompatActivity() {
                 landscapeAdapter.setSelectedPosition(currentLinkIndex)
             }
         } else {
-            // Portrait: Show below player
-            binding.linksSection.visibility = View.VISIBLE
-            landscapeLinksRecycler?.visibility = View.GONE
-            
-            linkChipAdapter.submitList(allEventLinks)
-            linkChipAdapter.setSelectedPosition(currentLinkIndex)
-        }
-    } else {
-        // No multiple links - hide both
-        binding.linksSection.visibility = View.GONE
-        landscapeLinksRecycler?.visibility = View.GONE
+    // Portrait mode
+    binding.playerView.controllerAutoShow = false
+    binding.playerView.controllerShowTimeoutMs = 5000
+    binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    params.dimensionRatio = "16:9"
+    params.height = 0
+    params.topMargin = 0
+    params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+    params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+    btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+    
+    if (relatedChannels.isNotEmpty()) {
+        binding.relatedChannelsSection.visibility = View.VISIBLE
+    }
+    
+    // ✅ Show links section if we have multiple links
+    if (allEventLinks.size > 1) {
+        binding.linksSection.visibility = View.VISIBLE
     }
 }
 
