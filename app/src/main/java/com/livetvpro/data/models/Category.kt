@@ -47,6 +47,7 @@ data class LiveEvent(
     val id: String = "",
     val category: String = "",
     val league: String = "",
+    val leagueLogo: String = "",
     val team1Name: String = "",
     val team1Logo: String = "",
     val team2Name: String = "",
@@ -56,7 +57,9 @@ data class LiveEvent(
     val isLive: Boolean = false,
     val links: List<LiveEventLink> = emptyList(),
     val title: String = "",
-    val description: String = ""
+    val description: String = "",
+    val eventCategoryId: String = "",
+    val eventCategoryName: String = ""
 ) : Parcelable {
     fun getStatus(currentTime: Long): EventStatus {
         val startTimestamp = parseTimestamp(startTime)
@@ -73,8 +76,9 @@ data class LiveEvent(
 
     private fun parseTimestamp(timeString: String): Long {
         return try {
-            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm", java.util.Locale.getDefault())
-                .parse(timeString)?.time ?: 0L
+            java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).apply {
+                timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }.parse(timeString)?.time ?: 0L
         } catch (e: Exception) {
             0L
         }
