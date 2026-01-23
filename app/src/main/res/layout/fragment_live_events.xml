@@ -3,25 +3,45 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto" 
     android:layout_width="match_parent" 
-    android:layout_height="match_parent" 
-    android:padding="8dp">
+    android:layout_height="match_parent"
+    android:background="?attr/android:colorBackground">
 
+    <!-- Event Categories (Horizontal Scroll) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/category_recycler"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp"
+        android:clipToPadding="false"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Status Filter Chips -->
     <com.google.android.material.chip.ChipGroup
         android:id="@+id/chip_group" 
         android:layout_width="0dp" 
         android:layout_height="wrap_content"
-        app:layout_constraintTop_toTopOf="parent" 
+        app:layout_constraintTop_toBottomOf="@id/category_recycler"
         app:layout_constraintStart_toStartOf="parent" 
         app:layout_constraintEnd_toEndOf="parent"
-        android:padding="4dp" 
-        app:singleSelection="true">
+        android:padding="8dp" 
+        app:singleSelection="true"
+        app:selectionRequired="true">
 
         <com.google.android.material.chip.Chip 
             android:id="@+id/chip_all" 
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="All" 
-            style="@style/Widget.Material3.Chip.Filter" />
+            style="@style/Widget.Material3.Chip.Filter"
+            app:chipBackgroundColor="@color/chip_background_color"
+            app:chipStrokeColor="@color/chip_stroke_color"
+            app:chipTextColor="@color/chip_text_color" />
         
         <com.google.android.material.chip.Chip 
             android:id="@+id/chip_live" 
@@ -29,33 +49,46 @@
             android:layout_height="wrap_content"
             android:text="Live" 
             android:checked="true"
-            style="@style/Widget.Material3.Chip.Filter" />
+            style="@style/Widget.Material3.Chip.Filter"
+            app:chipBackgroundColor="@color/chip_background_color"
+            app:chipStrokeColor="@color/chip_stroke_color"
+            app:chipTextColor="@color/chip_text_color" />
         
         <com.google.android.material.chip.Chip 
             android:id="@+id/chip_upcoming" 
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Upcoming" 
-            style="@style/Widget.Material3.Chip.Filter" />
+            style="@style/Widget.Material3.Chip.Filter"
+            app:chipBackgroundColor="@color/chip_background_color"
+            app:chipStrokeColor="@color/chip_stroke_color"
+            app:chipTextColor="@color/chip_text_color" />
         
         <com.google.android.material.chip.Chip 
             android:id="@+id/chip_recent" 
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Recent" 
-            style="@style/Widget.Material3.Chip.Filter" />
+            style="@style/Widget.Material3.Chip.Filter"
+            app:chipBackgroundColor="@color/chip_background_color"
+            app:chipStrokeColor="@color/chip_stroke_color"
+            app:chipTextColor="@color/chip_text_color" />
     </com.google.android.material.chip.ChipGroup>
 
+    <!-- Events List -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_view_events" 
         android:layout_width="0dp" 
         android:layout_height="0dp"
         android:layout_marginTop="8dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
         app:layout_constraintTop_toBottomOf="@id/chip_group" 
         app:layout_constraintBottom_toBottomOf="parent" 
         app:layout_constraintStart_toStartOf="parent" 
         app:layout_constraintEnd_toEndOf="parent"/>
 
+    <!-- Loading Indicator -->
     <ProgressBar 
         android:id="@+id/progress_bar" 
         android:layout_width="wrap_content" 
@@ -66,6 +99,7 @@
         app:layout_constraintStart_toStartOf="parent" 
         app:layout_constraintEnd_toEndOf="parent"/>
 
+    <!-- Empty State -->
     <TextView 
         android:id="@+id/empty_view" 
         android:layout_width="wrap_content" 
@@ -79,6 +113,7 @@
         app:layout_constraintStart_toStartOf="parent" 
         app:layout_constraintEnd_toEndOf="parent"/>
 
+    <!-- Error View -->
     <LinearLayout
         android:id="@+id/error_view"
         android:layout_width="wrap_content"
@@ -98,14 +133,6 @@
             android:text="Error loading events"
             android:textSize="16sp"
             android:textColor="?android:attr/textColorSecondary" />
-
-        <Button
-            android:id="@+id/retry_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Retry"
-            android:visibility="gone" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
