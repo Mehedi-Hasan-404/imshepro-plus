@@ -48,13 +48,18 @@ class EventCategoryAdapter(
 
         fun bind(category: EventCategory, isSelected: Boolean) {
             binding.categoryName.text = category.name
-            binding.categoryName.isSelected = true // Enable marquee
+            binding.categoryName.isSelected = true // Enable marquee scrolling
             
-            // Set selection state
+            // Set selection state with red border
             binding.root.isSelected = isSelected
-            binding.categoryCard.strokeWidth = if (isSelected) 4 else 2
+            binding.categoryCard.strokeWidth = if (isSelected) 3 else 2
+            binding.categoryCard.strokeColor = if (isSelected) {
+                android.graphics.Color.parseColor("#EF4444") // Red
+            } else {
+                android.graphics.Color.parseColor("#3A3A3A") // Gray
+            }
             
-            // Load logo with circular crop
+            // Load circular logo
             Glide.with(binding.categoryLogo)
                 .load(category.logoUrl)
                 .placeholder(R.drawable.ic_channel_placeholder)
