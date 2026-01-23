@@ -205,6 +205,22 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
     }
+    
+    private fun showLinkSelectionDialog(links: List<LiveEventLink>) {
+    val linkLabels = links.map { it.label }.toTypedArray()
+    
+    MaterialAlertDialogBuilder(this)
+        .setTitle("Select Stream")
+        .setItems(linkLabels) { dialog, which ->
+            currentLinkIndex = which
+            streamUrl = links[which].url
+            releasePlayer()
+            setupPlayer()
+            dialog.dismiss()
+        }
+        .setNegativeButton("Cancel", null)
+        .show()
+}
 
     private fun setupRelatedChannels() {
         relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
@@ -596,12 +612,19 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayer() {
-        if (player != null) return
-        binding.errorView.visibility = View.GONE
-        binding.errorText.text = ""
-        binding.progressBar.visibility = View.VISIBLE
+    if (player != null) return
+    binding.errorView.visibility = View.GONE
+    binding.errorText.text = ""
+    binding.progressBar.visibility = View.VISIBLE
 
-        trackSelector = DefaultTrackSelector(this)
+    // Show link selection dialog if multiple links exist
+    if (contentType == ContentType.EVENT && allEventLinks.size > 1 && currentLinkIndex == 0) {
+        binding.progressBar.visibility = View.GONE
+        showLinkSelectionDialog(allEventLinks)
+        return // Don't continue setup until user selects a link
+    }
+
+    trackSelector = DefaultTrackSelector(this)
 
         try {
             val streamInfo = parseStreamUrl(streamUrl)
