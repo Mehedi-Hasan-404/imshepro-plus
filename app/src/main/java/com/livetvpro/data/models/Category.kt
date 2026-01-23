@@ -23,12 +23,23 @@ data class Channel(
     val categoryId: String = "",
     val categoryName: String = "",
     
-    // ✅ Event-specific fields (for when Channel is used to represent events)
+    // ✅ ADDED: Support for multiple links in channels
+    val links: List<ChannelLink>? = null,
+    
+    // Event-specific fields (for when Channel is used to represent events)
     val team1Logo: String = "",
     val team2Logo: String = "",
     val isLive: Boolean = false,
     val startTime: String = "",
-    val endTime: String = ""  // ✅ ADDED: endTime field
+    val endTime: String = ""
+) : Parcelable
+
+// ✅ NEW: Channel link data class
+@Parcelize
+data class ChannelLink(
+    @SerializedName(value = "quality", alternate = ["label", "name"])
+    val quality: String = "",
+    val url: String = ""
 ) : Parcelable
 
 @Parcelize
@@ -92,9 +103,6 @@ data class LiveEventLink(
     val url: String = ""
 ) : Parcelable
 
-
-// Add to Category.kt
-
 @Parcelize
 data class EventCategory(
     val id: String = "",
@@ -104,7 +112,6 @@ data class EventCategory(
     val order: Int = 0,
     val isDefault: Boolean = false
 ) : Parcelable
-
 
 enum class EventStatus {
     LIVE, UPCOMING, RECENT
