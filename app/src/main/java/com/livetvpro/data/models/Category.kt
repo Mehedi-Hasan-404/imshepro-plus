@@ -88,6 +88,20 @@ data class LiveEventLink(
     val url: String = ""
 ) : Parcelable
 
+
+// Add to Category.kt
+
+@Parcelize
+data class EventCategory(
+    val id: String = "",
+    val name: String = "",
+    val slug: String = "",
+    val logoUrl: String = "",
+    val order: Int = 0,
+    val isDefault: Boolean = false
+) : Parcelable
+
+
 enum class EventStatus {
     LIVE, UPCOMING, RECENT
 }
