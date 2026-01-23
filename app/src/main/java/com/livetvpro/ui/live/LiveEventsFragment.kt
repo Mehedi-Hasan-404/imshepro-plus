@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.models.EventCategory
 import com.livetvpro.data.models.EventStatus
@@ -96,13 +97,36 @@ class LiveEventsFragment : Fragment() {
             
             if (shouldBlock) return@LiveEventAdapter
             
-            PlayerActivity.startWithEvent(requireContext(), event)
+            // Show link selection dialog if multiple links exist
+            if (event.links.size > 1) {
+                showLinkSelectionDialog(event)
+            } else {
+                // Single link or no links - go directly to player
+                PlayerActivity.startWithEvent(requireContext(), event)
+            }
         }
         
         binding.recyclerViewEvents.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = eventAdapter
         }
+    }
+
+    private fun showLinkSelectionDialog(event: LiveEvent) {
+        val linkLabels = event.links.map { it.label }.toTypedArray()
+        
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Select Stream Quality")
+            .setItems(linkLabels) { dialog, which ->
+                // Create a modified event with only the selected link
+                val selectedLink = event.links[which]
+                val modifiedEvent = event.copy(links = listOf(selectedLink))
+                
+                PlayerActivity.startWithEvent(requireContext(), modifiedEvent)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun setupStatusFilters() {
