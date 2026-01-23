@@ -8,7 +8,7 @@
     android:layout_margin="6dp"
     app:cardCornerRadius="16dp"
     app:cardElevation="0dp"
-    app:strokeColor="#EF4444"
+    app:strokeColor="#3A3A3A"
     app:strokeWidth="2dp"
     app:cardBackgroundColor="#1F1F1F"
     android:foreground="?attr/selectableItemBackground">
@@ -23,7 +23,7 @@
         android:paddingTop="16dp"
         android:paddingBottom="16dp">
 
-        <!-- Circular Logo with Red Border -->
+        <!-- Circular Logo -->
         <androidx.cardview.widget.CardView
             android:layout_width="56dp"
             android:layout_height="56dp"
@@ -40,7 +40,7 @@
 
         </androidx.cardview.widget.CardView>
 
-        <!-- Category Name with Marquee -->
+        <!-- Category Name -->
         <TextView
             android:id="@+id/category_name"
             android:layout_width="100dp"
