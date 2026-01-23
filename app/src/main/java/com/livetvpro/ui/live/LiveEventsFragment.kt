@@ -1,7 +1,6 @@
 package com.livetvpro.ui.live
 
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,13 +9,14 @@ import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
 import com.livetvpro.R
+import com.livetvpro.data.models.EventCategory
 import com.livetvpro.data.models.EventStatus
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.databinding.FragmentLiveEventsBinding
+import com.livetvpro.ui.adapters.EventCategoryAdapter
 import com.livetvpro.ui.adapters.LiveEventAdapter
 import com.livetvpro.ui.player.PlayerActivity
-import com.livetvpro.ui.player.dialogs.LinkSelectionDialog
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -28,9 +28,13 @@ class LiveEventsFragment : Fragment() {
     private val binding get() = _binding!!
     private val viewModel: LiveEventsViewModel by viewModels()
     private lateinit var eventAdapter: LiveEventAdapter
+    private lateinit var categoryAdapter: EventCategoryAdapter
     
     @Inject
     lateinit var listenerManager: NativeListenerManager
+
+    private var selectedCategoryId: String = "evt_cat_all"
+    private var selectedStatusFilter: EventStatus? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveEventsBinding.inflate(inflater, container, false)
@@ -40,58 +44,72 @@ class LiveEventsFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         
-        setupRecyclerView()
-        setupFilters()
+        setupCategoryRecycler()
+        setupEventRecycler()
+        setupStatusFilters()
         observeViewModel()
-        viewModel.filterEvents(EventStatus.LIVE)
+        
+        // Load data
+        viewModel.loadEventCategories()
+        viewModel.filterEvents(EventStatus.LIVE, "evt_cat_all")
     }
 
-    private fun setupRecyclerView() {
+    private fun setupCategoryRecycler() {
+        categoryAdapter = EventCategoryAdapter { category ->
+            selectedCategoryId = category.id
+            viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
+        }
+        
+        binding.categoryRecycler.apply {
+            layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
+            adapter = categoryAdapter
+        }
+    }
+
+    private fun setupEventRecycler() {
         eventAdapter = LiveEventAdapter(requireContext(), emptyList()) { event ->
-            try {
-                val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
-                
-                if (shouldBlock) {
-                    return@LiveEventAdapter
-                }
-                
-                // Check if event has multiple links
-                if (event.links.size > 1) {
-                    showLinkSelectionDialog(event)
-                } else {
-                    // Single link - play directly
-                    PlayerActivity.startWithEvent(requireContext(), event)
-                }
-                
-            } catch (e: Exception) {
-                Log.e("LiveEvents", "Error starting event player", e)
-            }
+            val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
+            
+            if (shouldBlock) return@LiveEventAdapter
+            
+            PlayerActivity.startWithEvent(requireContext(), event)
         }
         
         binding.recyclerViewEvents.apply {
             layoutManager = LinearLayoutManager(context)
             adapter = eventAdapter
-            setHasFixedSize(false)
         }
     }
 
-    private fun setupFilters() {
+    private fun setupStatusFilters() {
         val clickListener = View.OnClickListener { view ->
-            val status = when (view.id) {
-                R.id.chip_live -> EventStatus.LIVE
-                R.id.chip_upcoming -> EventStatus.UPCOMING
-                R.id.chip_recent -> EventStatus.RECENT
-                else -> null
+            // Prevent re-clicking the same chip
+            if ((view as Chip).isChecked) {
+                val status = when (view.id) {
+                    R.id.chip_all -> null
+                    R.id.chip_live -> EventStatus.LIVE
+                    R.id.chip_upcoming -> EventStatus.UPCOMING
+                    R.id.chip_recent -> EventStatus.RECENT
+                    else -> null
+                }
+                
+                // Only update if different from current
+                if (status != selectedStatusFilter) {
+                    selectedStatusFilter = status
+                    viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
+                    updateChipSelection(view)
+                }
             }
-            viewModel.filterEvents(status)
-            updateChipSelection(view as Chip)
         }
         
         binding.chipAll.setOnClickListener(clickListener)
         binding.chipLive.setOnClickListener(clickListener)
         binding.chipUpcoming.setOnClickListener(clickListener)
         binding.chipRecent.setOnClickListener(clickListener)
-        updateChipSelection(binding.chipLive)
+        
+        // Set initial selection
+        binding.chipLive.isChecked = true
+        selectedStatusFilter = EventStatus.LIVE
     }
 
     private fun updateChipSelection(selectedChip: Chip) {
@@ -101,103 +119,15 @@ class LiveEventsFragment : Fragment() {
     }
 
     private fun observeViewModel() {
+        viewModel.eventCategories.observe(viewLifecycleOwner) { categories ->
+            categoryAdapter.submitList(categories)
+            binding.categoryRecycler.visibility = if (categories.isNotEmpty()) View.VISIBLE else View.GONE
+        }
+        
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
-            val currentTime = System.currentTimeMillis()
-            val apiDateFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.getDefault()).apply {
-                timeZone = java.util.TimeZone.getTimeZone("UTC")
-            }
-            
-            // Filter based on selected chip
-            val filteredEvents = when {
-                binding.chipAll.isChecked -> {
-                    // Show ALL events sorted by: Live first, then Upcoming, then Recent
-                    events.sortedWith(compareBy<LiveEvent> { event ->
-                        try {
-                            val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
-                            val endTime = if (!event.endTime.isNullOrEmpty()) {
-                                apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
-                            } else {
-                                Long.MAX_VALUE
-                            }
-                            
-                            when {
-                                // LIVE: Either time-based OR isLive flag
-                                event.isLive || (currentTime >= startTime && currentTime <= endTime) -> 0
-                                currentTime < startTime -> 1 // Upcoming
-                                else -> 2 // Ended
-                            }
-                        } catch (e: Exception) {
-                            if (event.isLive) 0 else 3
-                        }
-                    }.thenBy { it.startTime })
-                }
-                
-                binding.chipLive.isChecked -> {
-                    // ✅ FIX: Show LIVE events (isLive flag OR time-based check)
-                    events.filter { event ->
-                        // Primary check: isLive flag
-                        if (event.isLive) {
-                            true
-                        } else {
-                            // Secondary check: time-based (between start and end)
-                            try {
-                                val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
-                                val endTime = if (!event.endTime.isNullOrEmpty()) {
-                                    apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
-                                } else {
-                                    Long.MAX_VALUE
-                                }
-                                currentTime >= startTime && currentTime <= endTime
-                            } catch (e: Exception) {
-                                false
-                            }
-                        }
-                    }.sortedBy { it.startTime }
-                }
-                
-                binding.chipUpcoming.isChecked -> {
-                    // Show UPCOMING events (not live, start time in future)
-                    events.filter { event ->
-                        if (event.isLive) {
-                            false
-                        } else {
-                            try {
-                                val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
-                                currentTime < startTime
-                            } catch (e: Exception) {
-                                false
-                            }
-                        }
-                    }.sortedBy { it.startTime }
-                }
-                
-                binding.chipRecent.isChecked -> {
-                    // Show ENDED events
-                    events.filter { event ->
-                        if (event.isLive) {
-                            false
-                        } else {
-                            try {
-                                val startTime = apiDateFormat.parse(event.startTime)?.time ?: 0L
-                                val endTime = if (!event.endTime.isNullOrEmpty()) {
-                                    apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
-                                } else {
-                                    Long.MAX_VALUE
-                                }
-                                currentTime > endTime
-                            } catch (e: Exception) {
-                                false
-                            }
-                        }
-                    }.sortedByDescending { it.startTime }
-                }
-                
-                else -> events
-            }
-            
-            eventAdapter.updateData(filteredEvents)
-            binding.emptyView.visibility = if (filteredEvents.isEmpty()) View.VISIBLE else View.GONE
-            binding.recyclerViewEvents.visibility = if (filteredEvents.isEmpty()) View.GONE else View.VISIBLE
+            eventAdapter.updateData(events)
+            binding.emptyView.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
+            binding.recyclerViewEvents.visibility = if (events.isEmpty()) View.GONE else View.VISIBLE
         }
         
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
@@ -210,27 +140,8 @@ class LiveEventsFragment : Fragment() {
         }
     }
 
-    private fun showLinkSelectionDialog(event: LiveEvent) {
-        val dialog = LinkSelectionDialog(
-            requireContext(),
-            event.links,
-            null
-        ) { selectedLink ->
-            val reorderedLinks = event.links.toMutableList()
-            reorderedLinks.remove(selectedLink)
-            reorderedLinks.add(0, selectedLink)
-
-            val modifiedEvent = event.copy(
-                links = reorderedLinks
-            )
-            PlayerActivity.startWithEvent(requireContext(), modifiedEvent)
-        }
-        dialog.show()
-    }
-
     override fun onDestroyView() {
         super.onDestroyView()
-        // IMPORTANT: Stop countdown timer to prevent memory leaks
         eventAdapter.stopCountdown()
         _binding = null
     }
