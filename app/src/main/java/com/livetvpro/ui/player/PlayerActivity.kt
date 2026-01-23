@@ -172,39 +172,51 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun parseIntent() {
-        channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
+    channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
+    } else {
+        @Suppress("DEPRECATION")
+        intent.getParcelableExtra(EXTRA_CHANNEL)
+    }
+    
+    eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
+    } else {
+        @Suppress("DEPRECATION")
+        intent.getParcelableExtra(EXTRA_EVENT)
+    }
+
+    if (channelData != null) {
+        contentType = ContentType.CHANNEL
+        val channel = channelData!!
+        contentId = channel.id
+        contentName = channel.name
+        
+        // ✅ FIX: Handle channel links properly
+        if (channel.links != null && channel.links.isNotEmpty()) {
+            allEventLinks = channel.links.map { 
+                LiveEventLink(label = it.quality, url = it.url) 
+            }
+            currentLinkIndex = 0
+            streamUrl = allEventLinks.firstOrNull()?.url ?: channel.streamUrl
         } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_CHANNEL)
+            streamUrl = channel.streamUrl
+            allEventLinks = emptyList()
         }
         
-        eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_EVENT)
-        }
-
-        if (channelData != null) {
-            contentType = ContentType.CHANNEL
-            val channel = channelData!!
-            contentId = channel.id
-            contentName = channel.name
-            streamUrl = channel.streamUrl
-        } else if (eventData != null) {
-            contentType = ContentType.EVENT
-            val event = eventData!!
-            contentId = event.id
-            contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
-            allEventLinks = event.links
-            currentLinkIndex = 0
-            streamUrl = allEventLinks.firstOrNull()?.url ?: ""
-        } else {
-            finish()
-            return
-        }
+    } else if (eventData != null) {
+        contentType = ContentType.EVENT
+        val event = eventData!!
+        contentId = event.id
+        contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
+        allEventLinks = event.links
+        currentLinkIndex = 0
+        streamUrl = allEventLinks.firstOrNull()?.url ?: ""
+    } else {
+        finish()
+        return
     }
+}
 
     private fun setupRelatedChannels() {
         relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
@@ -224,68 +236,103 @@ class PlayerActivity : AppCompatActivity() {
     }
     
     private fun setupLinksUI() {
-        linkChipAdapter = LinkChipAdapter { link, position ->
-            switchToLink(link, position)
-        }
-        
-        val portraitLinksRecycler = binding.linksRecyclerView
-        portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        portraitLinksRecycler.adapter = linkChipAdapter
-        
-        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-        landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        
-        val landscapeLinkAdapter = LinkChipAdapter { link, position ->
-            switchToLink(link, position)
-        }
-        landscapeLinksRecycler?.adapter = landscapeLinkAdapter
-        
-        if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            val currentOrientation = resources.configuration.orientation
-            val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-            
-            if (isCurrentlyLandscape) {
-                binding.linksSection.visibility = View.GONE
-                landscapeLinksRecycler?.visibility = View.VISIBLE
-                landscapeLinkAdapter.submitList(allEventLinks)
-                landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
-            } else {
-                binding.linksSection.visibility = View.VISIBLE
-                landscapeLinksRecycler?.visibility = View.GONE
-                linkChipAdapter.submitList(allEventLinks)
-                linkChipAdapter.setSelectedPosition(currentLinkIndex)
-            }
-        } else {
-            binding.linksSection.visibility = View.GONE
-            landscapeLinksRecycler?.visibility = View.GONE
-        }
+    // Initialize adapters
+    linkChipAdapter = LinkChipAdapter { link, position ->
+        switchToLink(link, position)
     }
+    
+    // Setup portrait mode links (below player)
+    val portraitLinksRecycler = binding.linksRecyclerView
+    portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+    portraitLinksRecycler.adapter = linkChipAdapter
+    
+    // Setup landscape mode links (inside player controls)
+    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+    landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+    
+    val landscapeLinkAdapter = LinkChipAdapter { link, position ->
+        switchToLink(link, position)
+    }
+    landscapeLinksRecycler?.adapter = landscapeLinkAdapter
+    
+    // ✅ FIX: Check if we have multiple links and display them
+    if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
+        val currentOrientation = resources.configuration.orientation
+        val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        if (isCurrentlyLandscape) {
+            // Landscape: Show links inside player controls
+            binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.VISIBLE
+            landscapeLinkAdapter.submitList(allEventLinks)
+            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+        } else {
+            // Portrait: Show links below player
+            binding.linksSection.visibility = View.VISIBLE
+            landscapeLinksRecycler?.visibility = View.GONE
+            linkChipAdapter.submitList(allEventLinks)
+            linkChipAdapter.setSelectedPosition(currentLinkIndex)
+        }
+    } else if (contentType == ContentType.CHANNEL && channelData?.links != null && channelData!!.links!!.size > 1) {
+        // ✅ NEW: Support for channels with multiple links
+        val channelLinks = channelData!!.links!!.map { 
+            LiveEventLink(label = it.quality, url = it.url) 
+        }
+        allEventLinks = channelLinks
+        currentLinkIndex = 0
+        
+        val currentOrientation = resources.configuration.orientation
+        val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        if (isCurrentlyLandscape) {
+            binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.VISIBLE
+            landscapeLinkAdapter.submitList(channelLinks)
+            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+        } else {
+            binding.linksSection.visibility = View.VISIBLE
+            landscapeLinksRecycler?.visibility = View.GONE
+            linkChipAdapter.submitList(channelLinks)
+            linkChipAdapter.setSelectedPosition(currentLinkIndex)
+        }
+    } else {
+        // No multiple links - hide everything
+        binding.linksSection.visibility = View.GONE
+        landscapeLinksRecycler?.visibility = View.GONE
+    }
+}
 
     private fun updateLinksForOrientation(isLandscape: Boolean) {
-        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-        
-        if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
-            if (isLandscape) {
-                binding.linksSection.visibility = View.GONE
-                landscapeLinksRecycler?.visibility = View.VISIBLE
-                
-                val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
-                if (landscapeAdapter != null) {
-                    landscapeAdapter.submitList(allEventLinks)
-                    landscapeAdapter.setSelectedPosition(currentLinkIndex)
-                }
-            } else {
-                binding.linksSection.visibility = View.VISIBLE
-                landscapeLinksRecycler?.visibility = View.GONE
-                
-                linkChipAdapter.submitList(allEventLinks)
-                linkChipAdapter.setSelectedPosition(currentLinkIndex)
+    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+    
+    // Check if we have multiple links (either from events or channels)
+    val hasMultipleLinks = allEventLinks.size > 1
+    
+    if (hasMultipleLinks) {
+        if (isLandscape) {
+            // Landscape: Show inside player controls
+            binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.VISIBLE
+            
+            val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
+            if (landscapeAdapter != null) {
+                landscapeAdapter.submitList(allEventLinks)
+                landscapeAdapter.setSelectedPosition(currentLinkIndex)
             }
         } else {
-            binding.linksSection.visibility = View.GONE
+            // Portrait: Show below player
+            binding.linksSection.visibility = View.VISIBLE
             landscapeLinksRecycler?.visibility = View.GONE
+            
+            linkChipAdapter.submitList(allEventLinks)
+            linkChipAdapter.setSelectedPosition(currentLinkIndex)
         }
+    } else {
+        // No multiple links - hide both
+        binding.linksSection.visibility = View.GONE
+        landscapeLinksRecycler?.visibility = View.GONE
     }
+}
 
     private fun loadRelatedContent() {
         when (contentType) {
@@ -357,20 +404,23 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun switchToLink(link: LiveEventLink, position: Int) {
-        if (position == currentLinkIndex) return
-        
-        currentLinkIndex = position
-        streamUrl = link.url
-        
-        linkChipAdapter.setSelectedPosition(position)
-        
-        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-        val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
-        landscapeAdapter?.setSelectedPosition(position)
-        
-        releasePlayer()
-        setupPlayer()
-    }
+    if (position == currentLinkIndex) return
+    
+    currentLinkIndex = position
+    streamUrl = link.url
+    
+    // Update portrait adapter
+    linkChipAdapter.setSelectedPosition(position)
+    
+    // Update landscape adapter
+    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+    val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
+    landscapeAdapter?.setSelectedPosition(position)
+    
+    // Reload player with new link
+    releasePlayer()
+    setupPlayer()
+}
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
