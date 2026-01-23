@@ -41,7 +41,7 @@
             style="@style/Widget.Material3.Chip.Filter"
             app:chipBackgroundColor="@color/chip_background_color"
             app:chipStrokeColor="@color/chip_stroke_color"
-            app:chipTextColor="@color/chip_text_color" />
+            android:textColor="@color/chip_text_color" />
         
         <com.google.android.material.chip.Chip 
             android:id="@+id/chip_live" 
@@ -52,7 +52,7 @@
             style="@style/Widget.Material3.Chip.Filter"
             app:chipBackgroundColor="@color/chip_background_color"
             app:chipStrokeColor="@color/chip_stroke_color"
-            app:chipTextColor="@color/chip_text_color" />
+            android:textColor="@color/chip_text_color" />
         
         <com.google.android.material.chip.Chip 
             android:id="@+id/chip_upcoming" 
@@ -62,7 +62,7 @@
             style="@style/Widget.Material3.Chip.Filter"
             app:chipBackgroundColor="@color/chip_background_color"
             app:chipStrokeColor="@color/chip_stroke_color"
-            app:chipTextColor="@color/chip_text_color" />
+            android:textColor="@color/chip_text_color" />
         
         <com.google.android.material.chip.Chip 
             android:id="@+id/chip_recent" 
@@ -72,7 +72,7 @@
             style="@style/Widget.Material3.Chip.Filter"
             app:chipBackgroundColor="@color/chip_background_color"
             app:chipStrokeColor="@color/chip_stroke_color"
-            app:chipTextColor="@color/chip_text_color" />
+            android:textColor="@color/chip_text_color" />
     </com.google.android.material.chip.ChipGroup>
 
     <!-- Events List -->
