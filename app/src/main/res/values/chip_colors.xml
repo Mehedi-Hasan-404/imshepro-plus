@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Chip Background Colors -->
+    <color name="chip_background_normal">#2A2A2A</color>
+    <color name="chip_background_selected">#1AEF4444</color>
+    
+    <!-- Chip Stroke Colors -->
+    <color name="chip_stroke_normal">#3A3A3A</color>
+    <color name="chip_stroke_selected">#EF4444</color>
+    
+    <!-- Chip Text Colors -->
+    <color name="chip_text_normal">#CCCCCC</color>
+    <color name="chip_text_selected">#FFFFFF</color>
+</resources>
