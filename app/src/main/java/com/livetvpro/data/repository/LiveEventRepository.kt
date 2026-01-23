@@ -1,5 +1,6 @@
 package com.livetvpro.data.repository
 
+import com.livetvpro.data.models.EventCategory
 import com.livetvpro.data.models.LiveEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,5 +20,12 @@ class LiveEventRepository @Inject constructor(
 
     suspend fun getEventById(eventId: String): LiveEvent? = withContext(Dispatchers.IO) {
         getLiveEvents().find { it.id == eventId }
+    }
+
+    suspend fun getEventCategories(): List<EventCategory> = withContext(Dispatchers.IO) {
+        if (!dataRepository.isDataLoaded()) {
+            return@withContext emptyList()
+        }
+        return@withContext dataRepository.getEventCategories()
     }
 }
