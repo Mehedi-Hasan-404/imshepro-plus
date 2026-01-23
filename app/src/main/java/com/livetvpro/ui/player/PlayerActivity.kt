@@ -46,13 +46,14 @@ import androidx.media3.ui.SubtitleView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
-import com.livetvpro.databinding.ActivityPlayerBinding
-import com.livetvpro.ui.adapters.RelatedChannelAdapter
-import com.livetvpro.ui.adapters.LinkChipAdapter
 import com.livetvpro.data.models.LiveEventLink
+import com.livetvpro.databinding.ActivityPlayerBinding
+import com.livetvpro.ui.adapters.LinkChipAdapter
+import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
