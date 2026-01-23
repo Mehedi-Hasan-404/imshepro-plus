@@ -1,6 +1,8 @@
 package com.livetvpro.ui.live
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -34,7 +36,17 @@ class LiveEventsFragment : Fragment() {
     lateinit var listenerManager: NativeListenerManager
 
     private var selectedCategoryId: String = "evt_cat_all"
-    private var selectedStatusFilter: EventStatus? = null
+    private var selectedStatusFilter: EventStatus? = EventStatus.LIVE
+
+    // Handler for dynamic updates
+    private val updateHandler = Handler(Looper.getMainLooper())
+    private val updateRunnable = object : Runnable {
+        override fun run() {
+            // Refresh the event list every second
+            viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
+            updateHandler.postDelayed(this, 1000) // Update every 1 second
+        }
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentLiveEventsBinding.inflate(inflater, container, false)
@@ -52,6 +64,18 @@ class LiveEventsFragment : Fragment() {
         // Load data
         viewModel.loadEventCategories()
         viewModel.filterEvents(EventStatus.LIVE, "evt_cat_all")
+        
+        // Start dynamic updates
+        startDynamicUpdates()
+    }
+
+    private fun startDynamicUpdates() {
+        updateHandler.removeCallbacks(updateRunnable)
+        updateHandler.post(updateRunnable)
+    }
+
+    private fun stopDynamicUpdates() {
+        updateHandler.removeCallbacks(updateRunnable)
     }
 
     private fun setupCategoryRecycler() {
@@ -83,7 +107,6 @@ class LiveEventsFragment : Fragment() {
 
     private fun setupStatusFilters() {
         val clickListener = View.OnClickListener { view ->
-            // Prevent re-clicking the same chip
             if ((view as Chip).isChecked) {
                 val status = when (view.id) {
                     R.id.chip_all -> null
@@ -93,7 +116,6 @@ class LiveEventsFragment : Fragment() {
                     else -> null
                 }
                 
-                // Only update if different from current
                 if (status != selectedStatusFilter) {
                     selectedStatusFilter = status
                     viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
@@ -121,7 +143,7 @@ class LiveEventsFragment : Fragment() {
     private fun observeViewModel() {
         viewModel.eventCategories.observe(viewLifecycleOwner) { categories ->
             categoryAdapter.submitList(categories)
-            binding.categoryRecycler.visibility = if (categories.isNotEmpty()) View.VISIBLE else View.GONE
+            binding.categoryRecycler.visibility = if (categories.isNotEmpty()) View.VISIBLE else View.VISIBLE
         }
         
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
@@ -140,8 +162,19 @@ class LiveEventsFragment : Fragment() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        startDynamicUpdates()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopDynamicUpdates()
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
+        stopDynamicUpdates()
         eventAdapter.stopCountdown()
         _binding = null
     }
