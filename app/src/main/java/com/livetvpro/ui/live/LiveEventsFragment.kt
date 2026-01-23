@@ -37,7 +37,7 @@ class LiveEventsFragment : Fragment() {
     lateinit var listenerManager: NativeListenerManager
 
     private var selectedCategoryId: String = "evt_cat_all"
-    private var selectedStatusFilter: EventStatus? = EventStatus.LIVE
+    private var selectedStatusFilter: EventStatus? = null  // ✅ Changed to null (All)
 
     // Handler for dynamic updates
     private val updateHandler = Handler(Looper.getMainLooper())
@@ -45,7 +45,7 @@ class LiveEventsFragment : Fragment() {
         override fun run() {
             // Refresh the event list every second
             viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
-            updateHandler.postDelayed(this, 1000) // Update every 1 second
+            updateHandler.postDelayed(this, 1000)
         }
     }
 
@@ -62,9 +62,9 @@ class LiveEventsFragment : Fragment() {
         setupStatusFilters()
         observeViewModel()
         
-        // Load data
+        // Load data - Start with "All" filter
         viewModel.loadEventCategories()
-        viewModel.filterEvents(EventStatus.LIVE, "evt_cat_all")
+        viewModel.filterEvents(null, "evt_cat_all")  // ✅ null = All events
         
         // Start dynamic updates
         startDynamicUpdates()
@@ -153,9 +153,9 @@ class LiveEventsFragment : Fragment() {
         binding.chipUpcoming.setOnClickListener(clickListener)
         binding.chipRecent.setOnClickListener(clickListener)
         
-        // Set initial selection
-        binding.chipLive.isChecked = true
-        selectedStatusFilter = EventStatus.LIVE
+        // ✅ Set initial selection to "All"
+        binding.chipAll.isChecked = true
+        selectedStatusFilter = null
     }
 
     private fun updateChipSelection(selectedChip: Chip) {
@@ -166,8 +166,8 @@ class LiveEventsFragment : Fragment() {
 
     private fun observeViewModel() {
         viewModel.eventCategories.observe(viewLifecycleOwner) { categories ->
+            binding.categoryRecycler.visibility = View.VISIBLE
             categoryAdapter.submitList(categories)
-            binding.categoryRecycler.visibility = if (categories.isNotEmpty()) View.VISIBLE else View.VISIBLE
         }
         
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
