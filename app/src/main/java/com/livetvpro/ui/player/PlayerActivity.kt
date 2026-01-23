@@ -46,14 +46,13 @@ import androidx.media3.ui.SubtitleView
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
-import com.livetvpro.data.models.LiveEventLink
 import com.livetvpro.databinding.ActivityPlayerBinding
-import com.livetvpro.ui.adapters.LinkChipAdapter
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
+import com.livetvpro.ui.adapters.LinkChipAdapter
+import com.livetvpro.data.models.LiveEventLink
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -206,22 +205,6 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
     }
-    
-    private fun showLinkSelectionDialog(links: List<LiveEventLink>) {
-    val linkLabels = links.map { it.label }.toTypedArray()
-    
-    MaterialAlertDialogBuilder(this)
-        .setTitle("Select Stream")
-        .setItems(linkLabels) { dialog, which ->
-            currentLinkIndex = which
-            streamUrl = links[which].url
-            releasePlayer()
-            setupPlayer()
-            dialog.dismiss()
-        }
-        .setNegativeButton("Cancel", null)
-        .show()
-}
 
     private fun setupRelatedChannels() {
         relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
@@ -613,19 +596,12 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayer() {
-    if (player != null) return
-    binding.errorView.visibility = View.GONE
-    binding.errorText.text = ""
-    binding.progressBar.visibility = View.VISIBLE
+        if (player != null) return
+        binding.errorView.visibility = View.GONE
+        binding.errorText.text = ""
+        binding.progressBar.visibility = View.VISIBLE
 
-    // Show link selection dialog if multiple links exist
-    if (contentType == ContentType.EVENT && allEventLinks.size > 1 && currentLinkIndex == 0) {
-        binding.progressBar.visibility = View.GONE
-        showLinkSelectionDialog(allEventLinks)
-        return // Don't continue setup until user selects a link
-    }
-
-    trackSelector = DefaultTrackSelector(this)
+        trackSelector = DefaultTrackSelector(this)
 
         try {
             val streamInfo = parseStreamUrl(streamUrl)
