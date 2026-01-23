@@ -9,12 +9,14 @@ import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.SearchableFragment
+import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentCategoryChannelsBinding
 import com.livetvpro.ui.adapters.ChannelAdapter
-import com.livetvpro.ui.player.PlayerActivity  // CHANGED: Use PlayerActivity instead
+import com.livetvpro.ui.player.PlayerActivity
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -64,31 +66,57 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     }
 
     private fun setupRecyclerView() {
-    channelAdapter = ChannelAdapter(
-        onChannelClick = { channel ->
-            val shouldBlock = listenerManager.onPageInteraction(
-                ListenerConfig.PAGE_CHANNELS, 
-                uniqueId = currentCategoryId
-            )
+        channelAdapter = ChannelAdapter(
+            onChannelClick = { channel ->
+                val shouldBlock = listenerManager.onPageInteraction(
+                    ListenerConfig.PAGE_CHANNELS, 
+                    uniqueId = currentCategoryId
+                )
 
-            if (shouldBlock) {
-                return@ChannelAdapter
-            }
-            
-            PlayerActivity.startWithChannel(requireContext(), channel)
-        },
-        onFavoriteToggle = { channel ->
-            viewModel.toggleFavorite(channel)
-            binding.root.postDelayed({ channelAdapter.refreshItem(channel.id) }, 100)
-        },
-        isFavorite = { channelId -> viewModel.isFavorite(channelId) }
-    )
+                if (shouldBlock) {
+                    return@ChannelAdapter
+                }
+                
+                // Check if channel has multiple links
+                if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
+                    showLinkSelectionDialog(channel)
+                } else {
+                    // Single link or no links - go directly to player
+                    PlayerActivity.startWithChannel(requireContext(), channel)
+                }
+            },
+            onFavoriteToggle = { channel ->
+                viewModel.toggleFavorite(channel)
+                binding.root.postDelayed({ channelAdapter.refreshItem(channel.id) }, 100)
+            },
+            isFavorite = { channelId -> viewModel.isFavorite(channelId) }
+        )
 
-    binding.recyclerViewChannels.apply {
-        layoutManager = GridLayoutManager(context, 3)
-        adapter = channelAdapter
-        // REMOVED: setHasFixedSize(true)
+        binding.recyclerViewChannels.apply {
+            layoutManager = GridLayoutManager(context, 3)
+            adapter = channelAdapter
+        }
     }
+
+    private fun showLinkSelectionDialog(channel: Channel) {
+        val links = channel.links ?: return
+        val linkLabels = links.map { it.quality }.toTypedArray()
+        
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Select Stream Quality")
+            .setItems(linkLabels) { dialog, which ->
+                // Create a modified channel with only the selected link's URL
+                val selectedLink = links[which]
+                val modifiedChannel = channel.copy(
+                    streamUrl = selectedLink.url,
+                    links = listOf(selectedLink) // Keep only selected link
+                )
+                
+                PlayerActivity.startWithChannel(requireContext(), modifiedChannel)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun observeViewModel() {
