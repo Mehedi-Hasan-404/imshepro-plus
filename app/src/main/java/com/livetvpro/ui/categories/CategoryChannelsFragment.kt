@@ -26,7 +26,9 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     private var _binding: FragmentCategoryChannelsBinding? = null
     private val binding get() = _binding!!
-    private val viewModel: CategoryChannelsViewModel by viewModels()
+    
+    // Using the same ViewModel setup as Source 16
+    [span_3](start_span)private val viewModel: CategoryChannelsViewModel by viewModels()[span_3](end_span)
     private lateinit var channelAdapter: ChannelAdapter
     
     @Inject
@@ -48,6 +50,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         
         currentCategoryId = arguments?.getString("categoryId")
 
+        // Setup Toolbar Title safely
         try {
             val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
             if (viewModel.categoryName.isNotEmpty()) {
@@ -68,53 +71,64 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
+                // 1. Handle Native Listener / Blocking Logic
                 val shouldBlock = listenerManager.onPageInteraction(
                     ListenerConfig.PAGE_CHANNELS, 
                     uniqueId = currentCategoryId
-                )
+                [span_4](start_span))
 
                 if (shouldBlock) {
                     return@ChannelAdapter
                 }
                 
-                // Check if channel has multiple links
+                // 2. Production Check: Does this channel have multiple quality links?
                 if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
-                    showLinkSelectionDialog(channel)
+                    showLinkSelectionDialog(channel)[span_4](end_span)
                 } else {
                     // Single link or no links - go directly to player
                     PlayerActivity.startWithChannel(requireContext(), channel)
                 }
             },
             onFavoriteToggle = { channel ->
-                viewModel.toggleFavorite(channel)
-                binding.root.postDelayed({ channelAdapter.refreshItem(channel.id) }, 100)
+                // Toggle in ViewModel
+                [span_5](start_span)viewModel.toggleFavorite(channel)[span_5](end_span)
+                
+                // Refresh specific item after small delay to allow DB update
+                // Removing setHasFixedSize(true) makes this more reliable
+                binding.root.postDelayed({ 
+                    if (_binding != null) { // Safety check to prevent crash if fragment destroyed
+                        channelAdapter.refreshItem(channel.id) 
+                    }
+                }, 100)
             },
             isFavorite = { channelId -> viewModel.isFavorite(channelId) }
         )
 
         binding.recyclerViewChannels.apply {
-            layoutManager = GridLayoutManager(context, 3)
+            [span_6](start_span)layoutManager = GridLayoutManager(context, 3)[span_6](end_span)
             adapter = channelAdapter
+            // IMPORTANT: Keep setHasFixedSize(true) REMOVED to ensure icon redraws correctly
+            // setHasFixedSize(true) <- Do not uncomment
         }
     }
 
+    // Logic to handle channels with multiple stream qualities (HD, SD, etc.)
     private fun showLinkSelectionDialog(channel: Channel) {
         val links = channel.links ?: return
         val linkLabels = links.map { it.quality }.toTypedArray()
         
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select Stream Quality")
+            [span_7](start_span).setTitle("Select Stream Quality")[span_7](end_span)
             .setItems(linkLabels) { dialog, which ->
-                // ✅ FIX: Don't remove other links. 
-                // We update streamUrl for immediate reference but keep 'links' intact.
                 val selectedLink = links[which]
+                
+                // Create copy with selected URL but keep links list intact
                 val modifiedChannel = channel.copy(
                     streamUrl = selectedLink.url
-                    // Do NOT overwrite 'links' here so PlayerActivity gets the full list
-                )
+                [span_8](start_span))
                 
-                // Pass the index 'which' so the player knows which chip to select
-                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
+                // Pass index 'which' so player knows which quality chip to select
+                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)[span_8](end_span)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -146,6 +160,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
+        // Refresh all items when returning (e.g. from Player) to ensure favorites are up to date
         binding.root.postDelayed({ channelAdapter.refreshAll() }, 50)
     }
 
