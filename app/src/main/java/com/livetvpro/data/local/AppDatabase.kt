@@ -2,14 +2,17 @@ package com.livetvpro.data.local
 
 import androidx.room.Database
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 import com.livetvpro.data.local.dao.FavoriteChannelDao
 import com.livetvpro.data.local.entity.FavoriteChannelEntity
+import com.livetvpro.data.local.entity.FavoriteChannelConverters
 
 @Database(
     entities = [FavoriteChannelEntity::class],
-    version = 1,
+    version = 2, 
     exportSchema = false
 )
+@TypeConverters(FavoriteChannelConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun favoriteChannelDao(): FavoriteChannelDao
 }
