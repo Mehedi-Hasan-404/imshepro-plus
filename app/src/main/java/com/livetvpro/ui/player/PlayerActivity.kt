@@ -427,41 +427,44 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
-        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        if (isLandscape) {
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            params.dimensionRatio = null
-            params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
-            params.topMargin = 0
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            binding.relatedChannelsSection.visibility = View.GONE
-            binding.linksSection.visibility = View.GONE
-        } else {
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 5000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            params.dimensionRatio = "16:9"
-            params.height = 0
-            params.topMargin = 0 // No top margin
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            if (relatedChannels.isNotEmpty()) {
-                binding.relatedChannelsSection.visibility = View.VISIBLE
-            }
-            if (contentType == ContentType.EVENT && allEventLinks.size > 1) {
-                binding.linksSection.visibility = View.VISIBLE
-            }
+    val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+    if (isLandscape) {
+        binding.playerView.controllerAutoShow = false
+        binding.playerView.controllerShowTimeoutMs = 3000
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+        params.dimensionRatio = null
+        params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+        params.topMargin = 0
+        params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+        params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+        binding.relatedChannelsSection.visibility = View.GONE
+        binding.linksSection.visibility = View.GONE
+    } else {
+        // Portrait mode
+        binding.playerView.controllerAutoShow = false
+        binding.playerView.controllerShowTimeoutMs = 5000
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        params.dimensionRatio = "16:9"
+        params.height = 0
+        params.topMargin = 0
+        params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+        params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        
+        if (relatedChannels.isNotEmpty()) {
+            binding.relatedChannelsSection.visibility = View.VISIBLE
         }
-        binding.playerContainer.layoutParams = params
-        binding.playerContainer.requestLayout()
+        
+        if (allEventLinks.size > 1) {
+            binding.linksSection.visibility = View.VISIBLE
+        }
     }
+    binding.playerContainer.layoutParams = params
+    binding.playerContainer.requestLayout()
+}
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
