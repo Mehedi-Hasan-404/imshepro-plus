@@ -105,14 +105,16 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Select Stream Quality")
             .setItems(linkLabels) { dialog, which ->
-                // Create a modified channel with only the selected link's URL
+                // ✅ FIX: Don't remove other links. 
+                // We update streamUrl for immediate reference but keep 'links' intact.
                 val selectedLink = links[which]
                 val modifiedChannel = channel.copy(
-                    streamUrl = selectedLink.url,
-                    links = listOf(selectedLink) // Keep only selected link
+                    streamUrl = selectedLink.url
+                    // Do NOT overwrite 'links' here so PlayerActivity gets the full list
                 )
                 
-                PlayerActivity.startWithChannel(requireContext(), modifiedChannel)
+                // Pass the index 'which' so the player knows which chip to select
+                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
