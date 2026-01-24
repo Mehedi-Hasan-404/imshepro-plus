@@ -8,6 +8,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
@@ -19,6 +20,8 @@ import com.livetvpro.ui.adapters.ChannelAdapter
 import com.livetvpro.ui.player.PlayerActivity
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -87,11 +90,13 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             onFavoriteToggle = { channel ->
                 viewModel.toggleFavorite(channel)
                 
-                binding.root.postDelayed({ 
+                // Refresh the adapter after a short delay to show updated favorite status
+                lifecycleScope.launch {
+                    delay(150)
                     if (_binding != null) {
-                        channelAdapter.refreshItem(channel.id) 
+                        channelAdapter.refreshItem(channel.id)
                     }
-                }, 100)
+                }
             },
             isFavorite = { channelId -> viewModel.isFavorite(channelId) }
         )
@@ -147,7 +152,13 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
-        binding.root.postDelayed({ channelAdapter.refreshAll() }, 50)
+        // Refresh all items when returning to the fragment
+        lifecycleScope.launch {
+            delay(100)
+            if (_binding != null) {
+                channelAdapter.refreshAll()
+            }
+        }
     }
 
     override fun onDestroyView() {
