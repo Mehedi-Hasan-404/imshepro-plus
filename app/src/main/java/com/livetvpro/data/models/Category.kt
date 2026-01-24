@@ -50,7 +50,8 @@ data class FavoriteChannel(
     val streamUrl: String = "",
     val categoryId: String = "",
     val categoryName: String = "",
-    val addedAt: Long = System.currentTimeMillis()
+    val addedAt: Long = System.currentTimeMillis(),
+    val links: List<ChannelLink>? = null // ✅ ADDED: Links support in favorites
 ) : Parcelable
 
 @Parcelize
