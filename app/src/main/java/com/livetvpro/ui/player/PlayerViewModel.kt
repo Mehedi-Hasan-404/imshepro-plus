@@ -27,29 +27,43 @@ class PlayerViewModel @Inject constructor(
     private val _isFavorite = MutableLiveData<Boolean>()
     val isFavorite: LiveData<Boolean> = _isFavorite
 
+    /**
+     * Check if a channel is favorited (async)
+     */
     fun checkFavoriteStatus(channelId: String) {
-        _isFavorite.value = favoritesRepository.isFavorite(channelId)
-    }
-
-    fun toggleFavorite(channel: Channel) {
-        val currentStatus = favoritesRepository.isFavorite(channel.id)
-        if (currentStatus) {
-            favoritesRepository.removeFavorite(channel.id)
-            _isFavorite.value = false
-        } else {
-            val favorite = FavoriteChannel(
-                id = channel.id,
-                name = channel.name,
-                logoUrl = channel.logoUrl,
-                streamUrl = channel.streamUrl,
-                categoryId = channel.categoryId,
-                categoryName = channel.categoryName
-            )
-            favoritesRepository.addFavorite(favorite)
-            _isFavorite.value = true
+        viewModelScope.launch {
+            val result = favoritesRepository.isFavorite(channelId)
+            _isFavorite.value = result
         }
     }
 
+    /**
+     * Toggle favorite status (async)
+     */
+    fun toggleFavorite(channel: Channel) {
+        viewModelScope.launch {
+            val currentStatus = favoritesRepository.isFavorite(channel.id)
+            if (currentStatus) {
+                favoritesRepository.removeFavorite(channel.id)
+                _isFavorite.value = false
+            } else {
+                val favorite = FavoriteChannel(
+                    id = channel.id,
+                    name = channel.name,
+                    logoUrl = channel.logoUrl,
+                    streamUrl = channel.streamUrl,
+                    categoryId = channel.categoryId,
+                    categoryName = channel.categoryName
+                )
+                favoritesRepository.addFavorite(favorite)
+                _isFavorite.value = true
+            }
+        }
+    }
+
+    /**
+     * Load related channels for the current channel
+     */
     fun loadRelatedChannels(categoryId: String, currentChannelId: String) {
         viewModelScope.launch {
             try {
@@ -99,7 +113,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     /**
-     * ✅ FIXED: Load related events with proper event-specific data
+     * Load related events for the current event
      */
     fun loadRelatedEvents(currentEventId: String) {
         viewModelScope.launch {
@@ -112,21 +126,22 @@ class PlayerViewModel @Inject constructor(
                     (event.isLive || event.getStatus(System.currentTimeMillis()) == com.livetvpro.data.models.EventStatus.UPCOMING)
                 }
 
-                // ✅ Convert to Channel format WITH event-specific fields
+                // Convert to Channel format WITH event-specific fields
                 val eventsAsChannels = relatedEvents.take(9).map { event ->
                     Channel(
                         id = event.id,
                         name = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" },
-                        logoUrl = event.team1Logo.ifEmpty { event.team2Logo }, // Fallback to team2 if team1 is empty
+                        logoUrl = event.team1Logo.ifEmpty { event.team2Logo },
                         streamUrl = event.links.firstOrNull()?.url ?: "",
-                        categoryId = "live_events", // This triggers event-specific UI
+                        categoryId = "live_events",
                         categoryName = event.league,
                         
-                        // ✅ Store event-specific data
+                        // Store event-specific data
                         team1Logo = event.team1Logo,
                         team2Logo = event.team2Logo,
                         isLive = event.isLive,
-                        startTime = event.startTime
+                        startTime = event.startTime,
+                        endTime = event.endTime ?: ""
                     )
                 }
 
