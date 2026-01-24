@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.ChannelLink
 import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.data.repository.ChannelRepository
@@ -29,6 +30,9 @@ class CategoryChannelsViewModel @Inject constructor(
     private val _channels = MutableStateFlow<List<Channel>>(emptyList())
     private val _searchQuery = MutableStateFlow("")
     
+    // Cache for favorite status to avoid repeated DB queries
+    private val _favoriteStatusCache = MutableStateFlow<Set<String>>(emptySet())
+    
     val categoryName: String = savedStateHandle.get<String>("categoryName") ?: "Channels"
 
     private val _isLoading = MutableLiveData<Boolean>(false)
@@ -41,6 +45,22 @@ class CategoryChannelsViewModel @Inject constructor(
         if (query.isEmpty()) list
         else list.filter { it.name.contains(query, ignoreCase = true) }
     }.asLiveData(viewModelScope.coroutineContext + Dispatchers.Main)
+
+    init {
+        // Load favorite status cache
+        loadFavoriteCache()
+    }
+
+    /**
+     * Load all favorite IDs into cache
+     */
+    private fun loadFavoriteCache() {
+        viewModelScope.launch {
+            favoritesRepository.getFavoritesFlow().collect { favorites ->
+                _favoriteStatusCache.value = favorites.map { it.id }.toSet()
+            }
+        }
+    }
 
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
@@ -62,13 +82,22 @@ class CategoryChannelsViewModel @Inject constructor(
 
     fun toggleFavorite(channel: Channel) {
         viewModelScope.launch {
+            // Convert Channel.links to FavoriteChannel.links
+            val favoriteLinks = channel.links?.map { channelLink ->
+                ChannelLink(
+                    quality = channelLink.quality,
+                    url = channelLink.url
+                )
+            }
+            
             val favoriteChannel = FavoriteChannel(
                 id = channel.id,
                 name = channel.name,
                 logoUrl = channel.logoUrl,
                 streamUrl = channel.streamUrl,
                 categoryId = channel.categoryId,
-                categoryName = channel.categoryName
+                categoryName = channel.categoryName,
+                links = favoriteLinks // Pass links to favorite
             )
             
             if (favoritesRepository.isFavorite(channel.id)) {
@@ -76,19 +105,16 @@ class CategoryChannelsViewModel @Inject constructor(
             } else {
                 favoritesRepository.addFavorite(favoriteChannel)
             }
+            
+            // Cache will update automatically via Flow
         }
     }
 
+    /**
+     * Check if a channel is favorited using the cache
+     * This is called synchronously from the adapter
+     */
     fun isFavorite(channelId: String): Boolean {
-        // Note: This is now a suspend function in repository
-        // We need to handle this differently
-        // Option 1: Make this a Flow
-        // Option 2: Keep a cached state
-        // For now, let's use a workaround with StateFlow
-        var result = false
-        viewModelScope.launch {
-            result = favoritesRepository.isFavorite(channelId)
-        }
-        return result
+        return _favoriteStatusCache.value.contains(channelId)
     }
 }
