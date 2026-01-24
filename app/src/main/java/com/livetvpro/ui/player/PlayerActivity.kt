@@ -171,54 +171,55 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun parseIntent() {
-    channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
-    } else {
-        @Suppress("DEPRECATION")
-        intent.getParcelableExtra(EXTRA_CHANNEL)
-    }
-    
-    eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
-    } else {
-        @Suppress("DEPRECATION")
-        intent.getParcelableExtra(EXTRA_EVENT)
+        private fun parseIntent() {
+        channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_CHANNEL)
+        }
+
+        eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_EVENT)
+        }
+
+        if (channelData != null) {
+            contentType = ContentType.CHANNEL
+            val channel = channelData!!
+            contentId = channel.id
+            contentName = channel.name
+
+            // ✅ Handle channel links
+            if (channel.links != null && channel.links.isNotEmpty()) {
+                allEventLinks = channel.links.map { 
+                    LiveEventLink(label = it.quality, url = it.url) 
+                }
+                currentLinkIndex = 0
+                streamUrl = allEventLinks.firstOrNull()?.url ?: channel.streamUrl
+            } else {
+                streamUrl = channel.streamUrl
+                allEventLinks = emptyList()
+            }
+
+        } else if (eventData != null) {
+            contentType = ContentType.EVENT
+            val event = eventData!!
+            contentId = event.id
+            contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
+            
+            // ✅ Handle event links
+            allEventLinks = event.links
+            currentLinkIndex = 0
+            streamUrl = allEventLinks.firstOrNull()?.url ?: ""
+        } else {
+            finish()
+            return
+        }
     }
 
-    if (channelData != null) {
-        contentType = ContentType.CHANNEL
-        val channel = channelData!!
-        contentId = channel.id
-        contentName = channel.name
-        
-        // ✅ Handle channel links properly (RESTORED)
-        if (channel.links != null && channel.links.isNotEmpty()) {
-            // Convert channel links to LiveEventLink format
-            allEventLinks = channel.links.map { 
-                LiveEventLink(label = it.quality, url = it.url) 
-            }
-            currentLinkIndex = 0
-            streamUrl = allEventLinks.firstOrNull()?.url ?: channel.streamUrl
-        } else {
-            // No links available, use direct stream URL
-            streamUrl = channel.streamUrl
-            allEventLinks = emptyList()
-        }
-        
-    } else if (eventData != null) {
-        contentType = ContentType.EVENT
-        val event = eventData!!
-        contentId = event.id
-        contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
-        allEventLinks = event.links
-        currentLinkIndex = 0
-        streamUrl = allEventLinks.firstOrNull()?.url ?: ""
-    } else {
-        finish()
-        return
-    }
-}
 
     private fun setupRelatedChannels() {
         relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
@@ -237,44 +238,45 @@ class PlayerActivity : AppCompatActivity() {
         recyclerView.adapter = relatedChannelsAdapter
     }
     
-    private fun setupLinksUI() {
-    linkChipAdapter = LinkChipAdapter { link, position ->
-        switchToLink(link, position)
-    }
-    
-    val portraitLinksRecycler = binding.linksRecyclerView
-    portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-    portraitLinksRecycler.adapter = linkChipAdapter
-    
-    val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-    landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-    
-    val landscapeLinkAdapter = LinkChipAdapter { link, position ->
-        switchToLink(link, position)
-    }
-    landscapeLinksRecycler?.adapter = landscapeLinkAdapter
-    
-    // ✅ Check if we have multiple links (works for BOTH channels and events)
-    if (allEventLinks.size > 1) {
-        val currentOrientation = resources.configuration.orientation
-        val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-        
-        if (isCurrentlyLandscape) {
-            binding.linksSection.visibility = View.GONE
-            landscapeLinksRecycler?.visibility = View.VISIBLE
-            landscapeLinkAdapter.submitList(allEventLinks)
-            landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
-        } else {
-            binding.linksSection.visibility = View.VISIBLE
-            landscapeLinksRecycler?.visibility = View.GONE
-            linkChipAdapter.submitList(allEventLinks)
-            linkChipAdapter.setSelectedPosition(currentLinkIndex)
+        private fun setupLinksUI() {
+        linkChipAdapter = LinkChipAdapter { link, position ->
+            switchToLink(link, position)
         }
-    } else {
-        binding.linksSection.visibility = View.GONE
-        landscapeLinksRecycler?.visibility = View.GONE
+
+        val portraitLinksRecycler = binding.linksRecyclerView
+        portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        portraitLinksRecycler.adapter = linkChipAdapter
+
+        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+
+        val landscapeLinkAdapter = LinkChipAdapter { link, position ->
+            switchToLink(link, position)
+        }
+        landscapeLinksRecycler?.adapter = landscapeLinkAdapter
+
+        // ✅ Check if we have multiple links (works for BOTH channels and events)
+        if (allEventLinks.size > 1) {
+            val currentOrientation = resources.configuration.orientation
+            val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+
+            if (isCurrentlyLandscape) {
+                binding.linksSection.visibility = View.GONE
+                landscapeLinksRecycler?.visibility = View.VISIBLE
+                landscapeLinkAdapter.submitList(allEventLinks)
+                landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+            } else {
+                binding.linksSection.visibility = View.VISIBLE
+                landscapeLinksRecycler?.visibility = View.GONE
+                linkChipAdapter.submitList(allEventLinks)
+                linkChipAdapter.setSelectedPosition(currentLinkIndex)
+            }
+        } else {
+            binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.GONE
+        }
     }
-}
+
 
     private fun updateLinksForOrientation(isLandscape: Boolean) {
     val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
@@ -333,20 +335,36 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun switchToChannel(newChannel: Channel) {
+        private fun switchToChannel(newChannel: Channel) {
         releasePlayer()
         channelData = newChannel
         eventData = null
         contentType = ContentType.CHANNEL
         contentId = newChannel.id
         contentName = newChannel.name
-        streamUrl = newChannel.streamUrl
+        
+        // ✅ FIX: Parse links for Channel (Missing in your current version)
+        if (newChannel.links != null && newChannel.links.isNotEmpty()) {
+            allEventLinks = newChannel.links.map { 
+                LiveEventLink(label = it.quality, url = it.url) 
+            }
+            currentLinkIndex = 0
+            streamUrl = allEventLinks.firstOrNull()?.url ?: newChannel.streamUrl
+        } else {
+            allEventLinks = emptyList()
+            streamUrl = newChannel.streamUrl
+        }
+        
         tvChannelName?.text = contentName
+        
         setupPlayer()
+        setupLinksUI() // ✅ FIX: Refresh the link chips UI
+        
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
         loadRelatedContent()
     }
+
 
     private fun switchToEvent(eventItem: Channel) {
         lifecycleScope.launch {
