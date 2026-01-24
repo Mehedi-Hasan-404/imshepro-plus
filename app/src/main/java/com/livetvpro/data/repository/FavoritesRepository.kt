@@ -1,7 +1,9 @@
 package com.livetvpro.data.repository
 
+import com.google.gson.Gson
 import com.livetvpro.data.local.dao.FavoriteChannelDao
 import com.livetvpro.data.local.entity.FavoriteChannelEntity
+import com.livetvpro.data.models.ChannelLink
 import com.livetvpro.data.models.FavoriteChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -12,6 +14,7 @@ import javax.inject.Singleton
 class FavoritesRepository @Inject constructor(
     private val favoriteDao: FavoriteChannelDao
 ) {
+    private val gson = Gson()
     
     // Get all favorites as Flow (for real-time updates)
     fun getFavoritesFlow(): Flow<List<FavoriteChannel>> {
@@ -19,19 +22,14 @@ class FavoritesRepository @Inject constructor(
             entities.map { it.toFavoriteChannel() }
         }
     }
-    
-    // Get all favorites as list (for one-time fetch)
-    suspend fun getFavorites(): List<FavoriteChannel> {
-        // Since we're using Flow, we need to collect first value
-        // For simplicity, let's keep the DAO returning Flow and handle conversion elsewhere
-        // Or add a suspend function in DAO
-        val entities = favoriteDao.getAllFavorites()
-        // This is a Flow, so we can't directly return List
-        // Better approach: Add suspend function to DAO
-        return emptyList() // Placeholder - use Flow version instead
-    }
 
     suspend fun addFavorite(channel: FavoriteChannel) {
+        val linksJson = if (channel.links != null && channel.links.isNotEmpty()) {
+            gson.toJson(channel.links)
+        } else {
+            null
+        }
+        
         val entity = FavoriteChannelEntity(
             id = channel.id,
             name = channel.name,
@@ -39,7 +37,8 @@ class FavoritesRepository @Inject constructor(
             streamUrl = channel.streamUrl,
             categoryId = channel.categoryId,
             categoryName = channel.categoryName,
-            addedAt = channel.addedAt
+            addedAt = channel.addedAt,
+            linksJson = linksJson
         )
         favoriteDao.insertFavorite(entity)
     }
@@ -63,6 +62,18 @@ class FavoritesRepository @Inject constructor(
 
 // Extension function to convert Entity to Model
 private fun FavoriteChannelEntity.toFavoriteChannel(): FavoriteChannel {
+    val links = if (linksJson != null && linksJson.isNotEmpty()) {
+        try {
+            val gson = Gson()
+            val type = object : com.google.gson.reflect.TypeToken<List<ChannelLink>>() {}.type
+            gson.fromJson<List<ChannelLink>>(linksJson, type)
+        } catch (e: Exception) {
+            null
+        }
+    } else {
+        null
+    }
+    
     return FavoriteChannel(
         id = id,
         name = name,
@@ -70,6 +81,7 @@ private fun FavoriteChannelEntity.toFavoriteChannel(): FavoriteChannel {
         streamUrl = streamUrl,
         categoryId = categoryId,
         categoryName = categoryName,
-        addedAt = addedAt
+        addedAt = addedAt,
+        links = links
     )
 }
