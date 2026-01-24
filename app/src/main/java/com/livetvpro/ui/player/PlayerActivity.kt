@@ -294,25 +294,16 @@ class PlayerActivity : AppCompatActivity() {
                 landscapeAdapter.setSelectedPosition(currentLinkIndex)
             }
         } else {
-    // Portrait mode
-    binding.playerView.controllerAutoShow = false
-    binding.playerView.controllerShowTimeoutMs = 5000
-    binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    params.dimensionRatio = "16:9"
-    params.height = 0
-    params.topMargin = 0
-    params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-    params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-    btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-    
-    if (relatedChannels.isNotEmpty()) {
-        binding.relatedChannelsSection.visibility = View.VISIBLE
-    }
-    
-    // ✅ Show links section if we have multiple links
-    if (allEventLinks.size > 1) {
-        binding.linksSection.visibility = View.VISIBLE
+            // Portrait: Show below player
+            binding.linksSection.visibility = View.VISIBLE
+            landscapeLinksRecycler?.visibility = View.GONE
+            linkChipAdapter.submitList(allEventLinks)
+            linkChipAdapter.setSelectedPosition(currentLinkIndex)
+        }
+    } else {
+        // No multiple links - hide both
+        binding.linksSection.visibility = View.GONE
+        landscapeLinksRecycler?.visibility = View.GONE
     }
 }
 
