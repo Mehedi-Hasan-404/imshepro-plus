@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.data.models.Channel
@@ -14,9 +15,10 @@ import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentFavoritesBinding
 import com.livetvpro.ui.adapters.FavoriteAdapter
-import com.livetvpro.ui.player.PlayerActivity  // CHANGED: Use PlayerActivity instead
+import com.livetvpro.ui.player.PlayerActivity
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -51,16 +53,15 @@ class FavoritesFragment : Fragment() {
                     return@FavoriteAdapter
                 }
                 
-                // CHANGED: Use PlayerActivity.startWithChannel
-                val channel = Channel(
-                    id = favChannel.id,
-                    name = favChannel.name,
-                    logoUrl = favChannel.logoUrl,
-                    streamUrl = favChannel.streamUrl,
-                    categoryId = favChannel.categoryId,
-                    categoryName = favChannel.categoryName
-                )
-                PlayerActivity.startWithChannel(requireContext(), channel)
+                // Convert FavoriteChannel to Channel
+                val channel = convertToChannel(favChannel)
+                
+                // Check if channel has multiple links
+                if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
+                    showLinkSelectionDialog(channel)
+                } else {
+                    PlayerActivity.startWithChannel(requireContext(), channel)
+                }
             },
             onFavoriteToggle = { favChannel -> 
                 showRemoveConfirmation(favChannel) 
@@ -71,6 +72,47 @@ class FavoritesFragment : Fragment() {
             layoutManager = GridLayoutManager(context, 3)
             adapter = favoriteAdapter
         }
+    }
+
+    /**
+     * Convert FavoriteChannel to Channel with link support
+     */
+    private fun convertToChannel(favorite: FavoriteChannel): Channel {
+        // Check if the stream URL contains multiple links (from original channel data)
+        // For now, we'll use a simple conversion. If you want to preserve links,
+        // you'll need to store them in FavoriteChannelEntity
+        return Channel(
+            id = favorite.id,
+            name = favorite.name,
+            logoUrl = favorite.logoUrl,
+            streamUrl = favorite.streamUrl,
+            categoryId = favorite.categoryId,
+            categoryName = favorite.categoryName,
+            links = null // Will be loaded from original channel if needed
+        )
+    }
+
+    /**
+     * Show link selection dialog for channels with multiple quality options
+     */
+    private fun showLinkSelectionDialog(channel: Channel) {
+        val links = channel.links ?: return
+        val linkLabels = links.map { it.quality }.toTypedArray()
+        
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Select Stream Quality")
+            .setItems(linkLabels) { dialog, which ->
+                val selectedLink = links[which]
+                
+                val modifiedChannel = channel.copy(
+                    streamUrl = selectedLink.url
+                )
+                
+                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun setupButtons() {
