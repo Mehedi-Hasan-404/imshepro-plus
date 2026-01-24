@@ -192,7 +192,7 @@ class PlayerActivity : AppCompatActivity() {
         contentId = channel.id
         contentName = channel.name
         
-        // ✅ Handle channel links properly
+        // ✅ Handle channel links properly (RESTORED)
         if (channel.links != null && channel.links.isNotEmpty()) {
             // Convert channel links to LiveEventLink format
             allEventLinks = channel.links.map { 
@@ -254,7 +254,7 @@ class PlayerActivity : AppCompatActivity() {
     }
     landscapeLinksRecycler?.adapter = landscapeLinkAdapter
     
-    // ✅ Check if we have multiple links (works for BOTH channels and events now)
+    // ✅ Check if we have multiple links (works for BOTH channels and events)
     if (allEventLinks.size > 1) {
         val currentOrientation = resources.configuration.orientation
         val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
@@ -279,10 +279,8 @@ class PlayerActivity : AppCompatActivity() {
     private fun updateLinksForOrientation(isLandscape: Boolean) {
     val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
     
-    // Check if we have multiple links (either from events or channels)
-    val hasMultipleLinks = allEventLinks.size > 1
-    
-    if (hasMultipleLinks) {
+    // ✅ Check if we have multiple links (works for BOTH channels and events)
+    if (allEventLinks.size > 1) {
         if (isLandscape) {
             // Landscape: Show inside player controls
             binding.linksSection.visibility = View.GONE
@@ -297,6 +295,7 @@ class PlayerActivity : AppCompatActivity() {
             // Portrait: Show below player
             binding.linksSection.visibility = View.VISIBLE
             landscapeLinksRecycler?.visibility = View.GONE
+            
             linkChipAdapter.submitList(allEventLinks)
             linkChipAdapter.setSelectedPosition(currentLinkIndex)
         }
