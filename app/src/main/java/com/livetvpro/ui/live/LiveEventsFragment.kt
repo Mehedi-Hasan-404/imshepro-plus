@@ -37,7 +37,7 @@ class LiveEventsFragment : Fragment() {
     lateinit var listenerManager: NativeListenerManager
 
     private var selectedCategoryId: String = "evt_cat_all"
-    private var selectedStatusFilter: EventStatus? = null  // ✅ Changed to null (All)
+    private var selectedStatusFilter: EventStatus? = null
 
     // Handler for dynamic updates
     private val updateHandler = Handler(Looper.getMainLooper())
@@ -64,7 +64,7 @@ class LiveEventsFragment : Fragment() {
         
         // Load data - Start with "All" filter
         viewModel.loadEventCategories()
-        viewModel.filterEvents(null, "evt_cat_all")  // ✅ null = All events
+        viewModel.filterEvents(null, "evt_cat_all")
         
         // Start dynamic updates
         startDynamicUpdates()
@@ -118,11 +118,9 @@ class LiveEventsFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Select Stream Quality")
             .setItems(linkLabels) { dialog, which ->
-                // Create a modified event with only the selected link
-                val selectedLink = event.links[which]
-                val modifiedEvent = event.copy(links = listOf(selectedLink))
-                
-                PlayerActivity.startWithEvent(requireContext(), modifiedEvent)
+                // ✅ FIX: Pass the full event object containing all links.
+                // Pass the selected index 'which' so player knows what to start with.
+                PlayerActivity.startWithEvent(requireContext(), event, which)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -153,7 +151,7 @@ class LiveEventsFragment : Fragment() {
         binding.chipUpcoming.setOnClickListener(clickListener)
         binding.chipRecent.setOnClickListener(clickListener)
         
-        // ✅ Set initial selection to "All"
+        // Set initial selection to "All"
         binding.chipAll.isChecked = true
         selectedStatusFilter = null
     }
