@@ -11,6 +11,7 @@ import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.ChannelLink
 import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentFavoritesBinding
@@ -60,6 +61,7 @@ class FavoritesFragment : Fragment() {
                 if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
                     showLinkSelectionDialog(channel)
                 } else {
+                    // Single link or no links - play directly
                     PlayerActivity.startWithChannel(requireContext(), channel)
                 }
             },
@@ -78,9 +80,14 @@ class FavoritesFragment : Fragment() {
      * Convert FavoriteChannel to Channel with link support
      */
     private fun convertToChannel(favorite: FavoriteChannel): Channel {
-        // Check if the stream URL contains multiple links (from original channel data)
-        // For now, we'll use a simple conversion. If you want to preserve links,
-        // you'll need to store them in FavoriteChannelEntity
+        // Convert FavoriteChannel.links to Channel.links
+        val channelLinks = favorite.links?.map { favoriteLink ->
+            ChannelLink(
+                quality = favoriteLink.quality,
+                url = favoriteLink.url
+            )
+        }
+        
         return Channel(
             id = favorite.id,
             name = favorite.name,
@@ -88,7 +95,7 @@ class FavoritesFragment : Fragment() {
             streamUrl = favorite.streamUrl,
             categoryId = favorite.categoryId,
             categoryName = favorite.categoryName,
-            links = null // Will be loaded from original channel if needed
+            links = channelLinks
         )
     }
 
@@ -104,6 +111,7 @@ class FavoritesFragment : Fragment() {
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
                 
+                // Create modified channel with selected link as main URL
                 val modifiedChannel = channel.copy(
                     streamUrl = selectedLink.url
                 )
