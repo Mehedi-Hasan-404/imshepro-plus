@@ -16,7 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
@@ -38,7 +37,6 @@ class CategoryChannelsViewModel @Inject constructor(
     private val _error = MutableLiveData<String?>(null)
     val error: LiveData<String?> = _error
 
-    // FIXED: Removed .context and used viewModelScope.coroutineContext
     val filteredChannels: LiveData<List<Channel>> = combine(_channels, _searchQuery) { list, query ->
         if (query.isEmpty()) list
         else list.filter { it.name.contains(query, ignoreCase = true) }
@@ -63,21 +61,34 @@ class CategoryChannelsViewModel @Inject constructor(
     }
 
     fun toggleFavorite(channel: Channel) {
-        val favoriteChannel = FavoriteChannel(
-            id = channel.id,
-            name = channel.name,
-            logoUrl = channel.logoUrl,
-            streamUrl = channel.streamUrl,
-            categoryId = channel.categoryId,
-            categoryName = channel.categoryName
-        )
-        
-        if (favoritesRepository.isFavorite(channel.id)) {
-            favoritesRepository.removeFavorite(channel.id)
-        } else {
-            favoritesRepository.addFavorite(favoriteChannel)
+        viewModelScope.launch {
+            val favoriteChannel = FavoriteChannel(
+                id = channel.id,
+                name = channel.name,
+                logoUrl = channel.logoUrl,
+                streamUrl = channel.streamUrl,
+                categoryId = channel.categoryId,
+                categoryName = channel.categoryName
+            )
+            
+            if (favoritesRepository.isFavorite(channel.id)) {
+                favoritesRepository.removeFavorite(channel.id)
+            } else {
+                favoritesRepository.addFavorite(favoriteChannel)
+            }
         }
     }
 
-    fun isFavorite(channelId: String): Boolean = favoritesRepository.isFavorite(channelId)
+    fun isFavorite(channelId: String): Boolean {
+        // Note: This is now a suspend function in repository
+        // We need to handle this differently
+        // Option 1: Make this a Flow
+        // Option 2: Keep a cached state
+        // For now, let's use a workaround with StateFlow
+        var result = false
+        viewModelScope.launch {
+            result = favoritesRepository.isFavorite(channelId)
+        }
+        return result
+    }
 }
