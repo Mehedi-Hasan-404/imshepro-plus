@@ -52,11 +52,19 @@ class FavoritesFragment : Fragment() {
                     return@FavoriteAdapter
                 }
                 
-                if (favChannel.links != null && favChannel.links.size > 1) {
-                    showLinkSelectionDialog(favChannel)
+                [span_0](start_span)[span_1](start_span)// ✅ KEY FIX: Try to get the "Fresh" channel data first[span_0](end_span)[span_1](end_span)
+                // The DB snapshot might lack links if added long ago.
+                val liveChannel = viewModel.getLiveChannel(favChannel.id)
+                
+                // If live channel found, use it. Otherwise convert the favorite snapshot.
+                val finalChannel = liveChannel ?: convertToChannel(favChannel)
+
+                // Now check links on the FINAL channel object (which is fresh)
+                if (finalChannel.links != null && finalChannel.links.isNotEmpty() && finalChannel.links.size > 1) {
+                    showLinkSelectionDialog(finalChannel)
                 } else {
-                    val channel = convertToChannel(favChannel)
-                    PlayerActivity.startWithChannel(requireContext(), channel)
+                    // Start player directly with the fresh channel object
+                    PlayerActivity.startWithChannel(requireContext(), finalChannel)
                 }
             },
             onFavoriteToggle = { favChannel -> 
@@ -84,14 +92,16 @@ class FavoritesFragment : Fragment() {
             name = favorite.name,
             logoUrl = favorite.logoUrl,
             streamUrl = favorite.streamUrl,
-            categoryId = "favorites",
-            categoryName = "Favorites",
+            [span_2](start_span)// Use original category info[span_2](end_span) instead of hardcoding "favorites"
+            categoryId = favorite.categoryId,
+            categoryName = favorite.categoryName,
             links = channelLinks
         )
     }
 
-    private fun showLinkSelectionDialog(favorite: FavoriteChannel) {
-        val links = favorite.links ?: return
+    // ✅ UPDATED: Takes 'Channel' instead of 'FavoriteChannel' to support the fresh object
+    private fun showLinkSelectionDialog(channel: Channel) {
+        val links = channel.links ?: return
         val linkLabels = links.map { it.quality }.toTypedArray()
         
         MaterialAlertDialogBuilder(requireContext())
@@ -99,11 +109,12 @@ class FavoritesFragment : Fragment() {
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
                 
-                val channel = convertToChannel(favorite).copy(
+                // Create a copy with the selected URL for the player
+                val modifiedChannel = channel.copy(
                     streamUrl = selectedLink.url
                 )
                 
-                PlayerActivity.startWithChannel(requireContext(), channel, which)
+                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
