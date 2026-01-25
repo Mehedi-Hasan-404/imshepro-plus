@@ -52,11 +52,9 @@ class FavoritesFragment : Fragment() {
                     return@FavoriteAdapter
                 }
                 
-                // Check if channel has multiple links
-                if (favChannel.links != null && favChannel.links.isNotEmpty() && favChannel.links.size > 1) {
+                if (favChannel.links != null && favChannel.links.size > 1) {
                     showLinkSelectionDialog(favChannel)
                 } else {
-                    // Single link or no links - play directly
                     val channel = convertToChannel(favChannel)
                     PlayerActivity.startWithChannel(requireContext(), channel)
                 }
@@ -69,16 +67,11 @@ class FavoritesFragment : Fragment() {
         binding.recyclerViewFavorites.apply {
             layoutManager = GridLayoutManager(context, 3)
             adapter = favoriteAdapter
-            // Optimization: Prevents "blinking" when items are removed/updated
             itemAnimator = null 
         }
     }
 
-    /**
-     * Convert FavoriteChannel to Channel with link support
-     */
     private fun convertToChannel(favorite: FavoriteChannel): Channel {
-        // Convert FavoriteChannel.links to Channel.links
         val channelLinks = favorite.links?.map { favoriteLink ->
             ChannelLink(
                 quality = favoriteLink.quality,
@@ -97,9 +90,6 @@ class FavoritesFragment : Fragment() {
         )
     }
 
-    /**
-     * Show link selection dialog for favorite channels with multiple quality options
-     */
     private fun showLinkSelectionDialog(favorite: FavoriteChannel) {
         val links = favorite.links ?: return
         val linkLabels = links.map { it.quality }.toTypedArray()
@@ -109,7 +99,6 @@ class FavoritesFragment : Fragment() {
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
                 
-                // Convert to Channel with the selected link as main URL
                 val channel = convertToChannel(favorite).copy(
                     streamUrl = selectedLink.url
                 )
