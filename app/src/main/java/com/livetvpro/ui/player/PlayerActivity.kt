@@ -148,6 +148,10 @@ class PlayerActivity : AppCompatActivity() {
 
         parseIntent()
 
+        if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
+            viewModel.refreshChannelData(contentId)
+        }
+
         binding.progressBar.visibility = View.VISIBLE
         
         setupPlayer()
@@ -166,6 +170,24 @@ class PlayerActivity : AppCompatActivity() {
         setupRelatedChannels()
         setupLinksUI()
         loadRelatedContent()
+        
+        viewModel.refreshedChannel.observe(this) { freshChannel ->
+            if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
+                if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
+                    allEventLinks = freshChannel.links.map { 
+                        LiveEventLink(label = it.quality, url = it.url) 
+                    }
+                    
+                    val matchIndex = allEventLinks.indexOfFirst { it.url == streamUrl }
+                    if (matchIndex != -1) {
+                        currentLinkIndex = matchIndex
+                    }
+                    
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    updateLinksForOrientation(isLandscape)
+                }
+            }
+        }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerPipReceiver()
