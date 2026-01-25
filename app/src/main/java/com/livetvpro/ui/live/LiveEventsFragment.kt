@@ -116,7 +116,7 @@ class LiveEventsFragment : Fragment() {
         val linkLabels = event.links.map { it.label }.toTypedArray()
         
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select Stream Quality")
+            .setTitle("Select Stream")
             .setItems(linkLabels) { dialog, which ->
                 // ✅ FIX: Pass the full event object containing all links.
                 // Pass the selected index 'which' so player knows what to start with.
