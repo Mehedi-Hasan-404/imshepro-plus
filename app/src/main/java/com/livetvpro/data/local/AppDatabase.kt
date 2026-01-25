@@ -9,7 +9,7 @@ import com.livetvpro.data.local.entity.FavoriteChannelConverters
 
 @Database(
     entities = [FavoriteChannelEntity::class],
-    version = 2, 
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(FavoriteChannelConverters::class)
