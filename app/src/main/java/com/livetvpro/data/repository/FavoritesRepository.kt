@@ -16,7 +16,6 @@ class FavoritesRepository @Inject constructor(
 ) {
     private val gson = Gson()
     
-    // Get all favorites as Flow (for real-time updates)
     fun getFavoritesFlow(): Flow<List<FavoriteChannel>> {
         return favoriteDao.getAllFavorites().map { entities ->
             entities.map { it.toFavoriteChannel() }
@@ -25,7 +24,11 @@ class FavoritesRepository @Inject constructor(
 
     suspend fun addFavorite(channel: FavoriteChannel) {
         val linksJson = if (channel.links != null && channel.links.isNotEmpty()) {
-            gson.toJson(channel.links)
+            try {
+                gson.toJson(channel.links)
+            } catch (e: Exception) {
+                null
+            }
         } else {
             null
         }
@@ -40,6 +43,7 @@ class FavoritesRepository @Inject constructor(
             addedAt = channel.addedAt,
             linksJson = linksJson
         )
+        
         favoriteDao.insertFavorite(entity)
     }
 
@@ -60,9 +64,8 @@ class FavoritesRepository @Inject constructor(
     }
 }
 
-// Extension function to convert Entity to Model
 private fun FavoriteChannelEntity.toFavoriteChannel(): FavoriteChannel {
-    val links = if (linksJson != null && linksJson.isNotEmpty()) {
+    val links = if (!linksJson.isNullOrEmpty()) {
         try {
             val gson = Gson()
             val type = object : com.google.gson.reflect.TypeToken<List<ChannelLink>>() {}.type
