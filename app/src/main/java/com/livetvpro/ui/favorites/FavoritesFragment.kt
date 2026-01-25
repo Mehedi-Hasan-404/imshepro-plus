@@ -84,8 +84,8 @@ class FavoritesFragment : Fragment() {
             name = favorite.name,
             logoUrl = favorite.logoUrl,
             streamUrl = favorite.streamUrl,
-            categoryId = "favorites",
-            categoryName = "Favorites",
+            categoryId = favorite.categoryId,
+            categoryName = favorite.categoryName,
             links = channelLinks
         )
     }
