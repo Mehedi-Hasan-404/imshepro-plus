@@ -52,14 +52,12 @@ class FavoritesFragment : Fragment() {
                     return@FavoriteAdapter
                 }
                 
-                // Convert FavoriteChannel to Channel to handle playback logic
-                val channel = convertToChannel(favChannel)
-                
                 // Check if channel has multiple links
-                if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
-                    showLinkSelectionDialog(channel)
+                if (favChannel.links != null && favChannel.links.isNotEmpty() && favChannel.links.size > 1) {
+                    showLinkSelectionDialog(favChannel)
                 } else {
                     // Single link or no links - play directly
+                    val channel = convertToChannel(favChannel)
                     PlayerActivity.startWithChannel(requireContext(), channel)
                 }
             },
@@ -100,10 +98,10 @@ class FavoritesFragment : Fragment() {
     }
 
     /**
-     * Show link selection dialog for channels with multiple quality options
+     * Show link selection dialog for favorite channels with multiple quality options
      */
-    private fun showLinkSelectionDialog(channel: Channel) {
-        val links = channel.links ?: return
+    private fun showLinkSelectionDialog(favorite: FavoriteChannel) {
+        val links = favorite.links ?: return
         val linkLabels = links.map { it.quality }.toTypedArray()
         
         MaterialAlertDialogBuilder(requireContext())
@@ -111,12 +109,12 @@ class FavoritesFragment : Fragment() {
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
                 
-                // Create modified channel with selected link as main URL
-                val modifiedChannel = channel.copy(
+                // Convert to Channel with the selected link as main URL
+                val channel = convertToChannel(favorite).copy(
                     streamUrl = selectedLink.url
                 )
                 
-                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
+                PlayerActivity.startWithChannel(requireContext(), channel, which)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
