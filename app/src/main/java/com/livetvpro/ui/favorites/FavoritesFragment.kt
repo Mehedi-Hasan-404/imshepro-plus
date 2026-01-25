@@ -71,7 +71,7 @@ class FavoritesFragment : Fragment() {
         binding.recyclerViewFavorites.apply {
             layoutManager = GridLayoutManager(context, 3)
             adapter = favoriteAdapter
-            [span_0](start_span)// Optimization: Prevents "blinking" when items are removed/updated[span_0](end_span)
+            // Optimization: Prevents "blinking" when items are removed/updated
             itemAnimator = null 
         }
     }
