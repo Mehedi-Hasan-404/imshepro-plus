@@ -1,13 +1,11 @@
 package com.livetvpro.ui.favorites
 
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
-import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.data.models.Channel
@@ -19,7 +17,6 @@ import com.livetvpro.ui.adapters.FavoriteAdapter
 import com.livetvpro.ui.player.PlayerActivity
 import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -27,6 +24,7 @@ class FavoritesFragment : Fragment() {
 
     private var _binding: FragmentFavoritesBinding? = null
     private val binding get() = _binding!!
+    
     private val viewModel: FavoritesViewModel by viewModels()
     private lateinit var favoriteAdapter: FavoriteAdapter
     
@@ -54,7 +52,7 @@ class FavoritesFragment : Fragment() {
                     return@FavoriteAdapter
                 }
                 
-                // Convert FavoriteChannel to Channel
+                // Convert FavoriteChannel to Channel to handle playback logic
                 val channel = convertToChannel(favChannel)
                 
                 // Check if channel has multiple links
@@ -73,6 +71,8 @@ class FavoritesFragment : Fragment() {
         binding.recyclerViewFavorites.apply {
             layoutManager = GridLayoutManager(context, 3)
             adapter = favoriteAdapter
+            [span_0](start_span)// Optimization: Prevents "blinking" when items are removed/updated[span_0](end_span)
+            itemAnimator = null 
         }
     }
 
