@@ -11,6 +11,7 @@ import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import com.livetvpro.data.repository.LiveEventRepository
+import com.livetvpro.data.repository.NativeDataRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -19,7 +20,8 @@ import javax.inject.Inject
 class PlayerViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
     private val channelRepository: ChannelRepository,
-    private val liveEventRepository: LiveEventRepository
+    private val liveEventRepository: LiveEventRepository,
+    private val nativeDataRepository: NativeDataRepository // ✅ Added Injection
 ) : ViewModel() {
 
     private val _relatedItems = MutableLiveData<List<Channel>>()
@@ -28,9 +30,29 @@ class PlayerViewModel @Inject constructor(
     private val _isFavorite = MutableLiveData<Boolean>()
     val isFavorite: LiveData<Boolean> = _isFavorite
 
+    // ✅ NEW: LiveData to hold refreshed channel data
+    private val _refreshedChannel = MutableLiveData<Channel?>()
+    val refreshedChannel: LiveData<Channel?> = _refreshedChannel
+
     /**
-     * Check if a channel is favorited (async)
+     * ✅ NEW: Refresh channel data from the live repository using ID
+     * This fixes missing links if the intent data was stale (e.g. from Favorites)
      */
+    fun refreshChannelData(channelId: String) {
+        viewModelScope.launch {
+            try {
+                // nativeDataRepository.getChannels() returns the raw list from JSON
+                val allChannels = nativeDataRepository.getChannels()
+                val freshChannel = allChannels.find { it.id == channelId }
+                if (freshChannel != null) {
+                    _refreshedChannel.postValue(freshChannel)
+                }
+            } catch (e: Exception) {
+                // Ignore errors, stick to what we have
+            }
+        }
+    }
+
     fun checkFavoriteStatus(channelId: String) {
         viewModelScope.launch {
             val result = favoritesRepository.isFavorite(channelId)
@@ -38,9 +60,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Toggle favorite status (async)
-     */
     fun toggleFavorite(channel: Channel) {
         viewModelScope.launch {
             val currentStatus = favoritesRepository.isFavorite(channel.id)
@@ -48,7 +67,6 @@ class PlayerViewModel @Inject constructor(
                 favoritesRepository.removeFavorite(channel.id)
                 _isFavorite.value = false
             } else {
-                // Convert Channel.links to FavoriteChannel.links
                 val favoriteLinks = channel.links?.map { channelLink ->
                     ChannelLink(
                         quality = channelLink.quality,
@@ -63,7 +81,7 @@ class PlayerViewModel @Inject constructor(
                     streamUrl = channel.streamUrl,
                     categoryId = channel.categoryId,
                     categoryName = channel.categoryName,
-                    links = favoriteLinks // Include links
+                    links = favoriteLinks
                 )
                 favoritesRepository.addFavorite(favorite)
                 _isFavorite.value = true
@@ -71,9 +89,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Load related channels for the current channel
-     */
     fun loadRelatedChannels(categoryId: String, currentChannelId: String) {
         viewModelScope.launch {
             try {
@@ -122,21 +137,15 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Load related events for the current event
-     */
     fun loadRelatedEvents(currentEventId: String) {
         viewModelScope.launch {
             try {
                 val allEvents = liveEventRepository.getLiveEvents()
-                
-                // Filter: Get live and upcoming events, exclude current
                 val relatedEvents = allEvents.filter { event ->
                     event.id != currentEventId && 
                     (event.isLive || event.getStatus(System.currentTimeMillis()) == com.livetvpro.data.models.EventStatus.UPCOMING)
                 }
 
-                // Convert to Channel format WITH event-specific fields
                 val eventsAsChannels = relatedEvents.take(9).map { event ->
                     Channel(
                         id = event.id,
@@ -145,8 +154,6 @@ class PlayerViewModel @Inject constructor(
                         streamUrl = event.links.firstOrNull()?.url ?: "",
                         categoryId = "live_events",
                         categoryName = event.league,
-                        
-                        // Store event-specific data
                         team1Logo = event.team1Logo,
                         team2Logo = event.team2Logo,
                         isLive = event.isLive,
@@ -154,7 +161,6 @@ class PlayerViewModel @Inject constructor(
                         endTime = event.endTime ?: ""
                     )
                 }
-
                 _relatedItems.postValue(eventsAsChannels)
             } catch (e: Exception) {
                 _relatedItems.postValue(emptyList())
@@ -162,9 +168,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Get all events (used for switching between events)
-     */
     suspend fun getAllEvents(): List<LiveEvent> {
         return try {
             liveEventRepository.getLiveEvents()
