@@ -17,12 +17,9 @@ data class FavoriteChannelEntity(
     val categoryId: String,
     val categoryName: String,
     val addedAt: Long = System.currentTimeMillis(),
-    val linksJson: String? = null // Store links as JSON string
+    val linksJson: String? = null
 )
 
-/**
- * Room Type Converters for ChannelLink list
- */
 class FavoriteChannelConverters {
     private val gson = Gson()
     
