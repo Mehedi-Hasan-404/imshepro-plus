@@ -121,7 +121,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         val linkLabels = links.map { it.quality }.toTypedArray()
 
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select Stream Quality")
+            .setTitle("Select Stream")
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
 
