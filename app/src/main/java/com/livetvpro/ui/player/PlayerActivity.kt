@@ -144,7 +144,7 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
-        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_USER
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
 
         parseIntent()
 
