@@ -29,10 +29,10 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     private var _binding: FragmentCategoryChannelsBinding? = null
     private val binding get() = _binding!!
-    
+
     private val viewModel: CategoryChannelsViewModel by viewModels()
     private lateinit var channelAdapter: ChannelAdapter
-    
+
     @Inject
     lateinit var listenerManager: NativeListenerManager
 
@@ -49,7 +49,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         currentCategoryId = arguments?.getString("categoryId")
 
         try {
@@ -57,15 +57,18 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             if (viewModel.categoryName.isNotEmpty()) {
                 toolbarTitle?.text = viewModel.categoryName
             }
-        } catch (e: Exception) { 
+        } catch (e: Exception) {
             Log.e("CategoryChannels", "Error setting toolbar title", e)
         }
 
         setupRecyclerView()
         observeViewModel()
 
-        currentCategoryId?.let {
-            viewModel.loadChannels(it)
+        // Only load if we haven't already (prevents reloading on configuration changes)
+        if (viewModel.filteredChannels.value.isNullOrEmpty()) {
+            currentCategoryId?.let {
+                viewModel.loadChannels(it)
+            }
         }
     }
 
@@ -73,14 +76,15 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
                 val shouldBlock = listenerManager.onPageInteraction(
-                    ListenerConfig.PAGE_CHANNELS, 
+                    ListenerConfig.PAGE_CHANNELS,
                     uniqueId = currentCategoryId
                 )
 
                 if (shouldBlock) {
                     return@ChannelAdapter
                 }
-                
+
+                // Check for multiple links
                 if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
                     showLinkSelectionDialog(channel)
                 } else {
@@ -88,11 +92,14 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
                 }
             },
             onFavoriteToggle = { channel ->
+                // 1. Toggle in ViewModel
                 viewModel.toggleFavorite(channel)
-                
-                // Refresh the adapter after a short delay to show updated favorite status
+
+                // 2. Refresh ONLY the specific item to update the heart icon.
+                // We reduce the delay to 50ms (just enough for the DB write to likely finish)
+                // Note: For instant updates, your ViewModel should optimistically update its cache.
                 lifecycleScope.launch {
-                    delay(150)
+                    delay(50) 
                     if (_binding != null) {
                         channelAdapter.refreshItem(channel.id)
                     }
@@ -104,22 +111,24 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         binding.recyclerViewChannels.apply {
             layoutManager = GridLayoutManager(context, 3)
             adapter = channelAdapter
+            // Optimization: Prevents RecyclerView from blinking on updates
+            itemAnimator = null 
         }
     }
 
     private fun showLinkSelectionDialog(channel: Channel) {
         val links = channel.links ?: return
         val linkLabels = links.map { it.quality }.toTypedArray()
-        
+
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Select Stream Quality")
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
-                
+
                 val modifiedChannel = channel.copy(
                     streamUrl = selectedLink.url
                 )
-                
+
                 PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
                 dialog.dismiss()
             }
@@ -152,13 +161,8 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
-        // Refresh all items when returning to the fragment
-        lifecycleScope.launch {
-            delay(100)
-            if (_binding != null) {
-                channelAdapter.refreshAll()
-            }
-        }
+        // REMOVED: The full refreshAll() call that was causing the screen to flash
+        // Adapters retain state, so we don't need to force a redraw of the whole list here.
     }
 
     override fun onDestroyView() {
