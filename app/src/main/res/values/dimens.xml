@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Player Channel Dimensions -->
+    <dimen name="player_channel_stroke_width">2dp</dimen>
+    <dimen name="player_channel_logo_stroke_width">3dp</dimen>
+</resources>
