@@ -222,12 +222,12 @@ class RelatedChannelAdapter(
             binding.channelName.isSelected = true
 
             Glide.with(binding.channelLogo)
-                .load(channel.logoUrl)
-                .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .placeholder(R.drawable.ic_placeholder)
-                .error(R.drawable.ic_placeholder)
-                .centerInside()
-                .into(binding.channelLogo)
+    .load(channel.logoUrl)
+    .diskCacheStrategy(DiskCacheStrategy.ALL)
+    .placeholder(R.drawable.ic_channel_placeholder)
+    .error(R.drawable.ic_channel_placeholder)
+    .centerInside()
+    .into(binding.channelLogo)
 
             val cardView = binding.root as MaterialCardView
             cardView.strokeColor = ContextCompat.getColor(binding.root.context, R.color.player_channel_stroke)
