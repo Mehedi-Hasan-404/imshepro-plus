@@ -29,4 +29,9 @@
     
     <!-- Launcher Icon Background -->
     <color name="ic_launcher_background">#EF4444</color>
+    
+    <!-- Player Channel Stroke Colors -->
+    <color name="player_channel_stroke">#EF4444</color>
+    <color name="player_channel_stroke_selected">#EF4444</color>
+    <color name="player_channel_stroke_normal">#EF4444</color>
 </resources>
