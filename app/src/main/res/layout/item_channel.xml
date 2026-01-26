@@ -20,22 +20,30 @@
         android:paddingEnd="8dp"
         android:paddingBottom="8dp">
 
-        <!-- Circular Container for Logo with Red Stroke -->
+        <!-- Container with padding to prevent logo overflow -->
         <FrameLayout
-            android:id="@+id/logo_container"
-            android:layout_width="75dp"
-            android:layout_height="75dp"
+            android:id="@+id/logo_outer_container"
+            android:layout_width="79dp"
+            android:layout_height="79dp"
             android:layout_centerHorizontal="true"
-            android:background="@drawable/circular_logo_background">
+            android:padding="2dp">
 
-            <ImageView
-                android:id="@+id/channel_logo"
+            <!-- Circular Container for Logo with Red Stroke -->
+            <FrameLayout
+                android:id="@+id/logo_container"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:contentDescription="Channel logo"
-                android:padding="10dp"
-                android:scaleType="fitCenter" />
+                android:background="@drawable/circular_logo_background">
 
+                <ImageView
+                    android:id="@+id/channel_logo"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="Channel logo"
+                    android:padding="12dp"
+                    android:scaleType="fitCenter" />
+
+            </FrameLayout>
         </FrameLayout>
 
         <ImageView
@@ -54,7 +62,7 @@
             android:id="@+id/channel_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/logo_container"
+            android:layout_below="@id/logo_outer_container"
             android:layout_marginTop="6dp"
             android:textColor="@android:color/white"
             android:textSize="13sp"
