@@ -1,53 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/channel_card"
-    android:layout_width="120dp"
+    android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="6dp"
+    android:layout_margin="4dp"
     app:cardCornerRadius="12dp"
-    app:cardElevation="4dp"
-    app:strokeWidth="2dp"
-    app:strokeColor="@android:color/transparent"
-    app:cardBackgroundColor="#2A2A2A">
+    app:cardElevation="0dp"
+    app:strokeColor="@color/player_channel_stroke"
+    app:strokeWidth="@dimen/player_channel_stroke_width"
+    app:cardBackgroundColor="#1A1A1A"
+    android:foreground="?attr/selectableItemBackground">
 
-    <LinearLayout
+    <RelativeLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="8dp"
-        android:gravity="center">
+        android:layout_height="wrap_content">
 
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="80dp"
+        <ImageView
+            android:id="@+id/channel_logo"
+            android:layout_width="match_parent"
             android:layout_height="80dp"
-            app:cardCornerRadius="40dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="3dp"
-            app:strokeColor="#FF0000"
-            app:cardBackgroundColor="@android:color/transparent">
+            android:background="@android:color/transparent"
+            android:contentDescription="Channel logo"
+            android:padding="12dp"
+            android:scaleType="fitCenter" />
 
-            <ImageView
-                android:id="@+id/channel_logo"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:scaleType="centerCrop"
-                android:contentDescription="Channel Logo" />
-        </com.google.android.material.card.MaterialCardView>
+        <ImageView
+            android:id="@+id/favorite_indicator"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_alignParentEnd="true"
+            android:layout_margin="6dp"
+            android:contentDescription="Favorite indicator"
+            android:src="@drawable/ic_star_filled"
+            android:visibility="gone"
+            android:tint="@color/accent"
+            android:elevation="2dp" />
 
-        <TextView
-            android:id="@+id/channel_name"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Channel Name"
-            android:textColor="@android:color/white"
-            android:textSize="12sp"
-            android:textStyle="bold"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:gravity="center"
-            android:lineSpacingExtra="2dp" />
-    </LinearLayout>
+            android:layout_below="@id/channel_logo"
+            android:orientation="vertical"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="12dp"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/channel_name"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:textAlignment="center"
+                android:singleLine="true"
+                android:ellipsize="marquee"
+                android:marqueeRepeatLimit="marquee_forever"
+                android:scrollHorizontally="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true"
+                android:freezesText="true"/>
+
+        </LinearLayout>
+
+    </RelativeLayout>
 
 </com.google.android.material.card.MaterialCardView>
