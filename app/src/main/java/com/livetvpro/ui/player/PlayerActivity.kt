@@ -810,11 +810,16 @@ class PlayerActivity : AppCompatActivity() {
         binding.progressBar.visibility = View.GONE
         binding.errorText.apply {
             text = message
+            typeface = try {
+                resources.getFont(R.font.bergen_sans)
+            } catch (e: Exception) {
+                android.graphics.Typeface.DEFAULT
+            }
             setTextColor(android.graphics.Color.WHITE)
-            textSize = 16f
-            setPadding(48, 24, 48, 24)
-            setBackgroundColor(android.graphics.Color.parseColor("#2196F3"))
-            elevation = 8f
+            textSize = 18f
+            setPadding(64, 32, 64, 32)
+            setBackgroundResource(R.drawable.error_message_background)
+            elevation = 0f
         }
         binding.errorView.visibility = View.VISIBLE
     }
