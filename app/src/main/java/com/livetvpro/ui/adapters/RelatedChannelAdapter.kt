@@ -221,14 +221,16 @@ class RelatedChannelAdapter(
             binding.channelName.text = channel.name
             binding.channelName.isSelected = true
 
+            // Load logo without circleCrop since the background drawable handles the shape
             Glide.with(binding.channelLogo)
-    .load(channel.logoUrl)
-    .diskCacheStrategy(DiskCacheStrategy.ALL)
-    .placeholder(R.drawable.ic_channel_placeholder)
-    .error(R.drawable.ic_channel_placeholder)
-    .centerInside()
-    .into(binding.channelLogo)
+                .load(channel.logoUrl)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
+                .placeholder(R.drawable.ic_channel_placeholder)
+                .error(R.drawable.ic_channel_placeholder)
+                .fitCenter()
+                .into(binding.channelLogo)
 
+            // Set card stroke with reduced width
             val cardView = binding.root as MaterialCardView
             cardView.strokeColor = ContextCompat.getColor(binding.root.context, R.color.player_channel_stroke)
             cardView.strokeWidth = binding.root.resources.getDimensionPixelSize(R.dimen.player_channel_stroke_width)
