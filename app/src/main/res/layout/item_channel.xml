@@ -25,7 +25,7 @@
             app:strokeColor="@color/player_channel_stroke"
             app:strokeWidth="@dimen/player_channel_logo_stroke_width"
             app:cardElevation="0dp"
-            app:cardBackgroundColor="@android:color/transparent">
+            app:cardBackgroundColor="@android:color/white">
 
             <ImageView
                 android:id="@+id/channel_logo"
@@ -33,6 +33,7 @@
                 android:layout_height="match_parent"
                 android:contentDescription="Channel logo"
                 android:padding="12dp"
+                android:background="@android:color/white"
                 android:scaleType="fitCenter" />
 
         </com.google.android.material.card.MaterialCardView>
