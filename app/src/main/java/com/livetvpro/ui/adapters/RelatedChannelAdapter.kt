@@ -228,7 +228,10 @@ class RelatedChannelAdapter(
             // CardView with corner radius handles the circular clipping automatically
             // No need for ViewOutlineProvider here
 
-            // Load logo
+            // Load logo with white background
+            // Set ImageView background to white first to force white behind transparent logos
+            binding.channelLogo.setBackgroundColor(android.graphics.Color.WHITE)
+            
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
