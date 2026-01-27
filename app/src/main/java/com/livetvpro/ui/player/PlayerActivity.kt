@@ -978,6 +978,15 @@ class PlayerActivity : AppCompatActivity() {
         btnPip?.visibility = View.VISIBLE
         btnFullscreen?.visibility = View.VISIBLE
         tvChannelName?.text = contentName
+        
+        try {
+            val bergenSansFont = resources.getFont(R.font.bergen_sans)
+            tvChannelName?.typeface = bergenSansFont
+            
+            binding.playerView.findViewById<TextView>(R.id.exo_position)?.typeface = bergenSansFont
+            binding.playerView.findViewById<TextView>(R.id.exo_duration)?.typeface = bergenSansFont
+        } catch (e: Exception) {
+        }
     }
 
     private fun setupControlListeners() {
