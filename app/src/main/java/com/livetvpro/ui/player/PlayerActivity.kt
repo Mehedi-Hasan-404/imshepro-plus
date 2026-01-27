@@ -152,6 +152,10 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.progressBar.visibility = View.VISIBLE
         
+        binding.relatedChannelsSection.visibility = View.VISIBLE
+        binding.relatedLoadingProgress.visibility = View.VISIBLE
+        binding.relatedChannelsRecycler.visibility = View.GONE
+        
         setupPlayer()
         
         binding.playerView.postDelayed({
@@ -962,7 +966,7 @@ class PlayerActivity : AppCompatActivity() {
         btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
         updateMuteIcon()
         btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-        updatePlayPauseIcon(player?.isPlaying == true)
+        btnPlayPause?.setImageResource(R.drawable.ic_pause)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
         val currentOrientation = resources.configuration.orientation
         if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
