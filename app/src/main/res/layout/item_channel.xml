@@ -48,7 +48,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:contentDescription="Channel logo"
-                        android:padding="4dp"
+                        android:padding="3dp"
                         android:scaleType="fitCenter" />
 
                 </FrameLayout>
