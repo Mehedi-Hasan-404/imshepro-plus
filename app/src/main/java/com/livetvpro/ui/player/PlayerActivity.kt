@@ -152,10 +152,6 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.progressBar.visibility = View.VISIBLE
         
-        binding.relatedChannelsSection.visibility = View.VISIBLE
-        binding.relatedLoadingProgress.visibility = View.VISIBLE
-        binding.relatedChannelsRecycler.visibility = View.GONE
-        
         setupPlayer()
         
         binding.playerView.postDelayed({
