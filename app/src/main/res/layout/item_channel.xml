@@ -34,17 +34,15 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@drawable/circular_logo_background"
-                android:clipChildren="true"
-                android:clipToPadding="true">
+                android:clipToOutline="true">
 
                 <ImageView
                     android:id="@+id/channel_logo"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:contentDescription="Channel logo"
-                    android:padding="8dp"
-                    android:scaleType="fitCenter"
-                    android:adjustViewBounds="true" />
+                    android:padding="10dp"
+                    android:scaleType="fitCenter" />
 
             </FrameLayout>
         </FrameLayout>
