@@ -222,12 +222,12 @@ class RelatedChannelAdapter(
         fun bind(channel: Channel) {
             binding.channelName.text = channel.name
             
-            // Enable marquee scroll - CRITICAL: Must be done in this exact order
+            // Enable marquee scroll
             binding.channelName.post {
                 binding.channelName.isSelected = true
             }
 
-            // Apply circular clipping to logo container
+            // Apply circular clipping to logo container to ensure logo stays within bounds
             binding.logoContainer.outlineProvider = object : ViewOutlineProvider() {
                 override fun getOutline(view: View, outline: Outline) {
                     outline.setOval(0, 0, view.width, view.height)
@@ -235,7 +235,7 @@ class RelatedChannelAdapter(
             }
             binding.logoContainer.clipToOutline = true
 
-            // Load logo with proper clipping
+            // Load logo
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
@@ -244,7 +244,7 @@ class RelatedChannelAdapter(
                 .fitCenter()
                 .into(binding.channelLogo)
 
-            // Set card stroke with reduced width
+            // Set card stroke
             val cardView = binding.root as MaterialCardView
             cardView.strokeColor = ContextCompat.getColor(binding.root.context, R.color.player_channel_stroke)
             cardView.strokeWidth = binding.root.resources.getDimensionPixelSize(R.dimen.player_channel_stroke_width)
