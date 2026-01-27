@@ -28,23 +28,36 @@
             android:layout_centerHorizontal="true"
             android:padding="2dp">
 
-            <!-- Circular Container for Logo with Red Stroke -->
+            <!-- White circular background -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/circular_logo_background" />
+
+            <!-- Logo ImageView (clipped to circle) -->
             <FrameLayout
                 android:id="@+id/logo_container"
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/circular_logo_background"
-                android:clipToOutline="true">
+                android:layout_height="match_parent">
 
                 <ImageView
                     android:id="@+id/channel_logo"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:contentDescription="Channel logo"
-                    android:padding="10dp"
+                    android:padding="8dp"
                     android:scaleType="fitCenter" />
 
             </FrameLayout>
+
+            <!-- Red stroke overlay (on top of logo) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/circular_logo_stroke_overlay"
+                android:clickable="false"
+                android:focusable="false" />
+
         </FrameLayout>
 
         <ImageView
