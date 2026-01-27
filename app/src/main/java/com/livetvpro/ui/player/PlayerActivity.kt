@@ -1076,6 +1076,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupLockOverlay() {
+        binding.unlockButton.background = resources.getDrawable(R.drawable.ripple_square_white, null)
         binding.unlockButton.setOnClickListener { toggleLock() }
         binding.lockOverlay.setOnClickListener {
             if (binding.unlockButton.visibility == View.VISIBLE) hideUnlockButton() else showUnlockButton()
