@@ -40,7 +40,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:contentDescription="Channel logo"
-                    android:padding="12dp"
+                    android:padding="6dp"
                     android:scaleType="fitCenter" />
 
             </FrameLayout>
@@ -70,7 +70,12 @@
             android:gravity="center"
             android:textAlignment="center"
             android:maxLines="1"
-            android:ellipsize="end"/>
+            android:ellipsize="marquee"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:scrollHorizontally="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:fontFamily="@font/bergen_sans"/>
 
     </RelativeLayout>
 
