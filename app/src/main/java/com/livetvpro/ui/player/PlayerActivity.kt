@@ -942,7 +942,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updatePlayPauseIcon(isPlaying: Boolean) {
-        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
+        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause_filled else R.drawable.ic_play_filled)
     }
 
     private fun bindControllerViews() {
@@ -966,7 +966,7 @@ class PlayerActivity : AppCompatActivity() {
         btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
         updateMuteIcon()
         btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-        btnPlayPause?.setImageResource(R.drawable.ic_pause)
+        btnPlayPause?.setImageResource(R.drawable.ic_play_filled)
         btnForward?.setImageResource(R.drawable.ic_skip_forward)
         val currentOrientation = resources.configuration.orientation
         if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
