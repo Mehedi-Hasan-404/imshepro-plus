@@ -37,10 +37,12 @@
 
             <ImageButton
                 android:id="@+id/unlock_button"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:layout_gravity="center"
-                android:background="@drawable/button_hover_effect"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_gravity="top|start"
+                android:layout_marginStart="4dp"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/ripple_square_white"
                 android:src="@drawable/ic_lock_closed"
                 android:tint="@android:color/white"
                 android:contentDescription="Unlock controls"
