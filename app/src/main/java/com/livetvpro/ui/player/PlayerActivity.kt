@@ -938,7 +938,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updatePlayPauseIcon(isPlaying: Boolean) {
-        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause_filled else R.drawable.ic_play_filled)
+        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
     }
 
     private fun bindControllerViews() {
@@ -956,27 +956,16 @@ class PlayerActivity : AppCompatActivity() {
             tvChannelName = findViewById(R.id.exo_channel_name)
         }
         
-        btnBack?.setImageResource(R.drawable.ic_arrow_back)
-        btnPip?.setImageResource(R.drawable.ic_pip)
-        btnSettings?.setImageResource(R.drawable.ic_settings)
         btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
         updateMuteIcon()
-        btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-        btnPlayPause?.setImageResource(R.drawable.ic_play_filled)
-        btnForward?.setImageResource(R.drawable.ic_skip_forward)
+        updatePlayPauseIcon(player?.isPlaying == true)
         val currentOrientation = resources.configuration.orientation
         if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         }
-        btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
-        listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-            it?.apply { isClickable = true; isFocusable = true; isEnabled = true }
-        }
-        btnAspectRatio?.visibility = View.VISIBLE
-        btnPip?.visibility = View.VISIBLE
-        btnFullscreen?.visibility = View.VISIBLE
+        
         tvChannelName?.text = contentName
         
         try {
