@@ -1,10 +1,8 @@
 package com.livetvpro.ui.adapters
 
-import android.graphics.Outline
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewOutlineProvider
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
@@ -227,13 +225,8 @@ class RelatedChannelAdapter(
                 binding.channelName.isSelected = true
             }
 
-            // Apply circular clipping to logo container to ensure logo stays within bounds
-            binding.logoContainer.outlineProvider = object : ViewOutlineProvider() {
-                override fun getOutline(view: View, outline: Outline) {
-                    outline.setOval(0, 0, view.width, view.height)
-                }
-            }
-            binding.logoContainer.clipToOutline = true
+            // CardView with corner radius handles the circular clipping automatically
+            // No need for ViewOutlineProvider here
 
             // Load logo
             Glide.with(binding.channelLogo)
