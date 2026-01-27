@@ -219,9 +219,14 @@ class RelatedChannelAdapter(
 
         fun bind(channel: Channel) {
             binding.channelName.text = channel.name
+            
+            // Enable marquee scroll
             binding.channelName.isSelected = true
+            binding.channelName.isSingleLine = true
+            binding.channelName.ellipsize = android.text.TextUtils.TruncateAt.MARQUEE
+            binding.channelName.marqueeRepeatLimit = -1 // Infinite marquee
 
-            // Load logo without circleCrop since the background drawable handles the shape
+            // Load logo with reduced padding for zoom effect
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
