@@ -816,11 +816,18 @@ class PlayerActivity : AppCompatActivity() {
                 android.graphics.Typeface.DEFAULT
             }
             setTextColor(android.graphics.Color.WHITE)
-            textSize = 18f
-            setPadding(64, 32, 64, 32)
+            textSize = 15f
+            setPadding(48, 20, 48, 20)
             setBackgroundResource(R.drawable.error_message_background)
             elevation = 0f
         }
+        
+        val layoutParams = binding.errorView.layoutParams
+        if (layoutParams is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams) {
+            layoutParams.verticalBias = 0.35f
+            binding.errorView.layoutParams = layoutParams
+        }
+        
         binding.errorView.visibility = View.VISIBLE
     }
 
