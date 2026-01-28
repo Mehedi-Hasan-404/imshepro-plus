@@ -140,6 +140,11 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        val currentOrientation = resources.configuration.orientation
+        val isInitiallyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        setWindowFlags(isInitiallyLandscape)
+        
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -157,7 +162,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.postDelayed({
             bindControllerViews()
             
-            val currentOrientation = resources.configuration.orientation
             val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
         }, 100)
@@ -442,8 +446,19 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-        applyOrientationSettings(isLandscape)
-        setSubtitleTextSize()
+        
+        setWindowFlags(isLandscape)
+        
+        binding.playerView.postDelayed({
+            adjustLayoutForOrientation(isLandscape)
+            updateLinksForOrientation(isLandscape)
+            setSubtitleTextSize()
+            
+            btnFullscreen?.setImageResource(
+                if (isLandscape) R.drawable.ic_fullscreen_exit 
+                else R.drawable.ic_fullscreen
+            )
+        }, 50)
     }
 
     override fun onResume() {
@@ -470,32 +485,43 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        
         if (isLandscape) {
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
             params.dimensionRatio = null
             params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+            params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.topMargin = 0
+            params.bottomMargin = 0
+            params.startMargin = 0
+            params.endMargin = 0
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
+            
         } else {
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
             params.dimensionRatio = "16:9"
             params.height = 0
-            
-            val statusBarHeight = getStatusBarHeight()
-            params.topMargin = statusBarHeight
-            
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.topMargin = 0
+            params.bottomMargin = 0
+            params.startMargin = 0
+            params.endMargin = 0
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             
             if (relatedChannels.isNotEmpty()) {
@@ -506,17 +532,13 @@ class PlayerActivity : AppCompatActivity() {
                 binding.linksSection.visibility = View.VISIBLE
             }
         }
+        
         binding.playerContainer.layoutParams = params
         binding.playerContainer.requestLayout()
-    }
-
-    private fun getStatusBarHeight(): Int {
-        var result = 0
-        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
-        if (resourceId > 0) {
-            result = resources.getDimensionPixelSize(resourceId)
+        
+        binding.playerView.post {
+            binding.playerView.requestLayout()
         }
-        return result
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
@@ -525,8 +547,7 @@ class PlayerActivity : AppCompatActivity() {
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.hide(
-                        WindowInsets.Type.statusBars() or
-                                WindowInsets.Type.navigationBars()
+                        WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
                     )
                     controller.systemBarsBehavior =
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -542,25 +563,24 @@ class PlayerActivity : AppCompatActivity() {
                                 or View.SYSTEM_UI_FLAG_FULLSCREEN
                         )
             }
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
                 }
             }
+            
         } else {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(true)
                 window.insetsController?.show(
-                    WindowInsets.Type.statusBars() or
-                            WindowInsets.Type.navigationBars()
+                    WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars()
                 )
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                )
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             }
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
