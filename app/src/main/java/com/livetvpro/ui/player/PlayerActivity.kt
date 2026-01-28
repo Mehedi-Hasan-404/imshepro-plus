@@ -313,7 +313,10 @@ class PlayerActivity : AppCompatActivity() {
         
         if (allEventLinks.size > 1) {
             if (isLandscape) {
+                // Hide portrait links section completely in landscape
                 binding.linksSection.visibility = View.GONE
+                
+                // Show landscape links in controller
                 landscapeLinksRecycler?.visibility = View.VISIBLE
                 
                 val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
@@ -322,13 +325,17 @@ class PlayerActivity : AppCompatActivity() {
                     landscapeAdapter.setSelectedPosition(currentLinkIndex)
                 }
             } else {
+                // Show portrait links section
                 binding.linksSection.visibility = View.VISIBLE
+                
+                // Hide landscape links
                 landscapeLinksRecycler?.visibility = View.GONE
                 
                 linkChipAdapter.submitList(allEventLinks)
                 linkChipAdapter.setSelectedPosition(currentLinkIndex)
             }
         } else {
+            // No links or only 1 link - hide both
             binding.linksSection.visibility = View.GONE
             landscapeLinksRecycler?.visibility = View.GONE
         }
@@ -442,6 +449,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
     }
@@ -481,6 +489,8 @@ class PlayerActivity : AppCompatActivity() {
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+            
+            // Hide all sections in landscape
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
         } else {
@@ -498,16 +508,45 @@ class PlayerActivity : AppCompatActivity() {
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             
-            if (relatedChannels.isNotEmpty()) {
-                binding.relatedChannelsSection.visibility = View.VISIBLE
+            // Properly restore constraint params for portrait
+            val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
+            linksParams.width = 0  // 0dp with constraints
+            linksParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
+            linksParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            linksParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            linksParams.topToBottom = binding.playerContainer.id
+            binding.linksSection.layoutParams = linksParams
+            
+            val relatedParams = binding.relatedChannelsSection.layoutParams as ConstraintLayout.LayoutParams
+            relatedParams.width = 0  // 0dp with constraints
+            relatedParams.height = 0  // 0dp with constraints (will fill remaining space)
+            relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            relatedParams.topToBottom = binding.linksSection.id
+            relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            binding.relatedChannelsSection.layoutParams = relatedParams
+            
+            // Show sections in portrait based on content availability
+            binding.linksSection.post {
+                if (allEventLinks.size > 1) {
+                    binding.linksSection.visibility = View.VISIBLE
+                } else {
+                    binding.linksSection.visibility = View.GONE
+                }
             }
             
-            if (allEventLinks.size > 1) {
-                binding.linksSection.visibility = View.VISIBLE
+            binding.relatedChannelsSection.post {
+                if (relatedChannels.isNotEmpty()) {
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
+                } else {
+                    binding.relatedChannelsSection.visibility = View.GONE
+                }
             }
         }
         binding.playerContainer.layoutParams = params
-        binding.playerContainer.requestLayout()
+        binding.root.post {
+            binding.root.requestLayout()
+        }
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
