@@ -491,8 +491,8 @@ class PlayerActivity : AppCompatActivity() {
             params.dimensionRatio = "16:9"
             params.height = 0
             
-            val statusBarHeight = getStatusBarHeight()
-            params.topMargin = statusBarHeight
+            // Fixed: Remove manual status bar margin - fitsSystemWindows handles this
+            params.topMargin = 0
             
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
@@ -508,15 +508,6 @@ class PlayerActivity : AppCompatActivity() {
         }
         binding.playerContainer.layoutParams = params
         binding.playerContainer.requestLayout()
-    }
-
-    private fun getStatusBarHeight(): Int {
-        var result = 0
-        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
-        if (resourceId > 0) {
-            result = resources.getDimensionPixelSize(resourceId)
-        }
-        return result
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
