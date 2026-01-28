@@ -380,9 +380,9 @@ class PlayerActivity : AppCompatActivity() {
             streamUrl = newChannel.streamUrl
         }
         
-        setupPlayer()
-        
         tvChannelName?.text = contentName
+        
+        setupPlayer()
         setupLinksUI()
         
         binding.relatedLoadingProgress.visibility = View.VISIBLE
@@ -405,12 +405,9 @@ class PlayerActivity : AppCompatActivity() {
                     allEventLinks = event.links
                     currentLinkIndex = 0
                     streamUrl = allEventLinks.firstOrNull()?.url ?: ""
-                    
-                    setupPlayer()
-                    
                     tvChannelName?.text = contentName
+                    setupPlayer()
                     setupLinksUI()
-                    
                     binding.relatedLoadingProgress.visibility = View.VISIBLE
                     binding.relatedChannelsRecycler.visibility = View.GONE
                     loadRelatedContent()
@@ -559,7 +556,10 @@ class PlayerActivity : AppCompatActivity() {
                 )
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
@@ -976,51 +976,49 @@ class PlayerActivity : AppCompatActivity() {
                 tvChannelName = findViewById(R.id.exo_channel_name)
             }
             
-            updateControllerViews()
-        }
-    }
-
-    private fun updateControllerViews() {
-        btnBack?.setImageResource(R.drawable.ic_arrow_back)
-        btnPip?.setImageResource(R.drawable.ic_pip)
-        btnSettings?.setImageResource(R.drawable.ic_settings)
-        btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
-        updateMuteIcon()
-        btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-        updatePlayPauseIcon(player?.isPlaying == true)
-        btnForward?.setImageResource(R.drawable.ic_skip_forward)
-        btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
-        
-        val currentOrientation = resources.configuration.orientation
-        if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-        } else {
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-        }
-        
-        listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, 
-               btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-            it?.apply { 
-                isClickable = true
-                isFocusable = true
-                isEnabled = true
-                visibility = View.VISIBLE
-            }
-        }
-        
-        btnAspectRatio?.visibility = View.VISIBLE
-        btnPip?.visibility = View.VISIBLE
-        btnFullscreen?.visibility = View.VISIBLE
-        
-        tvChannelName?.text = contentName
-        
-        try {
-            val bergenSansFont = resources.getFont(R.font.bergen_sans)
-            tvChannelName?.typeface = bergenSansFont
+            btnBack?.setImageResource(R.drawable.ic_arrow_back)
+            btnPip?.setImageResource(R.drawable.ic_pip)
+            btnSettings?.setImageResource(R.drawable.ic_settings)
+            btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
+            updateMuteIcon()
+            btnRewind?.setImageResource(R.drawable.ic_skip_backward)
+            updatePlayPauseIcon(player?.isPlaying == true)
+            btnForward?.setImageResource(R.drawable.ic_skip_forward)
+            btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
             
-            binding.playerView.findViewById<TextView>(R.id.exo_position)?.typeface = bergenSansFont
-            binding.playerView.findViewById<TextView>(R.id.exo_duration)?.typeface = bergenSansFont
-        } catch (e: Exception) {
+            val currentOrientation = resources.configuration.orientation
+            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+            } else {
+                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+            }
+            
+            listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, 
+                   btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
+                it?.apply { 
+                    isClickable = true
+                    isFocusable = true
+                    isEnabled = true
+                    visibility = View.VISIBLE
+                }
+            }
+            
+            btnAspectRatio?.visibility = View.VISIBLE
+            btnPip?.visibility = View.VISIBLE
+            btnFullscreen?.visibility = View.VISIBLE
+            
+            tvChannelName?.text = contentName
+            
+            try {
+                val bergenSansFont = resources.getFont(R.font.bergen_sans)
+                tvChannelName?.typeface = bergenSansFont
+                
+                binding.playerView.findViewById<TextView>(R.id.exo_position)?.typeface = bergenSansFont
+                binding.playerView.findViewById<TextView>(R.id.exo_duration)?.typeface = bergenSansFont
+            } catch (e: Exception) {
+            }
+            
+            setupControlListeners()
         }
     }
 
