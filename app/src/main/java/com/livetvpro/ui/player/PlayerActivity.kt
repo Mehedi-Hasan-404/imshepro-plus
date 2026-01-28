@@ -452,6 +452,12 @@ class PlayerActivity : AppCompatActivity() {
         
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
+        
+        // Force layout to recalculate after orientation change
+        binding.root.postDelayed({
+            binding.root.requestLayout()
+            binding.playerContainer.requestLayout()
+        }, 50)
     }
 
     override fun onResume() {
@@ -578,7 +584,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait mode - show system bars and clear all fullscreen flags
+            // Portrait mode - completely clear all fullscreen flags
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(true)
                 window.insetsController?.let { controller ->
@@ -591,13 +597,18 @@ class PlayerActivity : AppCompatActivity() {
                 }
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                // Clear ALL flags by setting to 0
+                window.decorView.systemUiVisibility = 0
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
                 }
             }
+            
+            // Force clear any window flags that might be set
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
         }
     }
 
