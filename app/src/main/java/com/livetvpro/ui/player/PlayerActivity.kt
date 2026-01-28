@@ -462,6 +462,11 @@ class PlayerActivity : AppCompatActivity() {
         setWindowFlags(isLandscape)
         adjustLayoutForOrientation(isLandscape)
         updateLinksForOrientation(isLandscape)
+        
+        btnFullscreen?.setImageResource(
+            if (isLandscape) R.drawable.ic_fullscreen_exit 
+            else R.drawable.ic_fullscreen
+        )
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
@@ -951,7 +956,7 @@ class PlayerActivity : AppCompatActivity() {
             btnRewind = findViewById(R.id.exo_rewind)
             btnPlayPause = findViewById(R.id.exo_play_pause)
             btnForward = findViewById(R.id.exo_forward)
-            btnFullscreen = findViewById(R.id.exo_fullscreen) 
+            btnFullscreen = findViewById(R.id.exo_fullscreen)
             btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
             tvChannelName = findViewById(R.id.exo_channel_name)
         }
@@ -959,6 +964,7 @@ class PlayerActivity : AppCompatActivity() {
         btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
         updateMuteIcon()
         updatePlayPauseIcon(player?.isPlaying == true)
+        
         val currentOrientation = resources.configuration.orientation
         if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
@@ -1018,7 +1024,16 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        btnFullscreen?.setOnClickListener { if (!isLocked) toggleFullscreen() }
+        btnFullscreen?.apply {
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { 
+                if (!isLocked) {
+                    toggleFullscreen()
+                }
+            }
+        }
+        
         btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
     }
 
