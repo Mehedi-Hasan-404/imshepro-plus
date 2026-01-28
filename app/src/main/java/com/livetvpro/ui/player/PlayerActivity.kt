@@ -557,6 +557,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
+            // Landscape - Full immersive mode
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
@@ -584,9 +585,9 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait mode - completely clear all fullscreen flags
+            // Portrait - Let fitsSystemWindows handle padding automatically
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true)
+                window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.show(
                         WindowInsets.Type.statusBars() or
@@ -597,7 +598,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
             } else {
                 @Suppress("DEPRECATION")
-                // Clear ALL flags by setting to 0
+                // Clear all flags to show system bars
                 window.decorView.systemUiVisibility = 0
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -605,10 +606,6 @@ class PlayerActivity : AppCompatActivity() {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
                 }
             }
-            
-            // Force clear any window flags that might be set
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-            window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
         }
     }
 
@@ -1386,6 +1383,7 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
+            // Entering PiP mode - hide everything
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
             binding.playerView.useController = false 
@@ -1394,6 +1392,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
         } else {
+            // Exiting PiP mode - restore everything
             userRequestedPip = false
             
             if (isFinishing) {
@@ -1404,6 +1403,17 @@ class PlayerActivity : AppCompatActivity() {
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
+            
+            // Explicitly restore sections visibility based on content and orientation
+            if (!isLandscape) {
+                // Portrait mode - show sections if there's content
+                if (allEventLinks.size > 1) {
+                    binding.linksSection.visibility = View.VISIBLE
+                }
+                if (relatedChannels.isNotEmpty()) {
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
+                }
+            }
             
             if (wasLockedBeforePip) {
                 isLocked = true
