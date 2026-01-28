@@ -26,6 +26,8 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -450,18 +452,14 @@ class PlayerActivity : AppCompatActivity() {
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
-        // Apply orientation settings immediately
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
-        
-        // Force the system to apply the window flags
-        window.decorView.requestLayout()
         
         // Force layout to recalculate after orientation change
         binding.root.postDelayed({
             binding.root.requestLayout()
             binding.playerContainer.requestLayout()
-        }, 100)
+        }, 50)
     }
 
     override fun onResume() {
@@ -491,33 +489,18 @@ class PlayerActivity : AppCompatActivity() {
         if (isLandscape) {
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             params.dimensionRatio = null
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.topMargin = 0
-            params.bottomMargin = 0
-            params.marginStart = 0
-            params.marginEnd = 0
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             
-            // Force hide and collapse all sections in landscape
+            // Hide all sections in landscape
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
-            
-            // Force zero height to completely collapse them
-            val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
-            linksParams.height = 0
-            binding.linksSection.layoutParams = linksParams
-            
-            val relatedParams = binding.relatedChannelsSection.layoutParams as ConstraintLayout.LayoutParams
-            relatedParams.height = 0
-            binding.relatedChannelsSection.layoutParams = relatedParams
         } else {
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 5000
@@ -526,7 +509,7 @@ class PlayerActivity : AppCompatActivity() {
             params.dimensionRatio = "16:9"
             params.height = 0
             
-            // Fixed: Remove manual status bar margin - fitsSystemWindows handles this
+            // Let fitsSystemWindows handle the top padding automatically
             params.topMargin = 0
             
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
@@ -576,11 +559,14 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // Landscape - Full immersive edge-to-edge
+            // Landscape - Full immersive mode
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
-                    controller.hide(WindowInsets.Type.systemBars())
+                    controller.hide(
+                        WindowInsets.Type.statusBars() or
+                                WindowInsets.Type.navigationBars()
+                    )
                     controller.systemBarsBehavior =
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
@@ -601,18 +587,19 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait - Edge-to-edge with automatic inset padding
+            // Portrait - Show status bar, let fitsSystemWindows handle padding
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
-                    controller.show(WindowInsets.Type.systemBars())
+                    controller.show(WindowInsets.Type.statusBars())
+                    controller.show(WindowInsets.Type.navigationBars())
                 }
             } else {
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                )
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        )
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
@@ -1254,8 +1241,8 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        // Don't hide sections - they should remain visible in the background activity
-        // Only hide the player controller and lock overlay for PIP
+        binding.relatedChannelsSection.visibility = View.GONE
+        binding.linksSection.visibility = View.GONE
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
@@ -1396,7 +1383,9 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // Entering PiP mode - only hide controller, keep sections visible in background
+            // Entering PiP mode - hide everything
+            binding.relatedChannelsSection.visibility = View.GONE
+            binding.linksSection.visibility = View.GONE
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
@@ -1414,6 +1403,17 @@ class PlayerActivity : AppCompatActivity() {
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
+            
+            // Explicitly restore sections visibility based on content and orientation
+            if (!isLandscape) {
+                // Portrait mode - show sections if there's content
+                if (allEventLinks.size > 1) {
+                    binding.linksSection.visibility = View.VISIBLE
+                }
+                if (relatedChannels.isNotEmpty()) {
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
+                }
+            }
             
             if (wasLockedBeforePip) {
                 isLocked = true
