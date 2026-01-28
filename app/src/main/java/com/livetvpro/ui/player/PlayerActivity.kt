@@ -1241,8 +1241,8 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        binding.relatedChannelsSection.visibility = View.GONE
-        binding.linksSection.visibility = View.GONE
+        // Don't hide sections - they should remain visible in the background activity
+        // Only hide the player controller and lock overlay for PIP
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
@@ -1383,9 +1383,7 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // Entering PiP mode - hide everything
-            binding.relatedChannelsSection.visibility = View.GONE
-            binding.linksSection.visibility = View.GONE
+            // Entering PiP mode - only hide controller, keep sections visible in background
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
@@ -1403,17 +1401,6 @@ class PlayerActivity : AppCompatActivity() {
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
-            
-            // Explicitly restore sections visibility based on content and orientation
-            if (!isLandscape) {
-                // Portrait mode - show sections if there's content
-                if (allEventLinks.size > 1) {
-                    binding.linksSection.visibility = View.VISIBLE
-                }
-                if (relatedChannels.isNotEmpty()) {
-                    binding.relatedChannelsSection.visibility = View.VISIBLE
-                }
-            }
             
             if (wasLockedBeforePip) {
                 isLocked = true
