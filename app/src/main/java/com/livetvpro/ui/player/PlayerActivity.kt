@@ -585,9 +585,9 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait - Let fitsSystemWindows handle padding automatically
+            // Portrait - Let root's fitsSystemWindows handle padding automatically
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(false)
+                window.setDecorFitsSystemWindows(true)
                 window.insetsController?.let { controller ->
                     controller.show(
                         WindowInsets.Type.statusBars() or
