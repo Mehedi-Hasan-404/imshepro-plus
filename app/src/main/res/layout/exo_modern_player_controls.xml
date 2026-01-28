@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:clipToPadding="false">
 
+    <!-- Gradient overlays -->
     <View
         android:layout_width="match_parent"
         android:layout_height="120dp"
@@ -17,6 +18,7 @@
         android:layout_gravity="bottom"
         android:background="@drawable/gradient_overlay_bottom" />
 
+    <!-- Top bar with controls -->
     <LinearLayout
         android:id="@+id/exo_top_container"
         android:layout_width="match_parent"
@@ -96,6 +98,7 @@
                 android:contentDescription="Lock controls" />
         </LinearLayout>
 
+        <!-- Links RecyclerView for landscape mode -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/exo_links_recycler"
             android:layout_width="match_parent"
@@ -109,6 +112,7 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- Bottom bar with playback controls -->
     <LinearLayout
         android:id="@+id/exo_bottom_bar"
         android:layout_width="match_parent"
@@ -119,6 +123,7 @@
         android:paddingBottom="0dp"
         android:layout_gravity="bottom">
 
+        <!-- Progress bar -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -154,6 +159,7 @@
                 android:gravity="center" />
         </LinearLayout>
 
+        <!-- Playback control buttons -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -170,7 +176,9 @@
                 android:src="@drawable/ic_aspect_ratio"
                 android:tint="@android:color/white"
                 android:contentDescription="Aspect ratio"
-                android:visibility="visible" />
+                android:visibility="visible"
+                android:clickable="true"
+                android:focusable="true" />
 
             <ImageButton
                 android:id="@+id/exo_rewind"
@@ -180,7 +188,9 @@
                 android:background="@drawable/ripple_square_white"
                 android:src="@drawable/ic_skip_backward"
                 android:tint="@android:color/white"
-                android:contentDescription="Rewind 10 seconds" />
+                android:contentDescription="Rewind 10 seconds"
+                android:clickable="true"
+                android:focusable="true" />
 
             <ImageButton
                 android:id="@+id/exo_play_pause"
@@ -190,7 +200,9 @@
                 android:background="@drawable/ripple_square_white"
                 android:src="@drawable/ic_play"
                 android:tint="@android:color/white"
-                android:contentDescription="Play/Pause" />
+                android:contentDescription="Play/Pause"
+                android:clickable="true"
+                android:focusable="true" />
 
             <ImageButton
                 android:id="@+id/exo_forward"
@@ -200,7 +212,9 @@
                 android:background="@drawable/ripple_square_white"
                 android:src="@drawable/ic_skip_forward"
                 android:tint="@android:color/white"
-                android:contentDescription="Forward 10 seconds" />
+                android:contentDescription="Forward 10 seconds"
+                android:clickable="true"
+                android:focusable="true" />
 
             <ImageButton
                 android:id="@+id/exo_fullscreen"
@@ -210,7 +224,9 @@
                 android:src="@drawable/ic_fullscreen"
                 android:tint="@android:color/white"
                 android:contentDescription="Toggle fullscreen"
-                android:visibility="visible" />
+                android:visibility="visible"
+                android:clickable="true"
+                android:focusable="true" />
         </LinearLayout>
     </LinearLayout>
 
