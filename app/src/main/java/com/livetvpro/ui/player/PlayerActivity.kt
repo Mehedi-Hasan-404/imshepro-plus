@@ -578,18 +578,20 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
+            // Portrait mode - show system bars and clear all fullscreen flags
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(true)
-                window.insetsController?.show(
-                    WindowInsets.Type.statusBars() or
-                            WindowInsets.Type.navigationBars()
-                )
+                window.insetsController?.let { controller ->
+                    controller.show(
+                        WindowInsets.Type.statusBars() or
+                                WindowInsets.Type.navigationBars()
+                    )
+                    controller.systemBarsBehavior =
+                        android.view.WindowInsetsController.BEHAVIOR_DEFAULT
+                }
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                )
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
