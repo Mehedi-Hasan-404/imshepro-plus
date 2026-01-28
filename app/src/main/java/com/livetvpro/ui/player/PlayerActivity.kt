@@ -490,7 +490,10 @@ class PlayerActivity : AppCompatActivity() {
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             params.dimensionRatio = "16:9"
             params.height = 0
-            params.topMargin = 0
+            
+            val statusBarHeight = getStatusBarHeight()
+            params.topMargin = statusBarHeight
+            
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
@@ -505,6 +508,15 @@ class PlayerActivity : AppCompatActivity() {
         }
         binding.playerContainer.layoutParams = params
         binding.playerContainer.requestLayout()
+    }
+
+    private fun getStatusBarHeight(): Int {
+        var result = 0
+        val resourceId = resources.getIdentifier("status_bar_height", "dimen", "android")
+        if (resourceId > 0) {
+            result = resources.getDimensionPixelSize(resourceId)
+        }
+        return result
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
@@ -544,7 +556,10 @@ class PlayerActivity : AppCompatActivity() {
                 )
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
