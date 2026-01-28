@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black"
-    android:fitsSystemWindows="true">
+    android:fitsSystemWindows="false">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
@@ -24,7 +24,8 @@
             app:surface_type="surface_view"
             app:controller_layout_id="@layout/exo_modern_player_controls"
             app:use_controller="true"
-            app:show_timeout="5000" />
+            app:show_timeout="5000"
+            app:resize_mode="fit" />
 
         <FrameLayout
             android:id="@+id/lock_overlay"
