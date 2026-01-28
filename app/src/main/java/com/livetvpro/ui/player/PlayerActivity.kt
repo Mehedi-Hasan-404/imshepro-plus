@@ -26,8 +26,6 @@ import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -508,10 +506,7 @@ class PlayerActivity : AppCompatActivity() {
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             params.dimensionRatio = "16:9"
             params.height = 0
-            
-            // Let fitsSystemWindows handle the top padding automatically
-            params.topMargin = 0
-            
+            params.topMargin = 0  // No manual margin - fitsSystemWindows handles it
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
@@ -587,13 +582,13 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait - Show status bar, let fitsSystemWindows handle padding
+            // Portrait - Show system bars and let fitsSystemWindows handle padding
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(false)
-                window.insetsController?.let { controller ->
-                    controller.show(WindowInsets.Type.statusBars())
-                    controller.show(WindowInsets.Type.navigationBars())
-                }
+                window.setDecorFitsSystemWindows(true)
+                window.insetsController?.show(
+                    WindowInsets.Type.statusBars() or
+                            WindowInsets.Type.navigationBars()
+                )
             } else {
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
