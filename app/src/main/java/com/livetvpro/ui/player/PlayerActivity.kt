@@ -384,10 +384,13 @@ class PlayerActivity : AppCompatActivity() {
             streamUrl = newChannel.streamUrl
         }
         
-        tvChannelName?.text = contentName
-        
         setupPlayer()
-        setupLinksUI()
+        
+        binding.playerView.postDelayed({
+            tvChannelName?.text = contentName
+            bindControllerViews()
+            setupLinksUI()
+        }, 100)
         
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
@@ -409,9 +412,15 @@ class PlayerActivity : AppCompatActivity() {
                     allEventLinks = event.links
                     currentLinkIndex = 0
                     streamUrl = allEventLinks.firstOrNull()?.url ?: ""
-                    tvChannelName?.text = contentName
+                    
                     setupPlayer()
-                    setupLinksUI()
+                    
+                    binding.playerView.postDelayed({
+                        tvChannelName?.text = contentName
+                        bindControllerViews()
+                        setupLinksUI()
+                    }, 100)
+                    
                     binding.relatedLoadingProgress.visibility = View.VISIBLE
                     binding.relatedChannelsRecycler.visibility = View.GONE
                     loadRelatedContent()
@@ -435,6 +444,10 @@ class PlayerActivity : AppCompatActivity() {
         
         releasePlayer()
         setupPlayer()
+        
+        binding.playerView.postDelayed({
+            bindControllerViews()
+        }, 100)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
