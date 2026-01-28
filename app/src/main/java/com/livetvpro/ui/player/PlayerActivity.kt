@@ -313,10 +313,8 @@ class PlayerActivity : AppCompatActivity() {
         
         if (allEventLinks.size > 1) {
             if (isLandscape) {
-                // Hide portrait links section completely in landscape
                 binding.linksSection.visibility = View.GONE
                 
-                // Show landscape links in controller
                 landscapeLinksRecycler?.visibility = View.VISIBLE
                 
                 val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
@@ -325,17 +323,14 @@ class PlayerActivity : AppCompatActivity() {
                     landscapeAdapter.setSelectedPosition(currentLinkIndex)
                 }
             } else {
-                // Show portrait links section
                 binding.linksSection.visibility = View.VISIBLE
                 
-                // Hide landscape links
                 landscapeLinksRecycler?.visibility = View.GONE
                 
                 linkChipAdapter.submitList(allEventLinks)
                 linkChipAdapter.setSelectedPosition(currentLinkIndex)
             }
         } else {
-            // No links or only 1 link - hide both
             binding.linksSection.visibility = View.GONE
             landscapeLinksRecycler?.visibility = View.GONE
         }
@@ -453,7 +448,6 @@ class PlayerActivity : AppCompatActivity() {
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
         
-        // Force layout to recalculate after orientation change
         binding.root.postDelayed({
             binding.root.requestLayout()
             binding.playerContainer.requestLayout()
@@ -496,7 +490,6 @@ class PlayerActivity : AppCompatActivity() {
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             
-            // Hide all sections in landscape
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
         } else {
@@ -506,14 +499,15 @@ class PlayerActivity : AppCompatActivity() {
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             params.dimensionRatio = "16:9"
             params.height = 0
-            params.topMargin = 0  // No manual margin - fitsSystemWindows handles it
+            
+            params.topMargin = 0
+            
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             
-            // Properly restore constraint params for portrait
             val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
-            linksParams.width = 0  // 0dp with constraints
+            linksParams.width = 0
             linksParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
             linksParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             linksParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
@@ -521,15 +515,14 @@ class PlayerActivity : AppCompatActivity() {
             binding.linksSection.layoutParams = linksParams
             
             val relatedParams = binding.relatedChannelsSection.layoutParams as ConstraintLayout.LayoutParams
-            relatedParams.width = 0  // 0dp with constraints
-            relatedParams.height = 0  // 0dp with constraints (will fill remaining space)
+            relatedParams.width = 0
+            relatedParams.height = 0
             relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             relatedParams.topToBottom = binding.linksSection.id
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
             
-            // Show sections in portrait based on content availability
             binding.linksSection.post {
                 if (allEventLinks.size > 1) {
                     binding.linksSection.visibility = View.VISIBLE
@@ -554,7 +547,6 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // Landscape - Full immersive mode
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
@@ -582,19 +574,19 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait - Show system bars and let fitsSystemWindows handle padding
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true)
-                window.insetsController?.show(
-                    WindowInsets.Type.statusBars() or
-                            WindowInsets.Type.navigationBars()
-                )
+                window.setDecorFitsSystemWindows(false)
+                window.insetsController?.let { controller ->
+                    controller.show(
+                        WindowInsets.Type.statusBars() or
+                                WindowInsets.Type.navigationBars()
+                    )
+                    controller.systemBarsBehavior =
+                        android.view.WindowInsetsController.BEHAVIOR_DEFAULT
+                }
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        )
+                window.decorView.systemUiVisibility = 0
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
@@ -1378,7 +1370,6 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // Entering PiP mode - hide everything
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
             binding.playerView.useController = false 
@@ -1387,7 +1378,6 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
         } else {
-            // Exiting PiP mode - restore everything
             userRequestedPip = false
             
             if (isFinishing) {
@@ -1399,9 +1389,7 @@ class PlayerActivity : AppCompatActivity() {
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
             
-            // Explicitly restore sections visibility based on content and orientation
             if (!isLandscape) {
-                // Portrait mode - show sections if there's content
                 if (allEventLinks.size > 1) {
                     binding.linksSection.visibility = View.VISIBLE
                 }
