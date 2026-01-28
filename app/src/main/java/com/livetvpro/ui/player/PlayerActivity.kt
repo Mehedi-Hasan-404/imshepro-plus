@@ -387,10 +387,8 @@ class PlayerActivity : AppCompatActivity() {
         
         setupPlayer()
         
-        binding.playerView.postDelayed({
-            updateControllerViews()
-            setupLinksUI()
-        }, 100)
+        tvChannelName?.text = contentName
+        setupLinksUI()
         
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
@@ -415,10 +413,8 @@ class PlayerActivity : AppCompatActivity() {
                     
                     setupPlayer()
                     
-                    binding.playerView.postDelayed({
-                        updateControllerViews()
-                        setupLinksUI()
-                    }, 100)
+                    tvChannelName?.text = contentName
+                    setupLinksUI()
                     
                     binding.relatedLoadingProgress.visibility = View.VISIBLE
                     binding.relatedChannelsRecycler.visibility = View.GONE
@@ -443,10 +439,6 @@ class PlayerActivity : AppCompatActivity() {
         
         releasePlayer()
         setupPlayer()
-        
-        binding.playerView.postDelayed({
-            updateControllerViews()
-        }, 100)
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
