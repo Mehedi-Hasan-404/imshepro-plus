@@ -450,14 +450,18 @@ class PlayerActivity : AppCompatActivity() {
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
+        // Apply orientation settings immediately
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
+        
+        // Force the system to apply the window flags
+        window.decorView.requestLayout()
         
         // Force layout to recalculate after orientation change
         binding.root.postDelayed({
             binding.root.requestLayout()
             binding.playerContainer.requestLayout()
-        }, 50)
+        }, 100)
     }
 
     override fun onResume() {
@@ -558,6 +562,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
             // Landscape - Full immersive mode
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
@@ -585,21 +590,18 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Portrait - Let root's fitsSystemWindows handle padding automatically
+            // Portrait - Show system bars, let root fitsSystemWindows handle padding
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true)
+                window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.show(
                         WindowInsets.Type.statusBars() or
                                 WindowInsets.Type.navigationBars()
                     )
-                    controller.systemBarsBehavior =
-                        android.view.WindowInsetsController.BEHAVIOR_DEFAULT
                 }
             } else {
                 @Suppress("DEPRECATION")
-                // Clear all flags to show system bars
-                window.decorView.systemUiVisibility = 0
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
