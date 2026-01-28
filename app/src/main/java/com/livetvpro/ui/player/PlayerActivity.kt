@@ -498,8 +498,8 @@ class PlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
             params.bottomMargin = 0
-            params.startMargin = 0
-            params.endMargin = 0
+            params.marginStart = 0
+            params.marginEnd = 0
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
