@@ -500,9 +500,18 @@ class PlayerActivity : AppCompatActivity() {
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             
-            // Hide all sections in landscape
+            // Force hide and collapse all sections in landscape
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
+            
+            // Force zero height to completely collapse them
+            val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
+            linksParams.height = 0
+            binding.linksSection.layoutParams = linksParams
+            
+            val relatedParams = binding.relatedChannelsSection.layoutParams as ConstraintLayout.LayoutParams
+            relatedParams.height = 0
+            binding.relatedChannelsSection.layoutParams = relatedParams
         } else {
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 5000
