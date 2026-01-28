@@ -575,18 +575,15 @@ class PlayerActivity : AppCompatActivity() {
             }
         } else {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(false)
-                window.insetsController?.let { controller ->
-                    controller.show(
-                        WindowInsets.Type.statusBars() or
-                                WindowInsets.Type.navigationBars()
-                    )
-                    controller.systemBarsBehavior =
-                        android.view.WindowInsetsController.BEHAVIOR_DEFAULT
-                }
+                window.setDecorFitsSystemWindows(true)
+                window.insetsController?.show(
+                    WindowInsets.Type.statusBars() or
+                            WindowInsets.Type.navigationBars()
+                )
             } else {
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = 0
+                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
