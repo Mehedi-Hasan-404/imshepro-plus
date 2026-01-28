@@ -497,8 +497,6 @@ class PlayerActivity : AppCompatActivity() {
             params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
             params.topMargin = 0
             params.bottomMargin = 0
-            params.startMargin = 0
-            params.endMargin = 0
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             
@@ -517,8 +515,6 @@ class PlayerActivity : AppCompatActivity() {
             params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
             params.bottomMargin = 0
-            params.startMargin = 0
-            params.endMargin = 0
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             
