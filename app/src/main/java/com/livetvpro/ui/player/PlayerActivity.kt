@@ -140,6 +140,12 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Enable edge-to-edge automatically
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+        }
+        
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -197,9 +203,28 @@ class PlayerActivity : AppCompatActivity() {
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
             val insets = windowInsets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
             
+            // Check if in PIP mode
+            val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                isInPictureInPictureMode
+            } else {
+                false
+            }
+            
             val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             
-            if (!isLandscape) {
+            // Apply insets automatically based on mode
+            if (isPip) {
+                // In PIP mode, no insets needed
+                val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+                params.topMargin = 0
+                binding.playerContainer.layoutParams = params
+            } else if (isLandscape) {
+                // In landscape, player goes edge-to-edge (fullscreen)
+                val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+                params.topMargin = 0
+                binding.playerContainer.layoutParams = params
+            } else {
+                // In portrait, respect status bar
                 val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
                 params.topMargin = insets.top
                 binding.playerContainer.layoutParams = params
@@ -466,6 +491,9 @@ class PlayerActivity : AppCompatActivity() {
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
         
+        // Request insets to be reapplied for the new orientation
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
+        
         binding.root.postDelayed({
             binding.root.requestLayout()
             binding.playerContainer.requestLayout()
@@ -565,8 +593,8 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
+            // Landscape: Hide system bars for fullscreen experience
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.hide(
                         WindowInsets.Type.statusBars() or
@@ -592,8 +620,8 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         } else {
+            // Portrait: Show system bars
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.show(
                         WindowInsets.Type.statusBars() or
@@ -615,6 +643,9 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
+        
+        // Request insets to be reapplied
+        androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
     }
 
     override fun onPause() {
@@ -1368,12 +1399,19 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPictureInPictureMode) {
+            // Entering PIP mode
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
             binding.playerView.hideController()
+            
+            // Remove top margin for PIP
+            val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+            params.topMargin = 0
+            binding.playerContainer.layoutParams = params
         } else {
+            // Exiting PIP mode
             userRequestedPip = false
             
             if (isFinishing) {
@@ -1383,7 +1421,15 @@ class PlayerActivity : AppCompatActivity() {
             setSubtitleTextSize()
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            
+            // Restore window flags for the current orientation
+            setWindowFlags(isLandscape)
+            
+            // Apply orientation settings which will also handle insets
             applyOrientationSettings(isLandscape)
+            
+            // Request insets to be reapplied (this will call setupWindowInsets)
+            androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
             
             if (!isLandscape) {
                 if (allEventLinks.size > 1) {
