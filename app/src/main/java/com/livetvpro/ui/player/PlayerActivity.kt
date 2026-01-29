@@ -1265,7 +1265,15 @@ class PlayerActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         
         try {
-            val ratio = Rational(16, 9)
+            val format = player?.videoFormat
+            val videoWidth = format?.width ?: 0
+            val videoHeight = format?.height ?: 0
+            
+            val ratio = if (videoWidth > 0 && videoHeight > 0) {
+                Rational(videoWidth, videoHeight)
+            } else {
+                Rational(16, 9)
+            }
             
             val builder = PictureInPictureParams.Builder()
             builder.setAspectRatio(ratio)
