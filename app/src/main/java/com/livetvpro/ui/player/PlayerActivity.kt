@@ -1254,6 +1254,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
 
         setSubtitleTextSizePiP()
 
@@ -1277,9 +1278,10 @@ class PlayerActivity : AppCompatActivity() {
             val rationalLimitWide = Rational(239, 100)
             val rationalLimitTall = Rational(100, 239)
             
-            if (ratio.toFloat() > rationalLimitWide.toFloat()) {
+            val ratioFloat = ratio.toFloat()
+            if (ratioFloat > rationalLimitWide.toFloat()) {
                 ratio = rationalLimitWide
-            } else if (ratio.toFloat() < rationalLimitTall.toFloat()) {
+            } else if (ratioFloat < rationalLimitTall.toFloat()) {
                 ratio = rationalLimitTall
             }
             
@@ -1298,6 +1300,10 @@ class PlayerActivity : AppCompatActivity() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setAutoEnterEnabled(false)
                 builder.setSeamlessResizeEnabled(true)
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                builder.setExpandedAspectRatio(ratio)
             }
             
             if (enter) {
@@ -1396,7 +1402,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             binding.playerView.hideController()
         } else {
             userRequestedPip = false
@@ -1408,6 +1414,15 @@ class PlayerActivity : AppCompatActivity() {
             setSubtitleTextSize()
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            
+            if (isLandscape) {
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            } else {
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+            
             applyOrientationSettings(isLandscape)
             
             if (!isLandscape) {
