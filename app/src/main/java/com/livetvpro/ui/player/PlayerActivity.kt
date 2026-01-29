@@ -1254,7 +1254,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
-        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
 
         setSubtitleTextSizePiP()
 
@@ -1266,11 +1266,11 @@ class PlayerActivity : AppCompatActivity() {
         
         try {
             val format = player?.videoFormat
-            val width = format?.width ?: 16
-            val height = format?.height ?: 9
+            val videoWidth = format?.width ?: 16
+            val videoHeight = format?.height ?: 9
             
-            var ratio = if (width > 0 && height > 0) {
-                Rational(width, height)
+            var ratio = if (videoWidth > 0 && videoHeight > 0) {
+                Rational(videoWidth, videoHeight)
             } else {
                 Rational(16, 9)
             }
@@ -1291,10 +1291,13 @@ class PlayerActivity : AppCompatActivity() {
             val actions = buildPipActions()
             builder.setActions(actions)
             
-            val pipSourceRect = android.graphics.Rect()
-            binding.playerView.getGlobalVisibleRect(pipSourceRect)
-            if (!pipSourceRect.isEmpty) {
-                builder.setSourceRectHint(pipSourceRect)
+            val videoSurfaceView = binding.playerView.videoSurfaceView
+            if (videoSurfaceView != null) {
+                val pipSourceRect = android.graphics.Rect()
+                videoSurfaceView.getGlobalVisibleRect(pipSourceRect)
+                if (!pipSourceRect.isEmpty) {
+                    builder.setSourceRectHint(pipSourceRect)
+                }
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -1402,7 +1405,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
         } else {
             userRequestedPip = false
