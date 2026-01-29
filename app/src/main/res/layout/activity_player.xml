@@ -6,9 +6,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black"
-    android:fitsSystemWindows="false">
+    android:fitsSystemWindows="true">
 
-    <!-- Player Container - will be positioned automatically via code -->
+    <!-- Player Container - positioned automatically by system in portrait, manually in landscape -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -16,7 +16,8 @@
         app:layout_constraintDimensionRatio="16:9"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toTopOf="parent"
+        android:fitsSystemWindows="false">
 
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
