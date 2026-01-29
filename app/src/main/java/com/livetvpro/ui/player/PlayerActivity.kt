@@ -144,6 +144,8 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
+        setupWindowInsets()
+
         parseIntent()
 
         if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
@@ -188,6 +190,22 @@ class PlayerActivity : AppCompatActivity() {
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerPipReceiver()
+        }
+    }
+
+    private fun setupWindowInsets() {
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
+            val insets = windowInsets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+            
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            
+            if (!isLandscape) {
+                val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+                params.topMargin = insets.top
+                binding.playerContainer.layoutParams = params
+            }
+            
+            androidx.core.view.WindowInsetsCompat.CONSUMED
         }
     }
 
@@ -500,8 +518,6 @@ class PlayerActivity : AppCompatActivity() {
             params.dimensionRatio = "16:9"
             params.height = 0
             
-            params.topMargin = 0
-            
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
@@ -538,6 +554,8 @@ class PlayerActivity : AppCompatActivity() {
                     binding.relatedChannelsSection.visibility = View.GONE
                 }
             }
+            
+            androidx.core.view.ViewCompat.requestApplyInsets(binding.root)
         }
         binding.playerContainer.layoutParams = params
         binding.root.post {
@@ -575,15 +593,21 @@ class PlayerActivity : AppCompatActivity() {
             }
         } else {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true)
-                window.insetsController?.show(
-                    WindowInsets.Type.statusBars() or
-                            WindowInsets.Type.navigationBars()
-                )
+                window.setDecorFitsSystemWindows(false)
+                window.insetsController?.let { controller ->
+                    controller.show(
+                        WindowInsets.Type.statusBars() or
+                                WindowInsets.Type.navigationBars()
+                    )
+                    controller.systemBarsBehavior =
+                        android.view.WindowInsetsController.BEHAVIOR_DEFAULT
+                }
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = 0
-                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+                window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
