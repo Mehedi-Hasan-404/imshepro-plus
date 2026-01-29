@@ -2,10 +2,13 @@
 <androidx.constraintlayout.widget.ConstraintLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root_layout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black">
+    android:background="@android:color/black"
+    android:fitsSystemWindows="false">
 
+    <!-- Player Container - will be positioned automatically via code -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -26,6 +29,7 @@
             app:show_timeout="5000"
             app:resize_mode="fit" />
 
+        <!-- Lock Overlay -->
         <FrameLayout
             android:id="@+id/lock_overlay"
             android:layout_width="match_parent"
@@ -49,6 +53,7 @@
                 android:visibility="gone" />
         </FrameLayout>
 
+        <!-- Loading Progress Bar -->
         <ProgressBar
             android:id="@+id/progress_bar"
             android:layout_width="wrap_content"
@@ -59,6 +64,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <!-- Error View -->
         <LinearLayout
             android:id="@+id/error_view"
             android:layout_width="wrap_content"
@@ -70,7 +76,8 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent">
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.35">
 
             <TextView
                 android:id="@+id/error_text"
@@ -83,6 +90,7 @@
         </LinearLayout>
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <!-- Links Section (Portrait Mode) -->
     <LinearLayout
         android:id="@+id/links_section"
         android:layout_width="0dp"
@@ -106,6 +114,7 @@
             android:clipToPadding="false" />
     </LinearLayout>
 
+    <!-- Related Channels Section (Portrait Mode) -->
     <LinearLayout
         android:id="@+id/related_channels_section"
         android:layout_width="0dp"
