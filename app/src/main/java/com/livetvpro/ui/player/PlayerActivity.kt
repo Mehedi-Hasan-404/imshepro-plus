@@ -1,3 +1,7 @@
+uper.finish()
+        }
+    }
+}
 package com.livetvpro.ui.player
 
 import android.app.PendingIntent
@@ -1238,6 +1242,8 @@ class PlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
     
+    // ============ UPDATED PIP METHODS ============
+    
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         
@@ -1254,7 +1260,9 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
-        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        
+        // CHANGED: Use FILL mode for PIP to avoid black bars
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
 
         setSubtitleTextSizePiP()
 
@@ -1269,8 +1277,15 @@ class PlayerActivity : AppCompatActivity() {
             val videoWidth = format?.width ?: 0
             val videoHeight = format?.height ?: 0
             
+            // CHANGED: Better ratio calculation with fallback
             val ratio = if (videoWidth > 0 && videoHeight > 0) {
-                Rational(videoWidth, videoHeight)
+                // Ensure ratio is within PIP limits (2.39:1 to 1:2.39)
+                val calculatedRatio = videoWidth.toFloat() / videoHeight.toFloat()
+                when {
+                    calculatedRatio > 2.39f -> Rational(239, 100)
+                    calculatedRatio < (1f / 2.39f) -> Rational(100, 239)
+                    else -> Rational(videoWidth, videoHeight)
+                }
             } else {
                 Rational(16, 9)
             }
@@ -1281,10 +1296,35 @@ class PlayerActivity : AppCompatActivity() {
             val actions = buildPipActions()
             builder.setActions(actions)
             
+            // CHANGED: Better source rect calculation
             val videoSurfaceView = binding.playerView.videoSurfaceView
-            if (videoSurfaceView != null) {
+            if (videoSurfaceView != null && enter) {
                 val pipSourceRect = android.graphics.Rect()
                 videoSurfaceView.getGlobalVisibleRect(pipSourceRect)
+                
+                // Calculate the actual video area within the surface view
+                // to exclude black bars from portrait mode
+                if (videoWidth > 0 && videoHeight > 0) {
+                    val surfaceWidth = pipSourceRect.width()
+                    val surfaceHeight = pipSourceRect.height()
+                    val videoAspect = videoWidth.toFloat() / videoHeight.toFloat()
+                    val surfaceAspect = surfaceWidth.toFloat() / surfaceHeight.toFloat()
+                    
+                    if (surfaceAspect > videoAspect) {
+                        // Surface is wider - video has black bars on left/right
+                        val actualVideoWidth = (surfaceHeight * videoAspect).toInt()
+                        val horizontalPadding = (surfaceWidth - actualVideoWidth) / 2
+                        pipSourceRect.left += horizontalPadding
+                        pipSourceRect.right -= horizontalPadding
+                    } else {
+                        // Surface is taller - video has black bars on top/bottom
+                        val actualVideoHeight = (surfaceWidth / videoAspect).toInt()
+                        val verticalPadding = (surfaceHeight - actualVideoHeight) / 2
+                        pipSourceRect.top += verticalPadding
+                        pipSourceRect.bottom -= verticalPadding
+                    }
+                }
+                
                 if (!pipSourceRect.isEmpty) {
                     builder.setSourceRectHint(pipSourceRect)
                 }
@@ -1395,7 +1435,8 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            // CHANGED: Use FILL mode in PIP
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             binding.playerView.hideController()
         } else {
             userRequestedPip = false
@@ -1408,6 +1449,7 @@ class PlayerActivity : AppCompatActivity() {
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
             
+            // CHANGED: Set proper resize mode based on orientation
             if (isLandscape) {
                 binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                 currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
