@@ -1265,25 +1265,7 @@ class PlayerActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         
         try {
-            val format = player?.videoFormat
-            val videoWidth = format?.width ?: 16
-            val videoHeight = format?.height ?: 9
-            
-            var ratio = if (videoWidth > 0 && videoHeight > 0) {
-                Rational(videoWidth, videoHeight)
-            } else {
-                Rational(16, 9)
-            }
-            
-            val rationalLimitWide = Rational(239, 100)
-            val rationalLimitTall = Rational(100, 239)
-            
-            val ratioFloat = ratio.toFloat()
-            if (ratioFloat > rationalLimitWide.toFloat()) {
-                ratio = rationalLimitWide
-            } else if (ratioFloat < rationalLimitTall.toFloat()) {
-                ratio = rationalLimitTall
-            }
+            val ratio = Rational(16, 9)
             
             val builder = PictureInPictureParams.Builder()
             builder.setAspectRatio(ratio)
