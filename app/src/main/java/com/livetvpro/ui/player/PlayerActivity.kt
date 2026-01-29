@@ -1238,7 +1238,7 @@ class PlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
     
-    // ============ SIMPLIFIED PIP USING OFFICIAL PlayerView METHOD ============
+    // ============ PIP MODE HANDLING ============
     
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -1359,7 +1359,6 @@ class PlayerActivity : AppCompatActivity() {
         return actions
     }
 
-    // OFFICIAL ANDROID METHOD - PlayerView handles all PIP adjustments automatically!
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration
@@ -1369,13 +1368,12 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPictureInPictureMode) {
-            // Hide UI elements when entering PIP
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
+            binding.playerView.hideController()
         } else {
-            // Exiting PIP mode
             userRequestedPip = false
             
             if (isFinishing) {
@@ -1413,9 +1411,6 @@ class PlayerActivity : AppCompatActivity() {
                 }, 150)
             }
         }
-        
-        // Let PlayerView handle all PIP adjustments automatically!
-        binding.playerView.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
