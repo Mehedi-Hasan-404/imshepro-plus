@@ -1,7 +1,3 @@
-uper.finish()
-        }
-    }
-}
 package com.livetvpro.ui.player
 
 import android.app.PendingIntent
