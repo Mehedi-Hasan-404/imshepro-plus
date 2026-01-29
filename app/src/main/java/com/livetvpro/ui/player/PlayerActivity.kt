@@ -10,7 +10,6 @@ import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Rect
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
@@ -807,10 +806,7 @@ class PlayerActivity : AppCompatActivity() {
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
-                                    // Update PIP params when ready
-                                    if (isInPipMode) {
-                                        updatePictureInPictureParams()
-                                    }
+                                    updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
@@ -825,18 +821,14 @@ class PlayerActivity : AppCompatActivity() {
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
-                            // Update PIP params when play/pause state changes
                             if (isInPipMode) {
-                                updatePictureInPictureParams()
+                                updatePipParams()
                             }
                         }
 
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
-                            // Update PIP params when video size changes
-                            if (isInPipMode) {
-                                updatePictureInPictureParams()
-                            }
+                            updatePipParams()
                         }
 
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -1246,7 +1238,7 @@ class PlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
     
-    // ============ IMPROVED PIP METHODS (based on example code) ============
+    // ============ SIMPLIFIED PIP USING OFFICIAL PlayerView METHOD ============
     
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -1261,62 +1253,31 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.relatedChannelsSection.visibility = View.GONE
         binding.linksSection.visibility = View.GONE
-        binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
 
         setSubtitleTextSizePiP()
 
-        // Enter PIP mode with updated params
-        enterPictureInPictureMode(updatePictureInPictureParams())
+        enterPictureInPictureMode(updatePipParams())
     }
 
-    private fun updatePictureInPictureParams(): PictureInPictureParams {
+    private fun updatePipParams(): PictureInPictureParams {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return PictureInPictureParams.Builder().build()
         }
         
         try {
-            // Get visible rect of player view
-            val visibleRect = Rect()
-            binding.playerView.getGlobalVisibleRect(visibleRect)
-            
-            // Get video dimensions
-            val format = player?.videoFormat
-            val videoWidth = format?.width ?: 0
-            val videoHeight = format?.height ?: 0
-            
-            // Calculate aspect ratio based on actual video dimensions
-            val rational = if (videoWidth > 0 && videoHeight > 0) {
-                val aspectRatio = videoWidth.toFloat() / videoHeight.toFloat()
-                // Clamp to Android's PIP limits (2.39:1 to 1:2.39)
-                when {
-                    aspectRatio > 2.39f -> Rational(239, 100)
-                    aspectRatio < (1f / 2.39f) -> Rational(100, 239)
-                    else -> Rational(videoWidth, videoHeight)
-                }
-            } else {
-                // Default to 16:9 if video dimensions unavailable
-                Rational(16, 9)
-            }
-            
             val builder = PictureInPictureParams.Builder()
-                .setAspectRatio(rational)
+                .setAspectRatio(Rational(16, 9))
                 .setActions(buildPipActions())
-                .setSourceRectHint(visibleRect)
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setAutoEnterEnabled(false)
                 builder.setSeamlessResizeEnabled(true)
             }
             
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                builder.setExpandedAspectRatio(rational)
-            }
-            
             val params = builder.build()
             
-            // Update PIP params if already in PIP mode
             if (isInPipMode) {
                 setPictureInPictureParams(params)
             }
@@ -1332,7 +1293,6 @@ class PlayerActivity : AppCompatActivity() {
     private fun buildPipActions(): ArrayList<RemoteAction> {
         val actions = ArrayList<RemoteAction>()
         
-        // Rewind action
         val rewindIntent = PendingIntent.getBroadcast(
             this,
             CONTROL_TYPE_REWIND,
@@ -1348,7 +1308,6 @@ class PlayerActivity : AppCompatActivity() {
             rewindIntent
         ))
         
-        // Play/Pause action (dynamic based on player state)
         val isPlaying = player?.isPlaying == true
         if (isPlaying) {
             val pauseIntent = PendingIntent.getBroadcast(
@@ -1382,7 +1341,6 @@ class PlayerActivity : AppCompatActivity() {
             ))
         }
         
-        // Forward action
         val forwardIntent = PendingIntent.getBroadcast(
             this,
             CONTROL_TYPE_FORWARD,
@@ -1401,6 +1359,7 @@ class PlayerActivity : AppCompatActivity() {
         return actions
     }
 
+    // OFFICIAL ANDROID METHOD - PlayerView handles all PIP adjustments automatically!
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration
@@ -1409,14 +1368,12 @@ class PlayerActivity : AppCompatActivity() {
         
         isInPipMode = isInPictureInPictureMode
         
-        if (isInPipMode) {
-            // In PIP mode
+        if (isInPictureInPictureMode) {
+            // Hide UI elements when entering PIP
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
-            binding.playerView.useController = false
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            binding.playerView.hideController()
         } else {
             // Exiting PIP mode
             userRequestedPip = false
@@ -1428,15 +1385,6 @@ class PlayerActivity : AppCompatActivity() {
             setSubtitleTextSize()
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            
-            if (isLandscape) {
-                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            } else {
-                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            }
-            
             applyOrientationSettings(isLandscape)
             
             if (!isLandscape) {
@@ -1465,12 +1413,14 @@ class PlayerActivity : AppCompatActivity() {
                 }, 150)
             }
         }
+        
+        // Let PlayerView handle all PIP adjustments automatically!
+        binding.playerView.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // Auto-enter PIP when user presses home and video is playing
         if (!isInPipMode && player?.isPlaying == true) {
             userRequestedPip = true
             wasLockedBeforePip = isLocked
@@ -1496,8 +1446,7 @@ class PlayerActivity : AppCompatActivity() {
                         } else {
                             currentPlayer.play()
                         }
-                        // Update PIP params to show pause button
-                        updatePictureInPictureParams()
+                        updatePipParams()
                     }
                     CONTROL_TYPE_PAUSE -> {
                         if (hasError || hasEnded) {
@@ -1505,8 +1454,7 @@ class PlayerActivity : AppCompatActivity() {
                         } else {
                             currentPlayer.pause()
                         }
-                        // Update PIP params to show play button
-                        updatePictureInPictureParams()
+                        updatePipParams()
                     }
                     CONTROL_TYPE_REWIND -> {
                         if (!hasError && !hasEnded) {
