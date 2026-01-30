@@ -108,8 +108,11 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             isFavorite = { channelId -> viewModel.isFavorite(channelId) }
         )
 
+        // Get responsive column count from resources
+        val columnCount = resources.getInteger(R.integer.grid_column_count)
+
         binding.recyclerViewChannels.apply {
-            layoutManager = GridLayoutManager(context, 3)
+            layoutManager = GridLayoutManager(context, columnCount)
             adapter = channelAdapter
             // Optimization: Prevents RecyclerView from blinking on updates
             itemAnimator = null 
