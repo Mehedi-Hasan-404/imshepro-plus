@@ -142,7 +142,14 @@ class PlayerActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        
+        // Apply immersive mode early
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
+        // Ensure initial orientation settings are applied immediately
+        val currentOrientation = resources.configuration.orientation
+        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        setWindowFlags(isLandscape)
 
         parseIntent()
 
@@ -445,19 +452,39 @@ class PlayerActivity : AppCompatActivity() {
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
+        // Force re-apply window flags to ensure immersive mode
+        setWindowFlags(isLandscape)
+        
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
         
         binding.root.postDelayed({
+            // Re-apply window flags again after layout to combat system bar restoration
+            setWindowFlags(isLandscape)
             binding.root.requestLayout()
             binding.playerContainer.requestLayout()
         }, 50)
+        
+        // Additional delayed re-application to ensure immersive mode sticks
+        binding.root.postDelayed({
+            setWindowFlags(isLandscape)
+        }, 200)
     }
 
     override fun onResume() {
         super.onResume()
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
+        
+        // Add window focus listener to maintain immersive mode
+        window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
+            // When system UI visibility changes, re-apply immersive mode in landscape
+            if (isLandscape && (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
+                binding.root.postDelayed({
+                    setWindowFlags(isLandscape)
+                }, 100)
+            }
+        }
         
         if (player == null) {
             setupPlayer()
@@ -561,13 +588,14 @@ class PlayerActivity : AppCompatActivity() {
                 window.insetsController?.let { controller ->
                     controller.hide(
                         WindowInsets.Type.statusBars() or
-                                WindowInsets.Type.navigationBars()
+                                WindowInsets.Type.navigationBars() or
+                                WindowInsets.Type.systemBars()
                     )
                     controller.systemBarsBehavior =
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
             } else {
-                // Android 10 and below
+                // Android 10 and below - be more aggressive
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -576,8 +604,13 @@ class PlayerActivity : AppCompatActivity() {
                                 or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
                                 or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
                                 or View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_LOW_PROFILE
                         )
             }
+            
+            // Additional flags for fullscreen
+            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN)
         } else {
             // Portrait mode - restore normal system bars
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -598,8 +631,14 @@ class PlayerActivity : AppCompatActivity() {
                 }
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = 0
+                window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        )
             }
+            
+            // Remove fullscreen flags in portrait
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         }
     }
 
