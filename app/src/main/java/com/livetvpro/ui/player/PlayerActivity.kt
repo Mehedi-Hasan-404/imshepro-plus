@@ -1328,18 +1328,11 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        // Hide UI elements but keep player view visible
         binding.relatedChannelsSection.visibility = View.GONE
         binding.linksSection.visibility = View.GONE
+        binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
-        
-        // CRITICAL: Keep useController = true for PiP to show video content
-        // The system will handle showing/hiding controls in PiP mode
-        binding.playerView.useController = true
-        binding.playerView.controllerShowTimeoutMs = 0 // Hide controls immediately
-        binding.playerView.controllerAutoShow = false
-        binding.playerView.hideController() // Hide controls but keep surface
 
         setSubtitleTextSizePiP()
 
@@ -1477,28 +1470,14 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // ENTERING PIP MODE
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
+            binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
-            
-            // CRITICAL FIX: Keep useController = true so video surface renders
-            // Setting it to false can cause black screen in PiP
-            binding.playerView.useController = true
-            binding.playerView.controllerShowTimeoutMs = 0
-            binding.playerView.controllerAutoShow = false
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            binding.playerView.hideController() // Hide UI but keep surface active
-            
-            // Ensure player is playing
-            player?.let {
-                if (!it.isPlaying) {
-                    it.play()
-                }
-            }
+            binding.playerView.hideController()
         } else {
-            // EXITING PIP MODE
             userRequestedPip = false
             
             if (isFinishing) {
@@ -1528,8 +1507,6 @@ class PlayerActivity : AppCompatActivity() {
             } else {
                 isLocked = false
                 binding.playerView.useController = true
-                binding.playerView.controllerAutoShow = false
-                binding.playerView.controllerShowTimeoutMs = 5000
                 
                 binding.playerView.postDelayed({
                     if (!isInPipMode && !isLocked) {
