@@ -138,6 +138,8 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private var startingOrientation: Int = Configuration.ORIENTATION_UNDEFINED
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
@@ -145,8 +147,14 @@ class PlayerActivity : AppCompatActivity() {
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
-        val currentOrientation = resources.configuration.orientation
-        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        startingOrientation = resources.configuration.orientation
+        val isLandscape = startingOrientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        if (isLandscape) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        }
         
         setWindowFlags(isLandscape)
         setupWindowInsets()
@@ -1207,11 +1215,18 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         btnFullscreen?.apply {
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { 
-                if (!isLocked) {
-                    toggleFullscreen()
+            if (startingOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                isClickable = false
+                isFocusable = false
+                alpha = 0.5f
+            } else {
+                isClickable = true
+                isFocusable = true
+                alpha = 1.0f
+                setOnClickListener { 
+                    if (!isLocked) {
+                        toggleFullscreen()
+                    }
                 }
             }
         }
