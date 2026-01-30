@@ -13,53 +13,54 @@ import com.livetvpro.databinding.ItemFavoriteBinding
 class FavoriteAdapter(
     private val onChannelClick: (FavoriteChannel) -> Unit,
     private val onFavoriteToggle: (FavoriteChannel) -> Unit
-) : ListAdapter<FavoriteChannel, FavoriteAdapter.ViewHolder>(FavoriteDiffCallback()) {
+) : ListAdapter<FavoriteChannel, FavoriteAdapter.FavoriteViewHolder>(FavoriteDiffCallback()) {
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FavoriteViewHolder {
         val binding = ItemFavoriteBinding.inflate(
             LayoutInflater.from(parent.context),
             parent,
             false
         )
-        return ViewHolder(binding)
+        return FavoriteViewHolder(binding)
     }
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+    override fun onBindViewHolder(holder: FavoriteViewHolder, position: Int) {
         holder.bind(getItem(position))
     }
 
-    inner class ViewHolder(private val binding: ItemFavoriteBinding) :
-        RecyclerView.ViewHolder(binding.root) {
+    inner class FavoriteViewHolder(
+        private val binding: ItemFavoriteBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(favorite: FavoriteChannel) {
             binding.apply {
                 // Set channel name
                 tvName.text = favorite.name
                 
-                // Set category name
-                tvCategory.text = favorite.categoryName
-
-                // Load logo
-                Glide.with(root.context)
+                // ✅ REMOVED: tvCategory reference (no longer in layout)
+                // The new layout doesn't show category name for cleaner look
+                
+                // Load channel logo with Glide
+                Glide.with(imgLogo.context)
                     .load(favorite.logoUrl)
                     .placeholder(R.drawable.ic_channel_placeholder)
                     .error(R.drawable.ic_channel_placeholder)
                     .into(imgLogo)
 
-                // Handle the Remove (Cross) button click
-                removeButton.setOnClickListener {
-                    onFavoriteToggle(favorite)
-                }
-
-                // Handle clicking the whole card to play
+                // Handle channel click
                 root.setOnClickListener {
                     onChannelClick(favorite)
+                }
+
+                // Handle remove button click
+                removeButton.setOnClickListener {
+                    onFavoriteToggle(favorite)
                 }
             }
         }
     }
 
-    class FavoriteDiffCallback : DiffUtil.ItemCallback<FavoriteChannel>() {
+    private class FavoriteDiffCallback : DiffUtil.ItemCallback<FavoriteChannel>() {
         override fun areItemsTheSame(oldItem: FavoriteChannel, newItem: FavoriteChannel): Boolean {
             return oldItem.id == newItem.id
         }
@@ -69,4 +70,3 @@ class FavoriteAdapter(
         }
     }
 }
-
