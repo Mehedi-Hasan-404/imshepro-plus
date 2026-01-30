@@ -1,0 +1,101 @@
+name: Create Grid Layout Resources
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  create-resources:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create grid layout resource files
+        run: |
+          echo "Creating grid layout resource directories..."
+          
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/values-land
+          mkdir -p app/src/main/res/values-sw600dp
+          mkdir -p app/src/main/res/values-sw600dp-land
+          mkdir -p app/src/main/res/values-sw720dp
+          mkdir -p app/src/main/res/values-sw720dp-land
+          mkdir -p app/src/main/res/values-sw960dp
+          mkdir -p app/src/main/res/values-sw960dp-land
+          mkdir -p app/src/main/res/values-television
+          
+          cat > app/src/main/res/values/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">3</integer>
+          </resources>
+          EOF
+          
+          cat > app/src/main/res/values-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">6</integer>
+          </resources>
+          EOF
+          
+          cat > app/src/main/res/values-sw600dp/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">4</integer>
+          </resources>
+          EOF
+          
+          cat > app/src/main/res/values-sw600dp-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">6</integer>
+          </resources>
+          EOF
+          
+          cat > app/src/main/res/values-sw720dp/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">5</integer>
+          </resources>
+          EOF
+          
+          cat > app/src/main/res/values-sw720dp-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">8</integer>
+          </resources>
+          EOF
+          
+          cat > app/src/main/res/values-sw960dp/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">6</integer>
+          </resources>
+          EOF
+          
+          cat > app/src/main/res/values-sw960dp-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">10</integer>
+          </resources>
+          EOF
+          
+          cat > app/src/main/res/values-television/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">6</integer>
+          </resources>
+          EOF
+          
+          echo "✅ Created all grid layout resource files"
+
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add app/src/main/res/values*/integers.xml
+          git diff --staged --quiet || git commit -m "Add responsive grid layout resources"
+          git push
