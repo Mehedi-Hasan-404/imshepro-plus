@@ -4,32 +4,81 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_margin="8dp"
+    android:layout_margin="4dp"
     app:cardCornerRadius="12dp"
-    app:cardElevation="2dp">
+    app:cardElevation="0dp"
+    app:strokeColor="@color/player_channel_stroke"
+    app:strokeWidth="@dimen/player_channel_stroke_width"
+    app:cardBackgroundColor="#1A1A1A"
+    android:foreground="?attr/selectableItemBackground">
 
-    <LinearLayout
+    <RelativeLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:paddingTop="8dp"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp">
 
-        <ImageView
-            android:id="@+id/category_icon"
-            android:layout_width="64dp"
-            android:layout_height="64dp"
-            android:contentDescription="Category icon"
-            android:scaleType="fitCenter" />
+        <!-- Container with padding to prevent logo overflow -->
+        <FrameLayout
+            android:id="@+id/logo_outer_container"
+            android:layout_width="90dp"
+            android:layout_height="90dp"
+            android:layout_centerHorizontal="true"
+            android:padding="2dp">
+
+            <!-- Use CardView for proper circular clipping -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/logo_card"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                app:cardCornerRadius="44dp"
+                app:cardElevation="0dp"
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="@android:color/white">
+
+                <FrameLayout
+                    android:id="@+id/logo_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <ImageView
+                        android:id="@+id/category_icon"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:contentDescription="Category icon"
+                        android:padding="2dp"
+                        android:scaleType="fitCenter" />
+
+                </FrameLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Red stroke overlay (on top of logo) -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/circular_logo_stroke_overlay"
+                android:clickable="false"
+                android:focusable="false" />
+
+        </FrameLayout>
 
         <TextView
             android:id="@+id/category_name"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_below="@id/logo_outer_container"
+            android:layout_marginTop="6dp"
+            android:textColor="@android:color/white"
+            android:textSize="13sp"
+            android:textStyle="bold"
             android:gravity="center"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-    </LinearLayout>
+            android:textAlignment="center"
+            android:singleLine="true"
+            android:ellipsize="end" />
+
+    </RelativeLayout>
 
 </com.google.android.material.card.MaterialCardView>
