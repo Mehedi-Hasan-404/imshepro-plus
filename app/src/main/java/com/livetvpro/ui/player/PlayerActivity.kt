@@ -140,20 +140,9 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        // Configure edge-to-edge based on initial orientation
-        val isInitialLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            // In portrait: let system handle status bar (setDecorFitsSystemWindows = true)
-            // In landscape: we handle everything (setDecorFitsSystemWindows = false)
-            window.setDecorFitsSystemWindows(!isInitialLandscape)
-        }
-        
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-
-        setupWindowInsets()
 
         parseIntent()
 
@@ -199,33 +188,6 @@ class PlayerActivity : AppCompatActivity() {
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerPipReceiver()
-        }
-    }
-
-    private fun setupWindowInsets() {
-        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, windowInsets ->
-            val insets = windowInsets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars())
-            
-            // Check if in PIP mode
-            val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                isInPictureInPictureMode
-            } else {
-                false
-            }
-            
-            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            
-            // Only manually handle insets in landscape or PIP mode
-            // Portrait mode is handled by setDecorFitsSystemWindows(true)
-            if (isPip || isLandscape) {
-                val params = binding.playerContainer.layoutParams as? ConstraintLayout.LayoutParams
-                if (params != null) {
-                    params.topMargin = 0
-                    binding.playerContainer.layoutParams = params
-                }
-            }
-            
-            windowInsets
         }
     }
 
@@ -476,19 +438,20 @@ class PlayerActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         
-        // Skip if in PIP mode - handled by onPictureInPictureModeChanged
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
+            binding.playerView.hideController()
             return
         }
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
-        // Update window flags first
-        setWindowFlags(isLandscape)
-        
-        // Then apply layout changes
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
+        
+        binding.root.postDelayed({
+            binding.root.requestLayout()
+            binding.playerContainer.requestLayout()
+        }, 50)
     }
 
     override fun onResume() {
@@ -537,7 +500,8 @@ class PlayerActivity : AppCompatActivity() {
             params.dimensionRatio = "16:9"
             params.height = 0
             
-            params.topMargin = 0  // Let system handle this via setDecorFitsSystemWindows(true)
+            params.topMargin = 0
+            
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
@@ -559,26 +523,40 @@ class PlayerActivity : AppCompatActivity() {
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
             
-            // Update visibility immediately without post{}
-            if (allEventLinks.size > 1) {
-                binding.linksSection.visibility = View.VISIBLE
-            } else {
-                binding.linksSection.visibility = View.GONE
+            binding.linksSection.post {
+                if (allEventLinks.size > 1) {
+                    binding.linksSection.visibility = View.VISIBLE
+                } else {
+                    binding.linksSection.visibility = View.GONE
+                }
             }
             
-            if (relatedChannels.isNotEmpty()) {
-                binding.relatedChannelsSection.visibility = View.VISIBLE
-            } else {
-                binding.relatedChannelsSection.visibility = View.GONE
+            binding.relatedChannelsSection.post {
+                if (relatedChannels.isNotEmpty()) {
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
+                } else {
+                    binding.relatedChannelsSection.visibility = View.GONE
+                }
             }
         }
         binding.playerContainer.layoutParams = params
+        binding.root.post {
+            binding.root.requestLayout()
+        }
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // Landscape: We handle everything manually
+            // CRITICAL FIX: Set display cutout mode FIRST for devices with notches/cutouts
+            // This must be done before setDecorFitsSystemWindows to ensure proper layout calculation
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            }
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Android 11+ (API 30+)
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.hide(
@@ -589,6 +567,7 @@ class PlayerActivity : AppCompatActivity() {
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
             } else {
+                // Android 10 and below
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -599,15 +578,16 @@ class PlayerActivity : AppCompatActivity() {
                                 or View.SYSTEM_UI_FLAG_FULLSCREEN
                         )
             }
+        } else {
+            // Portrait mode - restore normal system bars
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
                 }
             }
-        } else {
-            // Portrait: Let system handle status bar positioning
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true)
+                window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.show(
                         WindowInsets.Type.statusBars() or
@@ -618,15 +598,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
             } else {
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                )
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                window.attributes = window.attributes.apply {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
-                }
+                window.decorView.systemUiVisibility = 0
             }
         }
     }
@@ -1252,8 +1224,6 @@ class PlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
     
-    // ============ PIP MODE HANDLING ============
-    
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         
@@ -1267,39 +1237,64 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.relatedChannelsSection.visibility = View.GONE
         binding.linksSection.visibility = View.GONE
+        binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
 
         setSubtitleTextSizePiP()
 
-        enterPictureInPictureMode(updatePipParams())
+        updatePipParams(enter = true)
     }
 
-    private fun updatePipParams(): PictureInPictureParams {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return PictureInPictureParams.Builder().build()
-        }
+    private fun updatePipParams(enter: Boolean = false) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         
         try {
+            val format = player?.videoFormat
+            val width = format?.width ?: 16
+            val height = format?.height ?: 9
+            
+            var ratio = if (width > 0 && height > 0) {
+                Rational(width, height)
+            } else {
+                Rational(16, 9)
+            }
+            
+            val rationalLimitWide = Rational(239, 100)
+            val rationalLimitTall = Rational(100, 239)
+            
+            if (ratio.toFloat() > rationalLimitWide.toFloat()) {
+                ratio = rationalLimitWide
+            } else if (ratio.toFloat() < rationalLimitTall.toFloat()) {
+                ratio = rationalLimitTall
+            }
+            
             val builder = PictureInPictureParams.Builder()
-                .setAspectRatio(Rational(16, 9))
-                .setActions(buildPipActions())
+            builder.setAspectRatio(ratio)
+            
+            val actions = buildPipActions()
+            builder.setActions(actions)
+            
+            val pipSourceRect = android.graphics.Rect()
+            binding.playerView.getGlobalVisibleRect(pipSourceRect)
+            if (!pipSourceRect.isEmpty) {
+                builder.setSourceRectHint(pipSourceRect)
+            }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 builder.setAutoEnterEnabled(false)
                 builder.setSeamlessResizeEnabled(true)
             }
             
-            val params = builder.build()
-            
-            if (isInPipMode) {
-                setPictureInPictureParams(params)
+            if (enter) {
+                val success = enterPictureInPictureMode(builder.build())
+                if (success) {
+                    isInPipMode = true
+                }
+            } else if (isInPipMode) {
+                setPictureInPictureParams(builder.build())
             }
-            
-            return params
-            
         } catch (e: Exception) {
-            return PictureInPictureParams.Builder().build()
         }
     }
     
@@ -1381,39 +1376,35 @@ class PlayerActivity : AppCompatActivity() {
         
         isInPipMode = isInPictureInPictureMode
         
-        if (isInPictureInPictureMode) {
-            // ===== ENTERING PIP MODE =====
+        if (isInPipMode) {
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
+            binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
-            
-            // Ensure no margin in PIP
-            val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-            params.topMargin = 0
-            binding.playerContainer.layoutParams = params
         } else {
-            // ===== EXITING PIP MODE =====
             userRequestedPip = false
             
             if (isFinishing) {
                 return
             }
             
-            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            
-            // Step 1: Update window flags for the target orientation
-            setWindowFlags(isLandscape)
-            
-            // Step 2: Apply layout changes immediately (no delays)
-            adjustLayoutForOrientation(isLandscape)
-            updateLinksForOrientation(isLandscape)
-            
-            // Step 3: Update subtitle size
             setSubtitleTextSize()
             
-            // Step 4: Restore lock state if needed
+            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+            
+            if (!isLandscape) {
+                if (allEventLinks.size > 1) {
+                    binding.linksSection.visibility = View.VISIBLE
+                }
+                if (relatedChannels.isNotEmpty()) {
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
+                }
+            }
+            
             if (wasLockedBeforePip) {
                 isLocked = true
                 binding.playerView.useController = false
@@ -1423,8 +1414,12 @@ class PlayerActivity : AppCompatActivity() {
             } else {
                 isLocked = false
                 binding.playerView.useController = true
-                // Show controller immediately without delay
-                binding.playerView.showController()
+                
+                binding.playerView.postDelayed({
+                    if (!isInPipMode && !isLocked) {
+                        binding.playerView.showController()
+                    }
+                }, 150)
             }
         }
     }
