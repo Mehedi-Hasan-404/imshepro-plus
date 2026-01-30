@@ -543,6 +543,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        
         if (isLandscape) {
             binding.playerContainer.setPadding(0, 0, 0, 0)
             
@@ -550,12 +551,17 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.controllerShowTimeoutMs = 3000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            
             params.dimensionRatio = null
-            params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
-            params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
+            params.bottomMargin = 0
+            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             
             binding.relatedChannelsSection.visibility = View.GONE
@@ -567,25 +573,31 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
             params.dimensionRatio = "16:9"
-            params.height = 0
-            params.width = 0
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
+            params.bottomMargin = 0
+            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             
             val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
-            linksParams.width = 0
+            linksParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             linksParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
             linksParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             linksParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             linksParams.topToBottom = binding.playerContainer.id
+            linksParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             binding.linksSection.layoutParams = linksParams
             
             val relatedParams = binding.relatedChannelsSection.layoutParams as ConstraintLayout.LayoutParams
-            relatedParams.width = 0
-            relatedParams.height = 0
+            relatedParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            relatedParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             relatedParams.topToBottom = binding.linksSection.id
@@ -608,10 +620,10 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
+        
         binding.playerContainer.layoutParams = params
-        binding.playerContainer.post {
-            binding.playerContainer.requestLayout()
-        }
+        binding.root.requestLayout()
+        binding.playerContainer.requestLayout()
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
