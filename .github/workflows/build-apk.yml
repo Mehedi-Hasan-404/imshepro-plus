@@ -26,7 +26,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # ✅ CRITICAL FIX: Install NDK for native code compilation
       - name: Install Android NDK
         run: |
           echo "Installing NDK 25.1.8937393..."
@@ -37,123 +36,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      # ✅ NEW: Create all responsive grid resource files
-      - name: Create responsive grid integers.xml files
-        run: |
-          echo "Creating responsive grid resource files..."
-          
-          # Create resource directories
-          mkdir -p app/src/main/res/values
-          mkdir -p app/src/main/res/values-land
-          mkdir -p app/src/main/res/values-w360dp
-          mkdir -p app/src/main/res/values-w600dp
-          mkdir -p app/src/main/res/values-w600dp-land
-          mkdir -p app/src/main/res/values-sw600dp
-          mkdir -p app/src/main/res/values-sw600dp-land
-          mkdir -p app/src/main/res/values-sw720dp
-          mkdir -p app/src/main/res/values-sw720dp-land
-          mkdir -p app/src/main/res/values-sw960dp
-          mkdir -p app/src/main/res/values-sw960dp-land
-          mkdir -p app/src/main/res/values-television
-          
-          # Default (portrait phones) - 3 columns
-          cat > app/src/main/res/values/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">3</integer>
-          </resources>
-          EOF
-          
-          # Landscape phones - 6 columns
-          cat > app/src/main/res/values-land/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">6</integer>
-          </resources>
-          EOF
-          
-          # Small phones - 2 columns
-          cat > app/src/main/res/values-w360dp/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">2</integer>
-          </resources>
-          EOF
-          
-          # Foldables portrait - 4 columns
-          cat > app/src/main/res/values-w600dp/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">4</integer>
-          </resources>
-          EOF
-          
-          # Foldables landscape - 7 columns
-          cat > app/src/main/res/values-w600dp-land/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">7</integer>
-          </resources>
-          EOF
-          
-          # Small tablets - 4 columns
-          cat > app/src/main/res/values-sw600dp/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">4</integer>
-          </resources>
-          EOF
-          
-          # Small tablets landscape - 8 columns
-          cat > app/src/main/res/values-sw600dp-land/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">8</integer>
-          </resources>
-          EOF
-          
-          # Large tablets - 5 columns
-          cat > app/src/main/res/values-sw720dp/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">5</integer>
-          </resources>
-          EOF
-          
-          # Large tablets landscape - 9 columns
-          cat > app/src/main/res/values-sw720dp-land/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">9</integer>
-          </resources>
-          EOF
-          
-          # Desktop - 6 columns
-          cat > app/src/main/res/values-sw960dp/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">6</integer>
-          </resources>
-          EOF
-          
-          # Desktop landscape - 10 columns
-          cat > app/src/main/res/values-sw960dp-land/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">10</integer>
-          </resources>
-          EOF
-          
-          # Android TV / Fire TV - 5 columns
-          cat > app/src/main/res/values-television/integers.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <integer name="grid_column_count">5</integer>
-          </resources>
-          EOF
-          
-          echo "✅ Created all responsive grid resource files"
-
       - name: Create placeholder launcher icons
         run: |
           mkdir -p app/src/main/res/mipmap-mdpi
@@ -162,7 +44,6 @@ jobs:
           mkdir -p app/src/main/res/mipmap-xxhdpi
           mkdir -p app/src/main/res/mipmap-xxxhdpi
           
-          # Create a simple XML drawable as placeholder icon
           for dpi in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             cat > app/src/main/res/mipmap-$dpi/ic_launcher.xml << 'ICON_EOF'
           <?xml version="1.0" encoding="utf-8"?>
@@ -216,7 +97,6 @@ jobs:
             echo "$name - $size"
           done
 
-      # ✅ Upload individual ABI APKs
       - name: Upload arm64-v8a APK
         uses: actions/upload-artifact@v4
         if: success()
@@ -249,7 +129,6 @@ jobs:
           path: app/build/outputs/apk/release/app-x86-release.apk
           retention-days: 14
 
-      # ✅ Upload universal APK (contains all ABIs)
       - name: Upload Universal APK
         uses: actions/upload-artifact@v4
         if: success()
@@ -268,7 +147,6 @@ jobs:
             app/build/outputs/logs/
           retention-days: 7
 
-      # ✅ Create a summary of the build
       - name: Build Summary
         if: success()
         run: |
