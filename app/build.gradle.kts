@@ -26,6 +26,11 @@ android {
             useSupportLibrary = true
         }
         
+        // ✅ CRITICAL: Support for ALL architectures
+        // armeabi-v7a: 32-bit ARM phones/tablets
+        // arm64-v8a: 64-bit ARM phones/tablets (most modern devices)
+        // x86: 32-bit x86 emulators, some Intel tablets, older Android TV
+        // x86_64: 64-bit emulators, Intel Chromebooks, modern Android TV/Fire TV
         ndk {
             abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
         }
@@ -33,6 +38,11 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += ""
+                // ✅ Build native libs for all ABIs
+                arguments += listOf(
+                    "-DANDROID_ARM_NEON=TRUE",
+                    "-DANDROID_STL=c++_shared"
+                )
             }
         }
     }
@@ -57,11 +67,22 @@ android {
                 "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
+            
+            // ✅ Include all ABIs in release builds
+            ndk {
+                abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            }
         }
         debug {
             isDebuggable = true
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            
+            // ✅ For faster debug builds, you can limit to specific ABIs
+            // Uncomment to only build for your test device during development:
+            // ndk {
+            //     abiFilters += listOf("arm64-v8a", "x86_64")
+            // }
         }
     }
 
@@ -87,12 +108,28 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        
+        // ✅ Ensure native libraries are properly packaged for all ABIs
+        jniLibs {
+            useLegacyPackaging = false
+        }
     }
     
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
             version = "3.22.1"
+        }
+    }
+    
+    // ✅ OPTIONAL: Create separate APKs per ABI to reduce download size
+    // Users will only download the APK for their device architecture
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
+            isUniversalApk = true // Also creates a universal APK with all ABIs
         }
     }
 }
@@ -169,6 +206,9 @@ dependencies {
 
     // Lottie Animations
     implementation("com.airbnb.android:lottie:6.3.0")
+    
+    // ✅ Leanback for Android TV support (OPTIONAL - add if you want TV-optimized UI)
+    // implementation("androidx.leanback:leanback:1.0.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
@@ -178,4 +218,22 @@ dependencies {
 
 kapt {
     correctErrorTypes = true
+}
+
+// ✅ Handle version codes for ABI splits (ensures unique version codes per ABI)
+android.applicationVariants.all {
+    outputs.all {
+        val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+        val abiName = output.getFilter("ABI")
+        if (abiName != null) {
+            val abiVersionCode = when (abiName) {
+                "armeabi-v7a" -> 1
+                "arm64-v8a" -> 2
+                "x86" -> 3
+                "x86_64" -> 4
+                else -> 0
+            }
+            output.versionCodeOverride = (versionCode ?: 0) * 10 + abiVersionCode
+        }
+    }
 }
