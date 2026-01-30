@@ -1328,8 +1328,9 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        binding.relatedChannelsSection.visibility = View.GONE
-        binding.linksSection.visibility = View.GONE
+        // DON'T hide RecyclerViews - keep them visible in background!
+        // binding.relatedChannelsSection.visibility = View.GONE  // REMOVED
+        // binding.linksSection.visibility = View.GONE            // REMOVED
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
