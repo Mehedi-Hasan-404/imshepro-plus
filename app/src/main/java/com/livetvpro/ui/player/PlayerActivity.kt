@@ -143,16 +143,27 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Apply immersive mode early
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
-        // Ensure initial orientation settings are applied immediately
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-        setWindowFlags(isLandscape)
         
-        // Setup window insets listener to respect cutouts in portrait mode
+        setWindowFlags(isLandscape)
         setupWindowInsets()
+        
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        if (isLandscape) {
+            params.dimensionRatio = null
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        } else {
+            params.dimensionRatio = "16:9"
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+        }
+        binding.playerContainer.layoutParams = params
 
         parseIntent()
 
@@ -166,9 +177,6 @@ class PlayerActivity : AppCompatActivity() {
         
         binding.playerView.postDelayed({
             bindControllerViews()
-            
-            val currentOrientation = resources.configuration.orientation
-            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
             applyOrientationSettings(isLandscape)
         }, 100)
 
@@ -500,13 +508,14 @@ class PlayerActivity : AppCompatActivity() {
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
         
-        binding.playerView.requestLayout()
-        binding.playerContainer.requestLayout()
+        binding.playerContainer.invalidate()
+        binding.playerView.invalidate()
         
-        binding.root.postDelayed({
-            setWindowFlags(isLandscape)
+        binding.root.post {
             binding.root.requestLayout()
-        }, 50)
+            binding.playerContainer.requestLayout()
+            binding.playerView.requestLayout()
+        }
     }
 
     override fun onResume() {
