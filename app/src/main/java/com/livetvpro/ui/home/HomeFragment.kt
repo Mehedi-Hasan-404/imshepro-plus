@@ -49,8 +49,11 @@ class HomeFragment : Fragment(), SearchableFragment {
             findNavController().navigate(R.id.action_home_to_category, bundle)
         }
 
+        // Get responsive column count from resources
+        val columnCount = resources.getInteger(R.integer.grid_column_count)
+
         binding.recyclerViewCategories.apply {
-            layoutManager = GridLayoutManager(context, 2)
+            layoutManager = GridLayoutManager(context, columnCount)
             adapter = categoryAdapter
             setHasFixedSize(true)
         }
@@ -88,4 +91,3 @@ class HomeFragment : Fragment(), SearchableFragment {
         _binding = null
     }
 }
-
