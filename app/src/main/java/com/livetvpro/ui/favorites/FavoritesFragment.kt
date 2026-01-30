@@ -8,6 +8,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.ChannelLink
 import com.livetvpro.data.models.FavoriteChannel
@@ -67,8 +68,11 @@ class FavoritesFragment : Fragment() {
             }
         )
 
+        // Get responsive column count from resources
+        val columnCount = resources.getInteger(R.integer.grid_column_count)
+
         binding.recyclerViewFavorites.apply {
-            layoutManager = GridLayoutManager(context, 3)
+            layoutManager = GridLayoutManager(context, columnCount)
             adapter = favoriteAdapter
             itemAnimator = null 
         }
