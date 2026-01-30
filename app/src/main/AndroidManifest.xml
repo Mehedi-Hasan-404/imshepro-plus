@@ -71,13 +71,12 @@
 
         <!-- Player Activity -->
         <activity
-            android:name=".ui.player.PlayerActivity"
-            android:exported="false"
-            android:theme="@style/Theme.LiveTVPro.Fullscreen"
-            android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard"
-            android:supportsPictureInPicture="true"
-            android:launchMode="singleTop" />
+    android:name=".ui.player.PlayerActivity"
+    android:exported="false"
+    android:theme="@style/Theme.LiveTVPro.Fullscreen"
+    android:screenOrientation="unspecified"
+    android:supportsPictureInPicture="true"
+    android:launchMode="singleTop" />
 
         <!-- ✅ CONTACT ACTIVITY (if you have one) -->
         <!-- 
