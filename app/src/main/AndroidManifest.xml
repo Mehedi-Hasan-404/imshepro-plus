@@ -62,12 +62,12 @@
         </activity>
 
         <!-- Main Activity -->
+        <!-- ✅ FIXED: Removed configChanges to allow proper orientation handling -->
         <activity
             android:name=".MainActivity"
             android:exported="false"
             android:theme="@style/Theme.LiveTVPro"
-            android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard" />
+            android:screenOrientation="unspecified" />
 
         <!-- Player Activity -->
         <activity
