@@ -551,8 +551,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
-        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        
         if (isLandscape) {
             binding.playerContainer.setPadding(0, 0, 0, 0)
             
@@ -561,15 +559,18 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
+            val params = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            )
             params.dimensionRatio = null
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
             params.bottomMargin = 0
             params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            binding.playerContainer.layoutParams = params
             
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             
@@ -583,30 +584,35 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
+            val params = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            )
             params.dimensionRatio = "16:9"
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
             params.bottomMargin = 0
             params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            binding.playerContainer.layoutParams = params
             
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             
-            val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
-            linksParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            linksParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
+            val linksParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.WRAP_CONTENT
+            )
             linksParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             linksParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             linksParams.topToBottom = binding.playerContainer.id
             linksParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             binding.linksSection.layoutParams = linksParams
             
-            val relatedParams = binding.relatedChannelsSection.layoutParams as ConstraintLayout.LayoutParams
-            relatedParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            relatedParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            val relatedParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            )
             relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
             relatedParams.topToBottom = binding.linksSection.id
@@ -630,9 +636,7 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        binding.playerContainer.layoutParams = params
         binding.root.requestLayout()
-        binding.playerContainer.requestLayout()
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
