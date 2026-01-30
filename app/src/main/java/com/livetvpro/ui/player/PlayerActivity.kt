@@ -1159,6 +1159,10 @@ class PlayerActivity : AppCompatActivity() {
             btnPip?.visibility = View.VISIBLE
             btnFullscreen?.visibility = View.VISIBLE
             
+            if (startingOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                btnFullscreen?.alpha = 0.5f
+            }
+            
             tvChannelName?.text = contentName
             
             try {
@@ -1214,20 +1218,9 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        btnFullscreen?.apply {
-            if (startingOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                isClickable = false
-                isFocusable = false
-                alpha = 0.5f
-            } else {
-                isClickable = true
-                isFocusable = true
-                alpha = 1.0f
-                setOnClickListener { 
-                    if (!isLocked) {
-                        toggleFullscreen()
-                    }
-                }
+        btnFullscreen?.setOnClickListener { 
+            if (!isLocked && startingOrientation != Configuration.ORIENTATION_LANDSCAPE) {
+                toggleFullscreen()
             }
         }
         
