@@ -2,12 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ✅ NETWORK PERMISSIONS -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- ✅ ANDROID TV / FIRE TV FEATURES -->
-    <!-- Declare that app can run on TV (but doesn't require it) -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -16,8 +13,6 @@
         android:name="android.software.leanback"
         android:required="false" />
     
-    <!-- ✅ LARGE SCREEN SUPPORT -->
-    <!-- Support for tablets, foldables, ChromeOS, DeX -->
     <supports-screens
         android:smallScreens="true"
         android:normalScreens="true"
@@ -39,12 +34,7 @@
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         tools:targetApi="31">
-        
-        <!-- ✅ ANDROID TV BANNER (required for TV launcher) -->
-        <!-- Add this if you have a TV banner image -->
-        <!-- android:banner="@drawable/tv_banner" -->
 
-        <!-- Splash Screen -->
         <activity
             android:name=".ui.SplashActivity"
             android:exported="true"
@@ -55,37 +45,24 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
-                
-                <!-- ✅ ANDROID TV / FIRE TV LAUNCHER -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- Main Activity -->
-        <!-- ✅ FIXED: Removed configChanges to allow proper orientation handling -->
         <activity
             android:name=".MainActivity"
             android:exported="false"
             android:theme="@style/Theme.LiveTVPro"
             android:screenOrientation="unspecified" />
 
-        <!-- Player Activity -->
         <activity
-    android:name=".ui.player.PlayerActivity"
-    android:exported="false"
-    android:theme="@style/Theme.LiveTVPro.Fullscreen"
-    android:screenOrientation="unspecified"
-    android:supportsPictureInPicture="true"
-    android:launchMode="singleTop" />
-
-        <!-- ✅ CONTACT ACTIVITY (if you have one) -->
-        <!-- 
-        <activity
-            android:name=".ui.ContactActivity"
+            android:name=".ui.player.PlayerActivity"
             android:exported="false"
+            android:theme="@style/Theme.LiveTVPro.Fullscreen"
             android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize|screenLayout" />
-        -->
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard"
+            android:supportsPictureInPicture="true"
+            android:launchMode="singleTop" />
 
     </application>
 
