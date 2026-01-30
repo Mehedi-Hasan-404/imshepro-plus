@@ -143,15 +143,12 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Apply immersive mode early
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
-        // Ensure initial orientation settings are applied immediately
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         setWindowFlags(isLandscape)
         
-        // Setup window insets listener to respect cutouts in portrait mode
         setupWindowInsets()
 
         parseIntent()
@@ -207,15 +204,12 @@ class PlayerActivity : AppCompatActivity() {
                 val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                 
                 if (isLandscape) {
-                    // Landscape: Remove all padding to allow full immersive mode
                     binding.playerContainer.setPadding(0, 0, 0, 0)
                 } else {
-                    // Portrait: Apply system window insets to respect cutouts/notches
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
                         val displayCutout = insets.displayCutout
                         
-                        // Apply padding to avoid cutout area
                         val topPadding = maxOf(systemBars.top, displayCutout?.safeInsetTop ?: 0)
                         val leftPadding = maxOf(systemBars.left, displayCutout?.safeInsetLeft ?: 0)
                         val rightPadding = maxOf(systemBars.right, displayCutout?.safeInsetRight ?: 0)
@@ -496,22 +490,40 @@ class PlayerActivity : AppCompatActivity() {
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
-        // Force re-apply window flags to ensure immersive mode
         setWindowFlags(isLandscape)
         
         applyOrientationSettings(isLandscape)
         setSubtitleTextSize()
         
+        binding.playerView.post {
+            binding.root.requestLayout()
+            binding.playerContainer.requestLayout()
+            binding.playerView.requestLayout()
+            
+            player?.let { exoPlayer ->
+                binding.playerView.videoSurfaceView?.let { surfaceView ->
+                    surfaceView.requestLayout()
+                    surfaceView.invalidate()
+                }
+            }
+        }
+        
         binding.root.postDelayed({
-            // Re-apply window flags again after layout to combat system bar restoration
             setWindowFlags(isLandscape)
             binding.root.requestLayout()
             binding.playerContainer.requestLayout()
+            
+            binding.playerView.videoSurfaceView?.let { surfaceView ->
+                surfaceView.requestLayout()
+                surfaceView.invalidate()
+            }
         }, 50)
         
-        // Additional delayed re-application to ensure immersive mode sticks
         binding.root.postDelayed({
             setWindowFlags(isLandscape)
+            
+            binding.playerView.invalidate()
+            binding.playerView.videoSurfaceView?.invalidate()
         }, 200)
     }
 
@@ -520,9 +532,7 @@ class PlayerActivity : AppCompatActivity() {
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
         
-        // Add window focus listener to maintain immersive mode
         window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
-            // When system UI visibility changes, re-apply immersive mode in landscape
             if (isLandscape && (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
                 binding.root.postDelayed({
                     setWindowFlags(isLandscape)
@@ -550,7 +560,6 @@ class PlayerActivity : AppCompatActivity() {
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         if (isLandscape) {
-            // LANDSCAPE: Clear all padding for full immersive mode
             binding.playerContainer.setPadding(0, 0, 0, 0)
             
             binding.playerView.controllerAutoShow = false
@@ -567,7 +576,6 @@ class PlayerActivity : AppCompatActivity() {
             binding.relatedChannelsSection.visibility = View.GONE
             binding.linksSection.visibility = View.GONE
         } else {
-            // PORTRAIT: Request insets to be applied (will be handled by setupWindowInsets)
             binding.root.requestApplyInsets()
             
             binding.playerView.controllerAutoShow = false
@@ -617,16 +625,24 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         binding.playerContainer.layoutParams = params
-        binding.root.post {
-            binding.root.requestLayout()
+        
+        binding.playerView.post {
+            binding.playerContainer.requestLayout()
+            binding.playerView.requestLayout()
+            
+            player?.let { exoPlayer ->
+                val currentVideoSize = exoPlayer.videoSize
+                if (currentVideoSize.width > 0 && currentVideoSize.height > 0) {
+                    binding.playerView.videoSurfaceView?.post {
+                        binding.playerView.invalidate()
+                    }
+                }
+            }
         }
     }
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // LANDSCAPE MODE: Full immersive, extend into cutout area
-            // CRITICAL FIX: Set display cutout mode FIRST for devices with notches/cutouts
-            // This must be done before setDecorFitsSystemWindows to ensure proper layout calculation
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
@@ -634,7 +650,6 @@ class PlayerActivity : AppCompatActivity() {
             }
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11+ (API 30+)
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
                     controller.hide(
@@ -646,7 +661,6 @@ class PlayerActivity : AppCompatActivity() {
                         android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
             } else {
-                // Android 10 and below - be more aggressive
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -659,20 +673,16 @@ class PlayerActivity : AppCompatActivity() {
                         )
             }
             
-            // Additional flags for fullscreen
             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             window.clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN)
         } else {
-            // PORTRAIT MODE: Respect system bars and cutouts (like MainActivity)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
-                    // Use DEFAULT mode in portrait to respect cutout/notch area
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
                 }
             }
             
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // In portrait, let system handle insets properly (like MainActivity)
                 window.setDecorFitsSystemWindows(true)
                 window.insetsController?.let { controller ->
                     controller.show(
@@ -683,7 +693,6 @@ class PlayerActivity : AppCompatActivity() {
                         android.view.WindowInsetsController.BEHAVIOR_DEFAULT
                 }
             } else {
-                // Portrait mode - show system bars but respect layout
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
                         View.SYSTEM_UI_FLAG_LAYOUT_STABLE
@@ -691,7 +700,6 @@ class PlayerActivity : AppCompatActivity() {
                         )
             }
             
-            // Remove fullscreen flags in portrait
             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         }
     }
@@ -1328,9 +1336,6 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        // DON'T hide RecyclerViews - keep them visible in background!
-        // binding.relatedChannelsSection.visibility = View.GONE  // REMOVED
-        // binding.linksSection.visibility = View.GONE            // REMOVED
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
@@ -1471,9 +1476,6 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // Keep RecyclerViews visible in background - DON'T hide them
-            // binding.relatedChannelsSection.visibility = View.GONE  // REMOVED
-            // binding.linksSection.visibility = View.GONE            // REMOVED
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
