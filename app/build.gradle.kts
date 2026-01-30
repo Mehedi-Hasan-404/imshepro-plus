@@ -181,21 +181,21 @@ kapt {
     correctErrorTypes = true
 }
 
-android.applicationVariants.all {
-    val variant = this
-    variant.outputs.all {
-        val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
-        val abiName = output.getFilter(com.android.build.OutputFile.ABI)
-        if (abiName != null) {
-            val abiVersionCode = when (abiName) {
-                "armeabi-v7a" -> 1
-                "arm64-v8a" -> 2
-                "x86" -> 3
-                "x86_64" -> 4
-                else -> 0
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val abiName = output.filters.find { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }?.identifier
+            if (abiName != null) {
+                val abiVersionCode = when (abiName) {
+                    "armeabi-v7a" -> 1
+                    "arm64-v8a" -> 2
+                    "x86" -> 3
+                    "x86_64" -> 4
+                    else -> 0
+                }
+                val newVersionCode = (variant.outputs.first().versionCode.orNull ?: 1) * 10 + abiVersionCode
+                output.versionCode.set(newVersionCode)
             }
-            val newVersionCode = variant.versionCode * 10 + abiVersionCode
-            output.versionCodeOverride = newVersionCode
         }
     }
 }
