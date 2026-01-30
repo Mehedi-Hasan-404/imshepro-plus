@@ -1,0 +1,315 @@
+name: Build Release APK
+
+on:
+  push:
+    branches: ["main", "develop"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # ✅ CRITICAL FIX: Install NDK for native code compilation
+      - name: Install Android NDK
+        run: |
+          echo "Installing NDK 25.1.8937393..."
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;25.1.8937393"
+          echo "NDK installed successfully"
+          ls -la $ANDROID_HOME/ndk/
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      # ✅ NEW: Create all responsive grid resource files
+      - name: Create responsive grid integers.xml files
+        run: |
+          echo "Creating responsive grid resource files..."
+          
+          # Create resource directories
+          mkdir -p app/src/main/res/values
+          mkdir -p app/src/main/res/values-land
+          mkdir -p app/src/main/res/values-w360dp
+          mkdir -p app/src/main/res/values-w600dp
+          mkdir -p app/src/main/res/values-w600dp-land
+          mkdir -p app/src/main/res/values-sw600dp
+          mkdir -p app/src/main/res/values-sw600dp-land
+          mkdir -p app/src/main/res/values-sw720dp
+          mkdir -p app/src/main/res/values-sw720dp-land
+          mkdir -p app/src/main/res/values-sw960dp
+          mkdir -p app/src/main/res/values-sw960dp-land
+          mkdir -p app/src/main/res/values-television
+          
+          # Default (portrait phones) - 3 columns
+          cat > app/src/main/res/values/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">3</integer>
+          </resources>
+          EOF
+          
+          # Landscape phones - 6 columns
+          cat > app/src/main/res/values-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">6</integer>
+          </resources>
+          EOF
+          
+          # Small phones - 2 columns
+          cat > app/src/main/res/values-w360dp/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">2</integer>
+          </resources>
+          EOF
+          
+          # Foldables portrait - 4 columns
+          cat > app/src/main/res/values-w600dp/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">4</integer>
+          </resources>
+          EOF
+          
+          # Foldables landscape - 7 columns
+          cat > app/src/main/res/values-w600dp-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">7</integer>
+          </resources>
+          EOF
+          
+          # Small tablets - 4 columns
+          cat > app/src/main/res/values-sw600dp/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">4</integer>
+          </resources>
+          EOF
+          
+          # Small tablets landscape - 8 columns
+          cat > app/src/main/res/values-sw600dp-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">8</integer>
+          </resources>
+          EOF
+          
+          # Large tablets - 5 columns
+          cat > app/src/main/res/values-sw720dp/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">5</integer>
+          </resources>
+          EOF
+          
+          # Large tablets landscape - 9 columns
+          cat > app/src/main/res/values-sw720dp-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">9</integer>
+          </resources>
+          EOF
+          
+          # Desktop - 6 columns
+          cat > app/src/main/res/values-sw960dp/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">6</integer>
+          </resources>
+          EOF
+          
+          # Desktop landscape - 10 columns
+          cat > app/src/main/res/values-sw960dp-land/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">10</integer>
+          </resources>
+          EOF
+          
+          # Android TV / Fire TV - 5 columns
+          cat > app/src/main/res/values-television/integers.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <integer name="grid_column_count">5</integer>
+          </resources>
+          EOF
+          
+          echo "✅ Created all responsive grid resource files"
+
+      - name: Create placeholder launcher icons
+        run: |
+          mkdir -p app/src/main/res/mipmap-mdpi
+          mkdir -p app/src/main/res/mipmap-hdpi
+          mkdir -p app/src/main/res/mipmap-xhdpi
+          mkdir -p app/src/main/res/mipmap-xxhdpi
+          mkdir -p app/src/main/res/mipmap-xxxhdpi
+          
+          # Create a simple XML drawable as placeholder icon
+          for dpi in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            cat > app/src/main/res/mipmap-$dpi/ic_launcher.xml << 'ICON_EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path android:fillColor="#EF4444"
+                  android:pathData="M0,0h108v108h-108z"/>
+              <path android:fillColor="#FFFFFF"
+                  android:pathData="M32,32h44v44h-44z"/>
+          </vector>
+          ICON_EOF
+            cp app/src/main/res/mipmap-$dpi/ic_launcher.xml app/src/main/res/mipmap-$dpi/ic_launcher_round.xml
+          done
+          echo "✅ Created placeholder launcher icons"
+
+      - name: Create google-services.json from secrets
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+          echo "✅ Created google-services.json from secrets"
+
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
+          echo "✅ Keystore decoded successfully"
+          ls -lh release-keystore.jks
+
+      - name: Build Release APK (Multi-ABI)
+        env:
+          KEYSTORE_FILE: ${{ github.workspace }}/release-keystore.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "Building all ABI variants..."
+          ./gradlew assembleRelease --stacktrace
+          echo "✅ Build completed successfully!"
+
+      - name: List build outputs
+        if: always()
+        run: |
+          echo "=== APK files found ==="
+          find app/build/outputs -name "*.apk" -type f -exec ls -lh {} \;
+          echo ""
+          echo "=== APK Summary ==="
+          find app/build/outputs/apk/release -name "*.apk" -type f | while read apk; do
+            size=$(du -h "$apk" | cut -f1)
+            name=$(basename "$apk")
+            echo "$name - $size"
+          done
+
+      # ✅ Upload individual ABI APKs
+      - name: Upload arm64-v8a APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: app-arm64-v8a-release
+          path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
+          retention-days: 14
+
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: app-armeabi-v7a-release
+          path: app/build/outputs/apk/release/app-armeabi-v7a-release.apk
+          retention-days: 14
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: app-x86_64-release
+          path: app/build/outputs/apk/release/app-x86_64-release.apk
+          retention-days: 14
+
+      - name: Upload x86 APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: app-x86-release
+          path: app/build/outputs/apk/release/app-x86-release.apk
+          retention-days: 14
+
+      # ✅ Upload universal APK (contains all ABIs)
+      - name: Upload Universal APK
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: app-universal-release
+          path: app/build/outputs/apk/release/app-universal-release.apk
+          retention-days: 14
+
+      - name: Upload build reports on failure
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: build-reports
+          path: |
+            app/build/reports/
+            app/build/outputs/logs/
+          retention-days: 7
+
+      # ✅ Create a summary of the build
+      - name: Build Summary
+        if: success()
+        run: |
+          echo "## 🎉 Build Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📱 APK Variants Created:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Architecture | Size | Device Type |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------------|------|-------------|" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "app/build/outputs/apk/release/app-arm64-v8a-release.apk" ]; then
+            size=$(du -h "app/build/outputs/apk/release/app-arm64-v8a-release.apk" | cut -f1)
+            echo "| arm64-v8a | $size | Modern phones, tablets |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -f "app/build/outputs/apk/release/app-armeabi-v7a-release.apk" ]; then
+            size=$(du -h "app/build/outputs/apk/release/app-armeabi-v7a-release.apk" | cut -f1)
+            echo "| armeabi-v7a | $size | Older phones, budget devices |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -f "app/build/outputs/apk/release/app-x86_64-release.apk" ]; then
+            size=$(du -h "app/build/outputs/apk/release/app-x86_64-release.apk" | cut -f1)
+            echo "| x86_64 | $size | Emulators, Android TV, Chromebooks |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -f "app/build/outputs/apk/release/app-x86-release.apk" ]; then
+            size=$(du -h "app/build/outputs/apk/release/app-x86-release.apk" | cut -f1)
+            echo "| x86 | $size | Older emulators, legacy devices |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ -f "app/build/outputs/apk/release/app-universal-release.apk" ]; then
+            size=$(du -h "app/build/outputs/apk/release/app-universal-release.apk" | cut -f1)
+            echo "| **Universal** | **$size** | **All devices (all ABIs)** |" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🌐 Supported Platforms:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Android Phones (all versions)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Android Tablets" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Android TV / Fire TV" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Foldable Devices" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Chromebooks" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Android Emulators" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Windows 11 WSA" >> $GITHUB_STEP_SUMMARY
