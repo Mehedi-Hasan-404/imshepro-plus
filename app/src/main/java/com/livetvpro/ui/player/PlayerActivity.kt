@@ -167,7 +167,7 @@ class PlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
         } else {
-            params.dimensionRatio = "H,16:9"  // Use H,16:9 format for consistency
+            params.dimensionRatio = "H,16:9"
             params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
@@ -348,10 +348,7 @@ class PlayerActivity : AppCompatActivity() {
                     override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                         binding.progressBar.visibility = View.GONE
                         binding.errorView.visibility = View.VISIBLE
-                        binding.errorText.text = getString(R.string.playback_error)
-                        binding.retryButton.setOnClickListener {
-                            retryPlayback()
-                        }
+                        binding.errorText.text = "Failed to load stream"
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
                             updatePipParams()
                         }
@@ -383,17 +380,21 @@ class PlayerActivity : AppCompatActivity() {
     private fun bindControllerViews() {
         val playerView = binding.playerView
         
-        btnBack = playerView.findViewById(R.id.btnBack)
-        btnPip = playerView.findViewById(R.id.btnPip)
-        btnSettings = playerView.findViewById(R.id.btnSettings)
-        btnLock = playerView.findViewById(R.id.btnLock)
-        btnMute = playerView.findViewById(R.id.btnMute)
-        btnRewind = playerView.findViewById(R.id.btnRewind)
-        btnPlayPause = playerView.findViewById(R.id.btnPlayPause)
-        btnForward = playerView.findViewById(R.id.btnForward)
-        btnFullscreen = playerView.findViewById(R.id.btnFullscreen)
-        btnAspectRatio = playerView.findViewById(R.id.btnAspectRatio)
-        tvChannelName = playerView.findViewById(R.id.tvChannelName)
+        try {
+            btnBack = playerView.findViewById(R.id.btnBack)
+            btnPip = playerView.findViewById(R.id.btnPip)
+            btnSettings = playerView.findViewById(R.id.btnSettings)
+            btnLock = playerView.findViewById(R.id.btnLock)
+            btnMute = playerView.findViewById(R.id.btnMute)
+            btnRewind = playerView.findViewById(R.id.btnRewind)
+            btnPlayPause = playerView.findViewById(R.id.btnPlayPause)
+            btnForward = playerView.findViewById(R.id.btnForward)
+            btnFullscreen = playerView.findViewById(R.id.btnFullscreen)
+            btnAspectRatio = playerView.findViewById(R.id.btnAspectRatio)
+            tvChannelName = playerView.findViewById(R.id.tvChannelName)
+        } catch (e: Exception) {
+            return
+        }
         
         tvChannelName?.text = contentName
         
@@ -573,7 +574,7 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        binding.relatedChannelsRecyclerView.apply {
+        binding.relatedChannelsRecycler.apply {
             layoutManager = GridLayoutManager(this@PlayerActivity, 2)
             adapter = relatedChannelsAdapter
         }
@@ -705,11 +706,11 @@ class PlayerActivity : AppCompatActivity() {
     private fun showTrackSelectionDialog() {
         trackSelector?.let { selector ->
             val dialog = androidx.appcompat.app.AlertDialog.Builder(this)
-            dialog.setTitle(R.string.track_selection)
+            dialog.setTitle("Track Selection")
             
             val items = arrayOf(
-                getString(R.string.quality_auto),
-                getString(R.string.subtitles)
+                "Auto Quality",
+                "Subtitles"
             )
             
             dialog.setItems(items) { _, which ->
@@ -885,8 +886,8 @@ class PlayerActivity : AppCompatActivity() {
             )
             actions.add(RemoteAction(
                 Icon.createWithResource(this, R.drawable.ic_pause),
-                getString(R.string.pause),
-                getString(R.string.pause),
+                "Pause",
+                "Pause",
                 pauseIntent
             ))
         } else {
@@ -900,8 +901,8 @@ class PlayerActivity : AppCompatActivity() {
             )
             actions.add(RemoteAction(
                 Icon.createWithResource(this, R.drawable.ic_play),
-                getString(R.string.play),
-                getString(R.string.play),
+                "Play",
+                "Play",
                 playIntent
             ))
         }
@@ -933,14 +934,12 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // Entering PiP mode
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
             
-            // Register PiP broadcast receiver
             pipReceiver = object : BroadcastReceiver() {
                 override fun onReceive(context: Context?, intent: Intent?) {
                     if (intent?.action != ACTION_MEDIA_CONTROL) return
@@ -992,10 +991,8 @@ class PlayerActivity : AppCompatActivity() {
                 registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
             }
         } else {
-            // Exiting PiP mode
             userRequestedPip = false
             
-            // Unregister PiP receiver
             pipReceiver?.let {
                 try {
                     unregisterReceiver(it)
@@ -1063,7 +1060,6 @@ class PlayerActivity : AppCompatActivity() {
     override fun finish() {
         try {
             releasePlayer()
-            // Clean up PiP receiver
             pipReceiver?.let {
                 try {
                     unregisterReceiver(it)
