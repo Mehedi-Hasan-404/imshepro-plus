@@ -219,29 +219,22 @@ class PlayerActivity : AppCompatActivity() {
     
     private fun setupWindowInsets() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-            binding.root.setOnApplyWindowInsetsListener { view, insets ->
+            binding.root.setOnApplyWindowInsetsListener { _, insets ->
                 val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                 
                 if (isLandscape) {
-                    // Landscape: Remove all padding to allow full immersive mode
                     binding.playerContainer.setPadding(0, 0, 0, 0)
                 } else {
-                    // Portrait: Apply system window insets to respect cutouts/notches
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
                         val displayCutout = insets.displayCutout
                         
-                        // Apply padding to avoid cutout area
                         val topPadding = maxOf(systemBars.top, displayCutout?.safeInsetTop ?: 0)
                         val leftPadding = maxOf(systemBars.left, displayCutout?.safeInsetLeft ?: 0)
                         val rightPadding = maxOf(systemBars.right, displayCutout?.safeInsetRight ?: 0)
-                        
-                        binding.playerContainer.setPadding(
-                            leftPadding,
-                            topPadding,
-                            rightPadding,
-                            0 // Don't add bottom padding as we want player to extend to bottom
-                        )
+                        val bottomPadding = maxOf(systemBars.bottom, displayCutout?.safeInsetBottom ?: 0)
+
+                        binding.playerContainer.setPadding(leftPadding, topPadding, rightPadding, 0)
                     } else {
                         @Suppress("DEPRECATION")
                         binding.playerContainer.setPadding(
@@ -252,7 +245,6 @@ class PlayerActivity : AppCompatActivity() {
                         )
                     }
                 }
-                
                 insets
             }
         }
@@ -513,16 +505,22 @@ class PlayerActivity : AppCompatActivity() {
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
         setWindowFlags(isLandscape)
-        applyOrientationSettings(isLandscape)
+        
+        adjustLayoutForOrientation(isLandscape)
+        updateLinksForOrientation(isLandscape)
         setSubtitleTextSize()
         
-        binding.playerContainer.invalidate()
-        binding.playerView.invalidate()
-        
+        btnFullscreen?.setImageResource(
+            if (isLandscape) R.drawable.ic_fullscreen_exit 
+            else R.drawable.ic_fullscreen
+        )
+
         binding.root.post {
-            binding.root.requestLayout()
+            binding.root.requestApplyInsets() 
+            
             binding.playerContainer.requestLayout()
             binding.playerView.requestLayout()
+            binding.playerView.invalidate()
         }
     }
 
@@ -649,29 +647,19 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // LANDSCAPE MODE: Full immersive, extend into cutout area
-            // CRITICAL FIX: Set display cutout mode FIRST for devices with notches/cutouts
-            // This must be done before setDecorFitsSystemWindows to ensure proper layout calculation
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
                 }
             }
-            
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // Android 11+ (API 30+)
                 window.setDecorFitsSystemWindows(false)
                 window.insetsController?.let { controller ->
-                    controller.hide(
-                        WindowInsets.Type.statusBars() or
-                                WindowInsets.Type.navigationBars() or
-                                WindowInsets.Type.systemBars()
-                    )
-                    controller.systemBarsBehavior =
-                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(WindowInsets.Type.systemBars())
+                    controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                 }
             } else {
-                // Android 10 and below - be more aggressive
                 @Suppress("DEPRECATION")
                 window.decorView.systemUiVisibility = (
                         View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -683,41 +671,28 @@ class PlayerActivity : AppCompatActivity() {
                                 or View.SYSTEM_UI_FLAG_LOW_PROFILE
                         )
             }
-            
-            // Additional flags for fullscreen
             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN)
         } else {
-            // PORTRAIT MODE: Respect system bars and cutouts (like MainActivity)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
-                    // Use DEFAULT mode in portrait to respect cutout/notch area
                     layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
                 }
             }
-            
+
+            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                // In portrait, let system handle insets properly (like MainActivity)
-                window.setDecorFitsSystemWindows(true)
+                window.setDecorFitsSystemWindows(false) 
                 window.insetsController?.let { controller ->
-                    controller.show(
-                        WindowInsets.Type.statusBars() or
-                                WindowInsets.Type.navigationBars()
-                    )
-                    controller.systemBarsBehavior =
-                        android.view.WindowInsetsController.BEHAVIOR_DEFAULT
+                    controller.show(WindowInsets.Type.systemBars())
+                    controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_DEFAULT
                 }
             } else {
-                // Portrait mode - show system bars but respect layout
                 @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        )
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
             }
-            
-            // Remove fullscreen flags in portrait
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
         }
     }
 
