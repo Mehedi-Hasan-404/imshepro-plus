@@ -1,1869 +1,1219 @@
-package com.example.livetvpro.ui.player
+package com.livetvpro.ui.player
 
+import android.app.PendingIntent
 import android.app.PictureInPictureParams
+import android.app.RemoteAction
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Color
-import android.media.AudioAttributes
-import android.media.AudioFocusRequest
-import android.media.AudioManager
-import android.net.Uri
+import android.graphics.Rect
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
+import android.os.Parcelable
 import android.util.Log
 import android.util.Rational
-import android.view.KeyEvent
 import android.view.View
+import android.view.WindowInsets
+import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.widget.ImageButton
+import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
-import com.example.livetvpro.R
-import com.example.livetvpro.databinding.ActivityPlayerBinding
-import com.google.android.exoplayer2.C
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.Player.Listener
-import com.google.android.exoplayer2.Timeline
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
-import com.google.android.exoplayer2.ui.PlayerView
-import com.google.android.exoplayer2.util.MimeTypes
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.DefaultHttpDataSource
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
+import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
+import androidx.media3.ui.SubtitleView
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.livetvpro.R
+import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.LiveEvent
+import com.livetvpro.databinding.ActivityPlayerBinding
+import com.livetvpro.ui.adapters.RelatedChannelAdapter
+import com.livetvpro.ui.adapters.LinkChipAdapter
+import com.livetvpro.data.models.LiveEventLink
+import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import java.util.UUID
 
 /**
- * PlayerActivity for Live TV Pro - Full Implementation
+ * Live TV Pro - Main Player Activity
  * 
- * This activity manages:
- * - Video playback with ExoPlayer
- * - Configuration changes (rotation, screen size, orientation)
- * - Picture-in-Picture (PiP) mode
- * - Audio focus management
- * - Background playback service
- * - Playlist management (channels)
- * - Playback state persistence and restoration
- * - Audio and subtitle track management
- * - Hardware key event handling (remote controls)
- * - Brightness and volume gesture controls
- * - Player controls UI
- * - Network stream handling
- * - Adaptive bitrate streaming
- * - Error handling and recovery
- * 
- * @see PlayerViewModel for UI state management
- * @see MediaPlaybackService for background playback functionality
+ * Handles video playback with:
+ * - ExoPlayer integration for channels and live events
+ * - Picture-in-Picture (PiP) mode support
+ * - Orientation handling (portrait/landscape)
+ * - Lock screen functionality
+ * - Multiple quality links/streams
+ * - Related channels display
+ * - Aspect ratio switching
+ * - Mute/unmute controls
  */
-@Suppress("TooManyFunctions", "LargeClass")
+@UnstableApi
+@AndroidEntryPoint
 class PlayerActivity : AppCompatActivity() {
 
-    companion object {
-        private const val TAG = "LiveTVPlayerActivity"
-        
-        // Intent extras
-        const val EXTRA_STREAM_URL = "extra_stream_url"
-        const val EXTRA_CHANNEL_NAME = "extra_channel_name"
-        const val EXTRA_CHANNEL_LOGO = "extra_channel_logo"
-        const val EXTRA_CHANNEL_ID = "extra_channel_id"
-        const val EXTRA_PLAYLIST = "extra_playlist"
-        const val EXTRA_PLAYLIST_INDEX = "extra_playlist_index"
-        const val EXTRA_PLAYBACK_POSITION = "extra_playback_position"
-        const val EXTRA_HEADERS = "extra_headers"
-        const val EXTRA_USER_AGENT = "extra_user_agent"
-        
-        // State keys
-        private const val KEY_PLAYBACK_POSITION = "playback_position"
-        private const val KEY_PLAY_WHEN_READY = "play_when_ready"
-        private const val KEY_CURRENT_WINDOW = "current_window"
-        private const val KEY_PLAYLIST_INDEX = "playlist_index"
-        
-        // Constants
-        private const val BRIGHTNESS_NOT_SET = -1f
-        private const val POSITION_NOT_SET = 0L
-        private const val MILLISECONDS_TO_SECONDS = 1000
-        private const val DEFAULT_SEEK_INCREMENT = 10000L // 10 seconds
-        private const val CONTROLS_TIMEOUT = 5000L // 5 seconds
-        private const val BRIGHTNESS_STEP = 0.05f
-        private const val VOLUME_STEP = 1
-        
-        // Player preferences
-        private const val PREF_REMEMBER_BRIGHTNESS = "remember_brightness"
-        private const val PREF_REMEMBER_POSITION = "remember_position"
-        private const val PREF_AUTO_PIP = "auto_pip"
-        private const val PREF_BACKGROUND_PLAYBACK = "background_playback"
-        private const val PREF_PREFERRED_AUDIO_LANGUAGE = "preferred_audio_language"
-        private const val PREF_PREFERRED_SUBTITLE_LANGUAGE = "preferred_subtitle_language"
-    }
-
-    // ==================== ViewModels and Bindings ====================
-
-    /**
-     * ViewBinding - Lazy initialization to ensure it's only created when needed
-     */
-    private val binding by lazy { 
-        ActivityPlayerBinding.inflate(layoutInflater) 
-    }
-
+    // ==================== View Binding and ViewModels ====================
+    
+    private lateinit var binding: ActivityPlayerBinding
+    private val viewModel: PlayerViewModel by viewModels()
+    
     // ==================== Player Components ====================
-
-    /**
-     * ExoPlayer instance - nullable for proper lifecycle handling
-     */
+    
     private var player: ExoPlayer? = null
-    
-    /**
-     * Track selector for quality and track selection
-     */
     private var trackSelector: DefaultTrackSelector? = null
+    private var playerListener: Player.Listener? = null
     
-    /**
-     * Player view reference
-     */
-    private val playerView: PlayerView by lazy { binding.playerView }
+    // ==================== Adapters ====================
+    
+    private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
+    private var relatedChannels = listOf<Channel>()
+    private lateinit var linkChipAdapter: LinkChipAdapter
 
-    // ==================== State Management ====================
+    // ==================== UI Controls ====================
+    
+    private var btnBack: ImageButton? = null
+    private var btnPip: ImageButton? = null
+    private var btnSettings: ImageButton? = null
+    private var btnLock: ImageButton? = null
+    private var btnMute: ImageButton? = null
+    private var btnRewind: ImageButton? = null
+    private var btnPlayPause: ImageButton? = null
+    private var btnForward: ImageButton? = null
+    private var btnFullscreen: ImageButton? = null
+    private var btnAspectRatio: ImageButton? = null
+    private var tvChannelName: TextView? = null
 
-    /**
-     * Current playback position for state restoration
-     */
-    private var playbackPosition: Long = 0L
+    // ==================== State Variables ====================
     
-    /**
-     * Play when ready state
-     */
-    private var playWhenReady: Boolean = true
-    
-    /**
-     * Current window index (for playlists)
-     */
-    private var currentWindow: Int = 0
-    
-    /**
-     * Stream URL to play
-     */
-    private var streamUrl: String? = null
-    
-    /**
-     * Channel name for display
-     */
-    private var channelName: String? = null
-    
-    /**
-     * Channel ID
-     */
-    private var channelId: Long = -1
-    
-    /**
-     * Playlist of channel URIs for sequential playback
-     */
-    private var playlist: List<Uri> = emptyList()
-    
-    /**
-     * Current index in the playlist
-     */
-    private var playlistIndex: Int = 0
-    
-    /**
-     * Track if user is finishing the activity
-     */
-    private var isUserFinishing = false
-    
-    /**
-     * Track if player is ready
-     */
-    private var isReady = false
-    
-    /**
-     * Track if player has been initialized
-     */
-    private var playerInitialized = false
-    
-    /**
-     * Save playback state job tracking
-     */
-    private var savePlaybackStateJob: Job? = null
-    
-    /**
-     * Was playing before pause
-     */
-    private var wasPlayingBeforePause = false
-
-    // ==================== Brightness and Volume ====================
-
-    /**
-     * Current brightness level
-     */
-    private var currentBrightness: Float = BRIGHTNESS_NOT_SET
-    
-    /**
-     * Original brightness before changes
-     */
-    private var originalBrightness: Float = BRIGHTNESS_NOT_SET
-    
-    /**
-     * Current volume level
-     */
-    private var currentVolume: Int = 0
-    
-    /**
-     * Maximum volume
-     */
-    private var maxVolume: Int = 0
-
-    // ==================== Audio Focus ====================
-
-    /**
-     * Audio manager for focus handling
-     */
-    private val audioManager: AudioManager by lazy {
-        getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    }
-    
-    /**
-     * Audio focus request (API 26+)
-     */
-    private var audioFocusRequest: AudioFocusRequest? = null
-    
-    /**
-     * Restore audio focus callback
-     */
-    private var restoreAudioFocus: () -> Unit = {}
-
-    // ==================== Picture-in-Picture ====================
-
-    /**
-     * Helper for managing Picture-in-Picture mode
-     */
-    private lateinit var pipHelper: PipHelper
-    
-    /**
-     * Track if we're in PiP mode
-     */
     private var isInPipMode = false
-
-    // ==================== Background Playback ====================
-
-    /**
-     * Reference to the background playback service
-     */
-    private var mediaPlaybackService: MediaPlaybackService? = null
-    
-    /**
-     * Tracks whether we're currently bound to the background playback service
-     */
-    private var serviceBound = false
-    
-    /**
-     * Service connection for background playback
-     */
-    private val serviceConnection = object : ServiceConnection {
-        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-            Log.d(TAG, "Service connected")
-            val binder = service as? MediaPlaybackService.MediaPlaybackBinder
-            mediaPlaybackService = binder?.getService()
-            serviceBound = true
-        }
-
-        override fun onServiceDisconnected(name: ComponentName?) {
-            Log.d(TAG, "Service disconnected")
-            mediaPlaybackService = null
-            serviceBound = false
-        }
-    }
-
-    // ==================== Broadcast Receivers ====================
-
-    /**
-     * Receiver for handling noisy audio events (headphones unplugged)
-     */
-    private val noisyReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
-                Log.d(TAG, "Audio becoming noisy - pausing playback")
-                player?.pause()
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
-        }
+    private var isLocked = false
+    private var isMuted = false
+    private val skipMs = 10_000L
+    private var userRequestedPip = false
+    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val hideUnlockButtonRunnable = Runnable {
+        binding.unlockButton.visibility = View.GONE
     }
     
-    /**
-     * Track if noisy receiver is registered
-     */
-    private var noisyReceiverRegistered = false
+    private var pipReceiver: BroadcastReceiver? = null
+    private var wasLockedBeforePip = false
 
-    /**
-     * Audio focus change listener
-     */
-    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
-        when (focusChange) {
-            AudioManager.AUDIOFOCUS_LOSS,
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                Log.d(TAG, "Audio focus lost - pausing")
-                val wasPlaying = player?.isPlaying == true
-                player?.pause()
-                restoreAudioFocus = {
-                    if (wasPlaying) {
-                        player?.play()
-                    }
-                }
-            }
-            
-            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                Log.d(TAG, "Audio focus lost (can duck) - lowering volume")
-                player?.volume = 0.3f
-                restoreAudioFocus = {
-                    player?.volume = 1.0f
-                }
-            }
-            
-            AudioManager.AUDIOFOCUS_GAIN -> {
-                Log.d(TAG, "Audio focus gained - restoring")
-                player?.volume = 1.0f
-                restoreAudioFocus()
-                restoreAudioFocus = {}
-            }
-            
-            AudioManager.AUDIOFOCUS_REQUEST_FAILED -> {
-                Log.d(TAG, "Audio focus request failed")
-            }
-        }
+    // ==================== Content Data ====================
+    
+    private var contentType: ContentType = ContentType.CHANNEL
+    private var channelData: Channel? = null
+    private var eventData: LiveEvent? = null
+    private var allEventLinks = listOf<LiveEventLink>()
+    private var currentLinkIndex = 0
+    private var contentId: String = ""
+    private var contentName: String = ""
+    private var streamUrl: String = ""
+
+    enum class ContentType {
+        CHANNEL, EVENT
     }
 
-    // ==================== UI State ====================
+    companion object {
+        private const val TAG = "LiveTVPro_PlayerActivity"
+        private const val EXTRA_CHANNEL = "extra_channel"
+        private const val EXTRA_EVENT = "extra_event"
+        private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
+        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
+        private const val EXTRA_CONTROL_TYPE = "control_type"
+        private const val CONTROL_TYPE_PLAY = 1
+        private const val CONTROL_TYPE_PAUSE = 2
+        private const val CONTROL_TYPE_REWIND = 3
+        private const val CONTROL_TYPE_FORWARD = 4
 
-    /**
-     * Controls visibility timeout job
-     */
-    private var hideControlsJob: Job? = null
-    
-    /**
-     * Track if controls are shown
-     */
-    private var controlsShown = false
+        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1) {
+            val intent = Intent(context, PlayerActivity::class.java).apply {
+                putExtra(EXTRA_CHANNEL, channel as Parcelable)
+                putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
+            }
+            context.startActivity(intent)
+        }
+
+        fun startWithEvent(context: Context, event: LiveEvent, linkIndex: Int = -1) {
+            val intent = Intent(context, PlayerActivity::class.java).apply {
+                putExtra(EXTRA_EVENT, event as Parcelable)
+                putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
+            }
+            context.startActivity(intent)
+        }
+    }
 
     // ==================== Lifecycle Methods ====================
 
-    @RequiresApi(Build.VERSION_CODES.P)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
-        Log.d(TAG, "onCreate")
-        
-        // Set content view using ViewBinding
+        binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Extract intent data
-        extractIntentData(intent)
+        // Keep screen on during playback
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
-        // Restore saved state if available
-        savedInstanceState?.let {
-            playbackPosition = it.getLong(KEY_PLAYBACK_POSITION, 0L)
-            playWhenReady = it.getBoolean(KEY_PLAY_WHEN_READY, true)
-            currentWindow = it.getInt(KEY_CURRENT_WINDOW, 0)
-            playlistIndex = it.getInt(KEY_PLAYLIST_INDEX, 0)
-        }
+        // Enable edge-to-edge display
+        enableEdgeToEdge()
         
-        // Setup UI
-        setupSystemUI()
-        setupWindowFlags()
-        setupBackPressHandler()
-        setupGestureDetectors()
+        // Get current orientation
+        val currentOrientation = resources.configuration.orientation
+        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         
-        // Setup audio focus
-        setupAudioFocus()
+        // Set window flags for immersive mode
+        setWindowFlags(isLandscape)
+        setupWindowInsets()
         
-        // Initialize PiP helper
-        setupPipHelper()
-        
-        // Setup player controls
-        setupPlayerControls()
-        
-        // Get volume info
-        maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-        
-        // Setup cutout mode
-        window.attributes.layoutInDisplayCutoutMode =
-            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-    }
+        // Configure player container dimensions based on orientation
+        configurePlayerDimensions(isLandscape)
 
-    override fun onStart() {
-        super.onStart()
-        Log.d(TAG, "onStart")
-        
-        // Setup window flags and system UI
-        setupWindowFlags()
-        setupSystemUI()
-        
-        // Initialize player if not already created
-        if (player == null) {
-            initializePlayer()
+        // Parse intent to get content data
+        parseIntent()
+
+        // Refresh channel data if available
+        if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
+            viewModel.refreshChannelData(contentId)
         }
+
+        binding.progressBar.visibility = View.VISIBLE
         
-        // Register noisy receiver
-        if (!noisyReceiverRegistered) {
-            val filter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
-            registerReceiver(noisyReceiver, filter)
-            noisyReceiverRegistered = true
-        }
+        // Setup player
+        setupPlayer()
         
-        // Restore brightness if enabled
-        if (getPreferenceBoolean(PREF_REMEMBER_BRIGHTNESS, false)) {
-            if (currentBrightness != BRIGHTNESS_NOT_SET) {
-                setBrightness(currentBrightness)
+        // Bind controller views after layout is ready
+        binding.playerView.postDelayed({
+            bindControllerViews()
+            applyOrientationSettings(isLandscape)
+        }, 100)
+
+        // Configure player interactions
+        configurePlayerInteractions()
+        setupLockOverlay()
+        setupRelatedChannels()
+        setupLinksUI()
+        loadRelatedContent()
+        
+        // Observe refreshed channel data
+        viewModel.refreshedChannel.observe(this) { freshChannel ->
+            if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
+                if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
+                    allEventLinks = freshChannel.links.map { 
+                        LiveEventLink(label = it.quality, url = it.url) 
+                    }
+                    
+                    val matchIndex = allEventLinks.indexOfFirst { it.url == streamUrl }
+                    if (matchIndex != -1) {
+                        currentLinkIndex = matchIndex
+                    }
+                    
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    updateLinksForOrientation(isLandscape)
+                }
             }
         }
         
-        // End background playback if service is bound
-        if (serviceBound) {
-            endBackgroundPlayback()
-        }
-        
-        // Update PiP params
+        // Register PiP receiver on Android O and above
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipHelper.updatePictureInPictureParams()
+            registerPipReceiver()
         }
-    }
 
-    override fun onResume() {
-        super.onResume()
-        Log.d(TAG, "onResume")
-        
-        // Resume playback if not in PiP
-        if (!isInPipMode && player != null) {
-            player?.playWhenReady = playWhenReady
-        }
-        
-        // Update volume
-        updateVolume()
+        // Setup back press handler
+        setupBackPressHandler()
     }
-
-    @RequiresApi(Build.VERSION_CODES.P)
-    override fun onPause() {
-        super.onPause()
-        Log.d(TAG, "onPause - isInPipMode: $isInPipMode, isFinishing: $isFinishing")
-        
-        runCatching {
-            val isInPip = isInPictureInPictureMode
-            val shouldPause = !getPreferenceBoolean(PREF_BACKGROUND_PLAYBACK, false) || isUserFinishing
-            
-            // Save state
-            player?.let {
-                playbackPosition = it.currentPosition
-                playWhenReady = it.playWhenReady
-            }
-            
-            // Pause if not in PiP and should pause
-            if (!isInPip && shouldPause) {
-                wasPlayingBeforePause = player?.isPlaying == true
-                player?.pause()
-            }
-            
-            // Restore UI immediately when user is finishing for instant feedback
-            if (isUserFinishing && !isInPip) {
-                restoreSystemUI()
-            }
-            
-            // Save playback state
-            savePlaybackState()
-            
-        }.onFailure { e ->
-            Log.e(TAG, "Error during onPause", e)
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        Log.d(TAG, "onStop")
-        
-        runCatching {
-            // Stop PiP helper
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                pipHelper.onStop()
-            }
-            
-            // Save playback state
-            savePlaybackState()
-            
-            // Unregister noisy receiver
-            if (noisyReceiverRegistered) {
-                unregisterReceiver(noisyReceiver)
-                noisyReceiverRegistered = false
-            }
-            
-            // Handle background playback
-            val backgroundPlaybackEnabled = getPreferenceBoolean(PREF_BACKGROUND_PLAYBACK, false)
-            
-            if (!serviceBound && backgroundPlaybackEnabled && !isUserFinishing && !isFinishing) {
-                // Start background playback
-                startBackgroundPlayback()
-            } else {
-                // Stop playback if not in background mode
-                if (!backgroundPlaybackEnabled || isUserFinishing || isFinishing) {
-                    player?.pause()
-                }
-                
-                // Unbind service if bound
-                if (serviceBound) {
-                    runCatching {
-                        unbindService(serviceConnection)
-                        serviceBound = false
-                    }
-                }
-            }
-            
-            // Release player if finishing
-            if (isFinishing) {
-                releasePlayer()
-            }
-            
-        }.onFailure { e ->
-            Log.e(TAG, "Error during onStop", e)
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.P)
-    override fun onDestroy() {
-        Log.d(TAG, "onDestroy")
-        
-        runCatching {
-            // Stop and unbind service if finishing
-            if (isUserFinishing || isFinishing) {
-                if (serviceBound) {
-                    runCatching { unbindService(serviceConnection) }
-                    serviceBound = false
-                }
-                stopService(Intent(this, MediaPlaybackService::class.java))
-                mediaPlaybackService = null
-            }
-            
-            // Wait for any pending save operation to complete
-            savePlaybackStateJob?.let { job ->
-                Log.d(TAG, "Waiting for save playback state job to complete...")
-                runCatching {
-                    kotlinx.coroutines.runBlocking {
-                        job.join()
-                    }
-                }
-                Log.d(TAG, "Save playback state job completed")
-            }
-            
-            // Cleanup
-            cleanupPlayer()
-            cleanupAudio()
-            cleanupReceivers()
-            
-        }.onFailure { e ->
-            Log.e(TAG, "Error during onDestroy", e)
-        }
-        
-        super.onDestroy()
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        
-        // Save playback state
-        player?.let {
-            outState.putLong(KEY_PLAYBACK_POSITION, it.currentPosition)
-            outState.putBoolean(KEY_PLAY_WHEN_READY, it.playWhenReady)
-            outState.putInt(KEY_CURRENT_WINDOW, it.currentMediaItemIndex)
-        }
-        outState.putInt(KEY_PLAYLIST_INDEX, playlistIndex)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.P)
-    override fun finish() {
-        runCatching {
-            // Restore UI immediately for responsive exit
-            if (!isInPictureInPictureMode) {
-                restoreSystemUI()
-            }
-            isReady = false
-        }.onFailure { e ->
-            Log.e(TAG, "Error during finish", e)
-        }
-        
-        super.finish()
-    }
-
-    @RequiresApi(Build.VERSION_CODES.P)
-    override fun finishAndRemoveTask() {
-        runCatching {
-            // Restore UI immediately for responsive exit
-            if (!isInPictureInPictureMode) {
-                restoreSystemUI()
-            }
-            isReady = false
-            isUserFinishing = true
-        }.onFailure { e ->
-            Log.e(TAG, "Error during finishAndRemoveTask", e)
-        }
-        
-        super.finishAndRemoveTask()
-    }
-
-    // ==================== Configuration Changes ====================
 
     /**
-     * Handle configuration changes (rotation, screen size, etc.)
-     * 
-     * This is called when configChanges are handled manually in manifest
+     * Enable edge-to-edge display for modern Android versions
      */
+    private fun enableEdgeToEdge() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+        } else {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+        }
+    }
+
+    /**
+     * Setup window insets for proper edge-to-edge display
+     */
+    private fun setupWindowInsets() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.let { controller ->
+                controller.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+    }
+
+    /**
+     * Configure player container dimensions based on orientation
+     */
+    private fun configurePlayerDimensions(isLandscape: Boolean) {
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        if (isLandscape) {
+            // Landscape: fullscreen
+            params.dimensionRatio = null
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        } else {
+            // Portrait: 16:9 aspect ratio
+            params.dimensionRatio = "H,16:9"
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+        }
+        binding.playerContainer.layoutParams = params
+    }
+
+    /**
+     * Set window flags for immersive mode
+     */
+    private fun setWindowFlags(isLandscape: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.insetsController?.let { controller ->
+                if (isLandscape) {
+                    controller.hide(WindowInsets.Type.systemBars())
+                } else {
+                    controller.show(WindowInsets.Type.systemBars())
+                }
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            if (isLandscape) {
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                )
+            } else {
+                window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                )
+            }
+        }
+    }
+
+    /**
+     * Parse intent data to determine content type and extract necessary information
+     */
+    private fun parseIntent() {
+        val selectedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
+        
+        when {
+            intent.hasExtra(EXTRA_CHANNEL) -> {
+                contentType = ContentType.CHANNEL
+                channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(EXTRA_CHANNEL)
+                }
+                
+                channelData?.let { channel ->
+                    contentId = channel.id
+                    contentName = channel.name
+                    
+                    if (channel.links.isNotEmpty()) {
+                        allEventLinks = channel.links.map { 
+                            LiveEventLink(label = it.quality, url = it.url) 
+                        }
+                        currentLinkIndex = if (selectedLinkIndex >= 0 && selectedLinkIndex < allEventLinks.size) {
+                            selectedLinkIndex
+                        } else {
+                            0
+                        }
+                        streamUrl = allEventLinks[currentLinkIndex].url
+                    }
+                }
+            }
+            intent.hasExtra(EXTRA_EVENT) -> {
+                contentType = ContentType.EVENT
+                eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    intent.getParcelableExtra(EXTRA_EVENT)
+                }
+                
+                eventData?.let { event ->
+                    contentId = event.id
+                    contentName = event.title
+                    
+                    if (event.links.isNotEmpty()) {
+                        allEventLinks = event.links
+                        currentLinkIndex = if (selectedLinkIndex >= 0 && selectedLinkIndex < allEventLinks.size) {
+                            selectedLinkIndex
+                        } else {
+                            0
+                        }
+                        streamUrl = allEventLinks[currentLinkIndex].url
+                    }
+                }
+            }
+        }
+        
+        Log.d(TAG, "Parsed content: type=$contentType, name=$contentName, url=$streamUrl")
+    }
+
+    /**
+     * Setup ExoPlayer instance
+     */
+    private fun setupPlayer() {
+        if (streamUrl.isEmpty()) {
+            showError(getString(R.string.network_error))
+            return
+        }
+
+        try {
+            trackSelector = DefaultTrackSelector(this).apply {
+                setParameters(
+                    buildUponParameters()
+                        .setMaxVideoSizeSd()
+                        .setPreferredAudioLanguage("en")
+                )
+            }
+
+            player = ExoPlayer.Builder(this)
+                .setTrackSelector(trackSelector!!)
+                .build()
+                .also { exoPlayer ->
+                    binding.playerView.player = exoPlayer
+                    
+                    // Setup player listener
+                    playerListener = object : Player.Listener {
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            when (playbackState) {
+                                Player.STATE_READY -> {
+                                    binding.progressBar.visibility = View.GONE
+                                    binding.errorView.visibility = View.GONE
+                                    updatePipParams()
+                                }
+                                Player.STATE_BUFFERING -> {
+                                    binding.progressBar.visibility = View.VISIBLE
+                                }
+                                Player.STATE_ENDED -> {
+                                    updatePipParams()
+                                }
+                            }
+                        }
+
+                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                            showError(getString(R.string.network_error))
+                            updatePipParams()
+                        }
+
+                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            updatePipParams()
+                            btnPlayPause?.setImageResource(
+                                if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                            )
+                        }
+
+                        override fun onVideoSizeChanged(videoSize: VideoSize) {
+                            updatePipParams()
+                        }
+                    }
+                    
+                    exoPlayer.addListener(playerListener!!)
+                    
+                    // Prepare media
+                    val mediaItem = MediaItem.fromUri(streamUrl)
+                    exoPlayer.setMediaItem(mediaItem)
+                    exoPlayer.prepare()
+                    exoPlayer.play()
+                }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error setting up player", e)
+            showError(getString(R.string.network_error))
+        }
+    }
+
+    /**
+     * Bind controller button views from PlayerView
+     */
+    private fun bindControllerViews() {
+        try {
+            btnBack = binding.playerView.findViewById(R.id.exo_back)
+            btnPip = binding.playerView.findViewById(R.id.exo_pip)
+            btnSettings = binding.playerView.findViewById(R.id.exo_settings)
+            btnLock = binding.playerView.findViewById(R.id.exo_lock)
+            btnMute = binding.playerView.findViewById(R.id.exo_mute)
+            btnRewind = binding.playerView.findViewById(R.id.exo_rew)
+            btnPlayPause = binding.playerView.findViewById(R.id.exo_play_pause)
+            btnForward = binding.playerView.findViewById(R.id.exo_ffwd)
+            btnFullscreen = binding.playerView.findViewById(R.id.exo_fullscreen)
+            btnAspectRatio = binding.playerView.findViewById(R.id.exo_aspect_ratio)
+            tvChannelName = binding.playerView.findViewById(R.id.exo_channel_name)
+
+            tvChannelName?.text = contentName
+
+            setupControllerButtons()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error binding controller views", e)
+        }
+    }
+
+    /**
+     * Setup click listeners for controller buttons
+     */
+    private fun setupControllerButtons() {
+        btnBack?.setOnClickListener { 
+            if (!isInPipMode) finish() 
+        }
+
+        btnPip?.setOnClickListener {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (!isInPipMode) {
+                    userRequestedPip = true
+                    wasLockedBeforePip = isLocked
+                    enterPipMode()
+                }
+            }
+        }
+
+        btnLock?.setOnClickListener {
+            toggleLockState()
+        }
+
+        btnMute?.setOnClickListener {
+            toggleMuteState()
+        }
+
+        btnRewind?.setOnClickListener {
+            player?.let { p ->
+                val newPosition = p.currentPosition - skipMs
+                p.seekTo(if (newPosition < 0) 0 else newPosition)
+            }
+        }
+
+        btnPlayPause?.setOnClickListener {
+            player?.let { p ->
+                if (p.isPlaying) {
+                    p.pause()
+                } else {
+                    p.play()
+                }
+            }
+        }
+
+        btnForward?.setOnClickListener {
+            player?.let { p ->
+                val newPosition = p.currentPosition + skipMs
+                if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
+                    p.seekTo(p.duration)
+                } else {
+                    p.seekTo(newPosition)
+                }
+            }
+        }
+
+        btnFullscreen?.setOnClickListener {
+            toggleOrientation()
+        }
+
+        btnAspectRatio?.setOnClickListener {
+            cycleAspectRatio()
+        }
+
+        btnSettings?.setOnClickListener {
+            // TODO: Implement settings dialog
+        }
+    }
+
+    /**
+     * Configure player interaction behaviors
+     */
+    private fun configurePlayerInteractions() {
+        binding.playerView.setControllerVisibilityListener(
+            PlayerView.ControllerVisibilityListener { visibility ->
+                if (visibility == View.VISIBLE && isLocked) {
+                    binding.playerView.hideController()
+                }
+            }
+        )
+
+        binding.playerView.setOnClickListener {
+            if (isLocked) {
+                showUnlockButton()
+            }
+        }
+    }
+
+    /**
+     * Setup lock overlay functionality
+     */
+    private fun setupLockOverlay() {
+        binding.unlockButton.setOnClickListener {
+            toggleLockState()
+        }
+        
+        binding.lockOverlay.setOnClickListener {
+            showUnlockButton()
+        }
+    }
+
+    /**
+     * Toggle lock state
+     */
+    private fun toggleLockState() {
+        isLocked = !isLocked
+        
+        if (isLocked) {
+            binding.playerView.useController = false
+            binding.playerView.hideController()
+            binding.lockOverlay.visibility = View.VISIBLE
+            showUnlockButton()
+            btnLock?.setImageResource(R.drawable.ic_lock_closed)
+        } else {
+            binding.playerView.useController = true
+            binding.lockOverlay.visibility = View.GONE
+            binding.unlockButton.visibility = View.GONE
+            mainHandler.removeCallbacks(hideUnlockButtonRunnable)
+            binding.playerView.showController()
+            btnLock?.setImageResource(R.drawable.ic_lock_open)
+        }
+    }
+
+    /**
+     * Show unlock button temporarily
+     */
+    private fun showUnlockButton() {
+        binding.unlockButton.visibility = View.VISIBLE
+        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
+        mainHandler.postDelayed(hideUnlockButtonRunnable, 3000)
+    }
+
+    /**
+     * Toggle mute state
+     */
+    private fun toggleMuteState() {
+        isMuted = !isMuted
+        player?.volume = if (isMuted) 0f else 1f
+        btnMute?.setImageResource(
+            if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+        )
+    }
+
+    /**
+     * Cycle through aspect ratio modes
+     */
+    private fun cycleAspectRatio() {
+        currentResizeMode = when (currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+            AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
+            AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        binding.playerView.resizeMode = currentResizeMode
+    }
+
+    /**
+     * Toggle screen orientation
+     */
+    private fun toggleOrientation() {
+        requestedOrientation = when (resources.configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            else -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+    }
+
+    /**
+     * Setup related channels RecyclerView
+     */
+    private fun setupRelatedChannels() {
+        relatedChannelsAdapter = RelatedChannelAdapter { channel ->
+            // Start new player with selected channel
+            startWithChannel(this, channel)
+            finish()
+        }
+
+        binding.relatedChannelsRecyclerView.apply {
+            layoutManager = LinearLayoutManager(this@PlayerActivity, LinearLayoutManager.HORIZONTAL, false)
+            adapter = relatedChannelsAdapter
+        }
+    }
+
+    /**
+     * Setup links UI (quality switcher)
+     */
+    private fun setupLinksUI() {
+        linkChipAdapter = LinkChipAdapter(
+            links = allEventLinks,
+            selectedIndex = currentLinkIndex
+        ) { index ->
+            switchToLink(index)
+        }
+
+        binding.linksRecyclerView.apply {
+            layoutManager = GridLayoutManager(this@PlayerActivity, 3)
+            adapter = linkChipAdapter
+        }
+    }
+
+    /**
+     * Load related content based on content type
+     */
+    private fun loadRelatedContent() {
+        when (contentType) {
+            ContentType.CHANNEL -> {
+                channelData?.categoryId?.let { categoryId ->
+                    viewModel.getChannelsByCategory(categoryId)
+                }
+            }
+            ContentType.EVENT -> {
+                // Load related events if needed
+            }
+        }
+
+        viewModel.channels.observe(this) { channels ->
+            relatedChannels = channels.filter { it.id != contentId }
+            relatedChannelsAdapter.submitList(relatedChannels)
+            
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            if (!isLandscape && relatedChannels.isNotEmpty()) {
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+            }
+        }
+    }
+
+    /**
+     * Switch to a different stream link
+     */
+    private fun switchToLink(index: Int) {
+        if (index < 0 || index >= allEventLinks.size || index == currentLinkIndex) {
+            return
+        }
+
+        val wasPlaying = player?.isPlaying == true
+        val currentPosition = player?.currentPosition ?: 0
+
+        currentLinkIndex = index
+        streamUrl = allEventLinks[index].url
+
+        linkChipAdapter.updateSelection(index)
+
+        // Release and recreate player with new URL
+        releasePlayer()
+        setupPlayer()
+
+        // Restore playback state
+        player?.let { p ->
+            if (currentPosition > 0) {
+                p.seekTo(currentPosition)
+            }
+            if (wasPlaying) {
+                p.play()
+            }
+        }
+    }
+
+    /**
+     * Apply orientation-specific settings
+     */
+    private fun applyOrientationSettings(isLandscape: Boolean) {
+        if (isLandscape) {
+            // Hide bottom sections in landscape
+            binding.relatedChannelsSection.visibility = View.GONE
+            binding.linksSection.visibility = View.GONE
+            
+            // Update fullscreen button
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+        } else {
+            // Show sections in portrait if content available
+            if (allEventLinks.size > 1) {
+                binding.linksSection.visibility = View.VISIBLE
+            }
+            if (relatedChannels.isNotEmpty()) {
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+            }
+            
+            // Update fullscreen button
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        }
+
+        // Update PiP button visibility
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val hasPipSupport = packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+            btnPip?.visibility = if (hasPipSupport && isLandscape) View.VISIBLE else View.GONE
+        } else {
+            btnPip?.visibility = View.GONE
+        }
+    }
+
+    /**
+     * Update links display based on orientation
+     */
+    private fun updateLinksForOrientation(isLandscape: Boolean) {
+        if (isLandscape) {
+            binding.linksSection.visibility = View.GONE
+        } else {
+            if (allEventLinks.size > 1) {
+                linkChipAdapter.updateLinks(allEventLinks, currentLinkIndex)
+                binding.linksSection.visibility = View.VISIBLE
+            } else {
+                binding.linksSection.visibility = View.GONE
+            }
+        }
+    }
+
+    /**
+     * Show error message
+     */
+    private fun showError(message: String) {
+        binding.progressBar.visibility = View.GONE
+        binding.errorView.visibility = View.VISIBLE
+        binding.errorMessage.text = message
+        binding.retryButton.setOnClickListener {
+            retryPlayback()
+        }
+    }
+
+    /**
+     * Retry playback after error
+     */
+    private fun retryPlayback() {
+        binding.errorView.visibility = View.GONE
+        binding.progressBar.visibility = View.VISIBLE
+        player?.release()
+        player = null
+        setupPlayer()
+    }
+
+    /**
+     * Setup subtitle text size
+     */
+    private fun setSubtitleTextSize() {
+        val subtitleView = binding.playerView.subtitleView
+        subtitleView?.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
+    }
+
+    /**
+     * Setup back press handler
+     */
+    private fun setupBackPressHandler() {
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (isLocked) {
+                    showUnlockButton()
+                } else if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                } else {
+                    finish()
+                }
+            }
+        })
+    }
+
+    // ==================== Configuration Change Handling ====================
+
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         
-        Log.d(TAG, "onConfigurationChanged - orientation: ${newConfig.orientation}")
+        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
-        if (isReady) {
-            handleConfigurationChange(newConfig)
+        setWindowFlags(isLandscape)
+        configurePlayerDimensions(isLandscape)
+        
+        binding.playerView.postDelayed({
+            applyOrientationSettings(isLandscape)
+        }, 100)
+    }
+
+    // ==================== Picture-in-Picture Implementation ====================
+
+    /**
+     * Enter Picture-in-Picture mode
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun enterPipMode() {
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            return
+        }
+
+        try {
+            val params = buildPipParams()
+            enterPictureInPictureMode(params)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error entering PiP mode", e)
         }
     }
 
     /**
-     * Handles configuration changes by updating UI
+     * Build PiP parameters
      */
-    private fun handleConfigurationChange(newConfig: Configuration) {
-        if (!isInPictureInPictureMode) {
-            // Handle orientation change
-            when (newConfig.orientation) {
-                Configuration.ORIENTATION_LANDSCAPE -> {
-                    Log.d(TAG, "Switched to landscape")
-                    setupFullscreen()
-                }
-                Configuration.ORIENTATION_PORTRAIT -> {
-                    Log.d(TAG, "Switched to portrait")
-                    setupFullscreen()
-                }
-            }
-            
-            // Update PiP params
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                pipHelper.updatePictureInPictureParams()
-            }
-            
-            // Adjust player view
-            adjustPlayerView()
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun buildPipParams(): PictureInPictureParams {
+        val builder = PictureInPictureParams.Builder()
+
+        // Set aspect ratio
+        getVideoAspectRatio()?.let { aspectRatio ->
+            builder.setAspectRatio(aspectRatio)
+            builder.setSourceRectHint(calculateSourceRect(aspectRatio))
+        }
+
+        // Set actions
+        builder.setActions(createPipActions())
+
+        return builder.build()
+    }
+
+    /**
+     * Get video aspect ratio
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun getVideoAspectRatio(): Rational? {
+        val videoSize = player?.videoSize ?: return null
+        val width = videoSize.width
+        val height = videoSize.height
+
+        if (width == 0 || height == 0) return null
+
+        return try {
+            Rational(width, height).takeIf { it.toFloat() in 0.5f..2.39f }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Calculate source rect for PiP window
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun calculateSourceRect(aspectRatio: Rational): Rect {
+        val viewWidth = binding.playerView.width.toFloat()
+        val viewHeight = binding.playerView.height.toFloat()
+        val videoAspect = aspectRatio.toFloat()
+        val viewAspect = viewWidth / viewHeight
+
+        return if (viewAspect < videoAspect) {
+            // Letterboxed (black bars top/bottom)
+            val height = viewWidth / videoAspect
+            val top = ((viewHeight - height) / 2).toInt()
+            Rect(0, top, viewWidth.toInt(), (height + top).toInt())
         } else {
-            // Hide controls in PiP mode
-            hideControls()
-        }
-    }
-
-    // ==================== Picture-in-Picture ====================
-
-    override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        
-        Log.d(TAG, "onUserLeaveHint - entering PiP if possible")
-        
-        // Enter PiP mode when user presses home button if auto PiP is enabled
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val autoPip = getPreferenceBoolean(PREF_AUTO_PIP, true)
-            if (autoPip && isReady && !isFinishing && player?.isPlaying == true) {
-                pipHelper.enterPipMode()
-            }
+            // Pillarboxed (black bars left/right)
+            val width = viewHeight * videoAspect
+            val left = ((viewWidth - width) / 2).toInt()
+            Rect(left, 0, (width + left).toInt(), viewHeight.toInt())
         }
     }
 
     /**
-     * Called when PiP mode changes
+     * Update PiP parameters
      */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun updatePipParams() {
+        if (!isInPipMode || isFinishing || isDestroyed) {
+            return
+        }
+
+        try {
+            val params = buildPipParams()
+            setPictureInPictureParams(params)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating PiP params", e)
+        }
+    }
+
+    /**
+     * Create PiP remote actions
+     */
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createPipActions(): List<RemoteAction> {
+        val actions = ArrayList<RemoteAction>()
+
+        // Rewind action
+        val rewindIntent = PendingIntent.getBroadcast(
+            this,
+            CONTROL_TYPE_REWIND,
+            Intent(ACTION_MEDIA_CONTROL)
+                .setPackage(packageName)
+                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_REWIND),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        actions.add(RemoteAction(
+            Icon.createWithResource(this, R.drawable.ic_skip_back),
+            getString(R.string.exo_controls_rewind_description),
+            getString(R.string.exo_controls_rewind_description),
+            rewindIntent
+        ))
+
+        // Play/Pause action
+        val isPlaying = player?.isPlaying == true
+        if (isPlaying) {
+            val pauseIntent = PendingIntent.getBroadcast(
+                this,
+                CONTROL_TYPE_PAUSE,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            actions.add(RemoteAction(
+                Icon.createWithResource(this, R.drawable.ic_pause),
+                getString(R.string.pause),
+                getString(R.string.exo_controls_pause_description),
+                pauseIntent
+            ))
+        } else {
+            val playIntent = PendingIntent.getBroadcast(
+                this,
+                CONTROL_TYPE_PLAY,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PLAY),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            actions.add(RemoteAction(
+                Icon.createWithResource(this, R.drawable.ic_play),
+                getString(R.string.play),
+                getString(R.string.exo_controls_play_description),
+                playIntent
+            ))
+        }
+
+        // Forward action
+        val forwardIntent = PendingIntent.getBroadcast(
+            this,
+            CONTROL_TYPE_FORWARD,
+            Intent(ACTION_MEDIA_CONTROL)
+                .setPackage(packageName)
+                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_FORWARD),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        actions.add(RemoteAction(
+            Icon.createWithResource(this, R.drawable.ic_skip_forward),
+            getString(R.string.exo_controls_fastforward_description),
+            getString(R.string.exo_controls_fastforward_description),
+            forwardIntent
+        ))
+
+        return actions
+    }
+
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration
     ) {
         super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
-        
-        Log.d(TAG, "onPictureInPictureModeChanged - isInPiP: $isInPictureInPictureMode")
-        
+
         isInPipMode = isInPictureInPictureMode
-        
-        pipHelper.onPictureInPictureModeChanged(isInPictureInPictureMode)
-        
-        runCatching {
-            if (isInPictureInPictureMode) {
-                // Entering PiP mode
-                enterPipUIMode()
-            } else {
-                // Exiting PiP mode
-                exitPipUIMode()
-            }
-        }.onFailure { e ->
-            Log.e(TAG, "Error handling PiP mode change", e)
-        }
-    }
 
-    /**
-     * Configure UI for entering PiP mode
-     */
-    private fun enterPipUIMode() {
-        // Hide controls
-        binding.controlsContainer?.visibility = View.GONE
-        binding.playerControlsLayout?.visibility = View.GONE
-        
-        // Clear fullscreen flags
-        window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        
-        // Show system bars
-        windowInsetsController.apply {
-            show(WindowInsetsCompat.Type.systemBars())
-            show(WindowInsetsCompat.Type.navigationBars())
-        }
-    }
-
-    /**
-     * Configure UI for exiting PiP mode
-     */
-    @RequiresApi(Build.VERSION_CODES.P)
-    private fun exitPipUIMode() {
-        // Show controls
-        binding.controlsContainer?.visibility = View.VISIBLE
-        
-        // Restore fullscreen
-        setupWindowFlags()
-        setupSystemUI()
-        
-        // Show player controls briefly
-        showControls()
-    }
-
-    // ==================== Player Management ====================
-
-    /**
-     * Initialize the ExoPlayer
-     */
-    private fun initializePlayer() {
-        Log.d(TAG, "initializePlayer")
-        
-        if (player != null) {
-            Log.w(TAG, "Player already initialized")
-            return
-        }
-        
-        try {
-            // Create track selector
-            trackSelector = DefaultTrackSelector(this).apply {
-                setParameters(
-                    buildUponParameters()
-                        .setMaxVideoSizeSd()
-                        .setPreferredAudioLanguage(
-                            getPreferenceString(PREF_PREFERRED_AUDIO_LANGUAGE, "")
-                        )
-                        .setPreferredTextLanguage(
-                            getPreferenceString(PREF_PREFERRED_SUBTITLE_LANGUAGE, "")
-                        )
-                )
-            }
-            
-            // Create player
-            player = ExoPlayer.Builder(this)
-                .setTrackSelector(trackSelector!!)
-                .build()
-                .also { exoPlayer ->
-                    // Attach to player view
-                    playerView.player = exoPlayer
-                    
-                    // Add listener
-                    exoPlayer.addListener(playerListener)
-                    
-                    // Prepare media
-                    preparePlaylist()
-                    
-                    // Restore playback position
-                    if (playbackPosition > 0) {
-                        exoPlayer.seekTo(currentWindow, playbackPosition)
-                    }
-                    
-                    // Start playback
-                    exoPlayer.playWhenReady = playWhenReady
-                    exoPlayer.prepare()
-                }
-            
-            playerInitialized = true
-            
-            // Request audio focus
-            requestAudioFocus()
-            
-            // Load saved playback state
-            lifecycleScope.launch(Dispatchers.IO) {
-                loadPlaybackState()
-            }
-            
-        } catch (e: Exception) {
-            Log.e(TAG, "Error initializing player", e)
-            showError("Failed to initialize player: ${e.message}")
-        }
-    }
-
-    /**
-     * Prepare playlist or single item
-     */
-    private fun preparePlaylist() {
-        val player = this.player ?: return
-        
-        if (playlist.isNotEmpty()) {
-            // Add all playlist items
-            val mediaItems = playlist.map { uri ->
-                buildMediaItem(uri)
-            }
-            player.setMediaItems(mediaItems, playlistIndex, playbackPosition)
+        if (isInPipMode) {
+            // Entering PiP mode
+            binding.playerView.useController = false
+            binding.lockOverlay.visibility = View.GONE
+            binding.unlockButton.visibility = View.GONE
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            binding.playerView.hideController()
         } else {
-            // Single stream
-            streamUrl?.let { url ->
-                val mediaItem = buildMediaItem(Uri.parse(url))
-                player.setMediaItem(mediaItem, playbackPosition)
-            }
-        }
-    }
+            // Exiting PiP mode
+            userRequestedPip = false
 
-    /**
-     * Build media item with headers
-     */
-    private fun buildMediaItem(uri: Uri): MediaItem {
-        val builder = MediaItem.Builder()
-            .setUri(uri)
-        
-        // Add headers if provided
-        val headers = intent.getStringArrayExtra(EXTRA_HEADERS)
-        val userAgent = intent.getStringExtra(EXTRA_USER_AGENT)
-        
-        if (headers != null || userAgent != null) {
-            val requestHeaders = mutableMapOf<String, String>()
-            
-            userAgent?.let {
-                requestHeaders["User-Agent"] = it
-            }
-            
-            headers?.let { headerArray ->
-                var i = 0
-                while (i < headerArray.size - 1) {
-                    requestHeaders[headerArray[i]] = headerArray[i + 1]
-                    i += 2
-                }
-            }
-            
-            if (requestHeaders.isNotEmpty()) {
-                builder.setRequestMetadata(
-                    MediaItem.RequestMetadata.Builder()
-                        .setExtras(Bundle().apply {
-                            putSerializable("headers", HashMap(requestHeaders))
-                        })
-                        .build()
-                )
-            }
-        }
-        
-        // Set MIME type for live streams
-        if (uri.toString().contains(".m3u8")) {
-            builder.setMimeType(MimeTypes.APPLICATION_M3U8)
-        }
-        
-        return builder.build()
-    }
-
-    /**
-     * Release the ExoPlayer
-     */
-    private fun releasePlayer() {
-        Log.d(TAG, "releasePlayer")
-        
-        player?.let { exoPlayer ->
-            // Save state
-            playbackPosition = exoPlayer.currentPosition
-            playWhenReady = exoPlayer.playWhenReady
-            currentWindow = exoPlayer.currentMediaItemIndex
-            
-            // Remove listener
-            exoPlayer.removeListener(playerListener)
-            
-            // Release
-            exoPlayer.release()
-        }
-        
-        player = null
-        trackSelector = null
-        playerInitialized = false
-    }
-
-    /**
-     * Cleanup player resources
-     */
-    private fun cleanupPlayer() {
-        if (!playerInitialized) return
-        
-        runCatching {
-            if (isReady) {
-                // Pause first
-                player?.pause()
-                
-                // Brief wait for cleanup
-                Thread.sleep(100)
-            }
-            
-            releasePlayer()
-            
-        }.onFailure { e ->
-            Log.e(TAG, "Error cleaning up player", e)
-        }
-    }
-
-    /**
-     * Player event listener
-     */
-    private val playerListener = object : Listener {
-        
-        override fun onPlaybackStateChanged(playbackState: Int) {
-            Log.d(TAG, "Playback state changed: $playbackState")
-            
-            when (playbackState) {
-                Player.STATE_IDLE -> {
-                    Log.d(TAG, "Player is idle")
-                    isReady = false
-                }
-                Player.STATE_BUFFERING -> {
-                    Log.d(TAG, "Player is buffering")
-                    binding.loadingProgress?.visibility = View.VISIBLE
-                }
-                Player.STATE_READY -> {
-                    Log.d(TAG, "Player is ready")
-                    binding.loadingProgress?.visibility = View.GONE
-                    isReady = true
-                    
-                    // Update PiP params when ready
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        pipHelper.updatePictureInPictureParams()
-                    }
-                    
-                    // Show controls briefly
-                    showControls()
-                }
-                Player.STATE_ENDED -> {
-                    Log.d(TAG, "Playback ended")
-                    binding.loadingProgress?.visibility = View.GONE
-                    isReady = false
-                    
-                    // Play next if in playlist
-                    playNext()
-                }
-            }
-        }
-
-        override fun onPlayerError(error: PlaybackException) {
-            Log.e(TAG, "Player error", error)
-            binding.loadingProgress?.visibility = View.GONE
-            isReady = false
-            
-            // Show error
-            showError("Playback error: ${error.message}")
-            
-            // Try to recover
-            recoverFromError(error)
-        }
-
-        override fun onIsPlayingChanged(isPlaying: Boolean) {
-            Log.d(TAG, "Is playing changed: $isPlaying")
-            
-            if (isPlaying) {
-                // Keep screen on during playback
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                
-                // Auto-hide controls
-                scheduleHideControls()
-            } else {
-                // Allow screen to turn off when paused
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                
-                // Cancel auto-hide
-                cancelHideControls()
-            }
-            
-            // Update background service if bound
-            if (serviceBound) {
-                mediaPlaybackService?.updatePlaybackState(isPlaying)
-            }
-        }
-
-        override fun onTimelineChanged(timeline: Timeline, reason: Int) {
-            Log.d(TAG, "Timeline changed - reason: $reason")
-        }
-
-        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-            Log.d(TAG, "Media item transition - reason: $reason")
-            
-            // Update channel info
-            mediaItem?.let {
-                updateChannelInfo(it)
-            }
-        }
-
-        override fun onTracksChanged(tracks: com.google.android.exoplayer2.Tracks) {
-            Log.d(TAG, "Tracks changed")
-            
-            // Auto-select preferred audio and subtitle tracks
-            selectPreferredTracks()
-        }
-    }
-
-    // ==================== Playback Control ====================
-
-    /**
-     * Play next item in playlist
-     */
-    private fun playNext() {
-        if (playlist.isEmpty()) {
-            // No playlist, just finish
-            finish()
-            return
-        }
-        
-        playlistIndex++
-        if (playlistIndex >= playlist.size) {
-            // End of playlist
-            finish()
-            return
-        }
-        
-        // Play next item
-        player?.seekToNext()
-    }
-
-    /**
-     * Play previous item in playlist
-     */
-    private fun playPrevious() {
-        if (playlist.isEmpty()) return
-        
-        val position = player?.currentPosition ?: 0
-        
-        if (position > 3000) {
-            // More than 3 seconds in, restart current
-            player?.seekTo(0)
-        } else {
-            // Go to previous
-            playlistIndex--
-            if (playlistIndex < 0) {
-                playlistIndex = 0
-            }
-            player?.seekToPrevious()
-        }
-    }
-
-    /**
-     * Seek forward
-     */
-    private fun seekForward(increment: Long = DEFAULT_SEEK_INCREMENT) {
-        player?.let {
-            val newPosition = (it.currentPosition + increment).coerceAtMost(it.duration)
-            it.seekTo(newPosition)
-        }
-    }
-
-    /**
-     * Seek backward
-     */
-    private fun seekBackward(increment: Long = DEFAULT_SEEK_INCREMENT) {
-        player?.let {
-            val newPosition = (it.currentPosition - increment).coerceAtLeast(0)
-            it.seekTo(newPosition)
-        }
-    }
-
-    /**
-     * Toggle play/pause
-     */
-    private fun togglePlayPause() {
-        player?.let {
-            if (it.isPlaying) {
-                it.pause()
-            } else {
-                it.play()
-            }
-        }
-    }
-
-    // ==================== Track Selection ====================
-
-    /**
-     * Select preferred audio and subtitle tracks
-     */
-    private fun selectPreferredTracks() {
-        val player = this.player ?: return
-        val trackSelector = this.trackSelector ?: return
-        
-        // Auto-select based on preferences
-        val preferredAudioLanguage = getPreferenceString(PREF_PREFERRED_AUDIO_LANGUAGE, "")
-        val preferredSubtitleLanguage = getPreferenceString(PREF_PREFERRED_SUBTITLE_LANGUAGE, "")
-        
-        if (preferredAudioLanguage.isNotEmpty() || preferredSubtitleLanguage.isNotEmpty()) {
-            trackSelector.setParameters(
-                trackSelector.buildUponParameters()
-                    .setPreferredAudioLanguage(preferredAudioLanguage)
-                    .setPreferredTextLanguage(preferredSubtitleLanguage)
-            )
-        }
-    }
-
-    // ==================== Error Handling ====================
-
-    /**
-     * Attempt to recover from playback error
-     */
-    private fun recoverFromError(error: PlaybackException) {
-        Log.d(TAG, "Attempting to recover from error")
-        
-        lifecycleScope.launch {
-            delay(1000)
-            
-            runCatching {
-                player?.let {
-                    val position = playbackPosition
-                    it.stop()
-                    it.prepare()
-                    it.seekTo(position)
-                    it.play()
-                }
-            }.onFailure { e ->
-                Log.e(TAG, "Recovery failed", e)
-            }
-        }
-    }
-
-    // ==================== Playback State Persistence ====================
-
-    /**
-     * Save playback state to preferences
-     */
-    private fun savePlaybackState() {
-        // Cancel any previous pending save operation
-        savePlaybackStateJob?.cancel()
-        
-        if (!getPreferenceBoolean(PREF_REMEMBER_POSITION, true)) {
-            return
-        }
-        
-        val identifier = getMediaIdentifier()
-        
-        // Launch new save job and track it
-        savePlaybackStateJob = lifecycleScope.launch(Dispatchers.IO) {
-            runCatching {
-                val position = player?.currentPosition ?: 0
-                val duration = player?.duration ?: 0
-                
-                Log.d(TAG, "Saving playback state - identifier: $identifier, position: $position")
-                
-                // Save to preferences or database
-                saveToPreferences(identifier, position, duration)
-                
-            }.onFailure { e ->
-                Log.e(TAG, "Error saving playback state", e)
-            }
-        }
-    }
-
-    /**
-     * Load playback state from preferences
-     */
-    private suspend fun loadPlaybackState() {
-        if (!getPreferenceBoolean(PREF_REMEMBER_POSITION, true)) {
-            return
-        }
-        
-        val identifier = getMediaIdentifier()
-        
-        runCatching {
-            val savedPosition = loadFromPreferences(identifier)
-            
-            if (savedPosition > 0) {
-                withContext(Dispatchers.Main) {
-                    player?.seekTo(savedPosition)
-                }
-                Log.d(TAG, "Loaded playback position: $savedPosition")
-            }
-            
-        }.onFailure { e ->
-            Log.e(TAG, "Error loading playback state", e)
-        }
-    }
-
-    /**
-     * Get unique identifier for current media
-     */
-    private fun getMediaIdentifier(): String {
-        return if (channelId > 0) {
-            "channel_$channelId"
-        } else {
-            streamUrl?.hashCode()?.toString() ?: "unknown"
-        }
-    }
-
-    // ==================== Background Playback ====================
-
-    /**
-     * Start background playback service
-     */
-    private fun startBackgroundPlayback() {
-        Log.d(TAG, "Starting background playback")
-        
-        val intent = Intent(this, MediaPlaybackService::class.java).apply {
-            putExtra("channel_name", channelName)
-            putExtra("stream_url", streamUrl)
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
-        
-        bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE)
-    }
-
-    /**
-     * End background playback
-     */
-    private fun endBackgroundPlayback() {
-        Log.d(TAG, "Ending background playback")
-        
-        if (serviceBound) {
-            runCatching {
-                unbindService(serviceConnection)
-                serviceBound = false
-            }
-        }
-        
-        stopService(Intent(this, MediaPlaybackService::class.java))
-        mediaPlaybackService = null
-    }
-
-    // ==================== Audio Focus ====================
-
-    /**
-     * Setup audio focus request
-     */
-    private fun setupAudioFocus() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MOVIE)
-                        .build()
-                )
-                .setOnAudioFocusChangeListener(audioFocusChangeListener)
-                .setAcceptsDelayedFocusGain(true)
-                .build()
-        }
-    }
-
-    /**
-     * Request audio focus
-     */
-    private fun requestAudioFocus(): Boolean {
-        val result = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            audioFocusRequest?.let { audioManager.requestAudioFocus(it) }
-                ?: AudioManager.AUDIOFOCUS_REQUEST_FAILED
-        } else {
-            @Suppress("DEPRECATION")
-            audioManager.requestAudioFocus(
-                audioFocusChangeListener,
-                AudioManager.STREAM_MUSIC,
-                AudioManager.AUDIOFOCUS_GAIN
-            )
-        }
-        
-        return when (result) {
-            AudioManager.AUDIOFOCUS_REQUEST_GRANTED -> {
-                Log.d(TAG, "Audio focus granted")
-                true
-            }
-            AudioManager.AUDIOFOCUS_REQUEST_DELAYED -> {
-                Log.d(TAG, "Audio focus delayed")
-                false
-            }
-            else -> {
-                Log.d(TAG, "Audio focus denied")
-                restoreAudioFocus = {}
-                false
-            }
-        }
-    }
-
-    /**
-     * Abandon audio focus
-     */
-    private fun abandonAudioFocus() {
-        if (restoreAudioFocus != {}) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                audioFocusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-            } else {
-                @Suppress("DEPRECATION")
-                audioManager.abandonAudioFocus(audioFocusChangeListener)
-            }
-            restoreAudioFocus = {}
-        }
-    }
-
-    /**
-     * Cleanup audio resources
-     */
-    private fun cleanupAudio() {
-        abandonAudioFocus()
-    }
-
-    /**
-     * Cleanup receivers
-     */
-    private fun cleanupReceivers() {
-        if (noisyReceiverRegistered) {
-            runCatching {
-                unregisterReceiver(noisyReceiver)
-                noisyReceiverRegistered = false
-            }
-        }
-    }
-
-    // ==================== UI Setup ====================
-
-    /**
-     * Setup system UI for immersive playback
-     */
-    @RequiresApi(Build.VERSION_CODES.P)
-    private fun setupSystemUI() {
-        // Set cutout mode
-        window.attributes.layoutInDisplayCutoutMode =
-            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-        
-        // Enable edge-to-edge
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        
-        // Hide system bars
-        windowInsetsController.apply {
-            hide(WindowInsetsCompat.Type.statusBars())
-            hide(WindowInsetsCompat.Type.navigationBars())
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
-        
-        setupFullscreen()
-    }
-
-    /**
-     * Setup fullscreen mode
-     */
-    @Suppress("DEPRECATION")
-    private fun setupFullscreen() {
-        binding.root.systemUiVisibility = (
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            or View.SYSTEM_UI_FLAG_FULLSCREEN
-        )
-    }
-
-    /**
-     * Restore system UI when exiting
-     */
-    @RequiresApi(Build.VERSION_CODES.P)
-    private fun restoreSystemUI() {
-        // Clear flags first
-        window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
-        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
-        // Set cutout mode
-        window.attributes.layoutInDisplayCutoutMode =
-            WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
-        
-        // Enable window insets
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        
-        // Show system bars
-        windowInsetsController.apply {
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-            show(WindowInsetsCompat.Type.systemBars())
-            show(WindowInsetsCompat.Type.navigationBars())
-        }
-    }
-
-    /**
-     * Setup window flags
-     */
-    private fun setupWindowFlags() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipHelper.updatePictureInPictureParams()
-        }
-        
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-        )
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-    }
-
-    /**
-     * Get window insets controller
-     */
-    private val windowInsetsController: WindowInsetsControllerCompat
-        get() = WindowCompat.getInsetsController(window, window.decorView)
-
-    /**
-     * Adjust player view for configuration
-     */
-    private fun adjustPlayerView() {
-        playerView.requestLayout()
-    }
-
-    // ==================== PiP Helper Setup ====================
-
-    /**
-     * Initialize PiP helper
-     */
-    private fun setupPipHelper() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipHelper = PipHelper(this, playerView)
-        }
-    }
-
-    // ==================== Controls Management ====================
-
-    /**
-     * Setup player controls
-     */
-    private fun setupPlayerControls() {
-        // Setup control buttons
-        binding.playPauseButton?.setOnClickListener {
-            togglePlayPause()
-        }
-        
-        binding.seekForwardButton?.setOnClickListener {
-            seekForward()
-        }
-        
-        binding.seekBackwardButton?.setOnClickListener {
-            seekBackward()
-        }
-        
-        binding.nextButton?.setOnClickListener {
-            playNext()
-        }
-        
-        binding.previousButton?.setOnClickListener {
-            playPrevious()
-        }
-        
-        // Setup gesture overlay
-        binding.gestureOverlay?.setOnClickListener {
-            toggleControls()
-        }
-    }
-
-    /**
-     * Show controls
-     */
-    private fun showControls() {
-        binding.playerControlsLayout?.visibility = View.VISIBLE
-        controlsShown = true
-        scheduleHideControls()
-    }
-
-    /**
-     * Hide controls
-     */
-    private fun hideControls() {
-        binding.playerControlsLayout?.visibility = View.GONE
-        controlsShown = false
-        cancelHideControls()
-    }
-
-    /**
-     * Toggle controls visibility
-     */
-    private fun toggleControls() {
-        if (controlsShown) {
-            hideControls()
-        } else {
-            showControls()
-        }
-    }
-
-    /**
-     * Schedule auto-hide of controls
-     */
-    private fun scheduleHideControls() {
-        cancelHideControls()
-        
-        hideControlsJob = lifecycleScope.launch {
-            delay(CONTROLS_TIMEOUT)
-            if (player?.isPlaying == true) {
-                hideControls()
-            }
-        }
-    }
-
-    /**
-     * Cancel scheduled hide
-     */
-    private fun cancelHideControls() {
-        hideControlsJob?.cancel()
-        hideControlsJob = null
-    }
-
-    // ==================== Gesture Handling ====================
-
-    /**
-     * Setup gesture detectors for brightness and volume
-     */
-    private fun setupGestureDetectors() {
-        // TODO: Implement gesture detectors for:
-        // - Swipe up/down on left side: brightness
-        // - Swipe up/down on right side: volume
-        // - Double tap left: seek backward
-        // - Double tap right: seek forward
-        // - Pinch: zoom (if supported)
-    }
-
-    // ==================== Brightness and Volume ====================
-
-    /**
-     * Set brightness level
-     */
-    private fun setBrightness(brightness: Float) {
-        val lp = window.attributes
-        lp.screenBrightness = brightness.coerceIn(0f, 1f)
-        window.attributes = lp
-        currentBrightness = brightness
-    }
-
-    /**
-     * Increase brightness
-     */
-    private fun increaseBrightness() {
-        val newBrightness = (currentBrightness + BRIGHTNESS_STEP).coerceAtMost(1f)
-        setBrightness(newBrightness)
-    }
-
-    /**
-     * Decrease brightness
-     */
-    private fun decreaseBrightness() {
-        val newBrightness = (currentBrightness - BRIGHTNESS_STEP).coerceAtLeast(0f)
-        setBrightness(newBrightness)
-    }
-
-    /**
-     * Update volume
-     */
-    private fun updateVolume() {
-        currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-    }
-
-    /**
-     * Increase volume
-     */
-    private fun increaseVolume() {
-        audioManager.adjustStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            AudioManager.ADJUST_RAISE,
-            AudioManager.FLAG_SHOW_UI
-        )
-        updateVolume()
-    }
-
-    /**
-     * Decrease volume
-     */
-    private fun decreaseVolume() {
-        audioManager.adjustStreamVolume(
-            AudioManager.STREAM_MUSIC,
-            AudioManager.ADJUST_LOWER,
-            AudioManager.FLAG_SHOW_UI
-        )
-        updateVolume()
-    }
-
-    // ==================== Back Press Handling ====================
-
-    /**
-     * Setup back press handler
-     */
-    @RequiresApi(Build.VERSION_CODES.P)
-    private fun setupBackPressHandler() {
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                handleBackPress()
-            }
-        })
-    }
-
-    /**
-     * Handle back press
-     */
-    @RequiresApi(Build.VERSION_CODES.P)
-    private fun handleBackPress() {
-        // Hide controls first if shown
-        if (controlsShown) {
-            hideControls()
-            return
-        }
-        
-        // Try to enter PiP mode if auto PiP is enabled
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val autoPip = getPreferenceBoolean(PREF_AUTO_PIP, true)
-            if (autoPip && isReady && player?.isPlaying == true) {
-                pipHelper.enterPipMode()
+            if (isFinishing) {
                 return
             }
-        }
-        
-        // Finish activity
-        isUserFinishing = true
-        finish()
-    }
 
-    // ==================== Key Event Handling ====================
+            setSubtitleTextSize()
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        return when (keyCode) {
-            KeyEvent.KEYCODE_DPAD_CENTER,
-            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                togglePlayPause()
-                true
-            }
-            KeyEvent.KEYCODE_MEDIA_PLAY -> {
-                player?.play()
-                true
-            }
-            KeyEvent.KEYCODE_MEDIA_PAUSE -> {
-                player?.pause()
-                true
-            }
-            KeyEvent.KEYCODE_MEDIA_NEXT,
-            KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (event?.isLongPress == true) {
-                    playNext()
-                } else {
-                    seekForward()
+            val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+            applyOrientationSettings(isLandscape)
+
+            if (!isLandscape) {
+                if (allEventLinks.size > 1) {
+                    binding.linksSection.visibility = View.VISIBLE
                 }
-                true
-            }
-            KeyEvent.KEYCODE_MEDIA_PREVIOUS,
-            KeyEvent.KEYCODE_DPAD_LEFT -> {
-                if (event?.isLongPress == true) {
-                    playPrevious()
-                } else {
-                    seekBackward()
+                if (relatedChannels.isNotEmpty()) {
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
                 }
-                true
             }
-            KeyEvent.KEYCODE_DPAD_UP -> {
-                increaseVolume()
-                true
+
+            if (wasLockedBeforePip) {
+                isLocked = true
+                binding.playerView.useController = false
+                binding.lockOverlay.visibility = View.VISIBLE
+                showUnlockButton()
+                wasLockedBeforePip = false
+            } else {
+                isLocked = false
+                binding.playerView.useController = true
+
+                binding.playerView.postDelayed({
+                    if (!isInPipMode && !isLocked) {
+                        binding.playerView.showController()
+                    }
+                }, 150)
             }
-            KeyEvent.KEYCODE_DPAD_DOWN -> {
-                decreaseVolume()
-                true
-            }
-            else -> super.onKeyDown(keyCode, event)
         }
     }
 
-    // ==================== Intent Handling ====================
+    @RequiresApi(Build.VERSION_CODES.O)
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (!isInPipMode && player?.isPlaying == true) {
+            userRequestedPip = true
+            wasLockedBeforePip = isLocked
+            enterPipMode()
+        }
+    }
 
     /**
-     * Extract data from intent
+     * Register PiP broadcast receiver
      */
-    private fun extractIntentData(intent: Intent) {
-        streamUrl = intent.getStringExtra(EXTRA_STREAM_URL)
-        channelName = intent.getStringExtra(EXTRA_CHANNEL_NAME)
-        channelId = intent.getLongExtra(EXTRA_CHANNEL_ID, -1)
-        playlistIndex = intent.getIntExtra(EXTRA_PLAYLIST_INDEX, 0)
-        
-        // Extract playlist
-        playlist = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableArrayListExtra(EXTRA_PLAYLIST, Uri::class.java) ?: emptyList()
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun registerPipReceiver() {
+        if (pipReceiver != null) return
+
+        pipReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != ACTION_MEDIA_CONTROL) return
+
+                val currentPlayer = player ?: return
+                val hasError = binding.errorView.visibility == View.VISIBLE
+                val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
+
+                when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
+                    CONTROL_TYPE_PLAY -> {
+                        if (hasError || hasEnded) {
+                            retryPlayback()
+                        } else {
+                            currentPlayer.play()
+                        }
+                        updatePipParams()
+                    }
+                    CONTROL_TYPE_PAUSE -> {
+                        if (hasError || hasEnded) {
+                            retryPlayback()
+                        } else {
+                            currentPlayer.pause()
+                        }
+                        updatePipParams()
+                    }
+                    CONTROL_TYPE_REWIND -> {
+                        if (!hasError && !hasEnded) {
+                            val newPosition = currentPlayer.currentPosition - skipMs
+                            currentPlayer.seekTo(if (newPosition < 0) 0 else newPosition)
+                        }
+                    }
+                    CONTROL_TYPE_FORWARD -> {
+                        if (!hasError && !hasEnded) {
+                            val newPosition = currentPlayer.currentPosition + skipMs
+                            if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
+                                currentPlayer.seekTo(currentPlayer.duration)
+                            } else {
+                                currentPlayer.seekTo(newPosition)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), Context.RECEIVER_NOT_EXPORTED)
         } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableArrayListExtra(EXTRA_PLAYLIST) ?: emptyList()
-        }
-        
-        Log.d(TAG, "Stream URL: $streamUrl")
-        Log.d(TAG, "Channel: $channelName (ID: $channelId)")
-        Log.d(TAG, "Playlist size: ${playlist.size}, index: $playlistIndex")
-    }
-
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        
-        Log.d(TAG, "onNewIntent")
-        
-        // Update intent
-        setIntent(intent)
-        
-        // Extract new data
-        extractIntentData(intent)
-        
-        // Prepare new media
-        player?.let {
-            preparePlaylist()
-            it.prepare()
+            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
         }
     }
 
     /**
-     * Update channel info display
+     * Unregister PiP broadcast receiver
      */
-    private fun updateChannelInfo(mediaItem: MediaItem) {
-        // Update UI with channel info
-        binding.channelNameText?.text = channelName ?: "Live TV"
+    private fun unregisterPipReceiver() {
+        try {
+            pipReceiver?.let {
+                unregisterReceiver(it)
+                pipReceiver = null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error unregistering PiP receiver", e)
+        }
     }
 
-    // ==================== Helper Methods ====================
+    // ==================== Lifecycle Cleanup ====================
+
+    override fun onPause() {
+        super.onPause()
+        if (!isInPipMode) {
+            player?.pause()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        if (!isInPipMode) {
+            player?.pause()
+        }
+    }
+
+    override fun onDestroy() {
+        releasePlayer()
+        unregisterPipReceiver()
+        super.onDestroy()
+    }
+
+    override fun finish() {
+        try {
+            releasePlayer()
+            unregisterPipReceiver()
+            isInPipMode = false
+            userRequestedPip = false
+            wasLockedBeforePip = false
+            super.finish()
+        } catch (e: Exception) {
+            super.finish()
+        }
+    }
 
     /**
-     * Show error message to user
+     * Release player resources
      */
-    private fun showError(message: String) {
-        Log.e(TAG, message)
-        
-        lifecycleScope.launch(Dispatchers.Main) {
-            // TODO: Show Toast, Snackbar, or Dialog
-            android.widget.Toast.makeText(
-                this@PlayerActivity,
-                message,
-                android.widget.Toast.LENGTH_LONG
-            ).show()
+    private fun releasePlayer() {
+        try {
+            playerListener?.let { player?.removeListener(it) }
+            player?.release()
+            player = null
+            trackSelector = null
+            playerListener = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing player", e)
         }
-    }
-
-    // ==================== Preferences Helpers ====================
-
-    private fun getPreferenceBoolean(key: String, defaultValue: Boolean): Boolean {
-        val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-        return prefs.getBoolean(key, defaultValue)
-    }
-
-    private fun getPreferenceString(key: String, defaultValue: String): String {
-        val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-        return prefs.getString(key, defaultValue) ?: defaultValue
-    }
-
-    private fun saveToPreferences(identifier: String, position: Long, duration: Long) {
-        val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-        prefs.edit().apply {
-            putLong("position_$identifier", position)
-            putLong("duration_$identifier", duration)
-            apply()
-        }
-    }
-
-    private fun loadFromPreferences(identifier: String): Long {
-        val prefs = getSharedPreferences("player_prefs", Context.MODE_PRIVATE)
-        return prefs.getLong("position_$identifier", 0)
-    }
-}
-
-// ==================== PiP Helper Class ====================
-
-/**
- * Helper class for Picture-in-Picture functionality
- */
-@RequiresApi(Build.VERSION_CODES.O)
-class PipHelper(
-    private val activity: AppCompatActivity,
-    private val playerView: PlayerView
-) {
-    private val TAG = "PipHelper"
-    
-    fun onPictureInPictureModeChanged(isInPipMode: Boolean) {
-        Log.d(TAG, "PiP mode changed: $isInPipMode")
-        // Additional PiP-specific logic can go here
-    }
-
-    fun updatePictureInPictureParams() {
-        if (activity.isFinishing || activity.isDestroyed) return
-
-        runCatching {
-            val params = buildPipParams()
-            activity.setPictureInPictureParams(params)
-        }
-    }
-
-    private fun buildPipParams(): PictureInPictureParams {
-        val builder = PictureInPictureParams.Builder()
-
-        getVideoAspectRatio()?.let { aspectRatio ->
-            builder.setAspectRatio(aspectRatio)
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            builder.setAutoEnterEnabled(true)
-        }
-
-        return builder.build()
-    }
-
-    private fun getVideoAspectRatio(): Rational? {
-        val player = playerView.player ?: return null
-        val videoFormat = player.videoFormat ?: return null
-        
-        val width = videoFormat.width
-        val height = videoFormat.height
-
-        if (width == 0 || height == 0) return null
-
-        return Rational(width, height).takeIf { it.toFloat() in 0.5f..2.39f }
-    }
-
-    fun enterPipMode() {
-        runCatching {
-            activity.enterPictureInPictureMode(buildPipParams())
-        }.onFailure {
-            Log.e(TAG, "Failed to enter PiP mode", it)
-        }
-    }
-
-    fun onStop() {
-        // Cleanup if needed
-    }
-}
-
-// ==================== MediaPlaybackService Placeholder ====================
-
-/**
- * Background playback service for media continuation
- */
-class MediaPlaybackService : android.app.Service() {
-    
-    inner class MediaPlaybackBinder : android.os.Binder() {
-        fun getService() = this@MediaPlaybackService
-    }
-    
-    private val binder = MediaPlaybackBinder()
-    
-    override fun onBind(intent: Intent?): IBinder = binder
-    
-    fun updatePlaybackState(isPlaying: Boolean) {
-        Log.d("MediaPlaybackService", "Playback state: $isPlaying")
-        // Update notification, media session, etc.
     }
 }
