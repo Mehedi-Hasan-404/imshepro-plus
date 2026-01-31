@@ -244,7 +244,7 @@ class PlayerActivity : AppCompatActivity() {
             contentType = ContentType.EVENT
             eventData = receivedEvent
             contentId = receivedEvent.id
-            contentName = receivedEvent.title
+            contentName = receivedEvent.name ?: ""
 
             if (receivedEvent.links.isNotEmpty()) {
                 allEventLinks = receivedEvent.links
@@ -264,7 +264,7 @@ class PlayerActivity : AppCompatActivity() {
             contentType = ContentType.CHANNEL
             channelData = receivedChannel
             contentId = receivedChannel.id
-            contentName = receivedChannel.title
+            contentName = receivedChannel.name ?: ""
 
             if (receivedChannel.links != null && receivedChannel.links.isNotEmpty()) {
                 allEventLinks = receivedChannel.links.map {
