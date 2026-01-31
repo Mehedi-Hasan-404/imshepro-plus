@@ -96,6 +96,7 @@ class PlayerActivity : AppCompatActivity() {
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
+    private var startedInLandscape = false
 
     private var contentType: ContentType = ContentType.CHANNEL
     private var channelData: Channel? = null
@@ -138,6 +139,8 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private var startedInLandscape = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityPlayerBinding.inflate(layoutInflater)
@@ -147,6 +150,14 @@ class PlayerActivity : AppCompatActivity() {
         
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        // Track if we started in landscape mode
+        startedInLandscape = isLandscape
+        
+        // If started in landscape, lock to landscape only
+        if (startedInLandscape) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
         
         setWindowFlags(isLandscape)
         setupWindowInsets()
@@ -1229,6 +1240,15 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             
+            // If started in landscape, disable fullscreen button and make it semi-transparent
+            if (startedInLandscape) {
+                btnFullscreen?.apply {
+                    isEnabled = false
+                    isClickable = false
+                    alpha = 0.3f  // Make it semi-transparent to show it's disabled
+                }
+            }
+            
             btnAspectRatio?.visibility = View.VISIBLE
             btnPip?.visibility = View.VISIBLE
             btnFullscreen?.visibility = View.VISIBLE
@@ -1288,12 +1308,15 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        btnFullscreen?.apply {
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { 
-                if (!isLocked) {
-                    toggleFullscreen()
+        // Only add click listener if NOT started in landscape
+        if (!startedInLandscape) {
+            btnFullscreen?.apply {
+                isClickable = true
+                isFocusable = true
+                setOnClickListener { 
+                    if (!isLocked) {
+                        toggleFullscreen()
+                    }
                 }
             }
         }
@@ -1398,6 +1421,11 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun toggleFullscreen() {
+        // If started in landscape mode, don't allow rotation to portrait
+        if (startedInLandscape) {
+            return  // Do nothing
+        }
+        
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         requestedOrientation = if (isLandscape) {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
