@@ -216,11 +216,19 @@ class PlayerActivity : AppCompatActivity() {
                         LiveEventLink(label = it.quality, url = it.url) 
                     }
                     
-                    if (binding.linksSection.visibility == View.VISIBLE) {
-                        linkChipAdapter.updateLinks(allEventLinks)
+                    val matchIndex = allEventLinks.indexOfFirst { it.url == streamUrl }
+                    if (matchIndex != -1) {
+                        currentLinkIndex = matchIndex
                     }
+                    
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    updateLinksForOrientation(isLandscape)
                 }
             }
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            registerPipReceiver()
         }
     }
 
@@ -277,6 +285,8 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         binding.playerContainer.layoutParams = params
+        
+        updateLinksForOrientation(isLandscape)
     }
 
     @RequiresApi(Build.VERSION_CODES.N)
@@ -378,9 +388,12 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupRotationButton() {
-        // Find rotation button in the controller
-        val controllerView = binding.playerView.findViewById<View>(R.id.exo_controller)
-        btnRotation = controllerView?.findViewById(R.id.btn_rotation)
+        // Try to find rotation button - it may not exist in layout yet
+        btnRotation = try {
+            binding.playerView.findViewById(R.id.btn_rotation)
+        } catch (e: Exception) {
+            null
+        }
         
         btnRotation?.setOnClickListener {
             currentOrientation = getNextOrientation()
@@ -403,6 +416,8 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateButtonRotation() {
+        btnRotation ?: return // Exit if button doesn't exist
+        
         val portrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
         val auto = try {
             Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION) == 1
@@ -429,10 +444,8 @@ class PlayerActivity : AppCompatActivity() {
         val subtitleView = binding.playerView.subtitleView ?: return
         
         val textSize = if (orientation == Configuration.ORIENTATION_PORTRAIT) {
-            // Portrait: smaller text
             16f
         } else {
-            // Landscape: larger text
             20f
         }
         
@@ -443,82 +456,107 @@ class PlayerActivity : AppCompatActivity() {
         val subtitleView = binding.playerView.subtitleView ?: return
         
         val marginBottom = if (resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT) {
-            // Portrait: more margin
             resources.getDimensionPixelSize(R.dimen.subtitle_bottom_margin_portrait)
         } else {
-            // Landscape: less margin
             resources.getDimensionPixelSize(R.dimen.subtitle_bottom_margin_landscape)
         }
         
-        val params = subtitleView.layoutParams as? ConstraintLayout.LayoutParams
+        val params = subtitleView.layoutParams as? android.view.ViewGroup.MarginLayoutParams
         params?.bottomMargin = marginBottom
         subtitleView.layoutParams = params
     }
 
+    private fun setupWindowInsets() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            binding.root.setOnApplyWindowInsetsListener { view, insets ->
+                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                
+                if (isLandscape) {
+                    binding.playerContainer.setPadding(0, 0, 0, 0)
+                } else {
+                    @Suppress("DEPRECATION")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
+                        binding.playerContainer.setPadding(
+                            systemBars.left,
+                            systemBars.top,
+                            systemBars.right,
+                            0
+                        )
+                    } else {
+                        binding.playerContainer.setPadding(
+                            insets.systemWindowInsetLeft,
+                            insets.systemWindowInsetTop,
+                            insets.systemWindowInsetRight,
+                            0
+                        )
+                    }
+                }
+                
+                insets
+            }
+        }
+    }
+
     private fun parseIntent() {
-        val channelFromIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
             @Suppress("DEPRECATION")
             intent.getParcelableExtra(EXTRA_CHANNEL)
         }
 
-        val eventFromIntent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
         } else {
             @Suppress("DEPRECATION")
             intent.getParcelableExtra(EXTRA_EVENT)
         }
 
-        val selectedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
+        val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
 
-        when {
-            channelFromIntent != null -> {
-                contentType = ContentType.CHANNEL
-                channelData = channelFromIntent
-                contentId = channelFromIntent.id
-                contentName = channelFromIntent.name
-                
-                val links = channelFromIntent.links ?: emptyList()
-                allEventLinks = links.map { link ->
-                    LiveEventLink(label = link.quality, url = link.url)
+        if (channelData != null) {
+            contentType = ContentType.CHANNEL
+            val channel = channelData!!
+            contentId = channel.id
+            contentName = channel.name
+
+            if (channel.links != null && channel.links.isNotEmpty()) {
+                allEventLinks = channel.links.map { 
+                    LiveEventLink(label = it.quality, url = it.url) 
                 }
                 
-                currentLinkIndex = if (selectedLinkIndex >= 0 && selectedLinkIndex < allEventLinks.size) {
-                    selectedLinkIndex
+                if (passedLinkIndex in allEventLinks.indices) {
+                    currentLinkIndex = passedLinkIndex
                 } else {
-                    0
+                    val matchIndex = allEventLinks.indexOfFirst { it.url == channel.streamUrl }
+                    currentLinkIndex = if (matchIndex != -1) matchIndex else 0
                 }
                 
-                streamUrl = if (allEventLinks.isNotEmpty()) {
-                    allEventLinks[currentLinkIndex].url
-                } else {
-                    ""
-                }
+                streamUrl = allEventLinks[currentLinkIndex].url
+            } else {
+                streamUrl = channel.streamUrl
+                allEventLinks = emptyList()
             }
-            eventFromIntent != null -> {
-                contentType = ContentType.EVENT
-                eventData = eventFromIntent
-                contentId = eventFromIntent.id
-                contentName = eventFromIntent.title
-                
-                allEventLinks = eventFromIntent.links
-                
-                currentLinkIndex = if (selectedLinkIndex >= 0 && selectedLinkIndex < allEventLinks.size) {
-                    selectedLinkIndex
-                } else {
-                    0
-                }
-                
-                streamUrl = if (allEventLinks.isNotEmpty()) {
-                    allEventLinks[currentLinkIndex].url
-                } else {
-                    ""
-                }
+
+        } else if (eventData != null) {
+            contentType = ContentType.EVENT
+            val event = eventData!!
+            contentId = event.id
+            contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
+            
+            allEventLinks = event.links
+            
+            if (allEventLinks.isNotEmpty()) {
+                currentLinkIndex = if (passedLinkIndex in allEventLinks.indices) passedLinkIndex else 0
+                streamUrl = allEventLinks[currentLinkIndex].url
+            } else {
+                currentLinkIndex = 0
+                streamUrl = ""
             }
-            else -> {
-                finish()
-            }
+        } else {
+            finish()
+            return
         }
     }
 
@@ -543,16 +581,6 @@ class PlayerActivity : AppCompatActivity() {
                 )
             } else {
                 window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-            }
-        }
-    }
-
-    private fun setupWindowInsets() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.decorView.setOnApplyWindowInsetsListener { _, insets ->
-                val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
-                binding.root.setPadding(0, 0, 0, 0)
-                insets
             }
         }
     }
@@ -637,7 +665,7 @@ class PlayerActivity : AppCompatActivity() {
                     override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                         binding.progressBar.visibility = View.GONE
                         binding.errorView.visibility = View.VISIBLE
-                        binding.errorMessage.text = getString(R.string.playback_error)
+                        binding.errorText.text = "Playback error. Please try again."
                     }
 
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -653,26 +681,20 @@ class PlayerActivity : AppCompatActivity() {
                 
                 exoPlayer.addListener(playerListener!!)
             }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            registerPipReceiver()
-        }
     }
 
     private fun bindControllerViews() {
-        val controllerView = binding.playerView.findViewById<View>(R.id.exo_controller) ?: return
-        
-        btnBack = controllerView.findViewById(R.id.btn_back)
-        btnPip = controllerView.findViewById(R.id.btn_pip)
-        btnSettings = controllerView.findViewById(R.id.btn_settings)
-        btnLock = controllerView.findViewById(R.id.btn_lock)
-        btnMute = controllerView.findViewById(R.id.btn_mute)
-        btnRewind = controllerView.findViewById(R.id.exo_rew)
-        btnPlayPause = controllerView.findViewById(R.id.exo_play_pause)
-        btnForward = controllerView.findViewById(R.id.exo_ffwd)
-        btnFullscreen = controllerView.findViewById(R.id.btn_fullscreen)
-        btnAspectRatio = controllerView.findViewById(R.id.btn_aspect_ratio)
-        tvChannelName = controllerView.findViewById(R.id.tv_channel_name)
+        btnBack = try { binding.playerView.findViewById(R.id.btn_back) } catch (e: Exception) { null }
+        btnPip = try { binding.playerView.findViewById(R.id.btn_pip) } catch (e: Exception) { null }
+        btnSettings = try { binding.playerView.findViewById(R.id.btn_settings) } catch (e: Exception) { null }
+        btnLock = try { binding.playerView.findViewById(R.id.btn_lock) } catch (e: Exception) { null }
+        btnMute = try { binding.playerView.findViewById(R.id.btn_mute) } catch (e: Exception) { null }
+        btnRewind = try { binding.playerView.findViewById(R.id.exo_rew) } catch (e: Exception) { null }
+        btnPlayPause = try { binding.playerView.findViewById(R.id.exo_play_pause) } catch (e: Exception) { null }
+        btnForward = try { binding.playerView.findViewById(R.id.exo_ffwd) } catch (e: Exception) { null }
+        btnFullscreen = try { binding.playerView.findViewById(R.id.btn_fullscreen) } catch (e: Exception) { null }
+        btnAspectRatio = try { binding.playerView.findViewById(R.id.btn_aspect_ratio) } catch (e: Exception) { null }
+        tvChannelName = try { binding.playerView.findViewById(R.id.tv_channel_name) } catch (e: Exception) { null }
         
         tvChannelName?.text = contentName
         
@@ -792,52 +814,102 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupRelatedChannels() {
-        relatedChannelsAdapter = RelatedChannelAdapter(
-            onChannelClick = { channel ->
-                releasePlayer()
-                PlayerActivity.startWithChannel(this, channel)
-                finish()
+        relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
+            when (contentType) {
+                ContentType.CHANNEL -> switchToChannel(relatedItem)
+                ContentType.EVENT -> switchToEvent(relatedItem)
             }
-        )
+        }
+        val recyclerView = binding.relatedChannelsRecycler
         
-        binding.relatedChannelsRecyclerView.apply {
-            layoutManager = GridLayoutManager(
-                this@PlayerActivity,
-                2,
-                GridLayoutManager.HORIZONTAL,
-                false
-            )
-            adapter = relatedChannelsAdapter
+        recyclerView.layoutManager = if (contentType == ContentType.EVENT) {
+            LinearLayoutManager(this)  
+        } else {
+            GridLayoutManager(this, 3)  
+        }
+        recyclerView.adapter = relatedChannelsAdapter
+    }
+    
+    private fun setupLinksUI() {
+        linkChipAdapter = LinkChipAdapter { link, position ->
+            switchToLink(link, position)
+        }
+
+        val portraitLinksRecycler = binding.linksRecyclerView
+        portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        portraitLinksRecycler.adapter = linkChipAdapter
+
+        val landscapeLinksRecycler = try {
+            binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        } catch (e: Exception) {
+            null
+        }
+        
+        landscapeLinksRecycler?.apply {
+            layoutManager = LinearLayoutManager(this@PlayerActivity, LinearLayoutManager.HORIZONTAL, false)
+            adapter = linkChipAdapter
+        }
+
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        updateLinksForOrientation(isLandscape)
+    }
+
+    private fun updateLinksForOrientation(isLandscape: Boolean) {
+        if (allEventLinks.size > 1) {
+            linkChipAdapter.submitList(allEventLinks)
+            linkChipAdapter.setSelectedPosition(currentLinkIndex)
+            
+            if (isLandscape) {
+                binding.linksSection.visibility = View.GONE
+                val landscapeLinksRecycler = try {
+                    binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+                } catch (e: Exception) {
+                    null
+                }
+                landscapeLinksRecycler?.visibility = View.VISIBLE
+            } else {
+                val landscapeLinksRecycler = try {
+                    binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+                } catch (e: Exception) {
+                    null
+                }
+                landscapeLinksRecycler?.visibility = View.GONE
+                binding.linksSection.visibility = View.VISIBLE
+            }
+        } else {
+            binding.linksSection.visibility = View.GONE
+            val landscapeLinksRecycler = try {
+                binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+            } catch (e: Exception) {
+                null
+            }
+            landscapeLinksRecycler?.visibility = View.GONE
         }
     }
 
-    private fun setupLinksUI() {
-        linkChipAdapter = LinkChipAdapter(allEventLinks) { selectedIndex ->
-            if (selectedIndex != currentLinkIndex) {
-                currentLinkIndex = selectedIndex
-                streamUrl = allEventLinks[currentLinkIndex].url
-                
-                binding.progressBar.visibility = View.VISIBLE
-                player?.release()
-                player = null
-                setupPlayer()
-            }
+    private fun switchToLink(link: LiveEventLink, position: Int) {
+        if (position != currentLinkIndex) {
+            currentLinkIndex = position
+            streamUrl = link.url
+            
+            binding.progressBar.visibility = View.VISIBLE
+            player?.release()
+            player = null
+            setupPlayer()
         }
-        
-        binding.linksChipGroup.apply {
-            layoutManager = LinearLayoutManager(
-                this@PlayerActivity,
-                LinearLayoutManager.HORIZONTAL,
-                false
-            )
-            adapter = linkChipAdapter
-        }
-        
-        if (allEventLinks.size > 1) {
-            linkChipAdapter.setSelectedPosition(currentLinkIndex)
-        } else {
-            binding.linksSection.visibility = View.GONE
-        }
+    }
+
+    private fun switchToChannel(channel: Channel) {
+        releasePlayer()
+        PlayerActivity.startWithChannel(this, channel)
+        finish()
+    }
+
+    private fun switchToEvent(channel: Channel) {
+        // Convert Channel to LiveEvent if needed for your use case
+        releasePlayer()
+        PlayerActivity.startWithChannel(this, channel)
+        finish()
     }
 
     private fun loadRelatedContent() {
@@ -941,8 +1013,8 @@ class PlayerActivity : AppCompatActivity() {
             }
             
             // Expanded PiP support for ultra-wide/tall videos (Android 13+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                paramsBuilder.setExpandedAspectRatio(getRational(format ?: currentPlayer.videoFormat!!))
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && format != null) {
+                paramsBuilder.setExpandedAspectRatio(getRational(format))
             }
             
             // Scale subtitles for PiP
@@ -1023,8 +1095,8 @@ class PlayerActivity : AppCompatActivity() {
             )
             actions.add(RemoteAction(
                 Icon.createWithResource(this, R.drawable.ic_pause),
-                getString(R.string.pause),
-                getString(R.string.pause),
+                "Pause",
+                "Pause",
                 pauseIntent
             ))
         } else {
@@ -1038,8 +1110,8 @@ class PlayerActivity : AppCompatActivity() {
             )
             actions.add(RemoteAction(
                 Icon.createWithResource(this, R.drawable.ic_play),
-                getString(R.string.play),
-                getString(R.string.play),
+                "Play",
+                "Play",
                 playIntent
             ))
         }
