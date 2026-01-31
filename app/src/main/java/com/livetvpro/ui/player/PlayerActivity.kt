@@ -96,10 +96,6 @@ class PlayerActivity : AppCompatActivity() {
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
-    
-    // State restoration variables
-    private var savedPlayerPosition: Long = C.TIME_UNSET
-    private var savedPlayerPlaying: Boolean = true
 
     private var contentType: ContentType = ContentType.CHANNEL
     private var channelData: Channel? = null
@@ -124,11 +120,6 @@ class PlayerActivity : AppCompatActivity() {
         private const val CONTROL_TYPE_PAUSE = 2
         private const val CONTROL_TYPE_REWIND = 3
         private const val CONTROL_TYPE_FORWARD = 4
-        
-        // State saving keys for orientation changes
-        private const val STATE_PLAYER_POSITION = "player_position"
-        private const val STATE_PLAYER_PLAYING = "player_playing"
-        private const val STATE_CURRENT_LINK_INDEX = "current_link_index"
 
         fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
@@ -153,16 +144,6 @@ class PlayerActivity : AppCompatActivity() {
         setContentView(binding.root)
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
-        // Restore state from savedInstanceState if activity was recreated
-        savedPlayerPosition = savedInstanceState?.getLong(STATE_PLAYER_POSITION, C.TIME_UNSET) ?: C.TIME_UNSET
-        savedPlayerPlaying = savedInstanceState?.getBoolean(STATE_PLAYER_PLAYING, true) ?: true
-        
-        // Restore link index if saved
-        val savedLinkIndex = savedInstanceState?.getInt(STATE_CURRENT_LINK_INDEX, -1) ?: -1
-        if (savedLinkIndex >= 0) {
-            currentLinkIndex = savedLinkIndex
-        }
         
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
@@ -196,12 +177,16 @@ class PlayerActivity : AppCompatActivity() {
         
         binding.playerView.post {
             bindControllerViews()
-            // Don't call applyOrientationSettings here - let onConfigurationChanged handle it
-            // Just set the initial button icon
-            btnFullscreen?.setImageResource(
-                if (isLandscape) R.drawable.ic_fullscreen_exit 
-                else R.drawable.ic_fullscreen
-            )
+            // Set initial resize mode based on orientation
+            if (isLandscape) {
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+            } else {
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+            }
         }
 
         configurePlayerInteractions()
@@ -519,6 +504,32 @@ class PlayerActivity : AppCompatActivity() {
     }
 
 
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
+            return
+        }
+        
+        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        
+        // Update window flags for fullscreen/immersive mode
+        setWindowFlags(isLandscape)
+        
+        // Update player and layout based on orientation
+        if (isLandscape) {
+            // Landscape: Fill mode
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+        } else {
+            // Portrait: Fit mode
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -627,16 +638,6 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.onPause()
             player?.pause()
         }
-    }
-    
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        // Save player state to restore after orientation change
-        player?.let { p ->
-            outState.putLong(STATE_PLAYER_POSITION, p.currentPosition)
-            outState.putBoolean(STATE_PLAYER_PLAYING, p.isPlaying)
-        }
-        outState.putInt(STATE_CURRENT_LINK_INDEX, currentLinkIndex)
     }
 
     override fun onStop() {
@@ -805,15 +806,8 @@ class PlayerActivity : AppCompatActivity() {
                     binding.playerView.player = exo
                     val mediaItem = MediaItem.fromUri(streamInfo.url)
                     exo.setMediaItem(mediaItem)
-                    
-                    // Restore saved position if available (from orientation change)
-                    if (savedPlayerPosition != C.TIME_UNSET) {
-                        exo.seekTo(savedPlayerPosition)
-                        savedPlayerPosition = C.TIME_UNSET // Clear after using
-                    }
-                    
                     exo.prepare()
-                    exo.playWhenReady = savedPlayerPlaying
+                    exo.playWhenReady = true
 
                     playerListener = object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
