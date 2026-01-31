@@ -40,6 +40,9 @@
 
     <string name="exo_controls_play_description">Play</string>
     <string name="exo_controls_pause_description">Pause</string>
+    <!-- NEW: Added missing ExoPlayer control descriptions -->
+    <string name="exo_controls_rewind_description">Rewind 10 seconds</string>
+    <string name="exo_controls_fastforward_description">Fast forward 10 seconds</string>
 
     <string name="pip_not_supported">Picture-in-Picture is not supported on this device</string>
     <string name="pip_entering">Entering Picture-in-Picture...</string>
@@ -53,6 +56,11 @@
     <string name="network_error">Network error occurred</string>
     <string name="buffering">Buffering...</string>
     <string name="live_offline">Channel is offline</string>
+
+    <!-- NEW: Added missing player error strings -->
+    <string name="select_quality">Select Quality</string>
+    <string name="no_stream_available">No stream available</string>
+    <string name="playback_error">Playback error occurred</string>
 
     <string name="refresh">Refresh</string>
     <string name="settings">Settings</string>
