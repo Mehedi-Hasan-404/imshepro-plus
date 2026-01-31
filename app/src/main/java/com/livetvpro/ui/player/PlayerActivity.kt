@@ -98,7 +98,7 @@ class PlayerActivity : AppCompatActivity() {
     private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
     private val mainHandler = Handler(Looper.getMainLooper())
     private val hideUnlockButtonRunnable = Runnable {
-        binding.unlockButton?.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
     }
 
     private var pipReceiver: BroadcastReceiver? = null
@@ -159,7 +159,7 @@ class PlayerActivity : AppCompatActivity() {
         setWindowFlags(isLandscape)
         setupWindowInsets()
 
-        val params = binding.playerContainer?.layoutParams as ConstraintLayout.LayoutParams
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         if (isLandscape) {
             params.dimensionRatio = null
             params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -171,7 +171,7 @@ class PlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
         }
-        binding.playerContainer?.layoutParams = params
+        binding.playerContainer.layoutParams = params
 
         parseIntent()
 
@@ -385,8 +385,8 @@ class PlayerActivity : AppCompatActivity() {
                 btnAspectRatio?.visibility = View.VISIBLE
                 btnSettings?.visibility = View.VISIBLE
                 btnLock?.visibility = View.VISIBLE
-                binding.linksSection?.visibility = View.GONE
-                binding.relatedChannelsSection?.visibility = View.GONE
+                binding.linksSection.visibility = View.GONE
+                binding.relatedChannelsSection.visibility = View.GONE
             } else {
                 topControls?.visibility = View.VISIBLE
                 bottomControls?.visibility = View.VISIBLE
@@ -396,11 +396,11 @@ class PlayerActivity : AppCompatActivity() {
                 btnLock?.visibility = View.GONE
 
                 if (allEventLinks.size > 1) {
-                    binding.linksSection?.visibility = View.VISIBLE
+                    binding.linksSection.visibility = View.VISIBLE
                 }
 
                 if (relatedChannels.isNotEmpty()) {
-                    binding.relatedChannelsSection?.visibility = View.VISIBLE
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
                 }
             }
         }
@@ -421,11 +421,11 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupLockOverlay() {
-        binding.lockOverlay?.setOnClickListener {
+        binding.lockOverlay.setOnClickListener {
             showUnlockButton()
         }
 
-        binding.unlockButton?.setOnClickListener {
+        binding.unlockButton.setOnClickListener {
             toggleLock()
         }
     }
@@ -436,13 +436,13 @@ class PlayerActivity : AppCompatActivity() {
         if (isLocked) {
             binding.playerView.useController = false
             binding.playerView.hideController()
-            binding.lockOverlay?.visibility = View.VISIBLE
+            binding.lockOverlay.visibility = View.VISIBLE
             showUnlockButton()
             btnLock?.setImageResource(R.drawable.ic_lock)
         } else {
             binding.playerView.useController = true
-            binding.lockOverlay?.visibility = View.GONE
-            binding.unlockButton?.visibility = View.GONE
+            binding.lockOverlay.visibility = View.GONE
+            binding.unlockButton.visibility = View.GONE
             mainHandler.removeCallbacks(hideUnlockButtonRunnable)
             btnLock?.setImageResource(R.drawable.ic_lock_open)
 
@@ -455,7 +455,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showUnlockButton() {
-        binding.unlockButton?.visibility = View.VISIBLE
+        binding.unlockButton.visibility = View.VISIBLE
         mainHandler.removeCallbacks(hideUnlockButtonRunnable)
         mainHandler.postDelayed(hideUnlockButtonRunnable, 3000)
     }
@@ -480,6 +480,7 @@ class PlayerActivity : AppCompatActivity() {
     private fun skipForward() {
         player?.let {
             val newPosition = it.currentPosition + skipMs
+            @Suppress("DEPRECATION")
             if (it.isCurrentWindowLive && it.duration != C.TIME_UNSET && newPosition >= it.duration) {
                 it.seekTo(it.duration)
             } else {
@@ -503,7 +504,7 @@ class PlayerActivity : AppCompatActivity() {
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         setWindowFlags(isLandscape)
 
-        val params = binding.playerContainer?.layoutParams as ConstraintLayout.LayoutParams
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         if (isLandscape) {
             params.dimensionRatio = null
             params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -515,7 +516,7 @@ class PlayerActivity : AppCompatActivity() {
             params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
         }
-        binding.playerContainer?.layoutParams = params
+        binding.playerContainer.layoutParams = params
 
         binding.playerView.postDelayed({
             applyOrientationSettings(isLandscape)
@@ -555,9 +556,9 @@ class PlayerActivity : AppCompatActivity() {
     private fun showQualitySelector() {
         if (allEventLinks.size <= 1) return
 
-        val items = allEventLinks.mapIndexed { index, link ->
+        val items = allEventLinks.mapIndexed { index, _ ->
             val prefix = if (index == currentLinkIndex) "✓ " else ""
-            "$prefix${link.label}"
+            "$prefix${allEventLinks[index].label}"
         }.toTypedArray()
 
         val builder = androidx.appcompat.app.AlertDialog.Builder(this, R.style.LinkSelectionDialogTheme)
@@ -593,7 +594,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setupLinksUI() {
         if (allEventLinks.size > 1) {
-            linkChipAdapter = LinkChipAdapter { link, index ->
+            linkChipAdapter = LinkChipAdapter { _, index ->
                 switchToLink(index)
             }
 
@@ -616,14 +617,14 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun updateLinksForOrientation(isLandscape: Boolean) {
         if (allEventLinks.size <= 1) {
-            binding.linksSection?.visibility = View.GONE
+            binding.linksSection.visibility = View.GONE
             return
         }
 
         if (isLandscape) {
-            binding.linksSection?.visibility = View.GONE
+            binding.linksSection.visibility = View.GONE
         } else {
-            binding.linksSection?.visibility = View.VISIBLE
+            binding.linksSection.visibility = View.VISIBLE
         }
     }
 
@@ -650,7 +651,7 @@ class PlayerActivity : AppCompatActivity() {
 
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                     if (relatedChannels.isNotEmpty() && !isLandscape) {
-                        binding.relatedChannelsSection?.visibility = View.VISIBLE
+                        binding.relatedChannelsSection.visibility = View.VISIBLE
                     }
                 }
             }
@@ -1044,8 +1045,8 @@ class PlayerActivity : AppCompatActivity() {
 
         if (isInPipMode) {
             binding.playerView.useController = false
-            binding.lockOverlay?.visibility = View.GONE
-            binding.unlockButton?.visibility = View.GONE
+            binding.lockOverlay.visibility = View.GONE
+            binding.unlockButton.visibility = View.GONE
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
         } else {
@@ -1062,17 +1063,17 @@ class PlayerActivity : AppCompatActivity() {
 
             if (!isLandscape) {
                 if (allEventLinks.size > 1) {
-                    binding.linksSection?.visibility = View.VISIBLE
+                    binding.linksSection.visibility = View.VISIBLE
                 }
                 if (relatedChannels.isNotEmpty()) {
-                    binding.relatedChannelsSection?.visibility = View.VISIBLE
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
                 }
             }
 
             if (wasLockedBeforePip) {
                 isLocked = true
                 binding.playerView.useController = false
-                binding.lockOverlay?.visibility = View.VISIBLE
+                binding.lockOverlay.visibility = View.VISIBLE
                 showUnlockButton()
                 wasLockedBeforePip = false
             } else {
@@ -1136,6 +1137,7 @@ class PlayerActivity : AppCompatActivity() {
                     CONTROL_TYPE_FORWARD -> {
                         if (!hasError && !hasEnded) {
                             val newPosition = currentPlayer.currentPosition + skipMs
+                            @Suppress("DEPRECATION")
                             if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
                                 currentPlayer.seekTo(currentPlayer.duration)
                             } else {
