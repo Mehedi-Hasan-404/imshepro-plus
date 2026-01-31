@@ -516,6 +516,16 @@ class PlayerActivity : AppCompatActivity() {
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            
+            binding.playerContainer.setPadding(0, 0, 0, 0)
+            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerShowTimeoutMs = 3000
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+            binding.relatedChannelsSection.visibility = View.GONE
+            binding.linksSection.visibility = View.GONE
         } else {
             // PORTRAIT: Return to 16:9 ratio at the top
             params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -525,12 +535,56 @@ class PlayerActivity : AppCompatActivity() {
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET  // Don't constrain to bottom
             params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            
+            binding.root.requestApplyInsets()
+            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerShowTimeoutMs = 5000
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+            
+            // Set up the links and related sections layout
+            val linksParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.WRAP_CONTENT
+            )
+            linksParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            linksParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            linksParams.topToBottom = binding.playerContainer.id
+            linksParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            binding.linksSection.layoutParams = linksParams
+            
+            val relatedParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            )
+            relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            relatedParams.topToBottom = binding.linksSection.id
+            relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            binding.relatedChannelsSection.layoutParams = relatedParams
+            
+            // Show sections after layout is complete
+            binding.root.post {
+                if (allEventLinks.size > 1) {
+                    binding.linksSection.visibility = View.VISIBLE
+                } else {
+                    binding.linksSection.visibility = View.GONE
+                }
+                
+                if (relatedChannels.isNotEmpty()) {
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
+                } else {
+                    binding.relatedChannelsSection.visibility = View.GONE
+                }
+            }
         }
         
         binding.playerContainer.layoutParams = params
         
         setWindowFlags(isLandscape)
-        applyOrientationSettings(isLandscape)
+        updateLinksForOrientation(isLandscape)
         setSubtitleTextSize()
         
         binding.playerContainer.invalidate()
