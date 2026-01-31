@@ -7,14 +7,12 @@
 
     <!-- Gradient overlays -->
     <View
-        android:id="@+id/topControls"
         android:layout_width="match_parent"
         android:layout_height="120dp"
         android:layout_gravity="top"
         android:background="@drawable/gradient_overlay_top" />
 
     <View
-        android:id="@+id/bottomControls"
         android:layout_width="match_parent"
         android:layout_height="200dp"
         android:layout_gravity="bottom"
@@ -40,7 +38,7 @@
             android:gravity="center_vertical">
 
             <ImageButton
-                android:id="@+id/btnBack"
+                android:id="@+id/exo_back"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="@drawable/ripple_square_white"
@@ -51,7 +49,7 @@
                 android:focusable="true" />
 
             <TextView
-                android:id="@+id/tvChannelName"
+                android:id="@+id/exo_channel_name"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -64,7 +62,7 @@
                 android:text="Channel" />
 
             <ImageButton
-                android:id="@+id/btnPip"
+                android:id="@+id/exo_pip"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="@drawable/ripple_square_white"
@@ -76,7 +74,7 @@
                 android:focusable="true" />
 
             <ImageButton
-                android:id="@+id/btnSettings"
+                android:id="@+id/exo_settings"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="@drawable/ripple_square_white"
@@ -87,7 +85,7 @@
                 android:focusable="true" />
 
             <ImageButton
-                android:id="@+id/btnMute"
+                android:id="@+id/exo_mute"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="@drawable/ripple_square_white"
@@ -98,7 +96,7 @@
                 android:focusable="true" />
 
             <ImageButton
-                android:id="@+id/btnLock"
+                android:id="@+id/exo_lock"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginStart="4dp"
@@ -123,13 +121,6 @@
             android:clipToPadding="false"
             android:visibility="gone" />
     </LinearLayout>
-
-    <!-- Center controls overlay -->
-    <View
-        android:id="@+id/centerControls"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@android:color/transparent" />
 
     <!-- Bottom bar with controls -->
     <LinearLayout
@@ -188,7 +179,7 @@
 
             <!-- Aspect Ratio Button -->
             <ImageButton
-                android:id="@+id/btnAspectRatio"
+                android:id="@+id/exo_aspect_ratio"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_marginEnd="12dp"
@@ -203,7 +194,7 @@
 
             <!-- Rewind Button -->
             <ImageButton
-                android:id="@+id/btnRewind"
+                android:id="@+id/exo_rewind"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginEnd="16dp"
@@ -231,7 +222,7 @@
 
             <!-- Forward Button -->
             <ImageButton
-                android:id="@+id/btnForward"
+                android:id="@+id/exo_forward"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginEnd="12dp"
@@ -243,9 +234,9 @@
                 android:focusable="true"
                 android:enabled="true" />
 
-            <!-- Fullscreen Button -->
+            <!-- Fullscreen Button - THIS IS THE KEY BUTTON -->
             <ImageButton
-                android:id="@+id/btnFullscreen"
+                android:id="@+id/exo_fullscreen"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:background="@drawable/ripple_square_white"
