@@ -2,9 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
+    <!-- Optional features -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -13,6 +15,7 @@
         android:name="android.software.leanback"
         android:required="false" />
     
+    <!-- Screen support -->
     <supports-screens
         android:smallScreens="true"
         android:normalScreens="true"
@@ -35,6 +38,7 @@
         android:largeHeap="true"
         tools:targetApi="31">
 
+        <!-- Splash Activity -->
         <activity
             android:name=".ui.SplashActivity"
             android:exported="true"
@@ -49,20 +53,70 @@
             </intent-filter>
         </activity>
 
+        <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="false"
             android:theme="@style/Theme.LiveTVPro"
             android:screenOrientation="unspecified" />
 
+        <!-- Player Activity -->
         <activity
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
             android:theme="@style/Theme.LiveTVPro.Fullscreen"
+            android:launchMode="singleTask"
             android:screenOrientation="unspecified"
-            android:configChanges="smallestScreenSize|screenSize|screenLayout|orientation"
+            android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
-            android:launchMode="singleTop" />
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize" />
+
+        <!-- IMPORTANT NOTES ON CONFIGCHANGES:
+             
+             1. keyboard - Handles hardware keyboard changes
+             2. keyboardHidden - Handles keyboard visibility changes
+             3. navigation - Handles navigation method changes
+             4. orientation - CRITICAL - Handles rotation (portrait/landscape)
+             5. screenLayout - Handles screen layout changes (size and orientation)
+             6. uiMode - Handles UI mode changes (day/night, car mode, etc.)
+             7. screenSize - Handles screen size changes
+             8. smallestScreenSize - Handles smallest screen dimension changes
+             
+             By declaring these in configChanges, Android will NOT restart the activity
+             when these changes occur. Instead, onConfigurationChanged() will be called.
+             
+             This is ESSENTIAL for:
+             - Maintaining playback during rotation
+             - Preventing player re-initialization
+             - Preserving playback position
+             - Smooth user experience
+             - Proper PiP behavior
+             
+             WITHOUT these configChanges:
+             - Activity would be destroyed and recreated on rotation
+             - Player would stop and restart
+             - Playback position would be lost (unless saved/restored manually)
+             - Poor user experience
+             
+             PiP-SPECIFIC REQUIREMENTS:
+             - supportsPictureInPicture="true" - Enables PiP mode
+             - screenSize and smallestScreenSize are REQUIRED for proper PiP behavior
+             - Without these, entering/exiting PiP will restart the activity
+             
+             ORIENTATION HANDLING:
+             - screenOrientation="unspecified" allows the activity to rotate freely
+             - This is important for a video player that should support both orientations
+             - Combined with the orientation configChange, allows smooth rotation handling
+             
+             LAUNCH MODE:
+             - singleTask ensures only one instance of PlayerActivity exists
+             - When launched again, onNewIntent() is called instead of creating a new instance
+             - This is important for handling multiple stream launches
+             
+             PERFORMANCE:
+             - resizeableActivity="true" allows multi-window and split-screen support
+             - Provides better user experience on tablets and foldables
+        -->
 
     </application>
 
