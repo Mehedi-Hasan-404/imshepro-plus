@@ -60,7 +60,6 @@
             android:exported="false"
             android:theme="@style/Theme.LiveTVPro.Fullscreen"
             android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard"
             android:supportsPictureInPicture="true"
             android:launchMode="singleTop" />
 
