@@ -507,92 +507,14 @@ class PlayerActivity : AppCompatActivity() {
         // Force immediate window flags update BEFORE layout changes
         setWindowFlags(isLandscape)
         
-        // CRITICAL FIX: Create completely NEW layout params to force proper recalculation
-        val params = ConstraintLayout.LayoutParams(
-            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-        )
-        
-        if (isLandscape) {
-            // LANDSCAPE: Fill the entire screen
-            params.dimensionRatio = null  // Remove the 16:9 constraint
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            params.topMargin = 0
-            params.bottomMargin = 0
-            params.marginStart = 0
-            params.marginEnd = 0
-            
-            binding.playerContainer.setPadding(0, 0, 0, 0)
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            binding.relatedChannelsSection.visibility = View.GONE
-            binding.linksSection.visibility = View.GONE
-        } else {
-            // PORTRAIT: Return to 16:9 ratio at the top
-            params.dimensionRatio = "H,16:9"  // Force 16:9 aspect ratio
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET  // Don't constrain to bottom
-            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            params.topMargin = 0
-            params.bottomMargin = 0
-            params.marginStart = 0
-            params.marginEnd = 0
-            
-            binding.root.requestApplyInsets()
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 5000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            
-            // Set up the links and related sections layout - create NEW params
-            val linksParams = ConstraintLayout.LayoutParams(
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-                ConstraintLayout.LayoutParams.WRAP_CONTENT
-            )
-            linksParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            linksParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            linksParams.topToBottom = binding.playerContainer.id
-            linksParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-            binding.linksSection.layoutParams = linksParams
-            
-            val relatedParams = ConstraintLayout.LayoutParams(
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            )
-            relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            relatedParams.topToBottom = binding.linksSection.id
-            relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            binding.relatedChannelsSection.layoutParams = relatedParams
-        }
-        
-        // Apply the NEW params immediately - this forces Android to recalculate everything
-        binding.playerContainer.layoutParams = params
-        
-        // Triple-force layout recalculation
-        binding.root.forceLayout()
-        binding.playerContainer.forceLayout()
-        binding.playerView.forceLayout()
-        
-        binding.root.invalidate()
-        binding.playerContainer.invalidate()
-        binding.playerView.invalidate()
+        // Force layout reset - this is critical
+        resetPlayerContainerLayout(isLandscape)
         
         // Update other settings
         updateLinksForOrientation(isLandscape)
         setSubtitleTextSize()
         
-        // Post-layout updates for visibility with multiple passes
+        // Post-layout updates for visibility
         binding.root.post {
             if (!isLandscape) {
                 if (allEventLinks.size > 1) {
@@ -608,11 +530,96 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             
-            // Final aggressive layout pass
+            // Final layout pass
             binding.root.requestLayout()
-            binding.playerContainer.requestLayout()
-            binding.playerView.requestLayout()
         }
+    }
+    
+    private fun resetPlayerContainerLayout(isLandscape: Boolean) {
+        // Remove the view from parent temporarily to force complete layout recalculation
+        val parent = binding.playerContainer.parent as? androidx.constraintlayout.widget.ConstraintLayout
+        
+        if (isLandscape) {
+            // LANDSCAPE: Fill the entire screen
+            val params = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            )
+            
+            params.dimensionRatio = null  // Remove the 16:9 constraint
+            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            params.setMargins(0, 0, 0, 0)
+            
+            binding.playerContainer.layoutParams = params
+            binding.playerContainer.setPadding(0, 0, 0, 0)
+            
+            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerShowTimeoutMs = 3000
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+            binding.relatedChannelsSection.visibility = View.GONE
+            binding.linksSection.visibility = View.GONE
+        } else {
+            // PORTRAIT: Return to 16:9 ratio at the top
+            val params = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                0  // Height is 0, controlled by dimension ratio
+            )
+            
+            params.dimensionRatio = "H,16:9"  // Force 16:9 aspect ratio
+            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET  // CRITICAL: unset bottom
+            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            params.setMargins(0, 0, 0, 0)
+            
+            binding.playerContainer.layoutParams = params
+            
+            // Request to reapply insets
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+                binding.root.requestApplyInsets()
+            }
+            
+            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerShowTimeoutMs = 5000
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
+            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+            
+            // Recreate the links section layout params
+            val linksParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.WRAP_CONTENT
+            )
+            linksParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            linksParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            linksParams.topToBottom = binding.playerContainer.id
+            linksParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            binding.linksSection.layoutParams = linksParams
+            
+            // Recreate the related channels section layout params
+            val relatedParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            )
+            relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            relatedParams.topToBottom = binding.linksSection.id
+            relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            binding.relatedChannelsSection.layoutParams = relatedParams
+        }
+        
+        // Force complete layout recalculation
+        parent?.requestLayout()
+        binding.playerContainer.requestLayout()
+        binding.playerView.requestLayout()
+        binding.root.invalidate()
     }
 
     override fun onResume() {
