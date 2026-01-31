@@ -23,7 +23,7 @@
             android:layout_height="match_parent"
             android:keepScreenOn="true"
             app:auto_show="true"
-            app:controller_layout_id="@layout/custom_player_controls"
+            app:controller_layout_id="@layout/exo_modern_player_controls"
             app:hide_on_touch="true"
             app:show_buffering="when_playing"
             app:show_timeout="5000"
