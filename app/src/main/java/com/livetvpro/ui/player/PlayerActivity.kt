@@ -58,6 +58,8 @@ import com.livetvpro.databinding.ActivityPlayerBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import com.livetvpro.ui.adapters.LinkChipAdapter
 import com.livetvpro.data.models.LiveEventLink
+import com.livetvpro.ui.player.dialogs.LinkSelectionDialog
+import com.livetvpro.ui.player.settings.PlayerSettingsDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
@@ -281,41 +283,51 @@ class PlayerActivity : AppCompatActivity() {
             } else {
                 streamUrl = ""
             }
-        } else {
-            finish()
-        }
-    }
-
-    private fun setWindowFlags(isLandscape: Boolean) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            if (isLandscape) {
-                window.insetsController?.apply {
-                    hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                    systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
-            } else {
-                window.insetsController?.apply {
-                    show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                }
-            }
-        } else {
-            if (isLandscape) {
-                @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_FULLSCREEN
-                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        )
-            } else {
-                @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
-            }
         }
     }
 
     private fun setupWindowInsets() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.setDecorFitsSystemWindows(false)
+            window.insetsController?.apply {
+                hide(WindowInsets.Type.systemBars())
+                systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.decorView.systemUiVisibility = (
+                    View.SYSTEM_UI_FLAG_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                    )
+        }
+    }
+
+    private fun setWindowFlags(isLandscape: Boolean) {
+        if (isLandscape) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.hide(WindowInsets.Type.systemBars())
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        )
+            }
+        } else {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.insetsController?.show(WindowInsets.Type.systemBars())
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            }
         }
     }
 
@@ -337,8 +349,12 @@ class PlayerActivity : AppCompatActivity() {
             tvChannelName?.text = contentName
 
             btnBack?.setOnClickListener { finish() }
-            btnPip?.setOnClickListener { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) enterPipMode() }
-            btnSettings?.setOnClickListener { showQualitySelector() }
+            btnPip?.setOnClickListener {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    enterPipMode()
+                }
+            }
+            btnSettings?.setOnClickListener { showPlayerSettings() }
             btnLock?.setOnClickListener { toggleLock() }
             btnMute?.setOnClickListener { toggleMute() }
             btnRewind?.setOnClickListener { skipBackward() }
@@ -521,6 +537,19 @@ class PlayerActivity : AppCompatActivity() {
             else -> R.drawable.ic_aspect_zoom
         }
         btnAspectRatio?.setImageResource(iconRes)
+    }
+
+    private fun showPlayerSettings() {
+        val currentPlayer = player ?: return
+        
+        // Show quality selector if there are multiple links
+        if (allEventLinks.size > 1) {
+            showQualitySelector()
+        } else {
+            // Show player settings dialog for track selection
+            val dialog = PlayerSettingsDialog(this, currentPlayer)
+            dialog.show()
+        }
     }
 
     private fun showQualitySelector() {
@@ -851,62 +880,87 @@ class PlayerActivity : AppCompatActivity() {
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun enterPipMode() {
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-            return
+        val videoSize = player?.videoSize
+        val hasValidSize = videoSize != null && videoSize.width > 0 && videoSize.height > 0
+
+        val aspectRatio = if (hasValidSize) {
+            Rational(videoSize!!.width, videoSize.height)
+        } else {
+            Rational(16, 9)
         }
 
-        val params = createPipParams()
-        try {
-            enterPictureInPictureMode(params)
-        } catch (e: IllegalStateException) {
-            Log.e(TAG, "Error entering PiP mode", e)
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun createPipParams(): PictureInPictureParams {
-        val aspectRatio = calculateAspectRatio()
-        val builder = PictureInPictureParams.Builder()
+        val pipParamsBuilder = PictureInPictureParams.Builder()
             .setAspectRatio(aspectRatio)
+            .setActions(getPipActions())
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            builder.setAutoEnterEnabled(true)
+            pipParamsBuilder.setAutoEnterEnabled(true)
         }
 
-        val actions = createPipActions()
-        if (actions.isNotEmpty()) {
-            builder.setActions(actions)
-        }
+        val params = pipParamsBuilder.build()
 
-        return builder.build()
+        try {
+            val result = enterPictureInPictureMode(params)
+            if (!result) {
+                Log.w(TAG, "Failed to enter PiP mode")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error entering PiP mode", e)
+        }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
     private fun updatePipParams() {
         if (!isInPipMode) return
 
-        val params = createPipParams()
         try {
-            setPictureInPictureParams(params)
+            val videoSize = player?.videoSize
+            val hasValidSize = videoSize != null && videoSize.width > 0 && videoSize.height > 0
+
+            val aspectRatio = if (hasValidSize) {
+                Rational(videoSize!!.width, videoSize.height)
+            } else {
+                Rational(16, 9)
+            }
+
+            val sourceRect = if (hasValidSize) {
+                val playerView = binding.playerView
+                val viewWidth = playerView.width
+                val viewHeight = playerView.height
+                val videoAspect = videoSize!!.width.toFloat() / videoSize.height.toFloat()
+                val viewAspect = viewWidth.toFloat() / viewHeight.toFloat()
+
+                val rect: Rect
+                if (videoAspect > viewAspect) {
+                    val height = (viewWidth / videoAspect).toInt()
+                    val top = (viewHeight - height) / 2
+                    rect = Rect(0, top, viewWidth, top + height)
+                } else {
+                    val width = (viewHeight * videoAspect).toInt()
+                    val left = (viewWidth - width) / 2
+                    rect = Rect(left, 0, left + width, viewHeight)
+                }
+                rect
+            } else {
+                null
+            }
+
+            val builder = PictureInPictureParams.Builder()
+                .setAspectRatio(aspectRatio)
+                .setActions(getPipActions())
+
+            if (sourceRect != null) {
+                builder.setSourceRectHint(sourceRect)
+            }
+
+            setPictureInPictureParams(builder.build())
         } catch (e: Exception) {
             Log.e(TAG, "Error updating PiP params", e)
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    private fun calculateAspectRatio(): Rational {
-        val videoWidth = player?.videoSize?.width ?: 16
-        val videoHeight = player?.videoSize?.height ?: 9
-
-        return if (videoWidth > 0 && videoHeight > 0) {
-            Rational(videoWidth, videoHeight)
-        } else {
-            Rational(16, 9)
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun createPipActions(): List<RemoteAction> {
+    private fun getPipActions(): List<RemoteAction> {
         val actions = mutableListOf<RemoteAction>()
 
         val rewindIntent = PendingIntent.getBroadcast(
@@ -918,7 +972,7 @@ class PlayerActivity : AppCompatActivity() {
             PendingIntent.FLAG_IMMUTABLE
         )
         actions.add(RemoteAction(
-            Icon.createWithResource(this, R.drawable.ic_skip_back),
+            Icon.createWithResource(this, R.drawable.ic_skip_backward),
             getString(R.string.exo_controls_rewind_description),
             getString(R.string.exo_controls_rewind_description),
             rewindIntent
