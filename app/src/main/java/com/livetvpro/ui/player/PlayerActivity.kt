@@ -641,8 +641,10 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun loadRelatedContent() {
         if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
-            lifecycleScope.launch {
-                viewModel.getRelatedChannels(contentId).collect { channels ->
+            val categoryId = channelData?.categoryId
+            if (categoryId != null) {
+                viewModel.loadRelatedChannels(categoryId, contentId)
+                viewModel.relatedItems.observe(this) { channels ->
                     relatedChannels = channels.take(6)
                     relatedChannelsAdapter.submitList(relatedChannels)
 
@@ -689,7 +691,8 @@ class PlayerActivity : AppCompatActivity() {
             val drmCallback = if (streamInfo.drmLicenseUrl != null) {
                 HttpMediaDrmCallback(streamInfo.drmLicenseUrl, dataSourceFactory)
             } else if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
-                LocalMediaDrmCallback(streamInfo.drmKeyId.toByteArray(), streamInfo.drmKey.toByteArray())
+                // LocalMediaDrmCallback only accepts one ByteArray parameter
+                LocalMediaDrmCallback(streamInfo.drmKey.toByteArray())
             } else {
                 null
             }
@@ -785,11 +788,11 @@ class PlayerActivity : AppCompatActivity() {
             }
             setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, textSizeSp)
             setStyle(
-                com.google.android.exoplayer2.ui.CaptionStyleCompat(
+                androidx.media3.ui.CaptionStyleCompat(
                     Color.WHITE,
                     Color.TRANSPARENT,
                     Color.TRANSPARENT,
-                    com.google.android.exoplayer2.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                    androidx.media3.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE,
                     Color.BLACK,
                     Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
                 )
