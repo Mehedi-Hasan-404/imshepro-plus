@@ -246,7 +246,7 @@ class PlayerActivity : AppCompatActivity() {
             contentType = ContentType.EVENT
             eventData = receivedEvent
             contentId = receivedEvent.id
-            contentName = receivedEvent.name ?: ""
+            contentName = receivedEvent.title
 
             if (receivedEvent.links.isNotEmpty()) {
                 allEventLinks = receivedEvent.links
@@ -560,7 +560,7 @@ class PlayerActivity : AppCompatActivity() {
             "$prefix${link.label}"
         }.toTypedArray()
 
-        val builder = androidx.appcompat.app.AlertDialog.Builder(this, R.style.AlertDialogTheme)
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this, R.style.LinkSelectionDialogTheme)
         builder.setTitle(getString(R.string.select_quality))
         builder.setItems(items) { dialog, which ->
             if (which != currentLinkIndex) {
