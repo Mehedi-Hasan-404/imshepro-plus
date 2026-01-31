@@ -504,18 +504,26 @@ class PlayerActivity : AppCompatActivity() {
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
-        // CRITICAL FIX: Explicitly set layout parameters based on orientation
-        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        // Force immediate window flags update BEFORE layout changes
+        setWindowFlags(isLandscape)
+        
+        // CRITICAL FIX: Create completely NEW layout params to force proper recalculation
+        val params = ConstraintLayout.LayoutParams(
+            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
+            ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+        )
         
         if (isLandscape) {
             // LANDSCAPE: Fill the entire screen
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.dimensionRatio = null  // Remove the 16:9 constraint
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            params.topMargin = 0
+            params.bottomMargin = 0
+            params.marginStart = 0
+            params.marginEnd = 0
             
             binding.playerContainer.setPadding(0, 0, 0, 0)
             binding.playerView.controllerAutoShow = false
@@ -528,13 +536,15 @@ class PlayerActivity : AppCompatActivity() {
             binding.linksSection.visibility = View.GONE
         } else {
             // PORTRAIT: Return to 16:9 ratio at the top
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.dimensionRatio = "H,16:9"  // Force 16:9 aspect ratio
             params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
             params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET  // Don't constrain to bottom
             params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            params.topMargin = 0
+            params.bottomMargin = 0
+            params.marginStart = 0
+            params.marginEnd = 0
             
             binding.root.requestApplyInsets()
             binding.playerView.controllerAutoShow = false
@@ -544,7 +554,7 @@ class PlayerActivity : AppCompatActivity() {
             
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             
-            // Set up the links and related sections layout
+            // Set up the links and related sections layout - create NEW params
             val linksParams = ConstraintLayout.LayoutParams(
                 ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
                 ConstraintLayout.LayoutParams.WRAP_CONTENT
@@ -564,9 +574,27 @@ class PlayerActivity : AppCompatActivity() {
             relatedParams.topToBottom = binding.linksSection.id
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
-            
-            // Show sections after layout is complete
-            binding.root.post {
+        }
+        
+        // Apply the NEW params immediately - this forces Android to recalculate everything
+        binding.playerContainer.layoutParams = params
+        
+        // Triple-force layout recalculation
+        binding.root.forceLayout()
+        binding.playerContainer.forceLayout()
+        binding.playerView.forceLayout()
+        
+        binding.root.invalidate()
+        binding.playerContainer.invalidate()
+        binding.playerView.invalidate()
+        
+        // Update other settings
+        updateLinksForOrientation(isLandscape)
+        setSubtitleTextSize()
+        
+        // Post-layout updates for visibility with multiple passes
+        binding.root.post {
+            if (!isLandscape) {
                 if (allEventLinks.size > 1) {
                     binding.linksSection.visibility = View.VISIBLE
                 } else {
@@ -579,18 +607,8 @@ class PlayerActivity : AppCompatActivity() {
                     binding.relatedChannelsSection.visibility = View.GONE
                 }
             }
-        }
-        
-        binding.playerContainer.layoutParams = params
-        
-        setWindowFlags(isLandscape)
-        updateLinksForOrientation(isLandscape)
-        setSubtitleTextSize()
-        
-        binding.playerContainer.invalidate()
-        binding.playerView.invalidate()
-        
-        binding.root.post {
+            
+            // Final aggressive layout pass
             binding.root.requestLayout()
             binding.playerContainer.requestLayout()
             binding.playerView.requestLayout()
