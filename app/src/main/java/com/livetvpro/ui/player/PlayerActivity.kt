@@ -216,7 +216,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            registerPipReceiver()
+            // PiP receiver is now registered in onPictureInPictureModeChanged
         }
     }
     
@@ -508,6 +508,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
         
+        // CRITICAL: Handle PiP mode first - don't change layout in PiP
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
             binding.playerView.hideController()
             return
@@ -827,7 +828,15 @@ class PlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacksAndMessages(null)
-        unregisterPipReceiver()
+        // Clean up PiP receiver
+        pipReceiver?.let {
+            try {
+                unregisterReceiver(it)
+            } catch (e: Exception) {
+                // Ignore
+            }
+            pipReceiver = null
+        }
         releasePlayer()
     }
 
@@ -1598,16 +1607,77 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // Keep RecyclerViews visible in background - DON'T hide them
-            // binding.relatedChannelsSection.visibility = View.GONE  // REMOVED
-            // binding.linksSection.visibility = View.GONE            // REMOVED
+            // Entering PiP mode
             binding.playerView.useController = false 
             binding.lockOverlay.visibility = View.GONE
             binding.unlockButton.visibility = View.GONE
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             binding.playerView.hideController()
+            
+            // Register PiP broadcast receiver
+            pipReceiver = object : BroadcastReceiver() {
+                override fun onReceive(context: Context?, intent: Intent?) {
+                    if (intent?.action != ACTION_MEDIA_CONTROL) return
+                    
+                    val currentPlayer = player ?: return
+                    val hasError = binding.errorView.visibility == View.VISIBLE
+                    val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
+                    
+                    when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
+                        CONTROL_TYPE_PLAY -> {
+                            if (hasError || hasEnded) {
+                                retryPlayback()
+                            } else {
+                                currentPlayer.play()
+                            }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) updatePipParams()
+                        }
+                        CONTROL_TYPE_PAUSE -> {
+                            if (hasError || hasEnded) {
+                                retryPlayback()
+                            } else {
+                                currentPlayer.pause()
+                            }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) updatePipParams()
+                        }
+                        CONTROL_TYPE_REWIND -> {
+                            if (!hasError && !hasEnded) {
+                                val newPosition = currentPlayer.currentPosition - skipMs
+                                currentPlayer.seekTo(if (newPosition < 0) 0 else newPosition)
+                            }
+                        }
+                        CONTROL_TYPE_FORWARD -> {
+                            if (!hasError && !hasEnded) {
+                                val newPosition = currentPlayer.currentPosition + skipMs
+                                if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
+                                    currentPlayer.seekTo(currentPlayer.duration)
+                                } else {
+                                    currentPlayer.seekTo(newPosition)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
+            }
         } else {
+            // Exiting PiP mode
             userRequestedPip = false
+            
+            // Unregister PiP receiver
+            pipReceiver?.let {
+                try {
+                    unregisterReceiver(it)
+                } catch (e: Exception) {
+                    // Ignore
+                }
+                pipReceiver = null
+            }
             
             if (isFinishing) {
                 return
@@ -1616,7 +1686,7 @@ class PlayerActivity : AppCompatActivity() {
             setSubtitleTextSize()
             
             val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-            applyOrientationSettings(isLandscape)
+            resetPlayerContainerLayout(isLandscape)
             
             if (!isLandscape) {
                 if (allEventLinks.size > 1) {
@@ -1656,71 +1726,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun registerPipReceiver() {
-        if (pipReceiver != null) return
-        
-        pipReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action != ACTION_MEDIA_CONTROL) return
-                
-                val currentPlayer = player ?: return
-                val hasError = binding.errorView.visibility == View.VISIBLE
-                val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
-                
-                when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
-                    CONTROL_TYPE_PLAY -> {
-                        if (hasError || hasEnded) {
-                            retryPlayback()
-                        } else {
-                            currentPlayer.play()
-                        }
-                        updatePipParams()
-                    }
-                    CONTROL_TYPE_PAUSE -> {
-                        if (hasError || hasEnded) {
-                            retryPlayback()
-                        } else {
-                            currentPlayer.pause()
-                        }
-                        updatePipParams()
-                    }
-                    CONTROL_TYPE_REWIND -> {
-                        if (!hasError && !hasEnded) {
-                            val newPosition = currentPlayer.currentPosition - skipMs
-                            currentPlayer.seekTo(if (newPosition < 0) 0 else newPosition)
-                        }
-                    }
-                    CONTROL_TYPE_FORWARD -> {
-                        if (!hasError && !hasEnded) {
-                            val newPosition = currentPlayer.currentPosition + skipMs
-                            if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
-                                currentPlayer.seekTo(currentPlayer.duration)
-                            } else {
-                                currentPlayer.seekTo(newPosition)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
-        }
-    }
-
-    private fun unregisterPipReceiver() {
-        try {
-            pipReceiver?.let {
-                unregisterReceiver(it)
-                pipReceiver = null
-            }
-        } catch (e: Exception) {
-        }
-    }
-
     private fun retryPlayback() {
         binding.errorView.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
@@ -1732,7 +1737,15 @@ class PlayerActivity : AppCompatActivity() {
     override fun finish() {
         try {
             releasePlayer()
-            unregisterPipReceiver()
+            // Clean up PiP receiver
+            pipReceiver?.let {
+                try {
+                    unregisterReceiver(it)
+                } catch (e: Exception) {
+                    // Ignore
+                }
+                pipReceiver = null
+            }
             isInPipMode = false
             userRequestedPip = false
             wasLockedBeforePip = false
