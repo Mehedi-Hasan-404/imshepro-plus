@@ -516,26 +516,63 @@ class PlayerActivity : AppCompatActivity() {
         // Update window flags for fullscreen/immersive mode
         setWindowFlags(isLandscape)
         
-        // Update player and layout based on orientation
+        // Update layout params and player based on orientation
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        
         if (isLandscape) {
-            // Landscape: Fill mode
+            // Landscape: Remove dimension ratio and fill entire screen
+            params.dimensionRatio = null
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            binding.playerContainer.layoutParams = params
+            
+            // Set FILL resize mode
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
         } else {
-            // Portrait: Fit mode
+            // Portrait: Use 16:9 ratio at top
+            params.dimensionRatio = "H,16:9"
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            binding.playerContainer.layoutParams = params
+            
+            // Set FIT resize mode
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
         }
+        
+        // Force layout update
+        binding.playerContainer.requestLayout()
+        binding.playerView.requestLayout()
     }
 
     override fun onResume() {
         super.onResume()
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         
-        // Only set window flags, don't call applyOrientationSettings to avoid conflicts
+        // Set window flags
         setWindowFlags(isLandscape)
+        
+        // Ensure correct resize mode based on orientation
+        binding.playerView.post {
+            if (isLandscape) {
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+            } else {
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+        }
         
         // Add window focus listener to maintain immersive mode
         window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
