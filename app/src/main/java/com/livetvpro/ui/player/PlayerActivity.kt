@@ -210,619 +210,611 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            registerPipReceiver()
-        }
-
-        setupBackPressHandler()
-    }
-
-    private fun setupWindowInsets() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-            binding.root.setOnApplyWindowInsetsListener { view, insets ->
-                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-                if (isLandscape) {
-                    binding.playerContainer?.setPadding(0, 0, 0, 0)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+                    finish()
+                } else if (isLocked) {
+                    showUnlockButton()
                 } else {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
-                        val displayCutout = insets.displayCutout
-
-                        val topPadding = maxOf(systemBars.top, displayCutout?.safeInsetTop ?: 0)
-                        val leftPadding = maxOf(systemBars.left, displayCutout?.safeInsetLeft ?: 0)
-                        val rightPadding = maxOf(systemBars.right, displayCutout?.safeInsetRight ?: 0)
-
-                        binding.playerContainer?.setPadding(
-                            leftPadding,
-                            topPadding,
-                            rightPadding,
-                            0
-                        )
-                    } else {
-                        @Suppress("DEPRECATION")
-                        binding.playerContainer?.setPadding(
-                            insets.systemWindowInsetLeft,
-                            insets.systemWindowInsetTop,
-                            insets.systemWindowInsetRight,
-                            0
-                        )
-                    }
+                    finish()
                 }
-
-                insets
             }
-        }
+        })
     }
 
     private fun parseIntent() {
-        channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val receivedChannel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
             @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_CHANNEL)
+            intent.getParcelableExtra(EXTRA_CHANNEL) as? Channel
         }
 
-        eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val receivedEvent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
         } else {
             @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_EVENT)
+            intent.getParcelableExtra(EXTRA_EVENT) as? LiveEvent
         }
 
-        val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
+        val selectedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
 
-        if (channelData != null) {
+        if (receivedEvent != null) {
+            contentType = ContentType.EVENT
+            eventData = receivedEvent
+            contentId = receivedEvent.id
+            contentName = receivedEvent.title
+
+            if (receivedEvent.links.isNotEmpty()) {
+                allEventLinks = receivedEvent.links
+
+                currentLinkIndex = if (selectedLinkIndex >= 0 && selectedLinkIndex < allEventLinks.size) {
+                    selectedLinkIndex
+                } else {
+                    0
+                }
+
+                streamUrl = allEventLinks[currentLinkIndex].url
+            } else {
+                streamUrl = ""
+            }
+
+        } else if (receivedChannel != null) {
             contentType = ContentType.CHANNEL
-            val channel = channelData!!
-            contentId = channel.id
-            contentName = channel.name
+            channelData = receivedChannel
+            contentId = receivedChannel.id
+            contentName = receivedChannel.title
 
-            if (channel.links != null && channel.links.isNotEmpty()) {
-                allEventLinks = channel.links.map {
+            if (receivedChannel.links != null && receivedChannel.links.isNotEmpty()) {
+                allEventLinks = receivedChannel.links.map {
                     LiveEventLink(label = it.quality, url = it.url)
                 }
 
-                if (passedLinkIndex in allEventLinks.indices) {
-                    currentLinkIndex = passedLinkIndex
+                currentLinkIndex = if (selectedLinkIndex >= 0 && selectedLinkIndex < allEventLinks.size) {
+                    selectedLinkIndex
                 } else {
-                    val matchIndex = allEventLinks.indexOfFirst { it.url == channel.streamUrl }
-                    currentLinkIndex = if (matchIndex != -1) matchIndex else 0
+                    0
                 }
 
                 streamUrl = allEventLinks[currentLinkIndex].url
             } else {
-                streamUrl = channel.streamUrl
-                allEventLinks = emptyList()
-            }
-
-        } else if (eventData != null) {
-            contentType = ContentType.EVENT
-            val event = eventData!!
-            contentId = event.id
-            contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
-
-            allEventLinks = event.links
-
-            if (allEventLinks.isNotEmpty()) {
-                currentLinkIndex = if (passedLinkIndex in allEventLinks.indices) passedLinkIndex else 0
-                streamUrl = allEventLinks[currentLinkIndex].url
-            } else {
-                currentLinkIndex = 0
                 streamUrl = ""
             }
         } else {
             finish()
-            return
         }
     }
 
-    private fun setupRelatedChannels() {
-        relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
-            when (contentType) {
-                ContentType.CHANNEL -> switchToChannel(relatedItem)
-                ContentType.EVENT -> switchToEvent(relatedItem)
-            }
-        }
-        val recyclerView = binding.relatedChannelsRecycler
-
-        recyclerView.layoutManager = if (contentType == ContentType.EVENT) {
-            LinearLayoutManager(this)
-        } else {
-            GridLayoutManager(this, 3)
-        }
-        recyclerView.adapter = relatedChannelsAdapter
-    }
-
-    private fun setupLinksUI() {
-        linkChipAdapter = LinkChipAdapter { link, position ->
-            switchToLink(link, position)
-        }
-
-        val portraitLinksRecycler = binding.linksRecyclerView
-        portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        portraitLinksRecycler.adapter = linkChipAdapter
-
-        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-        landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-
-        val landscapeLinkAdapter = LinkChipAdapter { link, position ->
-            switchToLink(link, position)
-        }
-        landscapeLinksRecycler?.adapter = landscapeLinkAdapter
-
-        if (allEventLinks.size > 1) {
-            val currentOrientation = resources.configuration.orientation
-            val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-
-            if (isCurrentlyLandscape) {
-                binding.linksSection?.visibility = View.GONE
-                landscapeLinksRecycler?.visibility = View.VISIBLE
-                landscapeLinkAdapter.submitList(allEventLinks)
-                landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
-            } else {
-                binding.linksSection?.visibility = View.VISIBLE
-                landscapeLinksRecycler?.visibility = View.GONE
-                linkChipAdapter.submitList(allEventLinks)
-                linkChipAdapter.setSelectedPosition(currentLinkIndex)
-            }
-        } else {
-            binding.linksSection?.visibility = View.GONE
-            landscapeLinksRecycler?.visibility = View.GONE
-        }
-    }
-
-    private fun updateLinksForOrientation(isLandscape: Boolean) {
-        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-
-        if (allEventLinks.size > 1) {
+    private fun setWindowFlags(isLandscape: Boolean) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (isLandscape) {
+                window.insetsController?.apply {
+                    hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                    systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                }
+            } else {
+                window.insetsController?.apply {
+                    show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                }
+            }
+        } else {
+            if (isLandscape) {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_FULLSCREEN
+                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        )
+            } else {
+                @Suppress("DEPRECATION")
+                window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+            }
+        }
+    }
+
+    private fun setupWindowInsets() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+        }
+    }
+
+    private fun bindControllerViews() {
+        val controllerRoot = binding.playerView.findViewById<View>(R.id.exo_controller_root)
+        if (controllerRoot != null) {
+            btnBack = controllerRoot.findViewById(R.id.btnBack)
+            btnPip = controllerRoot.findViewById(R.id.btnPip)
+            btnSettings = controllerRoot.findViewById(R.id.btnSettings)
+            btnLock = controllerRoot.findViewById(R.id.btnLock)
+            btnMute = controllerRoot.findViewById(R.id.btnMute)
+            btnRewind = controllerRoot.findViewById(R.id.btnRewind)
+            btnPlayPause = controllerRoot.findViewById(R.id.exo_play_pause)
+            btnForward = controllerRoot.findViewById(R.id.btnForward)
+            btnFullscreen = controllerRoot.findViewById(R.id.btnFullscreen)
+            btnAspectRatio = controllerRoot.findViewById(R.id.btnAspectRatio)
+            tvChannelName = controllerRoot.findViewById(R.id.tvChannelName)
+
+            tvChannelName?.text = contentName
+
+            btnBack?.setOnClickListener { finish() }
+            btnPip?.setOnClickListener { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) enterPipMode() }
+            btnSettings?.setOnClickListener { showQualitySelector() }
+            btnLock?.setOnClickListener { toggleLock() }
+            btnMute?.setOnClickListener { toggleMute() }
+            btnRewind?.setOnClickListener { skipBackward() }
+            btnForward?.setOnClickListener { skipForward() }
+            btnFullscreen?.setOnClickListener { toggleOrientation() }
+            btnAspectRatio?.setOnClickListener { cycleAspectRatio() }
+
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                btnPip?.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun applyOrientationSettings(isLandscape: Boolean) {
+        val controllerRoot = binding.playerView.findViewById<View>(R.id.exo_controller_root)
+        if (controllerRoot != null) {
+            val topControls = controllerRoot.findViewById<View>(R.id.topControls)
+            val bottomControls = controllerRoot.findViewById<View>(R.id.bottomControls)
+            val centerControls = controllerRoot.findViewById<View>(R.id.centerControls)
+            val btnAspectRatio = controllerRoot.findViewById<ImageButton>(R.id.btnAspectRatio)
+            val btnSettings = controllerRoot.findViewById<ImageButton>(R.id.btnSettings)
+            val btnLock = controllerRoot.findViewById<ImageButton>(R.id.btnLock)
+
+            if (isLandscape) {
+                topControls?.visibility = View.VISIBLE
+                bottomControls?.visibility = View.VISIBLE
+                centerControls?.visibility = View.VISIBLE
+                btnAspectRatio?.visibility = View.VISIBLE
+                btnSettings?.visibility = View.VISIBLE
+                btnLock?.visibility = View.VISIBLE
                 binding.linksSection?.visibility = View.GONE
-
-                landscapeLinksRecycler?.visibility = View.VISIBLE
-
-                val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
-                if (landscapeAdapter != null) {
-                    landscapeAdapter.submitList(allEventLinks)
-                    landscapeAdapter.setSelectedPosition(currentLinkIndex)
-                }
+                binding.relatedChannelsSection?.visibility = View.GONE
             } else {
-                binding.linksSection?.visibility = View.VISIBLE
+                topControls?.visibility = View.VISIBLE
+                bottomControls?.visibility = View.VISIBLE
+                centerControls?.visibility = View.GONE
+                btnAspectRatio?.visibility = View.GONE
+                btnSettings?.visibility = View.GONE
+                btnLock?.visibility = View.GONE
 
-                landscapeLinksRecycler?.visibility = View.GONE
+                if (allEventLinks.size > 1) {
+                    binding.linksSection?.visibility = View.VISIBLE
+                }
 
-                linkChipAdapter.submitList(allEventLinks)
-                linkChipAdapter.setSelectedPosition(currentLinkIndex)
+                if (relatedChannels.isNotEmpty()) {
+                    binding.relatedChannelsSection?.visibility = View.VISIBLE
+                }
             }
-        } else {
-            binding.linksSection?.visibility = View.GONE
-            landscapeLinksRecycler?.visibility = View.GONE
         }
     }
 
-    private fun loadRelatedContent() {
-        when (contentType) {
-            ContentType.CHANNEL -> {
-                channelData?.let { channel ->
-                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+    private fun configurePlayerInteractions() {
+        binding.playerView.setOnClickListener {
+            if (!isLocked && !isInPipMode) {
+                if (binding.playerView.isControllerFullyVisible) {
+                    binding.playerView.hideController()
+                } else {
+                    binding.playerView.showController()
                 }
-            }
-            ContentType.EVENT -> {
-                eventData?.let { event ->
-                    viewModel.loadRelatedEvents(event.id)
-                }
+            } else if (isLocked) {
+                showUnlockButton()
             }
         }
+    }
 
-        viewModel.relatedItems.observe(this) { channels ->
-            relatedChannels = channels
-            relatedChannelsAdapter.submitList(channels)
-            binding.relatedChannelsSection?.visibility = if (channels.isEmpty()) {
-                View.GONE
+    private fun setupLockOverlay() {
+        binding.lockOverlay?.setOnClickListener {
+            showUnlockButton()
+        }
+
+        binding.unlockButton?.setOnClickListener {
+            toggleLock()
+        }
+    }
+
+    private fun toggleLock() {
+        isLocked = !isLocked
+
+        if (isLocked) {
+            binding.playerView.useController = false
+            binding.playerView.hideController()
+            binding.lockOverlay?.visibility = View.VISIBLE
+            showUnlockButton()
+            btnLock?.setImageResource(R.drawable.ic_lock)
+        } else {
+            binding.playerView.useController = true
+            binding.lockOverlay?.visibility = View.GONE
+            binding.unlockButton?.visibility = View.GONE
+            mainHandler.removeCallbacks(hideUnlockButtonRunnable)
+            btnLock?.setImageResource(R.drawable.ic_lock_open)
+
+            binding.playerView.postDelayed({
+                if (!isInPipMode && !isLocked) {
+                    binding.playerView.showController()
+                }
+            }, 100)
+        }
+    }
+
+    private fun showUnlockButton() {
+        binding.unlockButton?.visibility = View.VISIBLE
+        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
+        mainHandler.postDelayed(hideUnlockButtonRunnable, 3000)
+    }
+
+    private fun toggleMute() {
+        player?.let {
+            isMuted = !isMuted
+            it.volume = if (isMuted) 0f else 1f
+            btnMute?.setImageResource(
+                if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+            )
+        }
+    }
+
+    private fun skipBackward() {
+        player?.let {
+            val newPosition = it.currentPosition - skipMs
+            it.seekTo(if (newPosition < 0) 0 else newPosition)
+        }
+    }
+
+    private fun skipForward() {
+        player?.let {
+            val newPosition = it.currentPosition + skipMs
+            if (it.isCurrentWindowLive && it.duration != C.TIME_UNSET && newPosition >= it.duration) {
+                it.seekTo(it.duration)
             } else {
-                View.VISIBLE
-            }
-            binding.relatedLoadingProgress.visibility = View.GONE
-            binding.relatedChannelsRecycler?.visibility = View.VISIBLE
-        }
-    }
-
-    private fun switchToChannel(newChannel: Channel) {
-        releasePlayer()
-        channelData = newChannel
-        eventData = null
-        contentType = ContentType.CHANNEL
-        contentId = newChannel.id
-        contentName = newChannel.name
-
-        if (newChannel.links != null && newChannel.links.isNotEmpty()) {
-            allEventLinks = newChannel.links.map {
-                LiveEventLink(label = it.quality, url = it.url)
-            }
-            currentLinkIndex = 0
-            streamUrl = allEventLinks.firstOrNull()?.url ?: newChannel.streamUrl
-        } else {
-            allEventLinks = emptyList()
-            streamUrl = newChannel.streamUrl
-        }
-
-        tvChannelName?.text = contentName
-
-        setupPlayer()
-        setupLinksUI()
-
-        binding.relatedLoadingProgress.visibility = View.VISIBLE
-        binding.relatedChannelsRecycler?.visibility = View.GONE
-        loadRelatedContent()
-    }
-
-    private fun switchToEvent(eventItem: Channel) {
-        lifecycleScope.launch {
-            try {
-                val events = viewModel.getAllEvents()
-                val selectedEvent = events.find { it.id == eventItem.id }
-                selectedEvent?.let { event ->
-                    releasePlayer()
-                    channelData = null
-                    eventData = event
-                    contentType = ContentType.EVENT
-                    contentId = event.id
-                    contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
-                    allEventLinks = event.links
-                    currentLinkIndex = 0
-                    streamUrl = allEventLinks.firstOrNull()?.url ?: ""
-                    tvChannelName?.text = contentName
-                    setupPlayer()
-                    setupLinksUI()
-                    binding.relatedLoadingProgress.visibility = View.VISIBLE
-                    binding.relatedChannelsRecycler?.visibility = View.GONE
-                    loadRelatedContent()
-                }
-            } catch (e: Exception) {
-                Log.e(TAG, "Error switching to event", e)
+                it.seekTo(newPosition)
             }
         }
     }
 
-    private fun switchToLink(link: LiveEventLink, position: Int) {
-        if (position == currentLinkIndex) return
-
-        currentLinkIndex = position
-        streamUrl = link.url
-
-        linkChipAdapter.setSelectedPosition(position)
-
-        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-        val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
-        landscapeAdapter?.setSelectedPosition(position)
-
-        releasePlayer()
-        setupPlayer()
+    private fun toggleOrientation() {
+        requestedOrientation = when (resources.configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            else -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
-            binding.playerView.hideController()
+        if (isInPipMode) return
+
+        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        setWindowFlags(isLandscape)
+
+        val params = binding.playerContainer?.layoutParams as ConstraintLayout.LayoutParams
+        if (isLandscape) {
+            params.dimensionRatio = null
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        } else {
+            params.dimensionRatio = "H,16:9"
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+        }
+        binding.playerContainer?.layoutParams = params
+
+        binding.playerView.postDelayed({
+            applyOrientationSettings(isLandscape)
+            updateLinksForOrientation(isLandscape)
+        }, 100)
+    }
+
+    private fun cycleAspectRatio() {
+        currentResizeMode = when (currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        binding.playerView.resizeMode = currentResizeMode
+
+        val iconRes = when (currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT -> R.drawable.ic_aspect_fit
+            AspectRatioFrameLayout.RESIZE_MODE_FILL -> R.drawable.ic_aspect_fill
+            else -> R.drawable.ic_aspect_zoom
+        }
+        btnAspectRatio?.setImageResource(iconRes)
+    }
+
+    private fun showQualitySelector() {
+        if (allEventLinks.size <= 1) return
+
+        val items = allEventLinks.mapIndexed { index, link ->
+            val prefix = if (index == currentLinkIndex) "✓ " else ""
+            "$prefix${link.label}"
+        }.toTypedArray()
+
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this, R.style.AlertDialogTheme)
+        builder.setTitle(getString(R.string.select_quality))
+        builder.setItems(items) { dialog, which ->
+            if (which != currentLinkIndex) {
+                switchToLink(which)
+            }
+            dialog.dismiss()
+        }
+        builder.show()
+    }
+
+    private fun switchToLink(newIndex: Int) {
+        if (newIndex < 0 || newIndex >= allEventLinks.size) return
+
+        currentLinkIndex = newIndex
+        streamUrl = allEventLinks[newIndex].url
+
+        val wasPlaying = player?.isPlaying == true
+        val currentPosition = player?.currentPosition ?: 0L
+
+        releasePlayer()
+        setupPlayer()
+
+        if (wasPlaying) {
+            player?.seekTo(currentPosition)
+            player?.play()
+        }
+
+        linkChipAdapter.updateSelection(newIndex)
+    }
+
+    private fun setupLinksUI() {
+        if (allEventLinks.size > 1) {
+            linkChipAdapter = LinkChipAdapter(
+                links = allEventLinks,
+                selectedIndex = currentLinkIndex,
+                onLinkClick = { index -> switchToLink(index) }
+            )
+
+            binding.linksRecycler.apply {
+                layoutManager = LinearLayoutManager(
+                    this@PlayerActivity,
+                    LinearLayoutManager.HORIZONTAL,
+                    false
+                )
+                adapter = linkChipAdapter
+            }
+
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            updateLinksForOrientation(isLandscape)
+        }
+    }
+
+    private fun updateLinksForOrientation(isLandscape: Boolean) {
+        if (allEventLinks.size <= 1) {
+            binding.linksSection?.visibility = View.GONE
             return
         }
 
-        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (isLandscape) {
+            binding.linksSection?.visibility = View.GONE
+        } else {
+            binding.linksSection?.visibility = View.VISIBLE
+        }
+    }
 
-        setWindowFlags(isLandscape)
+    private fun setupRelatedChannels() {
+        relatedChannelsAdapter = RelatedChannelAdapter { channel ->
+            finish()
+            startWithChannel(this, channel)
+        }
 
-        resetPlayerContainerLayout(isLandscape)
+        binding.relatedChannelsRecycler.apply {
+            layoutManager = GridLayoutManager(this@PlayerActivity, 2)
+            adapter = relatedChannelsAdapter
+        }
+    }
 
-        updateLinksForOrientation(isLandscape)
+    private fun loadRelatedContent() {
+        if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
+            lifecycleScope.launch {
+                viewModel.getRelatedChannels(contentId).collect { channels ->
+                    relatedChannels = channels.take(6)
+                    relatedChannelsAdapter.submitList(relatedChannels)
+
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    if (relatedChannels.isNotEmpty() && !isLandscape) {
+                        binding.relatedChannelsSection?.visibility = View.VISIBLE
+                    }
+                }
+            }
+        }
+    }
+
+    private fun setupPlayer() {
+        if (streamUrl.isEmpty()) {
+            showError(getString(R.string.no_stream_available))
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            registerPipReceiver()
+        }
+
+        trackSelector = DefaultTrackSelector(this).apply {
+            parameters = buildUponParameters()
+                .setPreferredAudioLanguage("eng")
+                .build()
+        }
+
+        val streamInfo = parseStreamUrl(streamUrl)
+        val dataSourceFactory = DefaultHttpDataSource.Factory().apply {
+            setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+            setAllowCrossProtocolRedirects(true)
+            setConnectTimeoutMs(15000)
+            setReadTimeoutMs(15000)
+
+            if (streamInfo.headers.isNotEmpty()) {
+                setDefaultRequestProperties(streamInfo.headers)
+            }
+        }
+
+        val mediaSourceFactory: DefaultMediaSourceFactory
+
+        if (streamInfo.drmScheme != null && streamInfo.drmScheme != C.WIDEVINE_UUID) {
+            val drmCallback = if (streamInfo.drmLicenseUrl != null) {
+                HttpMediaDrmCallback(streamInfo.drmLicenseUrl, dataSourceFactory)
+            } else if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
+                LocalMediaDrmCallback(streamInfo.drmKeyId.toByteArray(), streamInfo.drmKey.toByteArray())
+            } else {
+                null
+            }
+
+            if (drmCallback != null) {
+                val drmSessionManager = DefaultDrmSessionManager.Builder()
+                    .setUuidAndExoMediaDrmProvider(streamInfo.drmScheme, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                    .build(drmCallback)
+
+                mediaSourceFactory = DefaultMediaSourceFactory(this)
+                    .setDataSourceFactory(dataSourceFactory)
+                    .setDrmSessionManagerProvider { drmSessionManager }
+            } else {
+                mediaSourceFactory = DefaultMediaSourceFactory(this)
+                    .setDataSourceFactory(dataSourceFactory)
+            }
+        } else {
+            mediaSourceFactory = DefaultMediaSourceFactory(this)
+                .setDataSourceFactory(dataSourceFactory)
+        }
+
+        player = ExoPlayer.Builder(this)
+            .setTrackSelector(trackSelector!!)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .build()
+
+        binding.playerView.player = player
+
+        val mediaItem = MediaItem.Builder()
+            .setUri(streamInfo.url)
+            .build()
+
+        player?.apply {
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = true
+        }
+
         setSubtitleTextSize()
 
-        binding.root.post {
-            if (!isLandscape) {
-                if (allEventLinks.size > 1) {
-                    binding.linksSection?.visibility = View.VISIBLE
-                } else {
-                    binding.linksSection?.visibility = View.GONE
+        playerListener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                when (playbackState) {
+                    Player.STATE_BUFFERING -> {
+                        binding.progressBar.visibility = View.VISIBLE
+                        binding.errorView.visibility = View.GONE
+                    }
+                    Player.STATE_READY -> {
+                        binding.progressBar.visibility = View.GONE
+                        binding.errorView.visibility = View.GONE
+                    }
+                    Player.STATE_ENDED -> {
+                        binding.progressBar.visibility = View.GONE
+                    }
+                    Player.STATE_IDLE -> {
+                        binding.progressBar.visibility = View.GONE
+                    }
                 }
 
-                if (relatedChannels.isNotEmpty()) {
-                    binding.relatedChannelsSection?.visibility = View.VISIBLE
-                } else {
-                    binding.relatedChannelsSection?.visibility = View.GONE
-                }
-            }
-
-            binding.root.requestLayout()
-        }
-    }
-
-    private fun resetPlayerContainerLayout(isLandscape: Boolean) {
-        val parent = binding.playerContainer?.parent as? androidx.constraintlayout.widget.ConstraintLayout
-
-        if (isLandscape) {
-            val params = ConstraintLayout.LayoutParams(
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            )
-
-            params.dimensionRatio = null
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            params.setMargins(0, 0, 0, 0)
-
-            binding.playerContainer?.layoutParams = params
-            binding.playerContainer?.setPadding(0, 0, 0, 0)
-
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            binding.relatedChannelsSection?.visibility = View.GONE
-            binding.linksSection?.visibility = View.GONE
-        } else {
-            val params = ConstraintLayout.LayoutParams(
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-                0
-            )
-
-            params.dimensionRatio = "H,16:9"
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            params.setMargins(0, 0, 0, 0)
-
-            binding.playerContainer?.layoutParams = params
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
-                binding.root.requestApplyInsets()
-            }
-
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 5000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-        }
-
-        parent?.requestLayout()
-        binding.playerContainer?.requestLayout()
-        binding.playerView.requestLayout()
-        binding.root.invalidate()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        applyOrientationSettings(isLandscape)
-
-        window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
-            if (isLandscape && (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
-                binding.root.postDelayed({
-                    setWindowFlags(isLandscape)
-                }, 100)
-            }
-        }
-
-        if (player == null) {
-            setupPlayer()
-            binding.playerView.onResume()
-        }
-    }
-
-    private fun applyOrientationSettings(isLandscape: Boolean) {
-        setWindowFlags(isLandscape)
-        adjustLayoutForOrientation(isLandscape)
-        updateLinksForOrientation(isLandscape)
-
-        btnFullscreen?.setImageResource(
-            if (isLandscape) R.drawable.ic_fullscreen_exit
-            else R.drawable.ic_fullscreen
-        )
-    }
-
-    private fun adjustLayoutForOrientation(isLandscape: Boolean) {
-        if (isLandscape) {
-            binding.playerContainer?.setPadding(0, 0, 0, 0)
-
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-
-            binding.relatedChannelsSection?.visibility = View.GONE
-            binding.linksSection?.visibility = View.GONE
-        } else {
-            binding.root.requestApplyInsets()
-
-            binding.playerView.controllerAutoShow = false
-            binding.playerView.controllerShowTimeoutMs = 5000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-
-            btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-
-            val linksParams = ConstraintLayout.LayoutParams(
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-                ConstraintLayout.LayoutParams.WRAP_CONTENT
-            )
-            linksParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            linksParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            linksParams.topToBottom = binding.playerContainer?.id
-            linksParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-            binding.linksSection?.layoutParams = linksParams
-
-            val relatedParams = ConstraintLayout.LayoutParams(
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
-                ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            )
-            relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            relatedParams.topToBottom = binding.linksSection?.id
-            relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            binding.relatedChannelsSection?.layoutParams = relatedParams
-
-            binding.linksSection?.post {
-                if (allEventLinks.size > 1) {
-                    binding.linksSection?.visibility = View.VISIBLE
-                } else {
-                    binding.linksSection?.visibility = View.GONE
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+                    updatePipParams()
                 }
             }
 
-            binding.relatedChannelsSection?.post {
-                if (relatedChannels.isNotEmpty()) {
-                    binding.relatedChannelsSection?.visibility = View.VISIBLE
-                } else {
-                    binding.relatedChannelsSection?.visibility = View.GONE
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                binding.progressBar.visibility = View.GONE
+                showError(getString(R.string.playback_error))
+                Log.e(TAG, "Player error: ${error.message}", error)
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+                    updatePipParams()
+                }
+            }
+
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+                    updatePipParams()
                 }
             }
         }
 
-        binding.root.requestLayout()
+        player?.addListener(playerListener!!)
     }
 
-    private fun setWindowFlags(isLandscape: Boolean) {
-        if (isLandscape) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                window.attributes = window.attributes.apply {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
-                }
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(false)
-                window.insetsController?.let { controller ->
-                    controller.hide(
-                        WindowInsets.Type.statusBars() or
-                                WindowInsets.Type.navigationBars() or
-                                WindowInsets.Type.systemBars()
-                    )
-                    controller.systemBarsBehavior =
-                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                }
+    private fun setSubtitleTextSize() {
+        binding.playerView.subtitleView?.apply {
+            val textSizeSp = if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+                18f
             } else {
-                @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                                or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                                or View.SYSTEM_UI_FLAG_FULLSCREEN
-                                or View.SYSTEM_UI_FLAG_LOW_PROFILE
-                        )
+                14f
             }
-
-            window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN)
-        } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                window.attributes = window.attributes.apply {
-                    layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
-                }
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                window.setDecorFitsSystemWindows(true)
-                window.insetsController?.let { controller ->
-                    controller.show(
-                        WindowInsets.Type.statusBars() or
-                                WindowInsets.Type.navigationBars()
-                    )
-                    controller.systemBarsBehavior =
-                        android.view.WindowInsetsController.BEHAVIOR_DEFAULT
-                }
-            } else {
-                @Suppress("DEPRECATION")
-                window.decorView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                        )
-            }
-
-            window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, textSizeSp)
+            setStyle(
+                com.google.android.exoplayer2.ui.CaptionStyleCompat(
+                    Color.WHITE,
+                    Color.TRANSPARENT,
+                    Color.TRANSPARENT,
+                    com.google.android.exoplayer2.ui.CaptionStyleCompat.EDGE_TYPE_OUTLINE,
+                    Color.BLACK,
+                    Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+                )
+            )
         }
     }
 
-    override fun onPause() {
-        super.onPause()
-        val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            isInPictureInPictureMode
-        } else {
-            false
+    private fun releasePlayer() {
+        playerListener?.let {
+            player?.removeListener(it)
         }
-        if (!isPip) {
-            binding.playerView.onPause()
-            player?.pause()
-        }
+        player?.release()
+        player = null
+        trackSelector = null
+        playerListener = null
     }
 
-    override fun onStop() {
-        super.onStop()
-        val isPip = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            isInPictureInPictureMode
-        } else {
-            false
+    private fun showError(message: String) {
+        binding.errorView.apply {
+            text = message
+            visibility = View.VISIBLE
         }
-        if (!isPip) {
-            player?.pause()
-            binding.playerView.onPause()
-        }
+        binding.progressBar.visibility = View.GONE
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        mainHandler.removeCallbacksAndMessages(null)
-        releasePlayer()
-        unregisterPipReceiver()
-    }
-
-    private data class StreamInfo(
+    data class StreamInfo(
         val url: String,
         val headers: Map<String, String>,
-        val drmScheme: String?,
+        val drmScheme: UUID?,
         val drmKeyId: String?,
         val drmKey: String?,
-        val drmLicenseUrl: String? = null
+        val drmLicenseUrl: String?
     )
 
-    private fun parseStreamUrl(streamUrl: String): StreamInfo {
-        val pipeIndex = streamUrl.indexOf('|')
-        if (pipeIndex == -1) {
-            return StreamInfo(streamUrl, mapOf(), null, null, null, null)
-        }
-
-        val url = streamUrl.substring(0, pipeIndex).trim()
-        val rawParams = streamUrl.substring(pipeIndex + 1).trim()
-        val normalizedParams = rawParams.replace("&", "|")
-        val parts = normalizedParams.split("|")
-
+    private fun parseStreamUrl(input: String): StreamInfo {
+        val parts = input.split("|")
+        val url = parts[0]
         val headers = mutableMapOf<String, String>()
-        var drmScheme: String? = null
+
+        var drmScheme: UUID? = null
         var drmKeyId: String? = null
         var drmKey: String? = null
         var drmLicenseUrl: String? = null
 
-        for (part in parts) {
-            val eqIndex = part.indexOf('=')
-            if (eqIndex == -1) continue
+        for (i in 1 until parts.size) {
+            val pair = parts[i].split("=", limit = 2)
+            if (pair.size != 2) continue
 
-            val key = part.substring(0, eqIndex).trim()
-            val value = part.substring(eqIndex + 1).trim()
+            val key = pair[0].trim()
+            val value = pair[1].trim()
 
             when (key.lowercase()) {
                 "drmscheme" -> drmScheme = normalizeDrmScheme(value)
                 "drmlicense" -> {
-                    if (value.startsWith("http:
-                        value.startsWith("https:
+                    if (value.startsWith("http://") || value.startsWith("https://")) {
                         drmLicenseUrl = value
                     } else {
                         val colonIndex = value.indexOf(':')
@@ -844,496 +836,17 @@ class PlayerActivity : AppCompatActivity() {
         return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey, drmLicenseUrl)
     }
 
-    private fun normalizeDrmScheme(scheme: String): String {
-        val lower = scheme.lowercase()
-        return when {
-            lower.contains("clearkey") || lower == "org.w3.clearkey" -> "clearkey"
-            lower.contains("widevine") || lower == "com.widevine.alpha" -> "widevine"
-            lower.contains("playready") || lower == "com.microsoft.playready" -> "playready"
-            lower.contains("fairplay") -> "fairplay"
-            else -> lower
-        }
-    }
-
-    private fun setupPlayer() {
-        if (player != null) return
-        binding.errorView.visibility = View.GONE
-        binding.errorText?.text = ""
-        binding.progressBar.visibility = View.VISIBLE
-
-        trackSelector = DefaultTrackSelector(this)
-
-        try {
-            val streamInfo = parseStreamUrl(streamUrl)
-
-            if (streamInfo.url.isBlank()) {
-                showError("Invalid stream URL")
-                return
-            }
-
-            val headers = streamInfo.headers.toMutableMap()
-            if (!headers.containsKey("User-Agent")) {
-                headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            }
-
-            val dataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
-                .setDefaultRequestProperties(headers)
-                .setConnectTimeoutMs(30000)
-                .setReadTimeoutMs(30000)
-                .setAllowCrossProtocolRedirects(true)
-                .setKeepPostFor302Redirects(true)
-
-            val mediaSourceFactory = if (streamInfo.drmScheme != null) {
-                val drmSessionManager = when (streamInfo.drmScheme) {
-                    "clearkey" -> {
-                        if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
-                            createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
-                        } else null
-                    }
-                    "widevine" -> {
-                        if (streamInfo.drmLicenseUrl != null) {
-                            createWidevineDrmManager(streamInfo.drmLicenseUrl, headers)
-                        } else null
-                    }
-                    "playready" -> {
-                        if (streamInfo.drmLicenseUrl != null) {
-                            createPlayReadyDrmManager(streamInfo.drmLicenseUrl, headers)
-                        } else null
-                    }
-                    else -> null
-                }
-
-                if (drmSessionManager != null) {
-                    DefaultMediaSourceFactory(this)
-                        .setDataSourceFactory(dataSourceFactory)
-                        .setDrmSessionManagerProvider { drmSessionManager }
-                } else {
-                    DefaultMediaSourceFactory(this)
-                        .setDataSourceFactory(dataSourceFactory)
-                }
-            } else {
-                DefaultMediaSourceFactory(this)
-                    .setDataSourceFactory(dataSourceFactory)
-            }
-
-            player = ExoPlayer.Builder(this)
-                .setTrackSelector(trackSelector!!)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .setSeekBackIncrementMs(skipMs)
-                .setSeekForwardIncrementMs(skipMs)
-                .build().also { exo ->
-                    binding.playerView.player = exo
-                    val mediaItem = MediaItem.fromUri(streamInfo.url)
-                    exo.setMediaItem(mediaItem)
-                    exo.prepare()
-                    exo.playWhenReady = true
-
-                    playerListener = object : Player.Listener {
-                        override fun onPlaybackStateChanged(playbackState: Int) {
-                            when (playbackState) {
-                                Player.STATE_READY -> {
-                                    updatePlayPauseIcon(exo.playWhenReady)
-                                    binding.progressBar.visibility = View.GONE
-                                    binding.errorView.visibility = View.GONE
-                                    updatePipParams()
-                                }
-                                Player.STATE_BUFFERING -> {
-                                    binding.progressBar.visibility = View.VISIBLE
-                                }
-                                Player.STATE_ENDED -> {
-                                    updatePlayPauseIcon(false)
-                                    updatePipParams()
-                                }
-                            }
-                        }
-
-                        override fun onIsPlayingChanged(isPlaying: Boolean) {
-                            updatePlayPauseIcon(isPlaying)
-                            updatePipParams()
-                        }
-
-                        override fun onVideoSizeChanged(videoSize: VideoSize) {
-                            updatePipParams()
-                        }
-
-                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                            super.onPlayerError(error)
-                            binding.progressBar.visibility = View.GONE
-
-                            val errorMessage = when {
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
-                                    "Connection Failed"
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
-                                    when {
-                                        error.message?.contains("403") == true -> "Access Denied"
-                                        error.message?.contains("404") == true -> "Stream Not Found"
-                                        else -> "Playback Error"
-                                    }
-                                }
-                                error.message?.contains("drm", ignoreCase = true) == true ||
-                                error.message?.contains("widevine", ignoreCase = true) == true ||
-                                error.message?.contains("clearkey", ignoreCase = true) == true ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
-                                    "Stream Error"
-                                error.message?.contains("geo", ignoreCase = true) == true ||
-                                error.message?.contains("region", ignoreCase = true) == true ->
-                                    "Not Available"
-                                else -> "Playback Error"
-                            }
-
-                            showError(errorMessage)
-                            updatePipParams()
-                        }
-                    }
-
-                    exo.addListener(playerListener!!)
-                }
-        } catch (e: Exception) {
-            showError("Failed to initialize player")
-        }
-    }
-
-    private fun showError(message: String) {
-        binding.progressBar.visibility = View.GONE
-        binding.errorText?.apply {
-            text = message
-            typeface = try {
-                resources.getFont(R.font.bergen_sans)
+    private fun normalizeDrmScheme(value: String): UUID? {
+        return when (value.lowercase()) {
+            "widevine" -> C.WIDEVINE_UUID
+            "playready" -> C.PLAYREADY_UUID
+            "clearkey" -> C.CLEARKEY_UUID
+            else -> try {
+                UUID.fromString(value)
             } catch (e: Exception) {
-                Typeface.DEFAULT
-            }
-            setTextColor(Color.WHITE)
-            textSize = 15f
-            setPadding(48, 20, 48, 20)
-            setBackgroundResource(R.drawable.error_message_background)
-            elevation = 0f
-        }
-
-        val layoutParams = binding.errorView.layoutParams
-        if (layoutParams is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams) {
-            layoutParams.verticalBias = 0.35f
-            binding.errorView.layoutParams = layoutParams
-        }
-
-        binding.errorView.visibility = View.VISIBLE
-    }
-
-    private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
-        return try {
-            val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
-            val keyIdBytes = hexToBytes(keyIdHex)
-            val keyBytes = hexToBytes(keyHex)
-
-            val keyIdBase64 = android.util.Base64.encodeToString(
-                keyIdBytes,
-                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
-            )
-            val keyBase64 = android.util.Base64.encodeToString(
-                keyBytes,
-                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
-            )
-
-            val jwkResponse = """
-            {
-                "keys": [
-                    {
-                        "kty": "oct",
-                        "k": "$keyBase64",
-                        "kid": "$keyIdBase64"
-                    }
-                ]
-            }
-            """.trimIndent()
-
-            val drmCallback = LocalMediaDrmCallback(jwkResponse.toByteArray())
-
-            DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
-                .setMultiSession(false)
-                .build(drmCallback)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun createWidevineDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
-        return try {
-            val widevineUuid = C.WIDEVINE_UUID
-
-            val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
-                .setDefaultRequestProperties(requestHeaders)
-                .setConnectTimeoutMs(30000)
-                .setReadTimeoutMs(30000)
-                .setAllowCrossProtocolRedirects(true)
-
-            val drmCallback = HttpMediaDrmCallback(
-                licenseUrl,
-                licenseDataSourceFactory
-            )
-
-            requestHeaders.forEach { (key, value) ->
-                drmCallback.setKeyRequestProperty(key, value)
-            }
-
-            DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(widevineUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
-                .setMultiSession(false)
-                .build(drmCallback)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun createPlayReadyDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
-        return try {
-            val playReadyUuid = C.PLAYREADY_UUID
-
-            val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
-                .setDefaultRequestProperties(requestHeaders)
-                .setConnectTimeoutMs(30000)
-                .setReadTimeoutMs(30000)
-                .setAllowCrossProtocolRedirects(true)
-
-            val drmCallback = HttpMediaDrmCallback(
-                licenseUrl,
-                licenseDataSourceFactory
-            )
-
-            requestHeaders.forEach { (key, value) ->
-                drmCallback.setKeyRequestProperty(key, value)
-            }
-
-            DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(playReadyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
-                .setMultiSession(false)
-                .build(drmCallback)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun hexToBytes(hex: String): ByteArray {
-        return try {
-            val cleanHex = hex.replace(" ", "").replace("-", "").lowercase()
-            if (cleanHex.length % 2 != 0) return ByteArray(0)
-            cleanHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-        } catch (e: Exception) {
-            ByteArray(0)
-        }
-    }
-
-    private fun updatePlayPauseIcon(isPlaying: Boolean) {
-        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
-    }
-
-    private fun releasePlayer() {
-        player?.let {
-            try {
-                playerListener?.let { listener -> it.removeListener(listener) }
-                it.stop()
-                it.release()
-            } catch (t: Throwable) {
-                Log.e(TAG, "Error releasing player", t)
+                null
             }
         }
-        player = null
-        playerListener = null
-    }
-
-    private fun bindControllerViews() {
-        binding.playerView.post {
-            with(binding.playerView) {
-                btnBack = findViewById(R.id.exo_back)
-                btnPip = findViewById(R.id.exo_pip)
-                btnSettings = findViewById(R.id.exo_settings)
-                btnLock = findViewById(R.id.exo_lock)
-                btnMute = findViewById(R.id.exo_mute)
-                btnRewind = findViewById(R.id.exo_rew)
-                btnPlayPause = findViewById(R.id.exo_play_pause)
-                btnForward = findViewById(R.id.exo_ffwd)
-                btnFullscreen = findViewById(R.id.exo_fullscreen)
-                btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
-                tvChannelName = findViewById(R.id.exo_channel_name)
-            }
-
-            tvChannelName?.text = contentName
-            setupControllerButtons()
-        }
-    }
-
-    private fun setupControllerButtons() {
-        btnBack?.setOnClickListener {
-            if (!isInPipMode) finish()
-        }
-
-        btnPip?.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                if (!isInPipMode && packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
-                    userRequestedPip = true
-                    wasLockedBeforePip = isLocked
-                    enterPipMode()
-                }
-            }
-        }
-
-        btnLock?.setOnClickListener {
-            toggleLockState()
-        }
-
-        btnMute?.setOnClickListener {
-            toggleMuteState()
-        }
-
-        btnRewind?.setOnClickListener {
-            player?.let { p ->
-                val newPosition = p.currentPosition - skipMs
-                p.seekTo(if (newPosition < 0) 0 else newPosition)
-            }
-        }
-
-        btnPlayPause?.setOnClickListener {
-            player?.let { p ->
-                if (p.isPlaying) {
-                    p.pause()
-                } else {
-                    p.play()
-                }
-            }
-        }
-
-        btnForward?.setOnClickListener {
-            player?.let { p ->
-                val newPosition = p.currentPosition + skipMs
-                if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
-                    p.seekTo(p.duration)
-                } else {
-                    p.seekTo(newPosition)
-                }
-            }
-        }
-
-        btnFullscreen?.setOnClickListener {
-            toggleOrientation()
-        }
-
-        btnAspectRatio?.setOnClickListener {
-            cycleAspectRatio()
-        }
-
-        btnSettings?.setOnClickListener {
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val hasPipSupport = packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-            btnPip?.visibility = if (hasPipSupport) View.VISIBLE else View.GONE
-        } else {
-            btnPip?.visibility = View.GONE
-        }
-    }
-
-    private fun configurePlayerInteractions() {
-        binding.playerView.setControllerVisibilityListener(
-            PlayerView.ControllerVisibilityListener { visibility ->
-                if (visibility == View.VISIBLE && isLocked) {
-                    binding.playerView.hideController()
-                }
-            }
-        )
-
-        binding.playerView.setOnClickListener {
-            if (isLocked) {
-                showUnlockButton()
-            }
-        }
-    }
-
-    private fun setupLockOverlay() {
-        binding.unlockButton?.setOnClickListener {
-            toggleLockState()
-        }
-
-        binding.lockOverlay?.setOnClickListener {
-            showUnlockButton()
-        }
-    }
-
-    private fun toggleLockState() {
-        isLocked = !isLocked
-
-        if (isLocked) {
-            binding.playerView.useController = false
-            binding.playerView.hideController()
-            binding.lockOverlay?.visibility = View.VISIBLE
-            showUnlockButton()
-            btnLock?.setImageResource(R.drawable.ic_lock_closed)
-        } else {
-            binding.playerView.useController = true
-            binding.lockOverlay?.visibility = View.GONE
-            binding.unlockButton?.visibility = View.GONE
-            mainHandler.removeCallbacks(hideUnlockButtonRunnable)
-            binding.playerView.showController()
-            btnLock?.setImageResource(R.drawable.ic_lock_open)
-        }
-    }
-
-    private fun showUnlockButton() {
-        binding.unlockButton?.visibility = View.VISIBLE
-        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
-        mainHandler.postDelayed(hideUnlockButtonRunnable, 3000)
-    }
-
-    private fun toggleMuteState() {
-        isMuted = !isMuted
-        player?.volume = if (isMuted) 0f else 1f
-        btnMute?.setImageResource(
-            if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
-        )
-    }
-
-    private fun cycleAspectRatio() {
-        currentResizeMode = when (currentResizeMode) {
-            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-            AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT
-            AspectRatioFrameLayout.RESIZE_MODE_FIXED_HEIGHT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-        }
-        binding.playerView.resizeMode = currentResizeMode
-    }
-
-    private fun toggleOrientation() {
-        requestedOrientation = when (resources.configuration.orientation) {
-            Configuration.ORIENTATION_LANDSCAPE -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            else -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-        }
-    }
-
-    private fun setSubtitleTextSize() {
-        val subtitleView = binding.playerView.subtitleView
-        subtitleView?.setFixedTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
-    }
-
-    private fun setupBackPressHandler() {
-        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
-                if (isLocked) {
-                    showUnlockButton()
-                } else if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
-                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                } else {
-                    finish()
-                }
-            }
-        })
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
@@ -1342,69 +855,38 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
 
+        val params = createPipParams()
         try {
-            val params = buildPipParams()
             enterPictureInPictureMode(params)
-        } catch (e: Exception) {
+        } catch (e: IllegalStateException) {
             Log.e(TAG, "Error entering PiP mode", e)
         }
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    private fun buildPipParams(): PictureInPictureParams {
+    private fun createPipParams(): PictureInPictureParams {
+        val aspectRatio = calculateAspectRatio()
         val builder = PictureInPictureParams.Builder()
+            .setAspectRatio(aspectRatio)
 
-        getVideoAspectRatio()?.let { aspectRatio ->
-            builder.setAspectRatio(aspectRatio)
-            builder.setSourceRectHint(calculateSourceRect(aspectRatio))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(true)
         }
 
-        builder.setActions(createPipActions())
+        val actions = createPipActions()
+        if (actions.isNotEmpty()) {
+            builder.setActions(actions)
+        }
 
         return builder.build()
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    private fun getVideoAspectRatio(): Rational? {
-        val videoSize = player?.videoSize ?: return null
-        val width = videoSize.width
-        val height = videoSize.height
-
-        if (width == 0 || height == 0) return null
-
-        return try {
-            Rational(width, height).takeIf { it.toFloat() in 0.5f..2.39f }
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun calculateSourceRect(aspectRatio: Rational): Rect {
-        val viewWidth = binding.playerView.width.toFloat()
-        val viewHeight = binding.playerView.height.toFloat()
-        val videoAspect = aspectRatio.toFloat()
-        val viewAspect = viewWidth / viewHeight
-
-        return if (viewAspect < videoAspect) {
-            val height = viewWidth / videoAspect
-            val top = ((viewHeight - height) / 2).toInt()
-            Rect(0, top, viewWidth.toInt(), (height + top).toInt())
-        } else {
-            val width = viewHeight * videoAspect
-            val left = ((viewWidth - width) / 2).toInt()
-            Rect(left, 0, (width + left).toInt(), viewHeight.toInt())
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
     private fun updatePipParams() {
-        if (!isInPipMode || isFinishing || isDestroyed) {
-            return
-        }
+        if (!isInPipMode) return
 
+        val params = createPipParams()
         try {
-            val params = buildPipParams()
             setPictureInPictureParams(params)
         } catch (e: Exception) {
             Log.e(TAG, "Error updating PiP params", e)
@@ -1412,8 +894,20 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
+    private fun calculateAspectRatio(): Rational {
+        val videoWidth = player?.videoSize?.width ?: 16
+        val videoHeight = player?.videoSize?.height ?: 9
+
+        return if (videoWidth > 0 && videoHeight > 0) {
+            Rational(videoWidth, videoHeight)
+        } else {
+            Rational(16, 9)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun createPipActions(): List<RemoteAction> {
-        val actions = ArrayList<RemoteAction>()
+        val actions = mutableListOf<RemoteAction>()
 
         val rewindIntent = PendingIntent.getBroadcast(
             this,
