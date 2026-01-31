@@ -588,16 +588,14 @@ class PlayerActivity : AppCompatActivity() {
             player?.play()
         }
 
-        linkChipAdapter.updateSelection(newIndex)
+        linkChipAdapter.setSelectedPosition(newIndex)
     }
 
     private fun setupLinksUI() {
         if (allEventLinks.size > 1) {
-            linkChipAdapter = LinkChipAdapter(
-                links = allEventLinks,
-                selectedIndex = currentLinkIndex,
-                onLinkClick = { index -> switchToLink(index) }
-            )
+            linkChipAdapter = LinkChipAdapter { link, index ->
+                switchToLink(index)
+            }
 
             binding.linksRecycler.apply {
                 layoutManager = LinearLayoutManager(
@@ -607,6 +605,9 @@ class PlayerActivity : AppCompatActivity() {
                 )
                 adapter = linkChipAdapter
             }
+            
+            linkChipAdapter.submitList(allEventLinks)
+            linkChipAdapter.setSelectedPosition(currentLinkIndex)
 
             val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             updateLinksForOrientation(isLandscape)
