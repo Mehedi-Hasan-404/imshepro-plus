@@ -75,7 +75,7 @@ class LandscapePlayerActivity : AppCompatActivity() {
     private var currentEvent: LiveEvent? = null
     private var selectedLinkIndex: Int = 0
 
-    private lateinit var pipHelper: PipHelper
+    // REMOVED: private lateinit var pipHelper: PipHelper
     private var isControlsLocked = false
     private var isInPipMode = false
 
@@ -134,8 +134,8 @@ class LandscapePlayerActivity : AppCompatActivity() {
         // Enable fullscreen immersive mode
         setupFullscreenMode()
 
-        // Initialize PiP helper
-        pipHelper = PipHelper(this)
+        // REMOVED: Initialize PiP helper
+        // pipHelper = PipHelper(this)
 
         // Handle back press
         setupBackPressHandler()
@@ -216,27 +216,17 @@ class LandscapePlayerActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         // Set navigation bar color
-        window.navigationBarColor = Color.BLACK
-        window.statusBarColor = Color.BLACK
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            window.navigationBarColor = Color.BLACK
+            window.statusBarColor = Color.BLACK
+        }
     }
 
     private fun setupBackPressHandler() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                // If in PiP, don't handle back - let system minimize
-                if (isInPipMode) {
-                    isEnabled = false
-                    onBackPressedDispatcher.onBackPressed()
-                    return
-                }
-
-                // If controls are locked, unlock them
-                if (isControlsLocked) {
-                    toggleControlsLock()
-                    return
-                }
-
-                // Otherwise, exit player
+                // Release player and finish activity
+                releasePlayer()
                 finish()
             }
         })
@@ -248,43 +238,26 @@ class LandscapePlayerActivity : AppCompatActivity() {
         
         // Lock/unlock button would be handled in the custom controls layout
         binding.unlockButton?.setOnClickListener {
-            toggleControlsLock()
-        }
-    }
-
-    private fun toggleControlsLock() {
-        isControlsLocked = !isControlsLocked
-        
-        if (isControlsLocked) {
-            // Hide player controls
-            binding.playerView.hideController()
-            binding.playerView.useController = false
-            
-            // Show lock overlay
-            binding.lockOverlay?.visibility = View.VISIBLE
-            binding.unlockButton?.visibility = View.VISIBLE
-        } else {
-            // Show player controls
-            binding.playerView.useController = true
-            binding.playerView.showController()
-            
-            // Hide lock overlay
-            binding.lockOverlay?.visibility = View.GONE
+            isControlsLocked = false
             binding.unlockButton?.visibility = View.GONE
+        }
+
+        // Settings button
+        binding.playerView.findViewById<View>(R.id.exo_settings)?.setOnClickListener {
+            player?.let { exoPlayer ->
+                PlayerSettingsDialog(this, exoPlayer).show()
+            }
         }
     }
 
     private fun setupRecyclerViews() {
-        // Setup link chips adapter (for multi-quality streams)
+        // Setup link chip adapter
         linkChipAdapter = LinkChipAdapter { link, index ->
             selectedLinkIndex = index
-            currentChannel?.let {
-                val modifiedChannel = it.copy(streamUrl = link.url)
-                playStream(modifiedChannel.streamUrl)
-            }
+            playStream(link.url)
         }
 
-        binding.linksRecyclerView?.apply {
+        binding.linksRecycler?.apply {
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
             adapter = linkChipAdapter
         }
@@ -296,8 +269,8 @@ class LandscapePlayerActivity : AppCompatActivity() {
             selectedLinkIndex = 0
             playStream(channel.streamUrl)
             
-            // Update related channels
-            viewModel.loadRelatedChannels(channel.categoryId)
+            // FIXED: Added channel.id parameter
+            viewModel.loadRelatedChannels(channel.categoryId, channel.id)
         }
 
         binding.relatedChannelsRecycler?.apply {
@@ -307,7 +280,7 @@ class LandscapePlayerActivity : AppCompatActivity() {
     }
 
     private fun extractIntentData() {
-        intent?.let { intent ->
+        intent?.let {
             // Check for channel data
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 currentChannel = intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
@@ -372,13 +345,14 @@ class LandscapePlayerActivity : AppCompatActivity() {
                     currentChannel?.let { channel ->
                         playStream(channel.streamUrl)
                         
-                        // Load related channels
-                        viewModel.loadRelatedChannels(channel.categoryId)
+                        // FIXED: Added channel.id parameter
+                        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
                         
                         // Show links if multiple available
                         channel.links?.let { links ->
                             if (links.size > 1) {
-                                linkChipAdapter.submitList(links, selectedLinkIndex)
+                                // FIXED: Removed second parameter
+                                linkChipAdapter.submitList(links)
                                 binding.linksSection?.visibility = View.VISIBLE
                             }
                         }
@@ -449,7 +423,13 @@ class LandscapePlayerActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     private fun enterPipMode() {
         if (player?.isPlaying == true) {
-            pipHelper.enterPipMode()
+            // FIXED: Removed pipHelper call, using built-in PiP functionality
+            if (packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                val params = PictureInPictureParams.Builder()
+                    .setAspectRatio(Rational(16, 9))
+                    .build()
+                enterPictureInPictureMode(params)
+            }
         }
     }
 
