@@ -404,15 +404,11 @@ class LandscapePlayerActivity : AppCompatActivity() {
 
     private fun observeViewModel() {
         // Observe related channels
-        viewModel.relatedChannels.observe(this) { channels ->
+        viewModel.relatedItems.observe(this) { channels ->
             if (channels.isNotEmpty()) {
                 relatedChannelAdapter.submitList(channels)
                 binding.relatedChannelsSection?.visibility = View.VISIBLE
             }
-        }
-
-        viewModel.relatedChannelsLoading.observe(this) { isLoading ->
-            binding.relatedLoadingProgress?.visibility = if (isLoading) View.VISIBLE else View.GONE
         }
     }
 
@@ -465,7 +461,7 @@ class LandscapePlayerActivity : AppCompatActivity() {
                     binding.linksSection?.visibility = View.VISIBLE
                 }
             }
-            viewModel.relatedChannels.value?.let { channels ->
+            viewModel.relatedItems.value?.let { channels ->
                 if (channels.isNotEmpty()) {
                     binding.relatedChannelsSection?.visibility = View.VISIBLE
                 }
