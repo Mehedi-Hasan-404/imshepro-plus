@@ -404,7 +404,7 @@ class PlayerActivity : AppCompatActivity() {
             }
             ContentType.EVENT -> {
                 eventData?.let { event ->
-                    viewModel.loadRelatedEvents(event.id, event.id)
+                    viewModel.loadRelatedEvents(event.id)
                 }
             }
         }
@@ -1271,9 +1271,7 @@ class PlayerActivity : AppCompatActivity() {
             controllerHideOnTouch = true
         }
         
-        binding.retryButton.setOnClickListener {
-            retryPlayback()
-        }
+      
     }
 
     private fun setupLockOverlay() {
