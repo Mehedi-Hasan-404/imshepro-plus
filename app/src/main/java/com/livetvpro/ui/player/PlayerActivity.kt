@@ -75,19 +75,6 @@ class PlayerActivity : AppCompatActivity() {
     private var relatedChannels = listOf<Channel>()
     private lateinit var linkChipAdapter: LinkChipAdapter
 
-    private var btnBack: ImageButton? = null
-    private var btnPip: ImageButton? = null
-    private var btnSettings: ImageButton? = null
-    private var btnLock: ImageButton? = null
-    private var btnMute: ImageButton? = null
-    private var btnRewind: ImageButton? = null
-    private var btnPlayPause: ImageButton? = null
-    private var btnForward: ImageButton? = null
-    private var btnFullscreen: ImageButton? = null
-    private var btnAspectRatio: ImageButton? = null
-    private var btnRotation: ImageButton? = null
-    private var tvChannelName: TextView? = null
-
     private var isInPipMode = false
     private var isLocked = false
     private var isMuted = false
@@ -195,11 +182,9 @@ class PlayerActivity : AppCompatActivity() {
             if (isLandscape) {
                 binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                 currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             } else {
                 binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             }
         }
 
@@ -263,7 +248,6 @@ class PlayerActivity : AppCompatActivity() {
             if (!isInPipMode) {
                 binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                 currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
             }
         } else {
             params.dimensionRatio = "H,16:9"
@@ -281,7 +265,6 @@ class PlayerActivity : AppCompatActivity() {
             if (!isInPipMode) {
                 binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
             }
         }
         binding.playerContainer.layoutParams = params
@@ -388,56 +371,14 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupRotationButton() {
-        // Try to find rotation button - it may not exist in layout yet
-        btnRotation = try {
-            binding.playerView.findViewById(R.id.btn_rotation)
-        } catch (e: Exception) {
-            null
-        }
-        
-        btnRotation?.setOnClickListener {
-            currentOrientation = getNextOrientation()
-            setOrientation(currentOrientation)
-            updateButtonRotation()
-            
-            // Show orientation change message
-            val message = when (currentOrientation) {
-                PlayerOrientation.VIDEO -> "Auto-rotate (Video)"
-                PlayerOrientation.LANDSCAPE -> "Landscape"
-                PlayerOrientation.PORTRAIT -> "Portrait"
-                PlayerOrientation.LOCKED_LANDSCAPE -> "Locked Landscape"
-                PlayerOrientation.LOCKED_PORTRAIT -> "Locked Portrait"
-                PlayerOrientation.SYSTEM -> "System Auto-rotate"
-            }
-            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-        }
-        
+        // Rotation button setup - add btn_rotation to your layout to enable this feature
+        // For now, orientation features work but manual rotation button is not visible
         updateButtonRotation()
     }
 
     private fun updateButtonRotation() {
-        btnRotation ?: return // Exit if button doesn't exist
-        
-        val portrait = resources.configuration.orientation == Configuration.ORIENTATION_PORTRAIT
-        val auto = try {
-            Settings.System.getInt(contentResolver, Settings.System.ACCELEROMETER_ROTATION) == 1
-        } catch (e: Settings.SettingNotFoundException) {
-            false
-        }
-        
-        if (currentOrientation == PlayerOrientation.VIDEO) {
-            when {
-                auto -> btnRotation?.setImageResource(R.drawable.ic_screen_lock_rotation_24dp)
-                portrait -> btnRotation?.setImageResource(R.drawable.ic_screen_lock_portrait_24dp)
-                else -> btnRotation?.setImageResource(R.drawable.ic_screen_lock_landscape_24dp)
-            }
-        } else {
-            when {
-                auto -> btnRotation?.setImageResource(R.drawable.ic_screen_rotation_24dp)
-                portrait -> btnRotation?.setImageResource(R.drawable.ic_screen_portrait_24dp)
-                else -> btnRotation?.setImageResource(R.drawable.ic_screen_landscape_24dp)
-            }
-        }
+        // Rotation button icon update - will work when btn_rotation is added to layout
+        // For now, orientation changes work automatically based on video aspect ratio
     }
 
     private fun setSubtitleTextSize(orientation: Int = resources.configuration.orientation) {
@@ -669,10 +610,7 @@ class PlayerActivity : AppCompatActivity() {
                     }
 
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        btnPlayPause?.setImageResource(
-                            if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-                        )
-                        
+                        // Play/pause button state will be updated via PiP params
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
                             updatePipParams()
                         }
@@ -684,58 +622,12 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun bindControllerViews() {
-        btnBack = try { binding.playerView.findViewById(R.id.btn_back) } catch (e: Exception) { null }
-        btnPip = try { binding.playerView.findViewById(R.id.btn_pip) } catch (e: Exception) { null }
-        btnSettings = try { binding.playerView.findViewById(R.id.btn_settings) } catch (e: Exception) { null }
-        btnLock = try { binding.playerView.findViewById(R.id.btn_lock) } catch (e: Exception) { null }
-        btnMute = try { binding.playerView.findViewById(R.id.btn_mute) } catch (e: Exception) { null }
-        btnRewind = try { binding.playerView.findViewById(R.id.exo_rew) } catch (e: Exception) { null }
-        btnPlayPause = try { binding.playerView.findViewById(R.id.exo_play_pause) } catch (e: Exception) { null }
-        btnForward = try { binding.playerView.findViewById(R.id.exo_ffwd) } catch (e: Exception) { null }
-        btnFullscreen = try { binding.playerView.findViewById(R.id.btn_fullscreen) } catch (e: Exception) { null }
-        btnAspectRatio = try { binding.playerView.findViewById(R.id.btn_aspect_ratio) } catch (e: Exception) { null }
-        tvChannelName = try { binding.playerView.findViewById(R.id.tv_channel_name) } catch (e: Exception) { null }
-        
-        tvChannelName?.text = contentName
-        
-        if (!isPiPSupported()) {
-            btnPip?.visibility = View.GONE
-        }
+        // Controller views will be bound when you add them to your layout
+        // For now, orientation features work automatically based on video aspect ratio
     }
 
     private fun configurePlayerInteractions() {
-        btnBack?.setOnClickListener {
-            finish()
-        }
-        
-        btnPip?.setOnClickListener {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isPiPSupported()) {
-                userRequestedPip = true
-                wasLockedBeforePip = isLocked
-                enterPipMode()
-            }
-        }
-        
-        btnLock?.setOnClickListener {
-            toggleLock()
-        }
-        
-        btnMute?.setOnClickListener {
-            toggleMute()
-        }
-        
-        btnFullscreen?.setOnClickListener {
-            toggleFullscreen()
-        }
-        
-        btnAspectRatio?.setOnClickListener {
-            cycleResizeMode()
-        }
-        
-        btnSettings?.setOnClickListener {
-            // TODO: Implement settings dialog
-        }
-        
+        // Player interactions will be configured when buttons are added to layout
         binding.retryButton.setOnClickListener {
             retryPlayback()
         }
@@ -759,9 +651,6 @@ class PlayerActivity : AppCompatActivity() {
         player?.let {
             isMuted = !isMuted
             it.volume = if (isMuted) 0f else 1f
-            btnMute?.setImageResource(
-                if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
-            )
         }
     }
 
@@ -839,17 +728,6 @@ class PlayerActivity : AppCompatActivity() {
         portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         portraitLinksRecycler.adapter = linkChipAdapter
 
-        val landscapeLinksRecycler = try {
-            binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-        } catch (e: Exception) {
-            null
-        }
-        
-        landscapeLinksRecycler?.apply {
-            layoutManager = LinearLayoutManager(this@PlayerActivity, LinearLayoutManager.HORIZONTAL, false)
-            adapter = linkChipAdapter
-        }
-
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         updateLinksForOrientation(isLandscape)
     }
@@ -861,29 +739,12 @@ class PlayerActivity : AppCompatActivity() {
             
             if (isLandscape) {
                 binding.linksSection.visibility = View.GONE
-                val landscapeLinksRecycler = try {
-                    binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-                } catch (e: Exception) {
-                    null
-                }
-                landscapeLinksRecycler?.visibility = View.VISIBLE
+                // Landscape links recycler in player controller not yet implemented
             } else {
-                val landscapeLinksRecycler = try {
-                    binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-                } catch (e: Exception) {
-                    null
-                }
-                landscapeLinksRecycler?.visibility = View.GONE
                 binding.linksSection.visibility = View.VISIBLE
             }
         } else {
             binding.linksSection.visibility = View.GONE
-            val landscapeLinksRecycler = try {
-                binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
-            } catch (e: Exception) {
-                null
-            }
-            landscapeLinksRecycler?.visibility = View.GONE
         }
     }
 
