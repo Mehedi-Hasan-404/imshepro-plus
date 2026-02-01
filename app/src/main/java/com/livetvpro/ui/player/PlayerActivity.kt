@@ -160,83 +160,98 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        
-        // Initialize binding - this persists across orientation changes
-        binding = ActivityPlayerBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-        
-        // ===== CRITICAL FIX: Initialize WindowInsetsController =====
-        windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        
-        // Keep screen on
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
-        // Setup window flags and UI based on initial orientation
-        val currentOrientation = resources.configuration.orientation
-        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-        
-        setupWindowFlags(isLandscape)
-        setupSystemUI(isLandscape)
-        setupWindowInsets()
-        
-        parseIntent()
+    super.onCreate(savedInstanceState)
+    
+    binding = ActivityPlayerBinding.inflate(layoutInflater)
+    setContentView(binding.root)
+    
+    windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+    window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    
+    val currentOrientation = resources.configuration.orientation
+    val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+    
+    setupWindowFlags(isLandscape)
+    setupSystemUI(isLandscape)
+    setupWindowInsets()
+    
+    parseIntent()
 
-        if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
-            viewModel.refreshChannelData(contentId)
-        }
-
-        binding.progressBar.visibility = View.VISIBLE
-        
-        setupPlayer()
-        
-        // Bind controller views after a short delay to ensure player view is laid out
-        binding.playerView.postDelayed({
-            bindControllerViews()
-            applyOrientationSettings(isLandscape)
-        }, 100)
-
-        configurePlayerInteractions()
-        setupLockOverlay()
-        setupRelatedChannels()
-        setupLinksUI()
-        loadRelatedContent()
-        
-        // Observe refreshed channel data
-        viewModel.refreshedChannel.observe(this) { freshChannel ->
-            if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
-                if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
-                    allEventLinks = freshChannel.links.map { 
-                        LiveEventLink(label = it.quality, url = it.url) 
-                    }
-                    
-                    val matchIndex = allEventLinks.indexOfFirst { it.url == streamUrl }
-                    if (matchIndex != -1) {
-                        currentLinkIndex = matchIndex
-                    }
-                    
-                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                    updateLinksForOrientation(isLandscape)
+    // ===== FIX: Setup UI components FIRST =====
+    configurePlayerInteractions()
+    setupLockOverlay()
+    setupRelatedChannels()
+    setupLinksUI()
+    
+    // ===== FIX: Bind controls IMMEDIATELY, not delayed =====
+    bindControllerViews()
+    applyOrientationSettings(isLandscape)
+    
+    // ===== FIX: Show the proper layout immediately =====
+    // Show related channels section (even if empty initially)
+    if (!isLandscape) {
+        binding.relatedChannelsSection.visibility = View.VISIBLE
+        binding.relatedLoadingProgress.visibility = View.VISIBLE
+        binding.relatedChannelsRecycler.visibility = View.GONE
+    }
+    
+    // Show links section if we already have links
+    if (allEventLinks.size > 1 && !isLandscape) {
+        binding.linksSection.visibility = View.VISIBLE
+    }
+    
+    // Channel data refresh
+    if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
+        viewModel.refreshChannelData(contentId)
+    }
+    
+    // Start loading related content
+    loadRelatedContent()
+    
+    // Show loading indicator
+    binding.progressBar.visibility = View.VISIBLE
+    
+    // ===== FIX: Setup player AFTER UI is ready =====
+    setupPlayer()
+    
+    // Observe refreshed channel data
+    viewModel.refreshedChannel.observe(this) { freshChannel ->
+        if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
+            if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
+                allEventLinks = freshChannel.links.map { 
+                    LiveEventLink(label = it.quality, url = it.url) 
                 }
+                
+                val matchIndex = allEventLinks.indexOfFirst { it.url == streamUrl }
+                if (matchIndex != -1) {
+                    currentLinkIndex = matchIndex
+                }
+                
+                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                updateLinksForOrientation(isLandscape)
             }
-        }
-        
-        viewModel.relatedItems.observe(this) { channels ->
-            relatedChannels = channels
-            relatedChannelsAdapter.submitList(channels)
-            binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
-                View.GONE
-            } else {
-                View.VISIBLE
-            }
-            binding.relatedLoadingProgress.visibility = View.GONE
-            binding.relatedChannelsRecycler.visibility = View.VISIBLE
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            registerPipReceiver()
         }
     }
+    
+    viewModel.relatedItems.observe(this) { channels ->
+        relatedChannels = channels
+        relatedChannelsAdapter.submitList(channels)
+        
+        // ===== FIX: Keep section visible, just update loading state =====
+        binding.relatedLoadingProgress.visibility = View.GONE
+        binding.relatedChannelsRecycler.visibility = View.VISIBLE
+        
+        // Only hide the section if no channels AND in portrait
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        if (channels.isEmpty() && !isLandscape) {
+            binding.relatedChannelsSection.visibility = View.GONE
+        }
+    }
+    
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        registerPipReceiver()
+    }
+}
     
     /**
      * ===== CRITICAL FIX: Setup window flags for immersive mode =====
@@ -881,20 +896,25 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupPlayer() {
-        if (player != null) return
-        binding.errorView.visibility = View.GONE
-        binding.errorText.text = ""
-        binding.progressBar.visibility = View.VISIBLE
+    if (player != null) return
+    
+    // ===== FIX: Don't hide error view here - let it stay if it was showing =====
+    // Only clear it if we're retrying
+    // binding.errorView.visibility = View.GONE  // REMOVED
+    // binding.errorText.text = ""  // REMOVED
+    
+    binding.progressBar.visibility = View.VISIBLE
 
-        trackSelector = DefaultTrackSelector(this)
+    trackSelector = DefaultTrackSelector(this)
 
-        try {
-            val streamInfo = parseStreamUrl(streamUrl)
-            
-            if (streamInfo.url.isBlank()) {
-                showError("Invalid stream URL")
-                return
-            }
+    try {
+        val streamInfo = parseStreamUrl(streamUrl)
+        
+        if (streamInfo.url.isBlank()) {
+            showError("Invalid stream URL")
+            return
+        }
+
 
             val headers = streamInfo.headers.toMutableMap()
             if (!headers.containsKey("User-Agent")) {
@@ -942,37 +962,46 @@ class PlayerActivity : AppCompatActivity() {
                     .setDataSourceFactory(dataSourceFactory)
             }
 
-            player = ExoPlayer.Builder(this)
-                .setTrackSelector(trackSelector!!)
-                .setMediaSourceFactory(mediaSourceFactory)
-                .setSeekBackIncrementMs(skipMs)
-                .setSeekForwardIncrementMs(skipMs)
-                .build().also { exo ->
-                    binding.playerView.player = exo
-                    val mediaItem = MediaItem.fromUri(streamInfo.url)
-                    exo.setMediaItem(mediaItem)
-                    exo.prepare()
-                    exo.playWhenReady = true
+             player = ExoPlayer.Builder(this)
+            .setTrackSelector(trackSelector!!)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setSeekBackIncrementMs(skipMs)
+            .setSeekForwardIncrementMs(skipMs)
+            .build().also { exo ->
+                binding.playerView.player = exo
+                val mediaItem = MediaItem.fromUri(streamInfo.url)
+                exo.setMediaItem(mediaItem)
+                exo.prepare()
+                exo.playWhenReady = true
 
-                    playerListener = object : Player.Listener {
-                        override fun onPlaybackStateChanged(playbackState: Int) {
-                            when (playbackState) {
-                                Player.STATE_READY -> {
-                                    updatePlayPauseIcon(exo.playWhenReady)
-                                    binding.progressBar.visibility = View.GONE
-                                    binding.errorView.visibility = View.GONE
-                                    updatePipParams()
-                                }
-                                Player.STATE_BUFFERING -> {
-                                    binding.progressBar.visibility = View.VISIBLE
-                                    binding.errorView.visibility = View.GONE
-                                }
-                                Player.STATE_ENDED -> {
-                                    binding.progressBar.visibility = View.GONE
-                                }
-                                Player.STATE_IDLE -> {}
+                playerListener = object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        when (playbackState) {
+                            Player.STATE_READY -> {
+                                updatePlayPauseIcon(exo.playWhenReady)
+                                binding.progressBar.visibility = View.GONE
+                                binding.errorView.visibility = View.GONE
+                                updatePipParams()
                             }
+                            Player.STATE_BUFFERING -> {
+                                binding.progressBar.visibility = View.VISIBLE
+                                // ===== FIX: Don't hide error view during buffering =====
+                                // Let it stay visible if there was an error
+                            }
+                            Player.STATE_ENDED -> {
+                                binding.progressBar.visibility = View.GONE
+                            }
+                            Player.STATE_IDLE -> {}
                         }
+                    }
+                }
+                
+                exo.addListener(playerListener!!)
+            }
+    } catch (e: Exception) {
+        showError("Failed to initialize player")
+    }
+}
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
@@ -1029,29 +1058,35 @@ class PlayerActivity : AppCompatActivity() {
     }
     
     private fun showError(message: String) {
-        binding.progressBar.visibility = View.GONE
-        binding.errorText.apply {
-            text = message
-            typeface = try {
-                resources.getFont(R.font.bergen_sans)
-            } catch (e: Exception) {
-                android.graphics.Typeface.DEFAULT
-            }
-            setTextColor(android.graphics.Color.WHITE)
-            textSize = 15f
-            setPadding(48, 20, 48, 20)
-            setBackgroundResource(R.drawable.error_message_background)
-            elevation = 0f
+    binding.progressBar.visibility = View.GONE
+    
+    // ===== FIX: Format error text properly =====
+    binding.errorText.apply {
+        text = message
+        typeface = try {
+            resources.getFont(R.font.bergen_sans)
+        } catch (e: Exception) {
+            android.graphics.Typeface.DEFAULT
         }
-        
-        val layoutParams = binding.errorView.layoutParams
-        if (layoutParams is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams) {
-            layoutParams.verticalBias = 0.35f
-            binding.errorView.layoutParams = layoutParams
-        }
-        
-        binding.errorView.visibility = View.VISIBLE
+        setTextColor(android.graphics.Color.WHITE)
+        textSize = 15f
+        setPadding(48, 20, 48, 20)
+        setBackgroundResource(R.drawable.error_message_background)
+        elevation = 0f
     }
+    
+    val layoutParams = binding.errorView.layoutParams
+    if (layoutParams is androidx.constraintlayout.widget.ConstraintLayout.LayoutParams) {
+        layoutParams.verticalBias = 0.35f
+        binding.errorView.layoutParams = layoutParams
+    }
+    
+    binding.errorView.visibility = View.VISIBLE
+    
+    // ===== FIX: Keep controls visible even on error =====
+    // Don't hide the controls or channel name
+    // User can still see what channel they tried to play
+}
 
     private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
         return try {
@@ -1164,66 +1199,68 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun bindControllerViews() {
-        binding.playerView.post {
-            with(binding.playerView) {
-                btnBack = findViewById(R.id.exo_back)
-                btnPip = findViewById(R.id.exo_pip)
-                btnSettings = findViewById(R.id.exo_settings)
-                btnLock = findViewById(R.id.exo_lock)
-                btnMute = findViewById(R.id.exo_mute)
-                btnRewind = findViewById(R.id.exo_rewind)
-                btnPlayPause = findViewById(R.id.exo_play_pause)
-                btnForward = findViewById(R.id.exo_forward)
-                btnFullscreen = findViewById(R.id.exo_fullscreen)
-                btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
-                tvChannelName = findViewById(R.id.exo_channel_name)
-            }
-            
-            btnBack?.setImageResource(R.drawable.ic_arrow_back)
-            btnPip?.setImageResource(R.drawable.ic_pip)
-            btnSettings?.setImageResource(R.drawable.ic_settings)
-            btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
-            updateMuteIcon()
-            btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-            updatePlayPauseIcon(player?.isPlaying == true)
-            btnForward?.setImageResource(R.drawable.ic_skip_forward)
-            btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
-            
-            val currentOrientation = resources.configuration.orientation
-            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            } else {
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            }
-            
-            listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, 
-                   btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-                it?.apply { 
-                    isClickable = true
-                    isFocusable = true
-                    isEnabled = true
-                    visibility = View.VISIBLE
-                }
-            }
-            
-            btnAspectRatio?.visibility = View.VISIBLE
-            btnPip?.visibility = View.VISIBLE
-            btnFullscreen?.visibility = View.VISIBLE
-            
-            tvChannelName?.text = contentName
-            
-            try {
-                val bergenSansFont = resources.getFont(R.font.bergen_sans)
-                tvChannelName?.typeface = bergenSansFont
-                
-                binding.playerView.findViewById<TextView>(R.id.exo_position)?.typeface = bergenSansFont
-                binding.playerView.findViewById<TextView>(R.id.exo_duration)?.typeface = bergenSansFont
-            } catch (e: Exception) {
-            }
-            
-            setupControlListeners()
+    // ===== FIX: Remove the post{} wrapper - bind immediately =====
+    with(binding.playerView) {
+        btnBack = findViewById(R.id.exo_back)
+        btnPip = findViewById(R.id.exo_pip)
+        btnSettings = findViewById(R.id.exo_settings)
+        btnLock = findViewById(R.id.exo_lock)
+        btnMute = findViewById(R.id.exo_mute)
+        btnRewind = findViewById(R.id.exo_rewind)
+        btnPlayPause = findViewById(R.id.exo_play_pause)
+        btnForward = findViewById(R.id.exo_forward)
+        btnFullscreen = findViewById(R.id.exo_fullscreen)
+        btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
+        tvChannelName = findViewById(R.id.exo_channel_name)
+    }
+    
+    // Set initial icons
+    btnBack?.setImageResource(R.drawable.ic_arrow_back)
+    btnPip?.setImageResource(R.drawable.ic_pip)
+    btnSettings?.setImageResource(R.drawable.ic_settings)
+    btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
+    updateMuteIcon()
+    btnRewind?.setImageResource(R.drawable.ic_skip_backward)
+    updatePlayPauseIcon(player?.isPlaying == true)
+    btnForward?.setImageResource(R.drawable.ic_skip_forward)
+    btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
+    
+    val currentOrientation = resources.configuration.orientation
+    if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+    } else {
+        btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+    }
+    
+    // Enable all controls
+    listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, 
+           btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
+        it?.apply { 
+            isClickable = true
+            isFocusable = true
+            isEnabled = true
+            visibility = View.VISIBLE
         }
     }
+    
+    btnAspectRatio?.visibility = View.VISIBLE
+    btnPip?.visibility = View.VISIBLE
+    btnFullscreen?.visibility = View.VISIBLE
+    
+    // ===== FIX: Set channel name immediately =====
+    tvChannelName?.text = contentName
+    
+    try {
+        val bergenSansFont = resources.getFont(R.font.bergen_sans)
+        tvChannelName?.typeface = bergenSansFont
+        
+        binding.playerView.findViewById<TextView>(R.id.exo_position)?.typeface = bergenSansFont
+        binding.playerView.findViewById<TextView>(R.id.exo_duration)?.typeface = bergenSansFont
+    } catch (e: Exception) {
+    }
+    
+    setupControlListeners()
+}
 
     private fun setupControlListeners() {
         btnBack?.setOnClickListener { if (!isLocked) finish() }
@@ -1598,12 +1635,15 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun retryPlayback() {
-        binding.errorView.visibility = View.GONE
-        binding.progressBar.visibility = View.VISIBLE
-        player?.release()
-        player = null
-        setupPlayer()
-    }
+    // ===== FIX: Clear error state when retrying =====
+    binding.errorView.visibility = View.GONE
+    binding.errorText.text = ""
+    binding.progressBar.visibility = View.VISIBLE
+    
+    player?.release()
+    player = null
+    setupPlayer()
+}
 
     override fun finish() {
         try {
