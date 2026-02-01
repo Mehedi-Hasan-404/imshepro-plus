@@ -111,6 +111,7 @@
              - Landscape orientation → Stay in LandscapePlayerActivity
              - Portrait orientation → Switch to PlayerActivity
              - Follows device auto-rotate setting (no reverse orientations)
+        -->
 
     </application>
 
