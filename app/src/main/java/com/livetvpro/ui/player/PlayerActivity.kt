@@ -330,17 +330,16 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        val currentOrientation = resources.configuration.orientation
-        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        val recyclerView = binding.relatedChannelsRecycler
         
-        val spanCount = if (isLandscape) {
-            if (contentType == ContentType.EVENT) 1 else 5
+        // For EVENTS: Use vertical LinearLayoutManager
+        // For CHANNELS: Use 3-column GridLayoutManager
+        recyclerView.layoutManager = if (contentType == ContentType.EVENT) {
+            LinearLayoutManager(this)
         } else {
-            if (contentType == ContentType.EVENT) 1 else 2  // 2 columns grid in portrait!
+            GridLayoutManager(this, 3)
         }
         
-        val recyclerView = binding.relatedChannelsRecycler
-        recyclerView.layoutManager = GridLayoutManager(this, spanCount)
         recyclerView.adapter = relatedChannelsAdapter
     }
     
