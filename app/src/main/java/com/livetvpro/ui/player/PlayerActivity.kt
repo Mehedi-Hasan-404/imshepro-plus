@@ -202,7 +202,7 @@ class PlayerActivity : AppCompatActivity() {
         when (orientation) {
             Configuration.ORIENTATION_PORTRAIT -> {
                 // Show related channels in portrait
-                viewModel.relatedChannels.value?.let { channels ->
+                viewModel.relatedItems.value?.let { channels ->
                     if (channels.isNotEmpty()) {
                         binding.relatedChannelsSection?.visibility = View.VISIBLE
                     }
@@ -405,15 +405,11 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun observeViewModel() {
-        viewModel.relatedChannels.observe(this) { channels ->
+        viewModel.relatedItems.observe(this) { channels ->
             if (channels.isNotEmpty()) {
                 relatedChannelAdapter.submitList(channels)
                 binding.relatedChannelsSection?.visibility = View.VISIBLE
             }
-        }
-
-        viewModel.relatedChannelsLoading.observe(this) { isLoading ->
-            binding.relatedLoadingProgress?.visibility = if (isLoading) View.VISIBLE else View.GONE
         }
     }
 
@@ -457,7 +453,7 @@ class PlayerActivity : AppCompatActivity() {
                     binding.linksSection?.visibility = View.VISIBLE
                 }
             }
-            viewModel.relatedChannels.value?.let { channels ->
+            viewModel.relatedItems.value?.let { channels ->
                 if (channels.isNotEmpty()) {
                     binding.relatedChannelsSection?.visibility = View.VISIBLE
                 }
