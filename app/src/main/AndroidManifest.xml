@@ -2,14 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     
-    <!-- TV and large screen features -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
@@ -31,7 +29,6 @@
         android:hardwareAccelerated="true"
         tools:targetApi="31">
 
-        <!-- Splash Activity -->
         <activity
             android:name=".ui.SplashActivity"
             android:exported="true"
@@ -45,14 +42,12 @@
             </intent-filter>
         </activity>
 
-        <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="false"
             android:theme="@style/Theme.LiveTVPro"
             android:screenOrientation="unspecified" />
 
-        <!-- Player Activity (Portrait/Auto) -->
         <activity
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
@@ -62,56 +57,6 @@
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize" />
-
-        <!-- IMPORTANT NOTES ON PlayerActivity:
-             - screenOrientation="user" allows rotation based on user's auto-rotate setting
-             - Supports portrait and landscape (NOT reverse portrait/landscape)
-             - configChanges handles orientation without recreation
-             - When rotated to landscape, activity switches to LandscapePlayerActivity
-             - Maintains playback position during the switch
-             - Used when starting a channel in portrait mode
-        -->
-
-        <!-- Landscape Player Activity (Fullscreen Landscape) -->
-        <activity
-            android:name=".ui.player.LandscapePlayerActivity"
-            android:exported="false"
-            android:theme="@style/Theme.LiveTVPro.Fullscreen"
-            android:launchMode="singleTask"
-            android:screenOrientation="user"
-            android:resizeableActivity="true"
-            android:supportsPictureInPicture="true"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize" />
-
-        <!-- IMPORTANT NOTES ON LandscapePlayerActivity:
-             
-             PURPOSE:
-             - Dedicated fullscreen landscape player for optimal viewing
-             - Used when starting a channel in landscape mode
-             - Provides immersive fullscreen experience
-             
-             ORIENTATION HANDLING:
-             - screenOrientation="user" allows rotation based on user's auto-rotate setting
-             - Supports portrait and landscape (NOT reverse portrait/landscape)
-             - When rotated to portrait, switches to PlayerActivity
-             - When rotated to landscape, stays in this activity
-             
-             CONFIGURATION CHANGES:
-             - All configChanges prevent activity recreation
-             - onConfigurationChanged() detects orientation changes
-             - Seamless activity transitions maintain playback position
-             
-             USAGE SCENARIOS:
-             1. User starts channel while device is in landscape → Opens here directly
-             2. User in PlayerActivity rotates to landscape → Switches here
-             3. User in this activity rotates to portrait → Switches to PlayerActivity
-             4. Works on all devices: phones, tablets, x86 (emulators, Chromebooks)
-             
-             KEY BEHAVIOR:
-             - Landscape orientation → Stay in LandscapePlayerActivity
-             - Portrait orientation → Switch to PlayerActivity
-             - Follows device auto-rotate setting (no reverse orientations)
-        -->
 
     </application>
 
