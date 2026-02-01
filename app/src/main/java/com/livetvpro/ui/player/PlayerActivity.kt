@@ -165,21 +165,6 @@ class PlayerActivity : AppCompatActivity() {
         
         setWindowFlags(isLandscape)
         setupWindowInsets()
-        
-        // Dynamically set player container dimensions based on orientation
-        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        if (isLandscape) {
-            params.dimensionRatio = null
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-        } else {
-            params.dimensionRatio = "16:9"
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-        }
-        binding.playerContainer.layoutParams = params
 
         parseIntent()
 
@@ -187,11 +172,16 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
+        if (savedInstanceState != null) {
+            currentLinkIndex = savedInstanceState.getInt("current_link_index", currentLinkIndex)
+            isLocked = savedInstanceState.getBoolean("is_locked", false)
+            isMuted = savedInstanceState.getBoolean("is_muted", false)
+        }
+
         binding.progressBar.visibility = View.VISIBLE
         
-        setupPlayer()
+        setupPlayer(savedInstanceState)
         
-        // Bind controller views after a short delay to ensure player view is laid out
         binding.playerView.postDelayed({
             bindControllerViews()
             applyOrientationSettings(isLandscape)
@@ -225,6 +215,15 @@ class PlayerActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerPipReceiver()
         }
+    }
+    
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putLong("playback_position", player?.currentPosition ?: 0L)
+        outState.putBoolean("is_playing", player?.isPlaying ?: false)
+        outState.putInt("current_link_index", currentLinkIndex)
+        outState.putBoolean("is_locked", isLocked)
+        outState.putBoolean("is_muted", isMuted)
     }
     
     private fun setupWindowInsets() {
@@ -482,47 +481,13 @@ class PlayerActivity : AppCompatActivity() {
         setupPlayer()
     }
 
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
-            binding.playerView.hideController()
-            return
-        }
-        
-        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-        
-        setWindowFlags(isLandscape)
-        applyOrientationSettings(isLandscape)
-        setSubtitleTextSize()
-        
-        binding.playerContainer.invalidate()
-        binding.playerView.invalidate()
-        
-        binding.root.post {
-            binding.root.requestLayout()
-            binding.playerContainer.requestLayout()
-            binding.playerView.requestLayout()
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        applyOrientationSettings(isLandscape)
-        
-        window.decorView.setOnSystemUiVisibilityChangeListener { visibility ->
-            if (isLandscape && (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN) == 0) {
-                binding.root.postDelayed({
-                    setWindowFlags(isLandscape)
-                }, 100)
-            }
-        }
-        
-        if (player == null) {
-            setupPlayer()
-            binding.playerView.onResume()
-        }
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putLong("playback_position", player?.currentPosition ?: 0L)
+        outState.putBoolean("is_playing", player?.isPlaying ?: false)
+        outState.putInt("current_link_index", currentLinkIndex)
+        outState.putBoolean("is_locked", isLocked)
+        outState.putBoolean("is_muted", isMuted)
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
@@ -799,7 +764,7 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupPlayer() {
+    private fun setupPlayer(savedInstanceState: Bundle? = null) {
         if (player != null) return
         binding.errorView.visibility = View.GONE
         binding.errorText.text = ""
@@ -871,7 +836,17 @@ class PlayerActivity : AppCompatActivity() {
                     val mediaItem = MediaItem.fromUri(streamInfo.url)
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
-                    exo.playWhenReady = true
+                    
+                    if (savedInstanceState != null) {
+                        val position = savedInstanceState.getLong("playback_position", 0L)
+                        val wasPlaying = savedInstanceState.getBoolean("is_playing", true)
+                        if (position > 0) {
+                            exo.seekTo(position)
+                        }
+                        exo.playWhenReady = wasPlaying
+                    } else {
+                        exo.playWhenReady = true
+                    }
 
                     playerListener = object : Player.Listener {
                         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -941,6 +916,10 @@ class PlayerActivity : AppCompatActivity() {
                     }
 
                     exo.addListener(playerListener!!)
+                    
+                    if (savedInstanceState != null && savedInstanceState.getBoolean("is_muted", false)) {
+                        exo.volume = 0f
+                    }
                 }
         } catch (e: Exception) {
             showError("Failed to initialize player")
