@@ -37,10 +37,6 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
-import androidx.media3.exoplayer.drm.FrameworkMediaDrm
-import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
-import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
@@ -58,7 +54,6 @@ import com.livetvpro.ui.adapters.LinkChipAdapter
 import com.livetvpro.data.models.LiveEventLink
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 /**
  * PlayerActivity - Main video player activity
@@ -204,18 +199,16 @@ class PlayerActivity : AppCompatActivity() {
             if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
                 if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
                     allEventLinks = freshChannel.links.map { 
-                        LiveEventLink(
-                            id = UUID.randomUUID().toString(),
-                            name = it.name ?: "Link ${it.url?.takeLast(8)}",
-                            url = it.url ?: "",
-                            drmScheme = it.drmScheme,
-                            drmLicenseUrl = it.drmLicenseUrl
-                        )
+                        LiveEventLink(label = it.quality, url = it.url) 
                     }
-                    if (allEventLinks.size > 1) {
-                        binding.linksSection.visibility = View.VISIBLE
-                        linkChipAdapter.updateLinks(allEventLinks)
+                    
+                    val matchIndex = allEventLinks.indexOfFirst { it.url == streamUrl }
+                    if (matchIndex != -1) {
+                        currentLinkIndex = matchIndex
                     }
+                    
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    updateLinksForOrientation(isLandscape)
                 }
             }
         }
@@ -474,92 +467,60 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun parseIntent() {
-        val selectedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
-        
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
-                intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)?.let { channel ->
-                    contentType = ContentType.CHANNEL
-                    channelData = channel
-                    contentId = channel.id
-                    contentName = channel.name
-                    if (!channel.links.isNullOrEmpty()) {
-                        allEventLinks = channel.links.map { link ->
-                            LiveEventLink(
-                                id = UUID.randomUUID().toString(),
-                                name = link.name ?: "Link ${link.url?.takeLast(8)}",
-                                url = link.url ?: "",
-                                drmScheme = link.drmScheme,
-                                drmLicenseUrl = link.drmLicenseUrl
-                            )
-                        }
-                        currentLinkIndex = if (selectedLinkIndex in allEventLinks.indices) {
-                            selectedLinkIndex
-                        } else {
-                            0
-                        }
-                        streamUrl = allEventLinks[currentLinkIndex].url
-                    }
+        channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_CHANNEL)
+        }
+
+        eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(EXTRA_EVENT)
+        }
+
+        val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
+
+        if (channelData != null) {
+            contentType = ContentType.CHANNEL
+            val channel = channelData!!
+            contentId = channel.id
+            contentName = channel.name
+
+            if (channel.links != null && channel.links.isNotEmpty()) {
+                allEventLinks = channel.links.map { 
+                    LiveEventLink(label = it.quality, url = it.url) 
                 }
                 
-                intent.getParcelableExtra(EXTRA_EVENT, LiveEvent::class.java)?.let { event ->
-                    contentType = ContentType.EVENT
-                    eventData = event
-                    contentId = event.id
-                    contentName = event.title
-                    if (!event.links.isNullOrEmpty()) {
-                        allEventLinks = event.links
-                        currentLinkIndex = if (selectedLinkIndex in allEventLinks.indices) {
-                            selectedLinkIndex
-                        } else {
-                            0
-                        }
-                        streamUrl = allEventLinks[currentLinkIndex].url
-                    }
+                if (passedLinkIndex in allEventLinks.indices) {
+                    currentLinkIndex = passedLinkIndex
+                } else {
+                    val matchIndex = allEventLinks.indexOfFirst { it.url == channel.streamUrl }
+                    currentLinkIndex = if (matchIndex != -1) matchIndex else 0
                 }
+                
+                streamUrl = allEventLinks[currentLinkIndex].url
+            } else {
+                streamUrl = channel.streamUrl
             }
-            else -> {
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra<Channel>(EXTRA_CHANNEL)?.let { channel ->
-                    contentType = ContentType.CHANNEL
-                    channelData = channel
-                    contentId = channel.id
-                    contentName = channel.name
-                    if (!channel.links.isNullOrEmpty()) {
-                        allEventLinks = channel.links.map { link ->
-                            LiveEventLink(
-                                id = UUID.randomUUID().toString(),
-                                name = link.name ?: "Link ${link.url?.takeLast(8)}",
-                                url = link.url ?: "",
-                                drmScheme = link.drmScheme,
-                                drmLicenseUrl = link.drmLicenseUrl
-                            )
-                        }
-                        currentLinkIndex = if (selectedLinkIndex in allEventLinks.indices) {
-                            selectedLinkIndex
-                        } else {
-                            0
-                        }
-                        streamUrl = allEventLinks[currentLinkIndex].url
-                    }
+        } else if (eventData != null) {
+            contentType = ContentType.EVENT
+            val event = eventData!!
+            contentId = event.id
+            contentName = event.title
+
+            if (event.links != null && event.links.isNotEmpty()) {
+                allEventLinks = event.links
+                
+                if (passedLinkIndex in allEventLinks.indices) {
+                    currentLinkIndex = passedLinkIndex
+                } else {
+                    currentLinkIndex = 0
                 }
                 
-                @Suppress("DEPRECATION")
-                intent.getParcelableExtra<LiveEvent>(EXTRA_EVENT)?.let { event ->
-                    contentType = ContentType.EVENT
-                    eventData = event
-                    contentId = event.id
-                    contentName = event.title
-                    if (!event.links.isNullOrEmpty()) {
-                        allEventLinks = event.links
-                        currentLinkIndex = if (selectedLinkIndex in allEventLinks.indices) {
-                            selectedLinkIndex
-                        } else {
-                            0
-                        }
-                        streamUrl = allEventLinks[currentLinkIndex].url
-                    }
-                }
+                streamUrl = allEventLinks[currentLinkIndex].url
             }
         }
     }
@@ -578,32 +539,12 @@ class PlayerActivity : AppCompatActivity() {
             )
         }
 
-        val currentLink = allEventLinks[currentLinkIndex]
         val httpDataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent("LiveTVPro/1.0")
             .setAllowCrossProtocolRedirects(true)
 
-        val mediaSourceFactory = if (!currentLink.drmScheme.isNullOrEmpty() && !currentLink.drmLicenseUrl.isNullOrEmpty()) {
-            val drmCallback = HttpMediaDrmCallback(currentLink.drmLicenseUrl, httpDataSourceFactory)
-            val drmSessionManager = DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(
-                    when (currentLink.drmScheme.lowercase()) {
-                        "widevine" -> C.WIDEVINE_UUID
-                        "playready" -> C.PLAYREADY_UUID
-                        "clearkey" -> C.CLEARKEY_UUID
-                        else -> C.WIDEVINE_UUID
-                    },
-                    FrameworkMediaDrm.DEFAULT_PROVIDER
-                )
-                .build(drmCallback)
-            
-            DefaultMediaSourceFactory(this)
-                .setDataSourceFactory(httpDataSourceFactory)
-                .setDrmSessionManagerProvider { drmSessionManager }
-        } else {
-            DefaultMediaSourceFactory(this)
-                .setDataSourceFactory(httpDataSourceFactory)
-        }
+        val mediaSourceFactory = DefaultMediaSourceFactory(this)
+            .setDataSourceFactory(httpDataSourceFactory)
 
         player = ExoPlayer.Builder(this)
             .setTrackSelector(trackSelector!!)
@@ -811,89 +752,152 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupLinksUI() {
-        linkChipAdapter = LinkChipAdapter(
-            links = allEventLinks,
-            selectedIndex = currentLinkIndex
-        ) { clickedLink, index ->
-            switchToLink(index)
+        linkChipAdapter = LinkChipAdapter { link, position ->
+            switchToLink(link, position)
         }
 
-        binding.linksRecyclerView.apply {
-            layoutManager = LinearLayoutManager(this@PlayerActivity, LinearLayoutManager.HORIZONTAL, false)
-            adapter = linkChipAdapter
+        val portraitLinksRecycler = binding.linksRecyclerView
+        portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        portraitLinksRecycler.adapter = linkChipAdapter
+
+        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+
+        val landscapeLinkAdapter = LinkChipAdapter { link, position ->
+            switchToLink(link, position)
         }
+        landscapeLinksRecycler?.adapter = landscapeLinkAdapter
 
         if (allEventLinks.size > 1) {
-            binding.linksSection.visibility = View.VISIBLE
+            val currentOrientation = resources.configuration.orientation
+            val isCurrentlyLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+
+            if (isCurrentlyLandscape) {
+                binding.linksSection.visibility = View.GONE
+                landscapeLinksRecycler?.visibility = View.VISIBLE
+                landscapeLinkAdapter.submitList(allEventLinks)
+                landscapeLinkAdapter.setSelectedPosition(currentLinkIndex)
+            } else {
+                binding.linksSection.visibility = View.VISIBLE
+                landscapeLinksRecycler?.visibility = View.GONE
+                linkChipAdapter.submitList(allEventLinks)
+                linkChipAdapter.setSelectedPosition(currentLinkIndex)
+            }
         } else {
             binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.GONE
+        }
+    }
+
+    private fun updateLinksForOrientation(isLandscape: Boolean) {
+        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        
+        if (allEventLinks.size > 1) {
+            if (isLandscape) {
+                binding.linksSection.visibility = View.GONE
+                landscapeLinksRecycler?.visibility = View.VISIBLE
+                
+                val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
+                if (landscapeAdapter != null) {
+                    landscapeAdapter.submitList(allEventLinks)
+                    landscapeAdapter.setSelectedPosition(currentLinkIndex)
+                }
+            } else {
+                binding.linksSection.visibility = View.VISIBLE
+                landscapeLinksRecycler?.visibility = View.GONE
+                
+                linkChipAdapter.submitList(allEventLinks)
+                linkChipAdapter.setSelectedPosition(currentLinkIndex)
+            }
+        } else {
+            binding.linksSection.visibility = View.GONE
+            landscapeLinksRecycler?.visibility = View.GONE
         }
     }
 
     private fun loadRelatedContent() {
-        lifecycleScope.launch {
-            when (contentType) {
-                ContentType.CHANNEL -> {
-                    viewModel.fetchRelatedChannels(contentId)
-                    viewModel.relatedChannels.observe(this@PlayerActivity) { channels ->
-                        relatedChannels = channels
-                        relatedChannelsAdapter.submitList(channels)
-                        
-                        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                        if (!isLandscape && channels.isNotEmpty()) {
-                            binding.relatedChannelsSection.visibility = View.VISIBLE
-                        }
-                    }
+        when (contentType) {
+            ContentType.CHANNEL -> {
+                channelData?.let { channel ->
+                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
                 }
-                ContentType.EVENT -> {
-                    // For events, we don't show related channels
-                    binding.relatedChannelsSection.visibility = View.GONE
+            }
+            ContentType.EVENT -> {
+                eventData?.let { event ->
+                    viewModel.loadRelatedEvents(event.id)
+                }
+            }
+        }
+
+        viewModel.relatedChannels.observe(this) { channels ->
+            if (channels.isNotEmpty()) {
+                relatedChannels = channels
+                relatedChannelsAdapter.submitList(channels)
+                
+                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                if (!isLandscape) {
+                    binding.relatedChannelsSection.visibility = View.VISIBLE
                 }
             }
         }
     }
 
     private fun switchToChannel(channel: Channel) {
-        if (!channel.links.isNullOrEmpty()) {
+        if (channel.links != null && channel.links.isNotEmpty()) {
             releasePlayer()
             
             contentType = ContentType.CHANNEL
             channelData = channel
             contentId = channel.id
             contentName = channel.name
-            allEventLinks = channel.links.map { link ->
-                LiveEventLink(
-                    id = UUID.randomUUID().toString(),
-                    name = link.name ?: "Link ${link.url?.takeLast(8)}",
-                    url = link.url ?: "",
-                    drmScheme = link.drmScheme,
-                    drmLicenseUrl = link.drmLicenseUrl
-                )
+            allEventLinks = channel.links.map { 
+                LiveEventLink(label = it.quality, url = it.url) 
             }
-            currentLinkIndex = 0
+            
+            val matchIndex = allEventLinks.indexOfFirst { it.url == channel.streamUrl }
+            currentLinkIndex = if (matchIndex != -1) matchIndex else 0
+            
             streamUrl = allEventLinks[currentLinkIndex].url
             
             tvChannelName?.text = contentName
             
-            linkChipAdapter.updateLinks(allEventLinks)
-            linkChipAdapter.updateSelection(currentLinkIndex)
-            
-            if (allEventLinks.size > 1) {
-                binding.linksSection.visibility = View.VISIBLE
-            } else {
-                binding.linksSection.visibility = View.GONE
-            }
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            updateLinksForOrientation(isLandscape)
             
             binding.progressBar.visibility = View.VISIBLE
             setupPlayer()
             
             viewModel.refreshChannelData(contentId)
-            viewModel.fetchRelatedChannels(contentId)
+            channelData?.let {
+                viewModel.loadRelatedChannels(it.categoryId, it.id)
+            }
+        } else if (channel.streamUrl.isNotEmpty()) {
+            releasePlayer()
+            
+            contentType = ContentType.CHANNEL
+            channelData = channel
+            contentId = channel.id
+            contentName = channel.name
+            allEventLinks = emptyList()
+            currentLinkIndex = 0
+            streamUrl = channel.streamUrl
+            
+            tvChannelName?.text = contentName
+            
+            binding.linksSection.visibility = View.GONE
+            
+            binding.progressBar.visibility = View.VISIBLE
+            setupPlayer()
+            
+            viewModel.refreshChannelData(contentId)
+            channelData?.let {
+                viewModel.loadRelatedChannels(it.categoryId, it.id)
+            }
         }
     }
 
-    private fun switchToLink(linkIndex: Int) {
-        if (linkIndex == currentLinkIndex || linkIndex !in allEventLinks.indices) {
+    private fun switchToLink(link: LiveEventLink, position: Int) {
+        if (position == currentLinkIndex || position !in allEventLinks.indices) {
             return
         }
 
@@ -902,9 +906,14 @@ class PlayerActivity : AppCompatActivity() {
 
         releasePlayer()
 
-        currentLinkIndex = linkIndex
+        currentLinkIndex = position
         streamUrl = allEventLinks[currentLinkIndex].url
-        linkChipAdapter.updateSelection(currentLinkIndex)
+        
+        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
+        
+        landscapeAdapter?.setSelectedPosition(currentLinkIndex)
+        linkChipAdapter.setSelectedPosition(currentLinkIndex)
 
         binding.progressBar.visibility = View.VISIBLE
         setupPlayer()
