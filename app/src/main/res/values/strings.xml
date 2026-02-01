@@ -75,4 +75,8 @@
     <string name="terms_and_conditions">Terms &amp; Conditions</string>
     <string name="privacy_policy">Privacy Policy</string>
 
+    <string name="unlock_controls">Unlock controls</string>
+<string name="lock_controls">Lock controls</string>
+<string name="failed_to_load_stream">Failed to load stream</string>
+
 </resources>
