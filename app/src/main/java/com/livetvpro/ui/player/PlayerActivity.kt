@@ -991,11 +991,57 @@ class PlayerActivity : AppCompatActivity() {
                             Player.STATE_ENDED -> {
                                 binding.progressBar.visibility = View.GONE
                             }
-                            Player.STATE_IDLE -> {}
+                                                        Player.STATE_IDLE -> {}
                         }
                     }
+
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        updatePlayPauseIcon(isPlaying)
+                        if (isInPipMode) {
+                            updatePipParams()
+                        }
+                    }
+
+                    override fun onVideoSizeChanged(videoSize: VideoSize) {
+                        super.onVideoSizeChanged(videoSize)
+                        updatePipParams()
+                    }
+
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        super.onPlayerError(error)
+                        binding.progressBar.visibility = View.GONE
+
+                        val errorMessage = when {
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
+                                "Connection Failed"
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
+                                when {
+                                    error.message?.contains("403") == true -> "Access Denied"
+                                    error.message?.contains("404") == true -> "Stream Not Found"
+                                    else -> "Playback Error"
+                                }
+                            }
+                            error.message?.contains("drm", ignoreCase = true) == true ||
+                                    error.message?.contains("widevine", ignoreCase = true) == true ||
+                                    error.message?.contains("clearkey", ignoreCase = true) == true ||
+                                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
+                                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
+                                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
+                                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
+                                "Stream Error"
+                            error.message?.contains("geo", ignoreCase = true) == true ||
+                                    error.message?.contains("region", ignoreCase = true) == true ->
+                                "Not Available"
+                            else -> "Playback Error"
+                        }
+
+                        showError(errorMessage)
+                    }
                 }
-                
+
                 exo.addListener(playerListener!!)
             }
     } catch (e: Exception) {
@@ -1003,59 +1049,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 }
 
-                        override fun onIsPlayingChanged(isPlaying: Boolean) {
-                            updatePlayPauseIcon(isPlaying)
-                            if (isInPipMode) {
-                                updatePipParams()
-                            }
-                        }
-
-                        override fun onVideoSizeChanged(videoSize: VideoSize) {
-                            super.onVideoSizeChanged(videoSize)
-                            updatePipParams()
-                        }
-
-                        override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                            super.onPlayerError(error)
-                            binding.progressBar.visibility = View.GONE
-
-                            val errorMessage = when {
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
-                                    "Connection Failed"
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
-                                    when {
-                                        error.message?.contains("403") == true -> "Access Denied"
-                                        error.message?.contains("404") == true -> "Stream Not Found"
-                                        else -> "Playback Error"
-                                    }
-                                }
-                                error.message?.contains("drm", ignoreCase = true) == true ||
-                                error.message?.contains("widevine", ignoreCase = true) == true ||
-                                error.message?.contains("clearkey", ignoreCase = true) == true ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                                error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
-                                    "Stream Error"
-                                error.message?.contains("geo", ignoreCase = true) == true ||
-                                error.message?.contains("region", ignoreCase = true) == true ->
-                                    "Not Available"
-                                else -> "Playback Error"
-                            }
-
-                            showError(errorMessage)
-                        }
-                    }
-
-                    exo.addListener(playerListener!!)
-                }
-        } catch (e: Exception) {
-            showError("Failed to initialize player")
-        }
-    }
     
     private fun showError(message: String) {
     binding.progressBar.visibility = View.GONE
