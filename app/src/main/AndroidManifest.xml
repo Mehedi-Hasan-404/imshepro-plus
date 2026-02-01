@@ -5,24 +5,17 @@
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     
-    <!-- Optional features -->
+    <!-- TV and large screen features -->
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />
-    
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
-    
-    <!-- Screen support -->
-    <supports-screens
-        android:smallScreens="true"
-        android:normalScreens="true"
-        android:largeScreens="true"
-        android:xlargeScreens="true"
-        android:anyDensity="true"
-        android:resizeable="true" />
 
     <application
         android:name=".LiveTVProApplication"
@@ -34,17 +27,16 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.LiveTVPro"
+        android:usesCleartextTraffic="true"
         android:hardwareAccelerated="true"
-        android:largeHeap="true"
         tools:targetApi="31">
 
         <!-- Splash Activity -->
         <activity
             android:name=".ui.SplashActivity"
             android:exported="true"
-            android:theme="@style/Theme.LiveTVPro.Fullscreen"
-            android:screenOrientation="unspecified"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden">
+            android:theme="@style/Theme.LiveTVPro.Splash"
+            android:screenOrientation="portrait">
             
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -60,63 +52,65 @@
             android:theme="@style/Theme.LiveTVPro"
             android:screenOrientation="unspecified" />
 
-        <!-- Player Activity -->
+        <!-- Player Activity (Portrait/Auto) -->
         <activity
             android:name=".ui.player.PlayerActivity"
             android:exported="false"
             android:theme="@style/Theme.LiveTVPro.Fullscreen"
             android:launchMode="singleTask"
-            android:screenOrientation="unspecified"
+            android:screenOrientation="user"
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize" />
 
-        <!-- IMPORTANT NOTES ON CONFIGCHANGES:
+        <!-- IMPORTANT NOTES ON PlayerActivity:
+             - screenOrientation="user" allows rotation based on user's auto-rotate setting
+             - Supports portrait and landscape (NOT reverse portrait/landscape)
+             - configChanges handles orientation without recreation
+             - When rotated to landscape, activity switches to LandscapePlayerActivity
+             - Maintains playback position during the switch
+             - Used when starting a channel in portrait mode
+        -->
+
+        <!-- Landscape Player Activity (Fullscreen Landscape) -->
+        <activity
+            android:name=".ui.player.LandscapePlayerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.LiveTVPro.Fullscreen"
+            android:launchMode="singleTask"
+            android:screenOrientation="user"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize" />
+
+        <!-- IMPORTANT NOTES ON LandscapePlayerActivity:
              
-             1. keyboard - Handles hardware keyboard changes
-             2. keyboardHidden - Handles keyboard visibility changes
-             3. navigation - Handles navigation method changes
-             4. orientation - CRITICAL - Handles rotation (portrait/landscape)
-             5. screenLayout - Handles screen layout changes (size and orientation)
-             6. uiMode - Handles UI mode changes (day/night, car mode, etc.)
-             7. screenSize - Handles screen size changes
-             8. smallestScreenSize - Handles smallest screen dimension changes
-             
-             By declaring these in configChanges, Android will NOT restart the activity
-             when these changes occur. Instead, onConfigurationChanged() will be called.
-             
-             This is ESSENTIAL for:
-             - Maintaining playback during rotation
-             - Preventing player re-initialization
-             - Preserving playback position
-             - Smooth user experience
-             - Proper PiP behavior
-             
-             WITHOUT these configChanges:
-             - Activity would be destroyed and recreated on rotation
-             - Player would stop and restart
-             - Playback position would be lost (unless saved/restored manually)
-             - Poor user experience
-             
-             PiP-SPECIFIC REQUIREMENTS:
-             - supportsPictureInPicture="true" - Enables PiP mode
-             - screenSize and smallestScreenSize are REQUIRED for proper PiP behavior
-             - Without these, entering/exiting PiP will restart the activity
+             PURPOSE:
+             - Dedicated fullscreen landscape player for optimal viewing
+             - Used when starting a channel in landscape mode
+             - Provides immersive fullscreen experience
              
              ORIENTATION HANDLING:
-             - screenOrientation="unspecified" allows the activity to rotate freely
-             - This is important for a video player that should support both orientations
-             - Combined with the orientation configChange, allows smooth rotation handling
+             - screenOrientation="user" allows rotation based on user's auto-rotate setting
+             - Supports portrait and landscape (NOT reverse portrait/landscape)
+             - When rotated to portrait, switches to PlayerActivity
+             - When rotated to landscape, stays in this activity
              
-             LAUNCH MODE:
-             - singleTask ensures only one instance of PlayerActivity exists
-             - When launched again, onNewIntent() is called instead of creating a new instance
-             - This is important for handling multiple stream launches
+             CONFIGURATION CHANGES:
+             - All configChanges prevent activity recreation
+             - onConfigurationChanged() detects orientation changes
+             - Seamless activity transitions maintain playback position
              
-             PERFORMANCE:
-             - resizeableActivity="true" allows multi-window and split-screen support
-             - Provides better user experience on tablets and foldables
-        -->
+             USAGE SCENARIOS:
+             1. User starts channel while device is in landscape → Opens here directly
+             2. User in PlayerActivity rotates to landscape → Switches here
+             3. User in this activity rotates to portrait → Switches to PlayerActivity
+             4. Works on all devices: phones, tablets, x86 (emulators, Chromebooks)
+             
+             KEY BEHAVIOR:
+             - Landscape orientation → Stay in LandscapePlayerActivity
+             - Portrait orientation → Switch to PlayerActivity
+             - Follows device auto-rotate setting (no reverse orientations)
 
     </application>
 
