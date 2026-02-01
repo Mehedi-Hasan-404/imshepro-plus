@@ -287,7 +287,7 @@ class PlayerActivity : AppCompatActivity() {
         relatedChannelAdapter = RelatedChannelAdapter { channel ->
             currentChannel = channel
             selectedLinkIndex = 0
-            channel.links.firstOrNull()?.let { link ->
+            channel.links?.firstOrNull()?.let { link ->
                 playStream(link.url)
             }
             viewModel.loadRelatedChannels(channel.categoryId, channel.id)
@@ -359,14 +359,22 @@ class PlayerActivity : AppCompatActivity() {
                     })
 
                     currentChannel?.let { channel ->
-                        channel.links.firstOrNull()?.let { link ->
+                        channel.links?.firstOrNull()?.let { link ->
                             playStream(link.url)
                         }
                         viewModel.loadRelatedChannels(channel.categoryId, channel.id)
                         
                         channel.links?.let { links ->
                             if (links.size > 1) {
-                                linkChipAdapter.submitList(links, selectedLinkIndex)
+                                // Convert ChannelLink to LiveEventLink for the adapter
+                                val eventLinks = links.map { channelLink ->
+                                    com.livetvpro.data.models.LiveEventLink(
+                                        label = channelLink.quality,
+                                        url = channelLink.url
+                                    )
+                                }
+                                linkChipAdapter.submitList(eventLinks)
+                                linkChipAdapter.setSelectedPosition(selectedLinkIndex)
                                 binding.linksSection?.visibility = View.VISIBLE
                             }
                         }
