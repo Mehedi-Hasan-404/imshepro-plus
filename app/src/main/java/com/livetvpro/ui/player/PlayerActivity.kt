@@ -626,10 +626,7 @@ class PlayerActivity : AppCompatActivity() {
         // For now, orientation features work automatically based on video aspect ratio
     }
 
-    private fun configurePlayerInteractions() {
-        // Player interactions will be configured when buttons are added to layout
-      
-    }
+    
 
     private fun toggleLock() {
         isLocked = !isLocked
@@ -771,7 +768,7 @@ class PlayerActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun loadRelatedContent() {
+        private fun loadRelatedContent() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
@@ -784,45 +781,24 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
-        
-        viewModel.relatedChannels.observe(this) { channels ->
-            if (channels.isNotEmpty()) {
-                relatedChannels = channels.filter { it.id != contentId }
+
+        // Observe the correct LiveData from your ViewModel
+        viewModel.relatedItems.observe(this) { items ->
+            if (items.isNotEmpty()) {
+                // Filter out the current playing item to avoid duplicates
+                relatedChannels = items.filter { it.id != contentId }
                 relatedChannelsAdapter.submitList(relatedChannels)
-                
+
                 val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                 if (!isLandscape && relatedChannels.isNotEmpty()) {
                     binding.relatedChannelsSection.visibility = View.VISIBLE
                 }
-            }
-        }
-        
-        viewModel.relatedEvents.observe(this) { events ->
-            if (events.isNotEmpty()) {
-                val relatedEventChannels = events.filter { it.id != contentId }.map { event ->
-                    Channel(
-                        id = event.id,
-                        name = event.title,
-                        logoUrl = event.thumbnailUrl,
-                        categoryId = event.leagueId,
-                        links = event.links.map { link ->
-                            com.livetvpro.data.models.ChannelLink(
-                                quality = link.label,
-                                url = link.url
-                            )
-                        }
-                    )
-                }
-                relatedChannels = relatedEventChannels
-                relatedChannelsAdapter.submitList(relatedChannels)
-                
-                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                if (!isLandscape && relatedChannels.isNotEmpty()) {
-                    binding.relatedChannelsSection.visibility = View.VISIBLE
-                }
+            } else {
+                binding.relatedChannelsSection.visibility = View.GONE
             }
         }
     }
+
 
     private fun releasePlayer() {
         player?.let {
