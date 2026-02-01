@@ -258,8 +258,8 @@ class LandscapePlayerActivity : AppCompatActivity() {
         }
 
         binding.linksRecycler?.apply {
-            layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-            adapter = linkChipAdapter
+            this.layoutManager = LinearLayoutManager(this@LandscapePlayerActivity, LinearLayoutManager.HORIZONTAL, false)
+            this.adapter = linkChipAdapter
         }
 
         // Setup related channels adapter
@@ -274,8 +274,8 @@ class LandscapePlayerActivity : AppCompatActivity() {
         }
 
         binding.relatedChannelsRecycler?.apply {
-            layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-            adapter = relatedChannelAdapter
+            this.layoutManager = LinearLayoutManager(this@LandscapePlayerActivity, LinearLayoutManager.HORIZONTAL, false)
+            this.adapter = relatedChannelAdapter
         }
     }
 
@@ -351,15 +351,29 @@ class LandscapePlayerActivity : AppCompatActivity() {
                         // Show links if multiple available
                         channel.links?.let { links ->
                             if (links.size > 1) {
-                                // FIXED: Removed second parameter
-                                linkChipAdapter.submitList(links)
+                                // Convert ChannelLink to LiveEventLink for the adapter
+                                val eventLinks = links.map { channelLink ->
+                                    com.livetvpro.data.models.LiveEventLink(
+                                        label = channelLink.quality,
+                                        url = channelLink.url
+                                    )
+                                }
+                                linkChipAdapter.submitList(eventLinks)
                                 binding.linksSection?.visibility = View.VISIBLE
                             }
                         }
                     }
 
                     currentEvent?.let { event ->
-                        playStream(event.streamUrl)
+                        // Play the first available link
+                        event.links.firstOrNull()?.let { link ->
+                            playStream(link.url)
+                            // Submit all links to the adapter
+                            if (event.links.size > 1) {
+                                linkChipAdapter.submitList(event.links)
+                                binding.linksSection?.visibility = View.VISIBLE
+                            }
+                        }
                     }
 
                     exoPlayer.prepare()
