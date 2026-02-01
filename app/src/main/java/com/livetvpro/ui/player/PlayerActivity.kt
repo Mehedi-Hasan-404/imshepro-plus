@@ -132,7 +132,7 @@ class PlayerActivity : AppCompatActivity() {
 
         // Setup for portrait mode
         setupFullscreenMode()
-        pipHelper = PipHelper(this)
+        pipHelper = PipHelper(this, binding.playerView) { player }
         setupBackPressHandler()
         setupPlayerControls()
         setupRecyclerViews()
@@ -287,8 +287,10 @@ class PlayerActivity : AppCompatActivity() {
         relatedChannelAdapter = RelatedChannelAdapter { channel ->
             currentChannel = channel
             selectedLinkIndex = 0
-            playStream(channel.streamUrl)
-            viewModel.loadRelatedChannels(channel.categoryId)
+            channel.links.firstOrNull()?.let { link ->
+                playStream(link.url)
+            }
+            viewModel.loadRelatedChannels(channel.categoryId, channel.id)
         }
 
         binding.relatedChannelsRecycler?.apply {
@@ -357,8 +359,10 @@ class PlayerActivity : AppCompatActivity() {
                     })
 
                     currentChannel?.let { channel ->
-                        playStream(channel.streamUrl)
-                        viewModel.loadRelatedChannels(channel.categoryId)
+                        channel.links.firstOrNull()?.let { link ->
+                            playStream(link.url)
+                        }
+                        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
                         
                         channel.links?.let { links ->
                             if (links.size > 1) {
@@ -369,7 +373,9 @@ class PlayerActivity : AppCompatActivity() {
                     }
 
                     currentEvent?.let { event ->
-                        playStream(event.streamUrl)
+                        event.links.firstOrNull()?.let { link ->
+                            playStream(link.url)
+                        }
                     }
 
                     exoPlayer.prepare()
