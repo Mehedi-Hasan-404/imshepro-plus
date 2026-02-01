@@ -55,7 +55,8 @@
             android:launchMode="singleTask"
             android:screenOrientation="user"
             android:resizeableActivity="true"
-            android:supportsPictureInPicture="true" />
+            android:supportsPictureInPicture="true"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize" />
 
     </application>
 
