@@ -186,34 +186,51 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
-        // CRITICAL FIX: Show the complete proper UI immediately instead of partial loading state
-        // This prevents the jarring "black screen with bottom controls" intermediate state
+        // CRITICAL FIX: Setup ALL UI components FIRST, then wait for layout to be ready
+        // before starting the player. This ensures the complete UI is visible immediately.
         
-        // Initialize all UI components BEFORE showing anything
+        // 1. Initialize controller views
         bindControllerViews()
-        applyOrientationSettings(isLandscape)
         
-        // Set up the full player UI structure
-        binding.playerView.useController = true
-        binding.playerView.controllerAutoShow = false  // Don't auto-show during loading
-        
-        // Ensure the player screen structure is visible immediately
-        // (individual sections will show/hide based on data availability)
-        binding.relatedChannelsSection.visibility = View.VISIBLE
-        binding.relatedLoadingProgress.visibility = View.VISIBLE
-        binding.relatedChannelsRecycler.visibility = View.GONE
-        
-        // Show loading spinner centered over the player
-        binding.progressBar.visibility = View.VISIBLE
-        
-        // Now setup and start the player - full UI structure is already in place
-        setupPlayer()
-
-        configurePlayerInteractions()
-        setupLockOverlay()
+        // 2. Setup related channels and links UI adapters
         setupRelatedChannels()
         setupLinksUI()
-        loadRelatedContent()
+        
+        // 3. Configure player interactions
+        configurePlayerInteractions()
+        setupLockOverlay()
+        
+        // 4. Apply orientation settings to layout the UI properly
+        applyOrientationSettings(isLandscape)
+        
+        // 5. Enable controller
+        binding.playerView.useController = true
+        binding.playerView.controllerAutoShow = false
+        
+        // 6. CRITICAL: Force the complete UI structure to be visible immediately (portrait mode)
+        if (!isLandscape) {
+            // Show related channels section with loading state
+            binding.relatedChannelsSection.visibility = View.VISIBLE
+            binding.relatedLoadingProgress.visibility = View.VISIBLE
+            binding.relatedChannelsRecycler.visibility = View.GONE
+            
+            // Show links section if we have links
+            if (allEventLinks.size > 1) {
+                binding.linksSection.visibility = View.VISIBLE
+            }
+        }
+        
+        // 7. Show loading spinner
+        binding.progressBar.visibility = View.VISIBLE
+        
+        // 8. CRITICAL: Wait for the layout to be completely measured and drawn
+        // before starting the player. This prevents the black screen issue.
+        binding.root.post {
+            // At this point, the UI is fully laid out and visible
+            // NOW we can start the player
+            setupPlayer()
+            loadRelatedContent()
+        }
         
         // Observe refreshed channel data
         viewModel.refreshedChannel.observe(this) { freshChannel ->
@@ -443,17 +460,21 @@ class PlayerActivity : AppCompatActivity() {
             binding.relatedChannelsSection.layoutParams = relatedParams
             
             // Show sections if content exists
+            // SKIP THIS during initial onCreate - we want to show the UI immediately
+            // This will run again when data is loaded via the ViewModel observer
             binding.root.post {
-                if (allEventLinks.size > 1) {
-                    binding.linksSection.visibility = View.VISIBLE
-                } else {
-                    binding.linksSection.visibility = View.GONE
-                }
-                
-                if (relatedChannels.isNotEmpty()) {
-                    binding.relatedChannelsSection.visibility = View.VISIBLE
-                } else {
-                    binding.relatedChannelsSection.visibility = View.GONE
+                // Only update visibility after initial load is complete
+                if (player != null) {
+                    if (allEventLinks.size > 1) {
+                        binding.linksSection.visibility = View.VISIBLE
+                    } else {
+                        binding.linksSection.visibility = View.GONE
+                    }
+                    
+                    if (relatedChannels.isNotEmpty()) {
+                        binding.relatedChannelsSection.visibility = View.VISIBLE
+                    }
+                    // Don't hide if empty - the ViewModel observer will handle that
                 }
             }
         }
