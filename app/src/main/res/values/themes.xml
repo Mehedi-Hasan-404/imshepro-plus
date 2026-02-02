@@ -47,8 +47,9 @@
     </style>
 
     <!-- FULLSCREEN THEME -->
+    <!-- Note: We handle fullscreen programmatically based on orientation -->
+    <!-- Portrait = status bar visible, Landscape = truly fullscreen -->
     <style name="Theme.LiveTVPro.Fullscreen" parent="Theme.LiveTVPro">
-        <item name="android:windowFullscreen">true</item>
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowNoTitle">true</item>
     </style>
