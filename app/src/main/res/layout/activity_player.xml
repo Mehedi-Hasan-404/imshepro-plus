@@ -24,7 +24,7 @@
             app:show_buffering="when_playing"
             app:surface_type="texture_view"
             app:controller_layout_id="@layout/exo_modern_player_controls"
-            app:use_controller="true"
+            app:use_controller="false"
             app:show_timeout="5000"
             app:resize_mode="fit" />
 
