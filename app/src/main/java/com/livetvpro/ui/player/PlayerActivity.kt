@@ -197,10 +197,16 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.useController = true
         binding.playerView.controllerAutoShow = false  // Don't auto-show during loading
         
-        // Show loading state in the center (proper way)
+        // Ensure the player screen structure is visible immediately
+        // (individual sections will show/hide based on data availability)
+        binding.relatedChannelsSection.visibility = View.VISIBLE
+        binding.relatedLoadingProgress.visibility = View.VISIBLE
+        binding.relatedChannelsRecycler.visibility = View.GONE
+        
+        // Show loading spinner centered over the player
         binding.progressBar.visibility = View.VISIBLE
         
-        // Now setup and start the player - UI is already in place
+        // Now setup and start the player - full UI structure is already in place
         setupPlayer()
 
         configurePlayerInteractions()
