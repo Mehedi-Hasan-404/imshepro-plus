@@ -186,21 +186,25 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
-        // FIXED: Show the full player UI immediately, but with a centered loading spinner
-        // The spinner will overlay the player until the stream is ready
+        // FIXED: Don't show any controls until everything is fully initialized
+        // This prevents the "partial UI" state you're seeing
         binding.progressBar.visibility = View.VISIBLE
-        
-        // Enable controller so the full UI is visible, but player won't be interactive until ready
-        binding.playerView.useController = true
-        binding.playerView.showController()
+        binding.playerView.useController = false
+        binding.playerView.controllerAutoShow = false
         
         setupPlayer()
         
-        // Bind controller views immediately so the full UI is ready
+        // Bind controller views first, then enable controller
+        // This ensures the complete UI appears together, not in pieces
         binding.playerView.postDelayed({
             bindControllerViews()
             applyOrientationSettings(isLandscape)
-        }, 100)
+            
+            // NOW enable and show the full controller - all UI elements will appear together
+            binding.playerView.useController = true
+            binding.playerView.controllerAutoShow = true
+            binding.playerView.showController()
+        }, 150)  // Slight delay to ensure everything is bound
 
         configurePlayerInteractions()
         setupLockOverlay()
