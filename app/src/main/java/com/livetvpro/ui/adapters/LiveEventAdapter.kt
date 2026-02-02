@@ -61,8 +61,10 @@ class LiveEventAdapter(
         // 1. Set League Name with bold font
         binding.leagueName.text = event.league ?: "Unknown League"
         
-        // 2. Set Category Tag
-        binding.categoryTag.text = event.category ?: "Sports"
+        // 2. Set Category Tag (use eventCategoryName if category is empty)
+        binding.categoryTag.text = event.category.ifEmpty { 
+            event.eventCategoryName.ifEmpty { "Sports" }
+        }
         
         // 3. Load League Logo (from leagueLogo URL)
         Glide.with(context)
