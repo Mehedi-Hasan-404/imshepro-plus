@@ -186,15 +186,17 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
+        // FIXED: Show the full player UI immediately, but with a centered loading spinner
+        // The spinner will overlay the player until the stream is ready
         binding.progressBar.visibility = View.VISIBLE
         
-        // FIX: Force controller to show immediately so user sees all controls including back button
+        // Enable controller so the full UI is visible, but player won't be interactive until ready
         binding.playerView.useController = true
         binding.playerView.showController()
         
         setupPlayer()
         
-        // Bind controller views immediately so everything is ready
+        // Bind controller views immediately so the full UI is ready
         binding.playerView.postDelayed({
             bindControllerViews()
             applyOrientationSettings(isLandscape)
@@ -890,8 +892,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.errorText.text = ""
         binding.progressBar.visibility = View.VISIBLE
         
-        // FIX: Keep controller enabled so user can press back button if needed
-        // Spinner will show on top, but controls remain accessible
+        // Show full UI with loading spinner centered on top
         
         trackSelector = DefaultTrackSelector(this)
 
@@ -965,6 +966,8 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_READY -> {
+                                    // Stream is ready - just hide the loading spinner
+                                    // UI is already visible, so just remove the loading overlay
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
@@ -1037,6 +1040,9 @@ class PlayerActivity : AppCompatActivity() {
     
     private fun showError(message: String) {
         binding.progressBar.visibility = View.GONE
+        
+        // Controls are already visible, just show the error message
+        
         binding.errorText.apply {
             text = message
             typeface = try {
