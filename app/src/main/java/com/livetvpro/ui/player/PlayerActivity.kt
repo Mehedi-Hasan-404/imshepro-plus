@@ -529,22 +529,19 @@ class PlayerActivity : AppCompatActivity() {
 
     /**
      * Configure UI for entering PiP mode
-     * UPDATED: Keep all UI elements visible in background as-is
+     * UPDATED: Keep all UI elements visible in background as-is, no system bars manipulation
      */
     private fun enterPipUIMode() {
         // Don't hide anything - keep controls, overlays, and all UI visible in background
-        // The PiP window will show only the video player, but the background activity
+        // The PiP window will show the player, and the background activity
         // remains intact with all UI elements in place
         
-        // Still adjust resize mode for PiP window
-        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        // Don't change resize mode - keep current user setting
+        // binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         
-        // Show system UI in PiP
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        windowInsetsController.apply {
-            show(WindowInsetsCompat.Type.systemBars())
-            show(WindowInsetsCompat.Type.navigationBars())
-        }
+        // DON'T manipulate system bars in PiP - this causes black bars at top
+        // The system bars push content down, creating gaps in the PiP window
+        // Let PiP handle its own display naturally
     }
 
     /**
