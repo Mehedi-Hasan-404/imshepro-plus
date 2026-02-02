@@ -195,6 +195,15 @@ class PlayerActivity : AppCompatActivity() {
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         
+        // CRITICAL: Show system bars IMMEDIATELY in portrait mode
+        // This ensures status bar is visible from the very start
+        if (!isLandscape) {
+            windowInsetsController.apply {
+                show(WindowInsetsCompat.Type.systemBars())
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+            }
+        }
+        
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
         setupWindowInsets()
