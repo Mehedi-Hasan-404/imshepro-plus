@@ -199,6 +199,12 @@ class PlayerActivity : AppCompatActivity() {
         setupSystemUI(isLandscape)
         setupWindowInsets()
         
+        // CRITICAL: Force 16:9 layout immediately in portrait mode
+        // This prevents the spinner from appearing in center of full screen
+        if (!isLandscape) {
+            exitFullscreen()
+        }
+        
         parseIntent()
 
         if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
@@ -267,25 +273,13 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.relatedItems.observe(this) { channels ->
             relatedChannels = channels
             relatedChannelsAdapter.submitList(channels)
-            
-            val currentOrientation = resources.configuration.orientation
-            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
-            
-            if (!isLandscape) {
-                // ===== FIX: ALWAYS show section in portrait, even if empty =====
-                binding.relatedChannelsSection.visibility = View.VISIBLE
-                binding.relatedLoadingProgress.visibility = View.GONE
-                
-                if (channels.isEmpty()) {
-                    // Even with no data, keep section visible with empty recycler
-                    binding.relatedChannelsRecycler.visibility = View.GONE
-                } else {
-                    binding.relatedChannelsRecycler.visibility = View.VISIBLE
-                }
+            binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
+                View.GONE
             } else {
-                // In landscape, hide the section
-                binding.relatedChannelsSection.visibility = View.GONE
+                View.VISIBLE
             }
+            binding.relatedLoadingProgress.visibility = View.GONE
+            binding.relatedChannelsRecycler.visibility = View.VISIBLE
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -420,11 +414,12 @@ class PlayerActivity : AppCompatActivity() {
      * This is the key method that fixes the layout issues
      */
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
-        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        
         if (isLandscape) {
-            // LANDSCAPE: Fill entire screen
-            params.dimensionRatio = null  // Remove ratio constraint
+            // Use enterFullscreen helper for consistency
+            enterFullscreen()
+            
+            val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+            // Additional landscape-specific constraints
             params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
@@ -435,6 +430,7 @@ class PlayerActivity : AppCompatActivity() {
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             
             binding.playerContainer.setPadding(0, 0, 0, 0)
+            binding.playerContainer.layoutParams = params
             
             // Player view settings
             binding.playerView.controllerAutoShow = false
@@ -442,21 +438,9 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
-            // Hide portrait-only sections
-            binding.relatedChannelsSection.visibility = View.GONE
-            binding.linksSection.visibility = View.GONE
-            
         } else {
-            // PORTRAIT: 16:9 at top with sections below
-            params.dimensionRatio = "16:9"  // Force 16:9 ratio
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
-            params.topMargin = 0
-            params.bottomMargin = 0
-            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET  // Don't extend to bottom
+            // Use exitFullscreen helper for consistency
+            exitFullscreen()
             
             // Player view settings
             binding.playerView.controllerAutoShow = false
@@ -484,20 +468,9 @@ class PlayerActivity : AppCompatActivity() {
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
             
-            // ===== FIX: EXPLICITLY SHOW SECTIONS IN PORTRAIT =====
-            // Show the sections immediately - they'll be hidden by observers if no data
-            binding.relatedChannelsSection.visibility = View.VISIBLE
-            
-            // Show links section if we have multiple links
-            if (allEventLinks.size > 1) {
-                binding.linksSection.visibility = View.VISIBLE
-            } else {
-                binding.linksSection.visibility = View.GONE
-            }
+            // Sections are visible by default in XML
+            // They will be hidden by ViewModel observers if no data is available
         }
-        
-        // CRITICAL: Apply the updated params
-        binding.playerContainer.layoutParams = params
         
         // CRITICAL: Request layout update
         binding.root.requestLayout()
@@ -507,14 +480,6 @@ class PlayerActivity : AppCompatActivity() {
         super.onResume()
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
-        
-        // ===== FIX: Force sections to be visible in portrait =====
-        if (!isLandscape) {
-            binding.relatedChannelsSection.visibility = View.VISIBLE
-            if (allEventLinks.size > 1) {
-                binding.linksSection.visibility = View.VISIBLE
-            }
-        }
         
         if (player == null) {
             setupPlayer()
@@ -1450,6 +1415,57 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
+    }
+    
+    /**
+     * Force exit fullscreen mode - ensures 16:9 player container immediately
+     */
+    private fun exitFullscreen() {
+        // 1. Show System UI (Status bar, navigation)
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            show(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+        
+        // 2. FORCE the Player Container to 16:9 Ratio
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
+        params.height = 0 // 0dp means "Match Constraint"
+        params.dimensionRatio = "H,16:9" // Force the 16:9 aspect ratio
+        
+        // Remove bottom constraint to allow it to sit at the top only
+        params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+        
+        binding.playerContainer.layoutParams = params
+
+        // 3. Update related UI visibility if needed
+        binding.relatedChannelsSection.visibility = View.VISIBLE
+        binding.linksSection.visibility = View.VISIBLE
+        // Ensure the container itself is visible
+        binding.playerContainer.visibility = View.VISIBLE
+    }
+    
+    /**
+     * Force enter fullscreen mode - makes player fill entire screen
+     */
+    private fun enterFullscreen() {
+        // Hide System UI
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            hide(WindowInsetsCompat.Type.systemBars())
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+
+        // Force Player Container to Fill Screen
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
+        params.height = ConstraintLayout.LayoutParams.MATCH_PARENT // Fill height
+        params.dimensionRatio = null // Remove ratio constraint
+        
+        binding.playerContainer.layoutParams = params
+        
+        // Optional: Hide other views if you want true fullscreen
+        binding.relatedChannelsSection.visibility = View.GONE
+        binding.linksSection.visibility = View.GONE
     }
 
     private fun setSubtitleTextSize() {
