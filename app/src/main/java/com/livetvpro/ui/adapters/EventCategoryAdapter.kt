@@ -48,6 +48,7 @@ class EventCategoryAdapter(
 
         fun bind(category: EventCategory, isSelected: Boolean) {
             binding.categoryName.text = category.name
+            binding.categoryName.isSelected = true // Enable marquee scrolling
             
             // Set selection state with MORE RED border when selected
             binding.root.isSelected = isSelected
