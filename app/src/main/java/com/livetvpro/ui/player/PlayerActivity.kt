@@ -123,7 +123,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
     
-    private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
 
     // Content data
@@ -144,13 +143,6 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
-        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
-        private const val EXTRA_CONTROL_TYPE = "control_type"
-        private const val CONTROL_TYPE_PLAY = 1
-        private const val CONTROL_TYPE_PAUSE = 2
-        private const val CONTROL_TYPE_REWIND = 3
-        private const val CONTROL_TYPE_FORWARD = 4
-
         fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
@@ -299,8 +291,13 @@ class PlayerActivity : AppCompatActivity() {
             binding.relatedChannelsRecycler.visibility = View.VISIBLE
         }
         
+        // Initialize PiP helper
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            setupPipHelper()
+            pipHelper = PipHelper(
+                activity = this,
+                playerView = binding.playerView,
+                getPlayer = { player }
+            )
         }
     }
     
@@ -526,6 +523,11 @@ class PlayerActivity : AppCompatActivity() {
         
         isInPipMode = isInPictureInPictureMode
         
+        // Notify PipHelper of mode change
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipHelper?.onPictureInPictureModeChanged(isInPictureInPictureMode)
+        }
+        
         if (isInPipMode) {
             // Entering PiP mode
             enterPipUIMode()
@@ -545,10 +547,6 @@ class PlayerActivity : AppCompatActivity() {
         
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipHelper?.updatePictureInPictureParams()
-        }
     }
 
     /**
@@ -607,7 +605,7 @@ class PlayerActivity : AppCompatActivity() {
         super.onUserLeaveHint()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !isInPipMode && player?.isPlaying == true) {
             wasLockedBeforePip = isLocked
-            enterPipMode()
+            pipHelper?.enterPipMode()
         }
     }
 
@@ -836,13 +834,18 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipHelper?.onStop()
+        }
         releasePlayer()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacksAndMessages(null)
-        unregisterPipReceiver()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipHelper?.onStop()
+        }
         releasePlayer()
     }
 
@@ -1305,7 +1308,7 @@ class PlayerActivity : AppCompatActivity() {
         
         btnPip?.setOnClickListener {
             if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                enterPipMode()
+                pipHelper?.enterPipMode()
             }
         }
         
@@ -1513,221 +1516,8 @@ class PlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION)
     }
 
-    private fun setSubtitleTextSizePiP() {
-        val subtitleView = binding.playerView.subtitleView ?: return
-        subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
-    }
+
     
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun enterPipMode() {
-        val helper = pipHelper ?: return
-        
-        if (!helper.isPipSupported()) {
-            return
-        }
-        
-        if (!helper.checkPipPermission()) {
-            helper.openPipSettings()
-            return
-        }
-        
-        player?.let {
-            if (!it.isPlaying) {
-                it.play()
-            }
-        }
-        
-        wasLockedBeforePip = isLocked
-        
-        setSubtitleTextSizePiP()
-        
-        helper.updatePictureInPictureParams()
-        helper.enterPipMode()
-    }
-
-    private fun updatePipParams(enter: Boolean = false) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        
-        try {
-            val format = player?.videoFormat
-            val width = format?.width ?: 16
-            val height = format?.height ?: 9
-            
-            var ratio = if (width > 0 && height > 0) {
-                Rational(width, height)
-            } else {
-                Rational(16, 9)
-            }
-            
-            val rationalLimitWide = Rational(239, 100)
-            val rationalLimitTall = Rational(100, 239)
-            
-            if (ratio.toFloat() > rationalLimitWide.toFloat()) {
-                ratio = rationalLimitWide
-            } else if (ratio.toFloat() < rationalLimitTall.toFloat()) {
-                ratio = rationalLimitTall
-            }
-            
-            val builder = PictureInPictureParams.Builder()
-            builder.setAspectRatio(ratio)
-            
-            val actions = buildPipActions()
-            builder.setActions(actions)
-            
-            val pipSourceRect = android.graphics.Rect()
-            binding.playerView.getGlobalVisibleRect(pipSourceRect)
-            if (!pipSourceRect.isEmpty) {
-                builder.setSourceRectHint(pipSourceRect)
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                builder.setAutoEnterEnabled(false)
-                builder.setSeamlessResizeEnabled(true)
-            }
-            
-            if (enter) {
-                enterPictureInPictureMode(builder.build())
-            } else {
-                setPictureInPictureParams(builder.build())
-            }
-        } catch (e: Exception) {
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun buildPipActions(): List<RemoteAction> {
-        val actions = mutableListOf<RemoteAction>()
-        
-        val rewindIntent = PendingIntent.getBroadcast(
-            this,
-            CONTROL_TYPE_REWIND,
-            Intent(ACTION_MEDIA_CONTROL)
-                .setPackage(packageName)
-                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_REWIND),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        actions.add(RemoteAction(
-            Icon.createWithResource(this, R.drawable.ic_skip_backward),
-            "Rewind",
-            "Rewind 10s",
-            rewindIntent
-        ))
-        
-        val isPlaying = player?.isPlaying == true
-        if (isPlaying) {
-            val pauseIntent = PendingIntent.getBroadcast(
-                this,
-                CONTROL_TYPE_PAUSE,
-                Intent(ACTION_MEDIA_CONTROL)
-                    .setPackage(packageName)
-                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
-                PendingIntent.FLAG_IMMUTABLE
-            )
-            actions.add(RemoteAction(
-                Icon.createWithResource(this, R.drawable.ic_pause),
-                getString(R.string.pause),
-                getString(R.string.pause),
-                pauseIntent
-            ))
-        } else {
-            val playIntent = PendingIntent.getBroadcast(
-                this,
-                CONTROL_TYPE_PLAY,
-                Intent(ACTION_MEDIA_CONTROL)
-                    .setPackage(packageName)
-                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PLAY),
-                PendingIntent.FLAG_IMMUTABLE
-            )
-            actions.add(RemoteAction(
-                Icon.createWithResource(this, R.drawable.ic_play),
-                getString(R.string.play),
-                getString(R.string.play),
-                playIntent
-            ))
-        }
-        
-        val forwardIntent = PendingIntent.getBroadcast(
-            this,
-            CONTROL_TYPE_FORWARD,
-            Intent(ACTION_MEDIA_CONTROL)
-                .setPackage(packageName)
-                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_FORWARD),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        actions.add(RemoteAction(
-            Icon.createWithResource(this, R.drawable.ic_skip_forward),
-            "Forward",
-            "Forward 10s",
-            forwardIntent
-        ))
-        
-        return actions
-    }
-
-    private fun registerPipReceiver() {
-        if (pipReceiver != null) return
-        
-        pipReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action != ACTION_MEDIA_CONTROL) return
-                
-                val currentPlayer = player ?: return
-                val hasError = binding.errorView.visibility == View.VISIBLE
-                val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
-                
-                when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
-                    CONTROL_TYPE_PLAY -> {
-                        if (hasError || hasEnded) {
-                            retryPlayback()
-                        } else {
-                            currentPlayer.play()
-                        }
-                        updatePipParams()
-                    }
-                    CONTROL_TYPE_PAUSE -> {
-                        if (hasError || hasEnded) {
-                            retryPlayback()
-                        } else {
-                            currentPlayer.pause()
-                        }
-                        updatePipParams()
-                    }
-                    CONTROL_TYPE_REWIND -> {
-                        if (!hasError && !hasEnded) {
-                            val newPosition = currentPlayer.currentPosition - skipMs
-                            currentPlayer.seekTo(if (newPosition < 0) 0 else newPosition)
-                        }
-                    }
-                    CONTROL_TYPE_FORWARD -> {
-                        if (!hasError && !hasEnded) {
-                            val newPosition = currentPlayer.currentPosition + skipMs
-                            if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
-                                currentPlayer.seekTo(currentPlayer.duration)
-                            } else {
-                                currentPlayer.seekTo(newPosition)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
-        }
-    }
-
-    private fun unregisterPipReceiver() {
-        try {
-            pipReceiver?.let {
-                unregisterReceiver(it)
-                pipReceiver = null
-            }
-        } catch (e: Exception) {
-        }
-    }
 
     private fun retryPlayback() {
         binding.errorView.visibility = View.GONE
@@ -1741,7 +1531,7 @@ class PlayerActivity : AppCompatActivity() {
         try {
             releasePlayer()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                pipHelper?.cleanup()
+                pipHelper?.onStop()
                 pipHelper = null
             }
             isInPipMode = false
