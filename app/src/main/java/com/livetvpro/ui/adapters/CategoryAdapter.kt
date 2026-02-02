@@ -5,10 +5,10 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import com.livetvpro.R
 import com.livetvpro.data.models.Category
 import com.livetvpro.databinding.ItemCategoryBinding
+import com.livetvpro.utils.GlideExtensions
 
 class CategoryAdapter(
     private val onCategoryClick: (Category) -> Unit
@@ -43,16 +43,14 @@ class CategoryAdapter(
         fun bind(category: Category) {
             binding.categoryName.text = category.name
 
-            if (category.iconUrl.isNullOrEmpty()) {
-                binding.categoryIcon.setImageResource(R.drawable.ic_tv_placeholder)
-            } else {
-                Glide.with(binding.categoryIcon)
-                    .load(category.iconUrl)
-                    .placeholder(R.drawable.ic_tv_placeholder)
-                    .error(R.drawable.ic_tv_placeholder)
-                    .centerInside()
-                    .into(binding.categoryIcon)
-            }
+            // ✅ FIXED: Use GlideExtensions for automatic SVG support
+            GlideExtensions.loadImage(
+                binding.categoryIcon,
+                category.iconUrl,
+                R.drawable.ic_tv_placeholder,
+                R.drawable.ic_tv_placeholder,
+                isCircular = false
+            )
         }
     }
 
