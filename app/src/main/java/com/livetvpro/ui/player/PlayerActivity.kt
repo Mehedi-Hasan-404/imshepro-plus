@@ -330,7 +330,10 @@ class PlayerActivity : AppCompatActivity() {
             }
         } else {
             // Show system bars in portrait
-            windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
+            windowInsetsController.apply {
+                show(WindowInsetsCompat.Type.systemBars())
+                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+            }
         }
     }
     
@@ -1422,9 +1425,9 @@ class PlayerActivity : AppCompatActivity() {
      */
     private fun exitFullscreen() {
         // 1. Show System UI (Status bar, navigation)
-        WindowCompat.getInsetsController(window, window.decorView).apply {
+        windowInsetsController.apply {
             show(WindowInsetsCompat.Type.systemBars())
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
         
         // 2. FORCE the Player Container to 16:9 Ratio
@@ -1450,7 +1453,7 @@ class PlayerActivity : AppCompatActivity() {
      */
     private fun enterFullscreen() {
         // Hide System UI
-        WindowCompat.getInsetsController(window, window.decorView).apply {
+        windowInsetsController.apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
