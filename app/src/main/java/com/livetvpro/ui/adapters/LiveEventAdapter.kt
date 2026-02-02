@@ -66,30 +66,35 @@ class LiveEventAdapter(
             event.eventCategoryName.ifEmpty { "Sports" }
         }
         
-        // 3. Load League Logo (from leagueLogo URL)
-        Glide.with(context)
-            .load(event.leagueLogo)
-            .placeholder(R.drawable.ic_channel_placeholder)
-            .error(R.drawable.ic_channel_placeholder)
-            .fitCenter()
-            .into(binding.leagueLogo)
+        // 3. Load League Logo (from leagueLogo URL) with SVG support
+        GlideExtensions.loadImage(
+            binding.leagueLogo,
+            event.leagueLogo,
+            R.drawable.ic_channel_placeholder,
+            R.drawable.ic_channel_placeholder,
+            isCircular = false
+        )
 
         // 4. Set Team Names with bold font
         binding.team1Name.text = event.team1Name
         binding.team2Name.text = event.team2Name
 
-        // 5. Load Team Logos with CIRCULAR CROP
-        Glide.with(context)
-            .load(event.team1Logo)
-            .placeholder(R.drawable.ic_placeholder_team)
-            .circleCrop()
-            .into(binding.team1Logo)
+        // 5. Load Team Logos with CIRCULAR CROP (SVG support)
+        GlideExtensions.loadImage(
+            binding.team1Logo,
+            event.team1Logo,
+            R.drawable.ic_placeholder_team,
+            R.drawable.ic_placeholder_team,
+            isCircular = true
+        )
 
-        Glide.with(context)
-            .load(event.team2Logo)
-            .placeholder(R.drawable.ic_placeholder_team)
-            .circleCrop()
-            .into(binding.team2Logo)
+        GlideExtensions.loadImage(
+            binding.team2Logo,
+            event.team2Logo,
+            R.drawable.ic_placeholder_team,
+            R.drawable.ic_placeholder_team,
+            isCircular = true
+        )
 
         // 6. Logic: LIVE vs UPCOMING vs ENDED
         try {
