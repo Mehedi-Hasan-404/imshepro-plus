@@ -191,11 +191,14 @@ class PlayerActivity : AppCompatActivity() {
         binding.relatedChannelsSection.visibility = View.GONE
         binding.linksSection.visibility = View.GONE
         
+        // FIX: Completely disable controller during initial loading
+        binding.playerView.useController = false
+        
         setupPlayer()
         
-        // Bind controller views after a short delay to ensure player view is laid out
+        // FIX: Don't bind controller views until stream is ready
+        // Moved bindControllerViews() to STATE_READY in player listener
         binding.playerView.postDelayed({
-            bindControllerViews()
             applyOrientationSettings(isLandscape)
         }, 100)
 
@@ -977,11 +980,14 @@ class PlayerActivity : AppCompatActivity() {
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
                                     
-                                    // FIX: Enable controller but don't auto-show it - user must tap to see controls
+                                    // FIX: Bind and enable controller only when stream is ready
                                     if (!isLocked && !isInPipMode) {
+                                        // First time binding - do it once when ready
+                                        if (btnBack == null) {
+                                            bindControllerViews()
+                                        }
                                         binding.playerView.useController = true
-                                        // Don't auto-show controller - let user tap the screen
-                                        // binding.playerView.showController() // Removed this line
+                                        // User must tap screen to see controls
                                     }
                                     
                                     // FIX: Show portrait sections once stream is ready
