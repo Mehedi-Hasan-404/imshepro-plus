@@ -186,25 +186,22 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
-        // FIXED: Don't show any controls until everything is fully initialized
-        // This prevents the "partial UI" state you're seeing
+        // CRITICAL FIX: Show the complete proper UI immediately instead of partial loading state
+        // This prevents the jarring "black screen with bottom controls" intermediate state
+        
+        // Initialize all UI components BEFORE showing anything
+        bindControllerViews()
+        applyOrientationSettings(isLandscape)
+        
+        // Set up the full player UI structure
+        binding.playerView.useController = true
+        binding.playerView.controllerAutoShow = false  // Don't auto-show during loading
+        
+        // Show loading state in the center (proper way)
         binding.progressBar.visibility = View.VISIBLE
-        binding.playerView.useController = false
-        binding.playerView.controllerAutoShow = false
         
+        // Now setup and start the player - UI is already in place
         setupPlayer()
-        
-        // Bind controller views first, then enable controller
-        // This ensures the complete UI appears together, not in pieces
-        binding.playerView.postDelayed({
-            bindControllerViews()
-            applyOrientationSettings(isLandscape)
-            
-            // NOW enable and show the full controller - all UI elements will appear together
-            binding.playerView.useController = true
-            binding.playerView.controllerAutoShow = true
-            binding.playerView.showController()
-        }, 150)  // Slight delay to ensure everything is bound
 
         configurePlayerInteractions()
         setupLockOverlay()
@@ -970,11 +967,14 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_READY -> {
-                                    // Stream is ready - just hide the loading spinner
-                                    // UI is already visible, so just remove the loading overlay
+                                    // Stream is ready - hide loading and show the controller
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
+                                    
+                                    // Show the controller now that stream is ready
+                                    binding.playerView.showController()
+                                    
                                     updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
