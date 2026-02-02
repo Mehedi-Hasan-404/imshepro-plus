@@ -1,29 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- PIP Related Strings -->
-    <string name="pip">PiP</string>
-    <string name="pip_not_supported">Picture-in-Picture is not supported on this device</string>
-    <string name="pip_entering">Entering Picture-in-Picture...</string>
-    <string name="pip_mode_active">Picture-in-Picture mode active</string>
     
-    <!-- PIP Settings Dialog -->
     <string name="pip_settings">PiP Settings</string>
     <string name="pip_settings_title">Picture-in-Picture Controls</string>
     <string name="pip_settings_description">Choose the type of controls to display in PiP mode</string>
     
-    <!-- PIP Action Modes -->
     <string name="pip_mode_skip">Skip Forward/Backward</string>
     <string name="pip_mode_skip_description">Skip 10 seconds forward or backward in the current video</string>
     
     <string name="pip_mode_next_prev">Next/Previous</string>
     <string name="pip_mode_next_prev_description">Navigate to the next or previous video in playlist</string>
     
-    <!-- Common Strings -->
     <string name="apply">Apply</string>
-    <string name="cancel">Cancel</string>
-    <string name="play">Play</string>
-    <string name="pause">Pause</string>
     
-    <!-- Navigation Menu -->
     <string name="menu_pip_settings">PiP Settings</string>
 </resources>
