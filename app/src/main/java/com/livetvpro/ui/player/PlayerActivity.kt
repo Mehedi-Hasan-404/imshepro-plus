@@ -188,6 +188,10 @@ class PlayerActivity : AppCompatActivity() {
 
         binding.progressBar.visibility = View.VISIBLE
         
+        // FIX: Force controller to show immediately so user sees all controls including back button
+        binding.playerView.useController = true
+        binding.playerView.showController()
+        
         setupPlayer()
         
         // Bind controller views immediately so everything is ready
