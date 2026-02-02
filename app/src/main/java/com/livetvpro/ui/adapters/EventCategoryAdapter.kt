@@ -5,10 +5,10 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import com.livetvpro.R
 import com.livetvpro.data.models.EventCategory
 import com.livetvpro.databinding.ItemEventCategoryBinding
+import com.livetvpro.utils.GlideExtensions
 
 class EventCategoryAdapter(
     private val onCategoryClick: (EventCategory) -> Unit
@@ -59,13 +59,14 @@ class EventCategoryAdapter(
                 android.graphics.Color.parseColor("#5A5A5A") // Lighter Gray for unselected
             }
             
-            // Load circular logo
-            Glide.with(binding.categoryLogo)
-                .load(category.logoUrl)
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .error(R.drawable.ic_channel_placeholder)
-                .circleCrop()
-                .into(binding.categoryLogo)
+            // ✅ FIXED: Use GlideExtensions for automatic SVG support with circular crop
+            GlideExtensions.loadImage(
+                binding.categoryLogo,
+                category.logoUrl,
+                R.drawable.ic_channel_placeholder,
+                R.drawable.ic_channel_placeholder,
+                isCircular = true
+            )
         }
     }
 
