@@ -155,6 +155,9 @@ dependencies {
 
     implementation("com.github.bumptech.glide:glide:4.16.0")
     kapt("com.github.bumptech.glide:compiler:4.16.0")
+    
+    // SVG support for Glide
+    implementation("com.caverock:androidsvg-aar:1.4")
 
     implementation("androidx.recyclerview:recyclerview:1.3.2")
 
