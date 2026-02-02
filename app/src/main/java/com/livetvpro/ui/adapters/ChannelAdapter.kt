@@ -5,11 +5,11 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ItemChannelBinding
-import com.livetvpro.utils.GlideExtensions
 
 class ChannelAdapter(
     private val onChannelClick: (Channel) -> Unit,
@@ -77,7 +77,7 @@ class ChannelAdapter(
         fun bind(channel: Channel) {
             binding.channelName.text = channel.name
             
-            // CRITICAL: Enable marquee scrolling for long channel names
+            // CRITICAL: Enable marquee scrolling
             binding.channelName.isSelected = true
 
             val isFav = isFavorite(channel.id)
@@ -87,14 +87,12 @@ class ChannelAdapter(
                 android.view.View.GONE
             }
 
-            // ✅ FIXED: Use GlideExtensions for automatic SVG support
-            GlideExtensions.loadImage(
-                binding.channelLogo,
-                channel.logoUrl,
-                R.drawable.ic_channel_placeholder,
-                R.drawable.ic_channel_placeholder,
-                isCircular = false  // Set to true if you want circular channel logos
-            )
+            Glide.with(binding.channelLogo)
+                .load(channel.logoUrl)
+                .placeholder(R.drawable.ic_channel_placeholder)
+                .error(R.drawable.ic_channel_placeholder)
+                .centerInside()
+                .into(binding.channelLogo)
         }
     }
 
