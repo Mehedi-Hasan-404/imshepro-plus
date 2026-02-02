@@ -529,13 +529,15 @@ class PlayerActivity : AppCompatActivity() {
 
     /**
      * Configure UI for entering PiP mode
+     * UPDATED: Keep all UI elements visible in background as-is
      */
     private fun enterPipUIMode() {
-        binding.playerView.useController = false 
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
+        // Don't hide anything - keep controls, overlays, and all UI visible in background
+        // The PiP window will show only the video player, but the background activity
+        // remains intact with all UI elements in place
+        
+        // Still adjust resize mode for PiP window
         binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        binding.playerView.hideController()
         
         // Show system UI in PiP
         WindowCompat.setDecorFitsSystemWindows(window, true)
@@ -1509,9 +1511,10 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
 
-        binding.playerView.useController = false
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
+        // Don't hide UI elements - keep everything visible in background
+        // binding.playerView.useController = false  // REMOVED
+        // binding.lockOverlay.visibility = View.GONE  // REMOVED
+        // binding.unlockButton.visibility = View.GONE  // REMOVED
 
         setSubtitleTextSizePiP()
 
