@@ -5,24 +5,24 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginHorizontal="8dp"
-    android:layout_marginVertical="4dp"
+    android:layout_marginVertical="3dp"
     app:cardBackgroundColor="#1F1F1F"
     app:cardCornerRadius="12dp"
     app:cardElevation="2dp"
     app:strokeColor="#EF4444"
-    app:strokeWidth="2dp">
+    app:strokeWidth="1dp">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:minHeight="100dp">
+        android:padding="6dp"
+        android:minHeight="85dp">
 
         <!-- League Logo -->
         <ImageView
             android:id="@+id/leagueLogo"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:scaleType="fitCenter"
             android:adjustViewBounds="true"
             android:src="@drawable/ic_channel_placeholder"
@@ -34,12 +34,12 @@
             android:id="@+id/leagueName"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
+            android:layout_marginStart="6dp"
             android:layout_marginEnd="6dp"
             android:fontFamily="@font/bergen_sans"
             android:text="League Name"
             android:textColor="#FFFFFF"
-            android:textSize="14sp"
+            android:textSize="13sp"
             android:textStyle="bold"
             android:maxLines="1"
             android:ellipsize="end"
@@ -55,11 +55,11 @@
             android:layout_height="wrap_content"
             android:background="@drawable/bg_category_pill"
             android:fontFamily="@font/bergen_sans"
-            android:paddingHorizontal="10dp"
-            android:paddingVertical="4dp"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
             android:text="Cricket"
             android:textColor="#FFFFFF"
-            android:textSize="11sp"
+            android:textSize="10sp"
             android:textStyle="bold"
             app:layout_constraintBottom_toBottomOf="@+id/leagueName"
             app:layout_constraintEnd_toEndOf="parent"
@@ -70,7 +70,7 @@
             android:id="@+id/divider"
             android:layout_width="match_parent"
             android:layout_height="1dp"
-            android:layout_marginTop="6dp"
+            android:layout_marginTop="4dp"
             android:background="#3A3A3A"
             app:layout_constraintTop_toBottomOf="@+id/leagueLogo" />
 
@@ -79,8 +79,8 @@
             android:id="@+id/team1Section"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="6dp"
+            android:layout_marginTop="5dp"
+            android:layout_marginEnd="4dp"
             android:orientation="vertical"
             android:gravity="center"
             app:layout_constraintStart_toStartOf="parent"
@@ -90,8 +90,8 @@
             <!-- Team 1 Logo (CIRCULAR) -->
             <ImageView
                 android:id="@+id/team1Logo"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:contentDescription="Team 1"
                 android:scaleType="centerCrop"
                 tools:srcCompat="@tools:sample/avatars" />
@@ -185,7 +185,7 @@
             android:id="@+id/team2Section"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="6dp"
+            android:layout_marginStart="4dp"
             android:orientation="vertical"
             android:gravity="center"
             app:layout_constraintEnd_toEndOf="parent"
@@ -195,8 +195,8 @@
             <!-- Team 2 Logo (CIRCULAR) -->
             <ImageView
                 android:id="@+id/team2Logo"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
                 android:contentDescription="Team 2"
                 android:scaleType="centerCrop"
                 tools:srcCompat="@tools:sample/avatars" />
