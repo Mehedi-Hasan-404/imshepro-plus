@@ -12,6 +12,7 @@ import com.bumptech.glide.Glide
 import com.livetvpro.R
 import com.livetvpro.databinding.ItemLiveEventBinding
 import com.livetvpro.data.models.LiveEvent
+import com.livetvpro.utils.GlideExtensions
 import java.text.SimpleDateFormat
 import java.util.Locale
 import java.util.TimeZone
