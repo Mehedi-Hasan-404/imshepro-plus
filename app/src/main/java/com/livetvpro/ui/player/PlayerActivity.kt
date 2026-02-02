@@ -267,13 +267,25 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.relatedItems.observe(this) { channels ->
             relatedChannels = channels
             relatedChannelsAdapter.submitList(channels)
-            binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
-                View.GONE
+            
+            val currentOrientation = resources.configuration.orientation
+            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+            
+            if (!isLandscape) {
+                // ===== FIX: ALWAYS show section in portrait, even if empty =====
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+                binding.relatedLoadingProgress.visibility = View.GONE
+                
+                if (channels.isEmpty()) {
+                    // Even with no data, keep section visible with empty recycler
+                    binding.relatedChannelsRecycler.visibility = View.GONE
+                } else {
+                    binding.relatedChannelsRecycler.visibility = View.VISIBLE
+                }
             } else {
-                View.VISIBLE
+                // In landscape, hide the section
+                binding.relatedChannelsSection.visibility = View.GONE
             }
-            binding.relatedLoadingProgress.visibility = View.GONE
-            binding.relatedChannelsRecycler.visibility = View.VISIBLE
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -472,8 +484,16 @@ class PlayerActivity : AppCompatActivity() {
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
             
-            // Sections are visible by default in XML
-            // They will be hidden by ViewModel observers if no data is available
+            // ===== FIX: EXPLICITLY SHOW SECTIONS IN PORTRAIT =====
+            // Show the sections immediately - they'll be hidden by observers if no data
+            binding.relatedChannelsSection.visibility = View.VISIBLE
+            
+            // Show links section if we have multiple links
+            if (allEventLinks.size > 1) {
+                binding.linksSection.visibility = View.VISIBLE
+            } else {
+                binding.linksSection.visibility = View.GONE
+            }
         }
         
         // CRITICAL: Apply the updated params
@@ -487,6 +507,14 @@ class PlayerActivity : AppCompatActivity() {
         super.onResume()
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
+        
+        // ===== FIX: Force sections to be visible in portrait =====
+        if (!isLandscape) {
+            binding.relatedChannelsSection.visibility = View.VISIBLE
+            if (allEventLinks.size > 1) {
+                binding.linksSection.visibility = View.VISIBLE
+            }
+        }
         
         if (player == null) {
             setupPlayer()
