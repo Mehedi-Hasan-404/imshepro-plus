@@ -186,19 +186,16 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
-        // FIX: Show only main loading spinner, hide everything else initially
+        // FIX: Show normal player interface immediately, not a blank loading screen
         binding.progressBar.visibility = View.VISIBLE
         binding.relatedChannelsSection.visibility = View.GONE
         binding.linksSection.visibility = View.GONE
         
-        // FIX: Completely disable controller during initial loading
-        binding.playerView.useController = false
-        
         setupPlayer()
         
-        // FIX: Don't bind controller views until stream is ready
-        // Moved bindControllerViews() to STATE_READY in player listener
+        // Bind controller views immediately so user has controls (including back button)
         binding.playerView.postDelayed({
+            bindControllerViews()
             applyOrientationSettings(isLandscape)
         }, 100)
 
@@ -900,10 +897,9 @@ class PlayerActivity : AppCompatActivity() {
         binding.errorText.text = ""
         binding.progressBar.visibility = View.VISIBLE
         
-        // FIX: Hide player controls during initial loading to show clean loading screen
-        binding.playerView.useController = false
-        binding.playerView.hideController()
-
+        // FIX: Keep controller enabled so user can press back button if needed
+        // Spinner will show on top, but controls remain accessible
+        
         trackSelector = DefaultTrackSelector(this)
 
         try {
@@ -979,16 +975,6 @@ class PlayerActivity : AppCompatActivity() {
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
-                                    
-                                    // FIX: Bind and enable controller only when stream is ready
-                                    if (!isLocked && !isInPipMode) {
-                                        // First time binding - do it once when ready
-                                        if (btnBack == null) {
-                                            bindControllerViews()
-                                        }
-                                        binding.playerView.useController = true
-                                        // User must tap screen to see controls
-                                    }
                                     
                                     // FIX: Show portrait sections once stream is ready
                                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
