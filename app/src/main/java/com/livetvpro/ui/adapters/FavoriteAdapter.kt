@@ -5,10 +5,10 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.livetvpro.R
 import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.databinding.ItemFavoriteBinding
-import com.livetvpro.utils.GlideExtensions
 
 class FavoriteAdapter(
     private val onChannelClick: (FavoriteChannel) -> Unit,
@@ -37,14 +37,15 @@ class FavoriteAdapter(
                 // Set channel name
                 tvName.text = favorite.name
                 
-                // ✅ FIXED: Use GlideExtensions for automatic SVG support
-                GlideExtensions.loadImage(
-                    imgLogo,
-                    favorite.logoUrl,
-                    R.drawable.ic_channel_placeholder,
-                    R.drawable.ic_channel_placeholder,
-                    isCircular = false
-                )
+                // ✅ REMOVED: tvCategory reference (no longer in layout)
+                // The new layout doesn't show category name for cleaner look
+                
+                // Load channel logo with Glide
+                Glide.with(imgLogo.context)
+                    .load(favorite.logoUrl)
+                    .placeholder(R.drawable.ic_channel_placeholder)
+                    .error(R.drawable.ic_channel_placeholder)
+                    .into(imgLogo)
 
                 // Handle channel click
                 root.setOnClickListener {
