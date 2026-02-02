@@ -375,29 +375,35 @@ class PlayerActivity : AppCompatActivity() {
      * This is called instead of recreating the activity (thanks to configChanges in manifest)
      */
     override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        
-        // If in PiP mode, just hide controller and return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
-            binding.playerView.hideController()
-            return
-        }
-        
-        val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
-        
-        // Apply all orientation-related changes in the correct sequence
-        setupWindowFlags(isLandscape)
-        setupSystemUI(isLandscape)
-        applyOrientationSettings(isLandscape)
-        setSubtitleTextSize()
-        
-        // Force layout refresh
-        binding.root.post {
-            binding.root.requestLayout()
-            binding.playerContainer.requestLayout()
-            binding.playerView.requestLayout()
-        }
+    super.onConfigurationChanged(newConfig)
+    
+    // If in PiP mode, just hide controller and return
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
+        binding.playerView.hideController()
+        return
     }
+    
+    val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
+    
+    // Apply all orientation-related changes in the correct sequence
+    setupWindowFlags(isLandscape)
+    setupSystemUI(isLandscape)
+    applyOrientationSettings(isLandscape)
+    setSubtitleTextSize()
+    
+    // FIX: Safety check to keep controls hidden if we are currently loading/buffering
+    if (player?.playbackState == Player.STATE_BUFFERING) {
+        binding.playerView.hideController()
+    }
+
+    // Force layout refresh
+    binding.root.post {
+        binding.root.requestLayout()
+        binding.playerContainer.requestLayout()
+        binding.playerView.requestLayout()
+    }
+}
+
 
     /**
      * Apply all orientation-specific settings
@@ -907,13 +913,14 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun setupPlayer() {
+        private fun setupPlayer() {
         if (player != null) return
         binding.errorView.visibility = View.GONE
         binding.errorText.text = ""
         binding.progressBar.visibility = View.VISIBLE
         
-        // Show full UI with loading spinner centered on top
+        // FIX 1: Hide controls immediately on setup start
+        binding.playerView.hideController()
         
         trackSelector = DefaultTrackSelector(this)
 
@@ -978,6 +985,10 @@ class PlayerActivity : AppCompatActivity() {
                 .setSeekForwardIncrementMs(skipMs)
                 .build().also { exo ->
                     binding.playerView.player = exo
+                    
+                    // FIX 2: Ensure controls remain hidden after attaching player
+                    binding.playerView.hideController()
+                    
                     val mediaItem = MediaItem.fromUri(streamInfo.url)
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
@@ -987,22 +998,27 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_READY -> {
-                                    // Stream is ready - hide loading and show the controller
+                                    // Stream is ready - hide loading
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
                                     
-                                    // Show the controller now that stream is ready
-                                    binding.playerView.showController()
+                                    // FIX 3: REMOVED binding.playerView.showController()
+                                    // Controls will NOT auto-show. User must tap to see them.
                                     
                                     updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
                                     binding.errorView.visibility = View.GONE
+                                    
+                                    // FIX 4: Explicitly hide controls during buffering
+                                    binding.playerView.hideController()
                                 }
                                 Player.STATE_ENDED -> {
                                     binding.progressBar.visibility = View.GONE
+                                    // Optional: You might want to show controls here so user can restart
+                                    binding.playerView.showController()
                                 }
                                 Player.STATE_IDLE -> {}
                             }
@@ -1061,6 +1077,7 @@ class PlayerActivity : AppCompatActivity() {
             showError("Failed to initialize player")
         }
     }
+
     
     private fun showError(message: String) {
         binding.progressBar.visibility = View.GONE
@@ -1685,13 +1702,18 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun retryPlayback() {
+        private fun retryPlayback() {
         binding.errorView.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
+        
+        // FIX 5: Hide controls explicitly when retrying
+        binding.playerView.hideController()
+        
         player?.release()
         player = null
         setupPlayer()
     }
+
 
     override fun finish() {
         try {
