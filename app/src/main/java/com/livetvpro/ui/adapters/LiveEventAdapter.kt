@@ -27,7 +27,11 @@ class LiveEventAdapter(
     }
 
     // Local time formats (user's timezone)
-    private val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
+    private val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault()).apply {
+        val symbols = dateFormatSymbols
+        symbols.amPmStrings = arrayOf("AM", "PM")
+        dateFormatSymbols = symbols
+    }
     private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()) // Full date with year
     
     // Handler for countdown updates
