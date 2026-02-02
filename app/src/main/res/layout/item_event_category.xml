@@ -24,27 +24,17 @@
             app:cardCornerRadius="32dp"
             app:cardElevation="0dp"
             app:strokeColor="#3A3A3A"
-            app:strokeWidth="8dp"
+            app:strokeWidth="3dp"
             app:cardBackgroundColor="@android:color/transparent"
             android:foreground="?attr/selectableItemBackgroundBorderless">
 
-            <!-- Inner Image Container -->
-            <androidx.cardview.widget.CardView
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_gravity="center"
-                app:cardCornerRadius="24dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="#FFFFFF">
-
-                <ImageView
-                    android:id="@+id/category_logo"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scaleType="centerCrop"
-                    android:contentDescription="Category Logo" />
-
-            </androidx.cardview.widget.CardView>
+            <!-- Circular Image (No inner white background) -->
+            <ImageView
+                android:id="@+id/category_logo"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:scaleType="centerCrop"
+                android:contentDescription="Category Logo" />
 
         </com.google.android.material.card.MaterialCardView>
 
