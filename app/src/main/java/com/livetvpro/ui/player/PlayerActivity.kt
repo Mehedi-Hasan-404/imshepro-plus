@@ -214,7 +214,7 @@ class PlayerActivity : AppCompatActivity() {
                 contentId = channelData!!.id
                 contentName = channelData!!.name
                 
-                val allLinks = channelData!!.links
+                val allLinks = channelData!!.links ?: emptyList()
                 allEventLinks = allLinks.map { link ->
                     LiveEventLink(
                         id = UUID.randomUUID().toString(),
@@ -248,7 +248,7 @@ class PlayerActivity : AppCompatActivity() {
                 contentId = eventData!!.id
                 contentName = eventData!!.title
                 
-                allEventLinks = eventData!!.links
+                allEventLinks = eventData!!.links ?: emptyList()
                 
                 currentLinkIndex = if (selectedLinkIndex >= 0 && selectedLinkIndex < allEventLinks.size) {
                     selectedLinkIndex
