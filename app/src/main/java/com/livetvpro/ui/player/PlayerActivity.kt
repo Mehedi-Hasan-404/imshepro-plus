@@ -51,15 +51,18 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
+import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.databinding.ActivityPlayerBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import com.livetvpro.ui.adapters.LinkChipAdapter
 import com.livetvpro.data.models.LiveEventLink
+import com.livetvpro.ui.player.dialogs.PipSettingsDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
+import javax.inject.Inject
 
 /**
  * PlayerActivity - Main video player activity
@@ -82,6 +85,11 @@ class PlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
     private var playerListener: Player.Listener? = null
+    
+    @Inject
+    lateinit var preferencesManager: PreferencesManager
+    
+    private var pipHelper: PipHelper? = null
     
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
@@ -292,7 +300,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            registerPipReceiver()
+            setupPipHelper()
         }
     }
     
@@ -532,18 +540,15 @@ class PlayerActivity : AppCompatActivity() {
      * UPDATED: Hide controls in PiP window, but background activity stays intact
      */
     private fun enterPipUIMode() {
-        // Hide controls in the PiP window to avoid glitches/conflicts
-        // The PiP window is small and uses system RemoteActions instead
         binding.playerView.useController = false
         binding.playerView.hideController()
         
-        // Hide overlays in PiP window (they don't make sense in small PiP)
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
         
-        // DON'T hide related channels and links - they stay in background activity
-        // DON'T manipulate system bars - this causes black bars at top
-        // DON'T change resize mode - keep current user setting
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipHelper?.updatePictureInPictureParams()
+        }
     }
 
     /**
@@ -600,8 +605,7 @@ class PlayerActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!isInPipMode && player?.isPlaying == true) {
-            userRequestedPip = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !isInPipMode && player?.isPlaying == true) {
             wasLockedBeforePip = isLocked
             enterPipMode()
         }
@@ -925,6 +929,20 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun setupPipHelper() {
+        pipHelper = PipHelper(
+            activity = this,
+            playerView = binding.playerView,
+            getPlayer = { player },
+            preferencesManager = preferencesManager,
+            onRetryPlayback = { retryPlayback() }
+        )
+        
+        pipHelper?.initialize()
+        pipHelper?.registerPipReceiver()
+    }
+
     private fun setupPlayer() {
         if (player != null) return
         binding.errorView.visibility = View.GONE
@@ -1005,15 +1023,15 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_READY -> {
-                                    // Stream is ready - hide loading and show the controller
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
                                     
-                                    // Show the controller now that stream is ready
                                     binding.playerView.showController()
                                     
-                                    updatePipParams()
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        pipHelper?.updatePictureInPictureParams()
+                                    }
                                 }
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
@@ -1028,14 +1046,16 @@ class PlayerActivity : AppCompatActivity() {
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
-                            if (isInPipMode) {
-                                updatePipParams()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                pipHelper?.updatePlaybackAction(isPlaying)
                             }
                         }
 
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
-                            updatePipParams()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                pipHelper?.updatePictureInPictureParams()
+                            }
                         }
 
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -1285,7 +1305,6 @@ class PlayerActivity : AppCompatActivity() {
         
         btnPip?.setOnClickListener {
             if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                userRequestedPip = true
                 enterPipMode()
             }
         }
@@ -1499,20 +1518,31 @@ class PlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
     
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun enterPipMode() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val helper = pipHelper ?: return
         
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
-
+        if (!helper.isPipSupported()) {
+            return
+        }
+        
+        if (!helper.checkPipPermission()) {
+            helper.openPipSettings()
+            return
+        }
+        
         player?.let {
             if (!it.isPlaying) {
                 it.play()
             }
         }
-
+        
+        wasLockedBeforePip = isLocked
+        
         setSubtitleTextSizePiP()
-
-        updatePipParams(enter = true)
+        
+        helper.updatePictureInPictureParams()
+        helper.enterPipMode()
     }
 
     private fun updatePipParams(enter: Boolean = false) {
@@ -1710,7 +1740,10 @@ class PlayerActivity : AppCompatActivity() {
     override fun finish() {
         try {
             releasePlayer()
-            unregisterPipReceiver()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                pipHelper?.cleanup()
+                pipHelper = null
+            }
             isInPipMode = false
             userRequestedPip = false
             wasLockedBeforePip = false
