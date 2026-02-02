@@ -147,16 +147,28 @@ class PlayerActivity : AppCompatActivity() {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
+                // Disable enter animation to prevent black screen
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
             context.startActivity(intent)
+            // Override transition to instant (no animation)
+            if (context is android.app.Activity) {
+                context.overridePendingTransition(0, 0)
+            }
         }
 
         fun startWithEvent(context: Context, event: LiveEvent, linkIndex: Int = -1) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_EVENT, event as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
+                // Disable enter animation to prevent black screen
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
             context.startActivity(intent)
+            // Override transition to instant (no animation)
+            if (context is android.app.Activity) {
+                context.overridePendingTransition(0, 0)
+            }
         }
     }
 
