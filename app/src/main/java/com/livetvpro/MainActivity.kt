@@ -2,6 +2,7 @@ package com.livetvpro
 
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
+import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
@@ -14,6 +15,7 @@ import androidx.navigation.fragment.NavHostFragment
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.local.ThemeManager
 import com.livetvpro.databinding.ActivityMainBinding
+import com.livetvpro.ui.player.dialogs.PipSettingsDialog
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -73,6 +75,13 @@ class MainActivity : AppCompatActivity() {
         drawerToggle?.let {
             binding.drawerLayout.addDrawerListener(it)
         }
+        
+        val pipSettingsItem = binding.navigationView.menu.findItem(R.id.pipSettings)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            pipSettingsItem?.isVisible = true
+        } else {
+            pipSettingsItem?.isVisible = false
+        }
     }
 
     private fun setupNavigation() {
@@ -106,6 +115,10 @@ class MainActivity : AppCompatActivity() {
         binding.navigationView.setNavigationItemSelectedListener { menuItem ->
             if (menuItem.itemId in topLevelDestinations) {
                 navigateTopLevel(menuItem.itemId)
+            } else if (menuItem.itemId == R.id.pipSettings) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    showPipSettingsDialog()
+                }
             }
             binding.drawerLayout.closeDrawer(GravityCompat.START)
             true
@@ -505,6 +518,18 @@ class MainActivity : AppCompatActivity() {
         animator.interpolator = android.view.animation.DecelerateInterpolator()
         animator.duration = 300
         animator.start()
+    }
+
+    private fun showPipSettingsDialog() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val dialog = PipSettingsDialog(
+                context = this,
+                preferencesManager = preferencesManager,
+                onSettingsChanged = {
+                }
+            )
+            dialog.show()
+        }
     }
 
     @Deprecated("Deprecated in Java")
