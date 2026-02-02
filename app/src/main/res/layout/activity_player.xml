@@ -7,6 +7,7 @@
     android:background="@android:color/black"
     android:fitsSystemWindows="false">
 
+    <!-- UPDATED: Added dimensionRatio for proper Portrait behavior -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -24,7 +25,6 @@
             app:surface_type="texture_view"
             app:controller_layout_id="@layout/exo_modern_player_controls"
             app:use_controller="true"
-            app:auto_show="true"
             app:show_timeout="5000"
             app:resize_mode="fit" />
 
