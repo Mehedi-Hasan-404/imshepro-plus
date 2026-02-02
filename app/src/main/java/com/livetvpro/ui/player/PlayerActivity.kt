@@ -51,18 +51,15 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
-import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.databinding.ActivityPlayerBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import com.livetvpro.ui.adapters.LinkChipAdapter
 import com.livetvpro.data.models.LiveEventLink
-import com.livetvpro.ui.player.dialogs.PipSettingsDialog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
-import javax.inject.Inject
 
 /**
  * PlayerActivity - Main video player activity
@@ -85,11 +82,6 @@ class PlayerActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
     private var playerListener: Player.Listener? = null
-    
-    @Inject
-    lateinit var preferencesManager: PreferencesManager
-    
-    private var pipHelper: PipHelper? = null
     
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
@@ -123,6 +115,7 @@ class PlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
     
+    private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
 
     // Content data
@@ -143,6 +136,13 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
+        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
+        private const val EXTRA_CONTROL_TYPE = "control_type"
+        private const val CONTROL_TYPE_PLAY = 1
+        private const val CONTROL_TYPE_PAUSE = 2
+        private const val CONTROL_TYPE_REWIND = 3
+        private const val CONTROL_TYPE_FORWARD = 4
+
         fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
@@ -195,24 +195,9 @@ class PlayerActivity : AppCompatActivity() {
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         
-        // CRITICAL: Show system bars IMMEDIATELY in portrait mode
-        // This ensures status bar is visible from the very start
-        if (!isLandscape) {
-            windowInsetsController.apply {
-                show(WindowInsetsCompat.Type.systemBars())
-                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-            }
-        }
-        
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
         setupWindowInsets()
-        
-        // CRITICAL: Force 16:9 layout immediately in portrait mode
-        // This prevents the spinner from appearing in center of full screen
-        if (!isLandscape) {
-            exitFullscreen()
-        }
         
         parseIntent()
 
@@ -282,22 +267,29 @@ class PlayerActivity : AppCompatActivity() {
         viewModel.relatedItems.observe(this) { channels ->
             relatedChannels = channels
             relatedChannelsAdapter.submitList(channels)
-            binding.relatedChannelsSection.visibility = if (channels.isEmpty()) {
-                View.GONE
+            
+            val currentOrientation = resources.configuration.orientation
+            val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+            
+            if (!isLandscape) {
+                // ===== FIX: ALWAYS show section in portrait, even if empty =====
+                binding.relatedChannelsSection.visibility = View.VISIBLE
+                binding.relatedLoadingProgress.visibility = View.GONE
+                
+                if (channels.isEmpty()) {
+                    // Even with no data, keep section visible with empty recycler
+                    binding.relatedChannelsRecycler.visibility = View.GONE
+                } else {
+                    binding.relatedChannelsRecycler.visibility = View.VISIBLE
+                }
             } else {
-                View.VISIBLE
+                // In landscape, hide the section
+                binding.relatedChannelsSection.visibility = View.GONE
             }
-            binding.relatedLoadingProgress.visibility = View.GONE
-            binding.relatedChannelsRecycler.visibility = View.VISIBLE
         }
         
-        // Initialize PiP helper
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipHelper = PipHelper(
-                activity = this,
-                playerView = binding.playerView,
-                getPlayer = { player }
-            )
+            registerPipReceiver()
         }
     }
     
@@ -322,9 +314,8 @@ class PlayerActivity : AppCompatActivity() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             )
         } else {
-            // Portrait: Draw BEHIND system bars but show them
-            // This prevents the status bar from pushing content down
-            WindowCompat.setDecorFitsSystemWindows(window, false)
+            // Portrait: Allow system windows
+            WindowCompat.setDecorFitsSystemWindows(window, true)
             window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
         }
         
@@ -345,10 +336,7 @@ class PlayerActivity : AppCompatActivity() {
             }
         } else {
             // Show system bars in portrait
-            windowInsetsController.apply {
-                show(WindowInsetsCompat.Type.systemBars())
-                systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-            }
+            windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
         }
     }
     
@@ -358,11 +346,8 @@ class PlayerActivity : AppCompatActivity() {
                 val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                 
                 if (isLandscape) {
-                    // Landscape: No padding, fullscreen
-                    binding.root.setPadding(0, 0, 0, 0)
                     binding.playerContainer.setPadding(0, 0, 0, 0)
                 } else {
-                    // Portrait: Add padding at top for status bar
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
                         val displayCutout = insets.displayCutout
@@ -371,19 +356,15 @@ class PlayerActivity : AppCompatActivity() {
                         val leftPadding = maxOf(systemBars.left, displayCutout?.safeInsetLeft ?: 0)
                         val rightPadding = maxOf(systemBars.right, displayCutout?.safeInsetRight ?: 0)
                         
-                        // Apply padding to root so entire content shifts below status bar
-                        binding.root.setPadding(leftPadding, topPadding, rightPadding, 0)
-                        // Player container doesn't need additional padding
-                        binding.playerContainer.setPadding(0, 0, 0, 0)
+                        binding.playerContainer.setPadding(leftPadding, topPadding, rightPadding, 0)
                     } else {
                         @Suppress("DEPRECATION")
-                        binding.root.setPadding(
+                        binding.playerContainer.setPadding(
                             insets.systemWindowInsetLeft,
                             insets.systemWindowInsetTop,
                             insets.systemWindowInsetRight,
                             0
                         )
-                        binding.playerContainer.setPadding(0, 0, 0, 0)
                     }
                 }
                 
@@ -439,12 +420,11 @@ class PlayerActivity : AppCompatActivity() {
      * This is the key method that fixes the layout issues
      */
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
+        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        
         if (isLandscape) {
-            // Use enterFullscreen helper for consistency
-            enterFullscreen()
-            
-            val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-            // Additional landscape-specific constraints
+            // LANDSCAPE: Fill entire screen
+            params.dimensionRatio = null  // Remove ratio constraint
             params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
@@ -455,7 +435,6 @@ class PlayerActivity : AppCompatActivity() {
             params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             
             binding.playerContainer.setPadding(0, 0, 0, 0)
-            binding.playerContainer.layoutParams = params
             
             // Player view settings
             binding.playerView.controllerAutoShow = false
@@ -463,9 +442,21 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
+            // Hide portrait-only sections
+            binding.relatedChannelsSection.visibility = View.GONE
+            binding.linksSection.visibility = View.GONE
+            
         } else {
-            // Use exitFullscreen helper for consistency
-            exitFullscreen()
+            // PORTRAIT: 16:9 at top with sections below
+            params.dimensionRatio = "16:9"  // Force 16:9 ratio
+            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+            params.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
+            params.topMargin = 0
+            params.bottomMargin = 0
+            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+            params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET  // Don't extend to bottom
             
             // Player view settings
             binding.playerView.controllerAutoShow = false
@@ -493,9 +484,20 @@ class PlayerActivity : AppCompatActivity() {
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
             
-            // Sections are visible by default in XML
-            // They will be hidden by ViewModel observers if no data is available
+            // ===== FIX: EXPLICITLY SHOW SECTIONS IN PORTRAIT =====
+            // Show the sections immediately - they'll be hidden by observers if no data
+            binding.relatedChannelsSection.visibility = View.VISIBLE
+            
+            // Show links section if we have multiple links
+            if (allEventLinks.size > 1) {
+                binding.linksSection.visibility = View.VISIBLE
+            } else {
+                binding.linksSection.visibility = View.GONE
+            }
         }
+        
+        // CRITICAL: Apply the updated params
+        binding.playerContainer.layoutParams = params
         
         // CRITICAL: Request layout update
         binding.root.requestLayout()
@@ -505,6 +507,14 @@ class PlayerActivity : AppCompatActivity() {
         super.onResume()
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         applyOrientationSettings(isLandscape)
+        
+        // ===== FIX: Force sections to be visible in portrait =====
+        if (!isLandscape) {
+            binding.relatedChannelsSection.visibility = View.VISIBLE
+            if (allEventLinks.size > 1) {
+                binding.linksSection.visibility = View.VISIBLE
+            }
+        }
         
         if (player == null) {
             setupPlayer()
@@ -523,11 +533,6 @@ class PlayerActivity : AppCompatActivity() {
         
         isInPipMode = isInPictureInPictureMode
         
-        // Notify PipHelper of mode change
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipHelper?.onPictureInPictureModeChanged(isInPictureInPictureMode)
-        }
-        
         if (isInPipMode) {
             // Entering PiP mode
             enterPipUIMode()
@@ -539,14 +544,20 @@ class PlayerActivity : AppCompatActivity() {
 
     /**
      * Configure UI for entering PiP mode
-     * UPDATED: Hide controls in PiP window, but background activity stays intact
      */
     private fun enterPipUIMode() {
-        binding.playerView.useController = false
-        binding.playerView.hideController()
-        
+        binding.playerView.useController = false 
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        binding.playerView.hideController()
+        
+        // Show system UI in PiP
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        windowInsetsController.apply {
+            show(WindowInsetsCompat.Type.systemBars())
+            show(WindowInsetsCompat.Type.navigationBars())
+        }
     }
 
     /**
@@ -603,9 +614,10 @@ class PlayerActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !isInPipMode && player?.isPlaying == true) {
+        if (!isInPipMode && player?.isPlaying == true) {
+            userRequestedPip = true
             wasLockedBeforePip = isLocked
-            pipHelper?.enterPipMode()
+            enterPipMode()
         }
     }
 
@@ -834,18 +846,13 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipHelper?.onStop()
-        }
         releasePlayer()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         mainHandler.removeCallbacksAndMessages(null)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            pipHelper?.onStop()
-        }
+        unregisterPipReceiver()
         releasePlayer()
     }
 
@@ -932,8 +939,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-
-
     private fun setupPlayer() {
         if (player != null) return
         binding.errorView.visibility = View.GONE
@@ -1014,15 +1019,15 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_READY -> {
+                                    // Stream is ready - hide loading and show the controller
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
                                     
+                                    // Show the controller now that stream is ready
                                     binding.playerView.showController()
                                     
-                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                        pipHelper?.updatePictureInPictureParams()
-                                    }
+                                    updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
@@ -1037,16 +1042,14 @@ class PlayerActivity : AppCompatActivity() {
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                // updatePlaybackAction removed - now handled internally
+                            if (isInPipMode) {
+                                updatePipParams()
                             }
                         }
 
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                pipHelper?.updatePictureInPictureParams()
-                            }
+                            updatePipParams()
                         }
 
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -1296,7 +1299,8 @@ class PlayerActivity : AppCompatActivity() {
         
         btnPip?.setOnClickListener {
             if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                pipHelper?.enterPipMode()
+                userRequestedPip = true
+                enterPipMode()
             }
         }
         
@@ -1447,65 +1451,220 @@ class PlayerActivity : AppCompatActivity() {
             ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         }
     }
-    
-    /**
-     * Force exit fullscreen mode - ensures 16:9 player container immediately
-     */
-    private fun exitFullscreen() {
-        // 1. Show System UI (Status bar, navigation)
-        windowInsetsController.apply {
-            show(WindowInsetsCompat.Type.systemBars())
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-        }
-        
-        // 2. FORCE the Player Container to 16:9 Ratio
-        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
-        params.height = 0 // 0dp means "Match Constraint"
-        params.dimensionRatio = "H,16:9" // Force the 16:9 aspect ratio
-        
-        // Remove bottom constraint to allow it to sit at the top only
-        params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-        
-        binding.playerContainer.layoutParams = params
-
-        // 3. Update related UI visibility if needed
-        binding.relatedChannelsSection.visibility = View.VISIBLE
-        binding.linksSection.visibility = View.VISIBLE
-        // Ensure the container itself is visible
-        binding.playerContainer.visibility = View.VISIBLE
-    }
-    
-    /**
-     * Force enter fullscreen mode - makes player fill entire screen
-     */
-    private fun enterFullscreen() {
-        // Hide System UI
-        windowInsetsController.apply {
-            hide(WindowInsetsCompat.Type.systemBars())
-            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        }
-
-        // Force Player Container to Fill Screen
-        val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
-        params.height = ConstraintLayout.LayoutParams.MATCH_PARENT // Fill height
-        params.dimensionRatio = null // Remove ratio constraint
-        
-        binding.playerContainer.layoutParams = params
-        
-        // Optional: Hide other views if you want true fullscreen
-        binding.relatedChannelsSection.visibility = View.GONE
-        binding.linksSection.visibility = View.GONE
-    }
 
     private fun setSubtitleTextSize() {
         val subtitleView = binding.playerView.subtitleView ?: return
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION)
     }
 
-
+    private fun setSubtitleTextSizePiP() {
+        val subtitleView = binding.playerView.subtitleView ?: return
+        subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
+    }
     
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
+
+        player?.let {
+            if (!it.isPlaying) {
+                it.play()
+            }
+        }
+
+        binding.playerView.useController = false
+        binding.lockOverlay.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
+
+        setSubtitleTextSizePiP()
+
+        updatePipParams(enter = true)
+    }
+
+    private fun updatePipParams(enter: Boolean = false) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        
+        try {
+            val format = player?.videoFormat
+            val width = format?.width ?: 16
+            val height = format?.height ?: 9
+            
+            var ratio = if (width > 0 && height > 0) {
+                Rational(width, height)
+            } else {
+                Rational(16, 9)
+            }
+            
+            val rationalLimitWide = Rational(239, 100)
+            val rationalLimitTall = Rational(100, 239)
+            
+            if (ratio.toFloat() > rationalLimitWide.toFloat()) {
+                ratio = rationalLimitWide
+            } else if (ratio.toFloat() < rationalLimitTall.toFloat()) {
+                ratio = rationalLimitTall
+            }
+            
+            val builder = PictureInPictureParams.Builder()
+            builder.setAspectRatio(ratio)
+            
+            val actions = buildPipActions()
+            builder.setActions(actions)
+            
+            val pipSourceRect = android.graphics.Rect()
+            binding.playerView.getGlobalVisibleRect(pipSourceRect)
+            if (!pipSourceRect.isEmpty) {
+                builder.setSourceRectHint(pipSourceRect)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.setAutoEnterEnabled(false)
+                builder.setSeamlessResizeEnabled(true)
+            }
+            
+            if (enter) {
+                enterPictureInPictureMode(builder.build())
+            } else {
+                setPictureInPictureParams(builder.build())
+            }
+        } catch (e: Exception) {
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun buildPipActions(): List<RemoteAction> {
+        val actions = mutableListOf<RemoteAction>()
+        
+        val rewindIntent = PendingIntent.getBroadcast(
+            this,
+            CONTROL_TYPE_REWIND,
+            Intent(ACTION_MEDIA_CONTROL)
+                .setPackage(packageName)
+                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_REWIND),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        actions.add(RemoteAction(
+            Icon.createWithResource(this, R.drawable.ic_skip_backward),
+            "Rewind",
+            "Rewind 10s",
+            rewindIntent
+        ))
+        
+        val isPlaying = player?.isPlaying == true
+        if (isPlaying) {
+            val pauseIntent = PendingIntent.getBroadcast(
+                this,
+                CONTROL_TYPE_PAUSE,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            actions.add(RemoteAction(
+                Icon.createWithResource(this, R.drawable.ic_pause),
+                getString(R.string.pause),
+                getString(R.string.pause),
+                pauseIntent
+            ))
+        } else {
+            val playIntent = PendingIntent.getBroadcast(
+                this,
+                CONTROL_TYPE_PLAY,
+                Intent(ACTION_MEDIA_CONTROL)
+                    .setPackage(packageName)
+                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PLAY),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            actions.add(RemoteAction(
+                Icon.createWithResource(this, R.drawable.ic_play),
+                getString(R.string.play),
+                getString(R.string.play),
+                playIntent
+            ))
+        }
+        
+        val forwardIntent = PendingIntent.getBroadcast(
+            this,
+            CONTROL_TYPE_FORWARD,
+            Intent(ACTION_MEDIA_CONTROL)
+                .setPackage(packageName)
+                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_FORWARD),
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        actions.add(RemoteAction(
+            Icon.createWithResource(this, R.drawable.ic_skip_forward),
+            "Forward",
+            "Forward 10s",
+            forwardIntent
+        ))
+        
+        return actions
+    }
+
+    private fun registerPipReceiver() {
+        if (pipReceiver != null) return
+        
+        pipReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != ACTION_MEDIA_CONTROL) return
+                
+                val currentPlayer = player ?: return
+                val hasError = binding.errorView.visibility == View.VISIBLE
+                val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
+                
+                when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
+                    CONTROL_TYPE_PLAY -> {
+                        if (hasError || hasEnded) {
+                            retryPlayback()
+                        } else {
+                            currentPlayer.play()
+                        }
+                        updatePipParams()
+                    }
+                    CONTROL_TYPE_PAUSE -> {
+                        if (hasError || hasEnded) {
+                            retryPlayback()
+                        } else {
+                            currentPlayer.pause()
+                        }
+                        updatePipParams()
+                    }
+                    CONTROL_TYPE_REWIND -> {
+                        if (!hasError && !hasEnded) {
+                            val newPosition = currentPlayer.currentPosition - skipMs
+                            currentPlayer.seekTo(if (newPosition < 0) 0 else newPosition)
+                        }
+                    }
+                    CONTROL_TYPE_FORWARD -> {
+                        if (!hasError && !hasEnded) {
+                            val newPosition = currentPlayer.currentPosition + skipMs
+                            if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
+                                currentPlayer.seekTo(currentPlayer.duration)
+                            } else {
+                                currentPlayer.seekTo(newPosition)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
+        }
+    }
+
+    private fun unregisterPipReceiver() {
+        try {
+            pipReceiver?.let {
+                unregisterReceiver(it)
+                pipReceiver = null
+            }
+        } catch (e: Exception) {
+        }
+    }
 
     private fun retryPlayback() {
         binding.errorView.visibility = View.GONE
@@ -1518,10 +1677,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun finish() {
         try {
             releasePlayer()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                pipHelper?.onStop()
-                pipHelper = null
-            }
+            unregisterPipReceiver()
             isInPipMode = false
             userRequestedPip = false
             wasLockedBeforePip = false
