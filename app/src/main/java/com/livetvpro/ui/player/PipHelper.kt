@@ -1,7 +1,5 @@
 package com.livetvpro.ui.player
 
-import android.app.Activity
-import android.app.AppOpsManager
 import android.app.PendingIntent
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
@@ -9,487 +7,238 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.graphics.Rect
 import android.graphics.drawable.Icon
-import android.net.Uri
 import android.os.Build
+import android.util.Log
 import android.util.Rational
+import androidx.annotation.DrawableRes
 import androidx.annotation.RequiresApi
-import androidx.media3.common.C
-import androidx.media3.common.Player
+import androidx.appcompat.app.AppCompatActivity
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.livetvpro.R
-import com.livetvpro.data.local.PreferencesManager
+
+private const val PIP_INTENTS_FILTER = "pip_action"
+private const val PIP_INTENT_ACTION = "pip_action_code"
+private const val PIP_PLAY = 1
+private const val PIP_PAUSE = 2
+private const val PIP_REWIND = 3
+private const val PIP_FORWARD = 4
 
 /**
- * PipHelper - Comprehensive Picture-in-Picture management
+ * PipHelper - Clean Picture-in-Picture implementation
+ * Based on MPVPipHelper reference implementation
  * 
  * Features:
- * - Automatic PiP aspect ratio calculation
- * - Seamless transitions and source rect hints
- * - Configurable actions (Skip Forward/Backward OR Next/Previous)
- * - Broadcast receiver for PiP controls
- * - Permission and capability checking
- * - Android 12+ optimizations (auto-enter, seamless resize)
+ * - Automatic aspect ratio calculation from video format
+ * - Source rect hints for smooth transitions
+ * - Remote actions (Play/Pause, Rewind, Forward)
+ * - Broadcast receiver for PiP control handling
+ * - Proper lifecycle management
  */
 @RequiresApi(Build.VERSION_CODES.O)
 class PipHelper(
-    private val activity: Activity,
+    private val activity: AppCompatActivity,
     private val playerView: PlayerView,
-    private val getPlayer: () -> ExoPlayer?,
-    private val preferencesManager: PreferencesManager,
-    private val onRetryPlayback: () -> Unit = {}
+    private val getPlayer: () -> ExoPlayer?
 ) {
+    private var pipReceiver: BroadcastReceiver? = null
     
-    private var pictureInPictureParamsBuilder = PictureInPictureParams.Builder()
-    private val pipSourceRect = Rect()
-    private val rationalLimitWide = Rational(239, 100)
-    private val rationalLimitTall = Rational(100, 239)
-    private var pipBroadcastReceiver: BroadcastReceiver? = null
-    private var isReceiverRegistered = false
-    
-    // Skip amount for forward/backward actions (10 seconds)
+    // Skip amount for rewind/forward actions (10 seconds in milliseconds)
     private val skipMs = 10_000L
     
-    companion object {
-        const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
-        const val EXTRA_CONTROL_TYPE = "control_type"
-        const val CONTROL_TYPE_PLAY = 1
-        const val CONTROL_TYPE_PAUSE = 2
-        const val CONTROL_TYPE_SKIP_BACKWARD = 3
-        const val CONTROL_TYPE_SKIP_FORWARD = 4
-        const val CONTROL_TYPE_PREVIOUS = 5
-        const val CONTROL_TYPE_NEXT = 6
-        
-        private const val REQUEST_PLAY = 1
-        private const val REQUEST_PAUSE = 2
-        private const val REQUEST_SKIP_BACKWARD = 3
-        private const val REQUEST_SKIP_FORWARD = 4
-        private const val REQUEST_PREVIOUS = 5
-        private const val REQUEST_NEXT = 6
-    }
-    
     /**
-     * Check if device supports Picture-in-Picture
+     * Handle Picture-in-Picture mode changes
      */
-    fun isPipSupported(): Boolean {
-        return activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-    }
-    
-    /**
-     * Check if app has PiP permission
-     */
-    fun checkPipPermission(): Boolean {
-        if (!isPipSupported()) return false
-        
-        val appOpsManager = activity.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager
-            ?: return true
-        
-        return AppOpsManager.MODE_ALLOWED == appOpsManager.checkOpNoThrow(
-            AppOpsManager.OPSTR_PICTURE_IN_PICTURE,
-            android.os.Process.myUid(),
-            activity.packageName
-        )
-    }
-    
-    /**
-     * Open system PiP settings for this app
-     */
-    fun openPipSettings() {
-        val intent = Intent(
-            "android.settings.PICTURE_IN_PICTURE_SETTINGS",
-            Uri.fromParts("package", activity.packageName, null)
-        )
-        if (intent.resolveActivity(activity.packageManager) != null) {
-            activity.startActivity(intent)
-        }
-    }
-    
-    /**
-     * Initialize PiP helper - should be called in onCreate
-     */
-    fun initialize() {
-        if (!isPipSupported()) return
-        
-        try {
-            val actions = buildPipActions(isPlaying = false)
-            pictureInPictureParamsBuilder.setActions(actions)
-            
-            // Android 12+ features
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                pictureInPictureParamsBuilder.setAutoEnterEnabled(false)
-                pictureInPictureParamsBuilder.setSeamlessResizeEnabled(true)
-            }
-        } catch (e: Exception) {
-            // Handle exception silently
-        }
-    }
-    
-    /**
-     * Update Picture-in-Picture parameters with current video state
-     */
-    fun updatePictureInPictureParams() {
-        if (!isPipSupported()) return
-        
-        try {
-            pictureInPictureParamsBuilder = PictureInPictureParams.Builder()
-            
-            val player = getPlayer() ?: return
-            val format = player.videoFormat
-            val width = format?.width ?: 16
-            val height = format?.height ?: 9
-            
-            var ratio = if (width > 0 && height > 0) {
-                Rational(width, height)
-            } else {
-                Rational(16, 9)
-            }
-            
-            // Clamp aspect ratio to system limits
-            if (ratio.toFloat() > rationalLimitWide.toFloat()) {
-                ratio = rationalLimitWide
-            } else if (ratio.toFloat() < rationalLimitTall.toFloat()) {
-                ratio = rationalLimitTall
-            }
-            
-            pictureInPictureParamsBuilder.setAspectRatio(ratio)
-            
-            // Set source rect hint for smooth transition
-            if (playerView.width > 0 && playerView.height > 0) {
-                playerView.getGlobalVisibleRect(pipSourceRect)
-                if (!pipSourceRect.isEmpty) {
-                    pictureInPictureParamsBuilder.setSourceRectHint(pipSourceRect)
-                }
-            }
-            
-            // Android 12+ features
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                pictureInPictureParamsBuilder.setAutoEnterEnabled(false)
-                pictureInPictureParamsBuilder.setSeamlessResizeEnabled(true)
-            }
-            
-            // Set PiP actions based on current playback state
-            val actions = buildPipActions(player.isPlaying)
-            pictureInPictureParamsBuilder.setActions(actions)
-            
-            activity.setPictureInPictureParams(pictureInPictureParamsBuilder.build())
-        } catch (e: Exception) {
-            // Handle exception silently
-        }
-    }
-    
-    /**
-     * Build PiP remote actions based on user preference
-     */
-    private fun buildPipActions(isPlaying: Boolean): ArrayList<RemoteAction> {
-        val actions = ArrayList<RemoteAction>()
-        
-        // Get user preference for PiP action mode
-        val useSkipActions = preferencesManager.getPipActionMode() == PreferencesManager.PIP_ACTION_MODE_SKIP
-        
-        if (useSkipActions) {
-            // Mode 1: Skip Backward / Play-Pause / Skip Forward
-            addSkipBackwardAction(actions)
-            addPlayPauseAction(actions, isPlaying)
-            addSkipForwardAction(actions)
+    fun onPictureInPictureModeChanged(isInPipMode: Boolean) {
+        if (isInPipMode) {
+            registerPipReceiver()
         } else {
-            // Mode 2: Previous / Play-Pause / Next
-            addPreviousAction(actions)
-            addPlayPauseAction(actions, isPlaying)
-            addNextAction(actions)
-        }
-        
-        return actions
-    }
-    
-    /**
-     * Add Skip Backward action (10 seconds)
-     */
-    private fun addSkipBackwardAction(actions: ArrayList<RemoteAction>) {
-        val rewindIntent = PendingIntent.getBroadcast(
-            activity,
-            REQUEST_SKIP_BACKWARD,
-            Intent(ACTION_MEDIA_CONTROL)
-                .setPackage(activity.packageName)
-                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_SKIP_BACKWARD),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        val rewindIcon = Icon.createWithResource(activity, R.drawable.ic_skip_backward)
-        actions.add(RemoteAction(rewindIcon, "Rewind", "Rewind 10s", rewindIntent))
-    }
-    
-    /**
-     * Add Skip Forward action (10 seconds)
-     */
-    private fun addSkipForwardAction(actions: ArrayList<RemoteAction>) {
-        val forwardIntent = PendingIntent.getBroadcast(
-            activity,
-            REQUEST_SKIP_FORWARD,
-            Intent(ACTION_MEDIA_CONTROL)
-                .setPackage(activity.packageName)
-                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_SKIP_FORWARD),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        val forwardIcon = Icon.createWithResource(activity, R.drawable.ic_skip_forward)
-        actions.add(RemoteAction(forwardIcon, "Forward", "Forward 10s", forwardIntent))
-    }
-    
-    /**
-     * Add Previous action (previous track/chapter)
-     */
-    private fun addPreviousAction(actions: ArrayList<RemoteAction>) {
-        val previousIntent = PendingIntent.getBroadcast(
-            activity,
-            REQUEST_PREVIOUS,
-            Intent(ACTION_MEDIA_CONTROL)
-                .setPackage(activity.packageName)
-                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PREVIOUS),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        val previousIcon = Icon.createWithResource(activity, R.drawable.ic_skip_back)
-        actions.add(RemoteAction(previousIcon, "Previous", "Previous", previousIntent))
-    }
-    
-    /**
-     * Add Next action (next track/chapter)
-     */
-    private fun addNextAction(actions: ArrayList<RemoteAction>) {
-        val nextIntent = PendingIntent.getBroadcast(
-            activity,
-            REQUEST_NEXT,
-            Intent(ACTION_MEDIA_CONTROL)
-                .setPackage(activity.packageName)
-                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_NEXT),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        val nextIcon = Icon.createWithResource(activity, R.drawable.ic_skip_forward)
-        actions.add(RemoteAction(nextIcon, "Next", "Next", nextIntent))
-    }
-    
-    /**
-     * Add Play/Pause action
-     */
-    private fun addPlayPauseAction(actions: ArrayList<RemoteAction>, isPlaying: Boolean) {
-        if (isPlaying) {
-            val pauseIntent = PendingIntent.getBroadcast(
-                activity,
-                REQUEST_PAUSE,
-                Intent(ACTION_MEDIA_CONTROL)
-                    .setPackage(activity.packageName)
-                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
-                PendingIntent.FLAG_IMMUTABLE
-            )
-            val pauseIcon = Icon.createWithResource(activity, R.drawable.ic_pause)
-            val pauseTitle = activity.getString(R.string.pause)
-            actions.add(RemoteAction(pauseIcon, pauseTitle, pauseTitle, pauseIntent))
-        } else {
-            val playIntent = PendingIntent.getBroadcast(
-                activity,
-                REQUEST_PLAY,
-                Intent(ACTION_MEDIA_CONTROL)
-                    .setPackage(activity.packageName)
-                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PLAY),
-                PendingIntent.FLAG_IMMUTABLE
-            )
-            val playIcon = Icon.createWithResource(activity, R.drawable.ic_play)
-            val playTitle = activity.getString(R.string.play)
-            actions.add(RemoteAction(playIcon, playTitle, playTitle, playIntent))
-        }
-    }
-    
-    /**
-     * Update only the playback action (play/pause) without rebuilding everything
-     */
-    fun updatePlaybackAction(isPlaying: Boolean) {
-        if (!isPipSupported()) return
-        
-        try {
-            val actions = buildPipActions(isPlaying)
-            pictureInPictureParamsBuilder.setActions(actions)
-            activity.setPictureInPictureParams(pictureInPictureParamsBuilder.build())
-        } catch (e: Exception) {
-            // Handle exception silently
-        }
-    }
-    
-    /**
-     * Enter Picture-in-Picture mode
-     */
-    fun enterPipMode(): Boolean {
-        if (!isPipSupported()) return false
-        
-        // Check permission
-        if (!checkPipPermission()) {
-            openPipSettings()
-            return false
-        }
-        
-        val player = getPlayer() ?: return false
-        val format = player.videoFormat
-        
-        if (format != null) {
-            var rational = Rational(format.width, format.height)
-            
-            // Android 13+ expanded PiP support
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                activity.packageManager.hasSystemFeature(PackageManager.FEATURE_EXPANDED_PICTURE_IN_PICTURE) &&
-                (rational.toFloat() > rationalLimitWide.toFloat() ||
-                 rational.toFloat() < rationalLimitTall.toFloat())) {
-                pictureInPictureParamsBuilder.setExpandedAspectRatio(rational)
-            }
-            
-            // Clamp to limits
-            if (rational.toFloat() > rationalLimitWide.toFloat()) {
-                rational = rationalLimitWide
-            } else if (rational.toFloat() < rationalLimitTall.toFloat()) {
-                rational = rationalLimitTall
-            }
-            
-            pictureInPictureParamsBuilder.setAspectRatio(rational)
-        }
-        
-        // Set source rect
-        playerView.getGlobalVisibleRect(pipSourceRect)
-        if (!pipSourceRect.isEmpty) {
-            pictureInPictureParamsBuilder.setSourceRectHint(pipSourceRect)
-        }
-        
-        // Set actions
-        val actions = buildPipActions(player.isPlaying)
-        pictureInPictureParamsBuilder.setActions(actions)
-        
-        return try {
-            activity.enterPictureInPictureMode(pictureInPictureParamsBuilder.build())
-            true
-        } catch (e: Exception) {
-            false
+            unregisterPipReceiver()
         }
     }
     
     /**
      * Register broadcast receiver for PiP controls
      */
-    fun registerPipReceiver() {
-        if (!isPipSupported() || isReceiverRegistered) return
-        
-        pipBroadcastReceiver = object : BroadcastReceiver() {
+    @Suppress("UnspecifiedRegisterReceiverFlag")
+    private fun registerPipReceiver() {
+        pipReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action != ACTION_MEDIA_CONTROL) return
-                
                 val player = getPlayer() ?: return
-                val controlType = intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)
                 
-                handlePipControl(player, controlType)
-            }
-        }
-        
-        try {
-            val filter = IntentFilter(ACTION_MEDIA_CONTROL)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                activity.registerReceiver(
-                    pipBroadcastReceiver,
-                    filter,
-                    Context.RECEIVER_NOT_EXPORTED
-                )
-            } else {
-                activity.registerReceiver(pipBroadcastReceiver, filter)
-            }
-            isReceiverRegistered = true
-        } catch (e: Exception) {
-            // Handle exception
-        }
-    }
-    
-    /**
-     * Handle PiP control actions
-     */
-    private fun handlePipControl(player: ExoPlayer, controlType: Int) {
-        val hasError = player.playerError != null
-        val hasEnded = player.playbackState == Player.STATE_ENDED
-        
-        when (controlType) {
-            CONTROL_TYPE_PLAY -> {
-                if (hasError || hasEnded) {
-                    onRetryPlayback()
-                } else {
-                    player.play()
-                }
-                updatePlaybackAction(true)
-            }
-            
-            CONTROL_TYPE_PAUSE -> {
-                if (hasError || hasEnded) {
-                    onRetryPlayback()
-                } else {
-                    player.pause()
-                }
-                updatePlaybackAction(false)
-            }
-            
-            CONTROL_TYPE_SKIP_BACKWARD -> {
-                if (!hasError && !hasEnded) {
-                    val newPosition = player.currentPosition - skipMs
-                    player.seekTo(if (newPosition < 0) 0 else newPosition)
-                }
-            }
-            
-            CONTROL_TYPE_SKIP_FORWARD -> {
-                if (!hasError && !hasEnded) {
-                    val newPosition = player.currentPosition + skipMs
-                    val duration = player.duration
-                    
-                    if (player.isCurrentMediaItemLive && duration != C.TIME_UNSET && newPosition >= duration) {
-                        player.seekTo(duration)
-                    } else {
+                when (intent?.getIntExtra(PIP_INTENT_ACTION, 0)) {
+                    PIP_PLAY -> {
+                        player.play()
+                    }
+                    PIP_PAUSE -> {
+                        player.pause()
+                    }
+                    PIP_REWIND -> {
+                        val newPosition = (player.currentPosition - skipMs).coerceAtLeast(0)
                         player.seekTo(newPosition)
                     }
-                }
-            }
-            
-            CONTROL_TYPE_PREVIOUS -> {
-                if (!hasError && !hasEnded) {
-                    if (player.hasPreviousMediaItem()) {
-                        player.seekToPreviousMediaItem()
-                    } else {
-                        // If no previous item, seek to beginning of current
-                        player.seekTo(0)
+                    PIP_FORWARD -> {
+                        val newPosition = player.currentPosition + skipMs
+                        val duration = player.duration
+                        if (duration > 0 && newPosition < duration) {
+                            player.seekTo(newPosition)
+                        } else if (duration > 0) {
+                            player.seekTo(duration)
+                        }
                     }
                 }
-            }
-            
-            CONTROL_TYPE_NEXT -> {
-                if (!hasError && !hasEnded) {
-                    if (player.hasNextMediaItem()) {
-                        player.seekToNextMediaItem()
-                    }
-                }
+                updatePictureInPictureParams()
             }
         }
-    }
-    
-    /**
-     * Unregister broadcast receiver for PiP controls
-     */
-    fun unregisterPipReceiver() {
-        if (!isReceiverRegistered) return
         
-        try {
-            pipBroadcastReceiver?.let {
-                activity.unregisterReceiver(it)
-                pipBroadcastReceiver = null
-                isReceiverRegistered = false
-            }
-        } catch (e: Exception) {
-            // Handle exception
+        val filter = IntentFilter(PIP_INTENTS_FILTER)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            activity.registerReceiver(pipReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            activity.registerReceiver(pipReceiver, filter)
         }
     }
     
     /**
-     * Clean up resources
+     * Unregister broadcast receiver
      */
-    fun cleanup() {
+    private fun unregisterPipReceiver() {
+        pipReceiver?.let {
+            runCatching { activity.unregisterReceiver(it) }
+            pipReceiver = null
+        }
+    }
+    
+    /**
+     * Update Picture-in-Picture parameters with current state
+     */
+    fun updatePictureInPictureParams() {
+        if (activity.isFinishing || activity.isDestroyed) return
+        
+        val params = buildPipParams()
+        runCatching { activity.setPictureInPictureParams(params) }
+    }
+    
+    /**
+     * Build PiP parameters with aspect ratio, source rect, and actions
+     */
+    private fun buildPipParams(): PictureInPictureParams =
+        PictureInPictureParams.Builder()
+            .apply {
+                getVideoAspectRatio()?.let { aspectRatio ->
+                    setAspectRatio(aspectRatio)
+                    setSourceRectHint(calculateSourceRect(aspectRatio))
+                }
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setAutoEnterEnabled(false)
+                }
+                
+                setActions(createPipActions())
+            }
+            .build()
+    
+    /**
+     * Get video aspect ratio from player
+     */
+    private fun getVideoAspectRatio(): Rational? {
+        val player = getPlayer() ?: return null
+        val format = player.videoFormat ?: return null
+        
+        val width = format.width
+        val height = format.height
+        
+        if (width == 0 || height == 0) return null
+        
+        // Ensure aspect ratio is within valid range (0.5 to 2.39)
+        return Rational(width, height).takeIf { it.toFloat() in 0.5f..2.39f }
+    }
+    
+    /**
+     * Calculate source rect hint for smooth PiP transition
+     */
+    private fun calculateSourceRect(aspectRatio: Rational): Rect {
+        val viewWidth = playerView.width.toFloat()
+        val viewHeight = playerView.height.toFloat()
+        val videoAspect = aspectRatio.toFloat()
+        val viewAspect = viewWidth / viewHeight
+        
+        return if (viewAspect < videoAspect) {
+            // Letterboxed (black bars top/bottom)
+            val height = viewWidth / videoAspect
+            val top = ((viewHeight - height) / 2).toInt()
+            Rect(0, top, viewWidth.toInt(), (height + top).toInt())
+        } else {
+            // Pillarboxed (black bars left/right)
+            val width = viewHeight * videoAspect
+            val left = ((viewWidth - width) / 2).toInt()
+            Rect(left, 0, (width + left).toInt(), viewHeight.toInt())
+        }
+    }
+    
+    /**
+     * Create remote actions for PiP controls
+     */
+    private fun createPipActions(): List<RemoteAction> {
+        val player = getPlayer()
+        val isPlaying = player?.isPlaying == true
+        
+        return listOf(
+            createRemoteAction("rewind", R.drawable.ic_skip_backward, PIP_REWIND),
+            if (isPlaying) {
+                createRemoteAction("pause", R.drawable.ic_pause, PIP_PAUSE)
+            } else {
+                createRemoteAction("play", R.drawable.ic_play, PIP_PLAY)
+            },
+            createRemoteAction("forward", R.drawable.ic_skip_forward, PIP_FORWARD)
+        )
+    }
+    
+    /**
+     * Create a single remote action
+     */
+    private fun createRemoteAction(
+        title: String,
+        @DrawableRes icon: Int,
+        actionCode: Int
+    ): RemoteAction {
+        val intent = Intent(PIP_INTENTS_FILTER).apply {
+            putExtra(PIP_INTENT_ACTION, actionCode)
+            setPackage(activity.packageName)
+        }
+        
+        val pendingIntent = PendingIntent.getBroadcast(
+            activity,
+            actionCode,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        return RemoteAction(
+            Icon.createWithResource(activity, icon),
+            title,
+            title,
+            pendingIntent
+        )
+    }
+    
+    /**
+     * Enter Picture-in-Picture mode
+     */
+    fun enterPipMode() {
+        runCatching {
+            activity.enterPictureInPictureMode(buildPipParams())
+        }.onFailure {
+            Log.e("PipHelper", "Failed to enter PiP mode", it)
+        }
+    }
+    
+    /**
+     * Clean up resources - call in onStop()
+     */
+    fun onStop() {
         unregisterPipReceiver()
     }
 }
