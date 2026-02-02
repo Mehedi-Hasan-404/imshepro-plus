@@ -186,14 +186,11 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
-        // FIX: Show normal player interface immediately, not a blank loading screen
         binding.progressBar.visibility = View.VISIBLE
-        binding.relatedChannelsSection.visibility = View.GONE
-        binding.linksSection.visibility = View.GONE
         
         setupPlayer()
         
-        // Bind controller views immediately so user has controls (including back button)
+        // Bind controller views immediately so everything is ready
         binding.playerView.postDelayed({
             bindControllerViews()
             applyOrientationSettings(isLandscape)
@@ -748,10 +745,6 @@ class PlayerActivity : AppCompatActivity() {
         
         tvChannelName?.text = contentName
         
-        // FIX: Hide sections during channel switch to show clean loading
-        binding.relatedChannelsSection.visibility = View.GONE
-        binding.linksSection.visibility = View.GONE
-        
         setupPlayer()
         setupLinksUI()
         
@@ -773,10 +766,6 @@ class PlayerActivity : AppCompatActivity() {
         val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
         val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
         landscapeAdapter?.setSelectedPosition(position)
-        
-        // FIX: Hide sections during link switch to show clean loading
-        binding.relatedChannelsSection.visibility = View.GONE
-        binding.linksSection.visibility = View.GONE
         
         releasePlayer()
         setupPlayer()
@@ -975,20 +964,6 @@ class PlayerActivity : AppCompatActivity() {
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
-                                    
-                                    // FIX: Show portrait sections once stream is ready
-                                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                                    if (!isLandscape) {
-                                        // Show links section if multiple links exist
-                                        if (allEventLinks.size > 1) {
-                                            binding.linksSection.visibility = View.VISIBLE
-                                        }
-                                        // Show related channels section if channels loaded
-                                        if (relatedChannels.isNotEmpty()) {
-                                            binding.relatedChannelsSection.visibility = View.VISIBLE
-                                        }
-                                    }
-                                    
                                     updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
