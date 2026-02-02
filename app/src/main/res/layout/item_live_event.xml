@@ -15,8 +15,8 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="10dp"
-        android:minHeight="120dp">
+        android:padding="8dp"
+        android:minHeight="100dp">
 
         <!-- League Logo -->
         <ImageView
@@ -146,7 +146,7 @@
                 android:fontFamily="@font/bergen_sans"
                 android:text="12:30 PM"
                 android:textColor="#10B981"
-                android:textSize="16sp"
+                android:textSize="20sp"
                 android:textStyle="bold"
                 android:visibility="gone"
                 tools:visibility="visible" />
@@ -160,7 +160,7 @@
                 android:fontFamily="@font/bergen_sans"
                 android:text="Wed, 15 Jan 2026"
                 android:textColor="#B0BEC5"
-                android:textSize="10sp"
+                android:textSize="12sp"
                 android:visibility="gone"
                 tools:visibility="visible" />
 
