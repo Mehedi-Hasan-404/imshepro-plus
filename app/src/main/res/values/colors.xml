@@ -34,4 +34,8 @@
     <color name="player_channel_stroke">#EF4444</color>
     <color name="player_channel_stroke_selected">#EF4444</color>
     <color name="player_channel_stroke_normal">#B91C1C</color>
+    
+    <!-- Material Design 3 Theme Colors -->
+    <color name="md_theme_dark_surfaceVariant">#2A2A2A</color>
+    <color name="md_theme_dark_onSurfaceVariant">#CCCCCC</color>
 </resources>
