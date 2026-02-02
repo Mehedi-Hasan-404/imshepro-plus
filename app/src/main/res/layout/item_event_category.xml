@@ -50,7 +50,7 @@
 
     </FrameLayout>
 
-    <!-- Category Name (VISIBLE) -->
+    <!-- Category Name (VISIBLE with Marquee Scrolling) -->
     <TextView
         android:id="@+id/category_name"
         android:layout_width="wrap_content"
@@ -62,8 +62,12 @@
         android:textStyle="bold"
         android:gravity="center"
         android:maxWidth="70dp"
-        android:maxLines="1"
-        android:ellipsize="end"
+        android:singleLine="true"
+        android:ellipsize="marquee"
+        android:marqueeRepeatLimit="marquee_forever"
+        android:scrollHorizontally="true"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
         android:visibility="visible" />
 
 </LinearLayout>
