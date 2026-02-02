@@ -308,9 +308,8 @@ class PlayerActivity : AppCompatActivity() {
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             )
         } else {
-            // Portrait: Draw BEHIND system bars but show them
-            // This prevents the status bar from pushing content down
-            WindowCompat.setDecorFitsSystemWindows(window, false)
+            // Portrait: Allow system windows
+            WindowCompat.setDecorFitsSystemWindows(window, true)
             window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
         }
         
@@ -344,11 +343,8 @@ class PlayerActivity : AppCompatActivity() {
                 val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                 
                 if (isLandscape) {
-                    // Landscape: No padding, fullscreen
-                    binding.root.setPadding(0, 0, 0, 0)
                     binding.playerContainer.setPadding(0, 0, 0, 0)
                 } else {
-                    // Portrait: Add padding at top for status bar
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                         val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
                         val displayCutout = insets.displayCutout
@@ -357,19 +353,15 @@ class PlayerActivity : AppCompatActivity() {
                         val leftPadding = maxOf(systemBars.left, displayCutout?.safeInsetLeft ?: 0)
                         val rightPadding = maxOf(systemBars.right, displayCutout?.safeInsetRight ?: 0)
                         
-                        // Apply padding to root so entire content shifts below status bar
-                        binding.root.setPadding(leftPadding, topPadding, rightPadding, 0)
-                        // Player container doesn't need additional padding
-                        binding.playerContainer.setPadding(0, 0, 0, 0)
+                        binding.playerContainer.setPadding(leftPadding, topPadding, rightPadding, 0)
                     } else {
                         @Suppress("DEPRECATION")
-                        binding.root.setPadding(
+                        binding.playerContainer.setPadding(
                             insets.systemWindowInsetLeft,
                             insets.systemWindowInsetTop,
                             insets.systemWindowInsetRight,
                             0
                         )
-                        binding.playerContainer.setPadding(0, 0, 0, 0)
                     }
                 }
                 
