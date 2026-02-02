@@ -60,11 +60,12 @@ class LiveEventAdapter(
         // 2. Set Category Tag
         binding.categoryTag.text = event.category ?: "Sports"
         
-        // 3. Load League Logo (left of league name)
+        // 3. Load League Logo (from leagueLogo URL)
         Glide.with(context)
-            .load(event.category) // You might want to map category to logo URL
+            .load(event.leagueLogo)
             .placeholder(R.drawable.ic_channel_placeholder)
-            .circleCrop()
+            .error(R.drawable.ic_channel_placeholder)
+            .fitCenter()
             .into(binding.leagueLogo)
 
         // 4. Set Team Names with bold font
