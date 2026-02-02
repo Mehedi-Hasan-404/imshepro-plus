@@ -932,19 +932,7 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun setupPipHelper() {
-        pipHelper = PipHelper(
-            activity = this,
-            playerView = binding.playerView,
-            getPlayer = { player },
-            preferencesManager = preferencesManager,
-            onRetryPlayback = { retryPlayback() }
-        )
-        
-        pipHelper?.initialize()
-        pipHelper?.registerPipReceiver()
-    }
+
 
     private fun setupPlayer() {
         if (player != null) return
@@ -1050,7 +1038,7 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             updatePlayPauseIcon(isPlaying)
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                pipHelper?.updatePlaybackAction(isPlaying)
+                                // updatePlaybackAction removed - now handled internally
                             }
                         }
 
