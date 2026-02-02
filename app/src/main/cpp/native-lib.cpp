@@ -264,6 +264,18 @@ Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetLiveEvents(JNIE
     return env->NewStringUTF(eventsJson.c_str());
 }
 
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetEventCategories(JNIEnv* env, jobject) {
+    if (!appData.isLoaded) return env->NewStringUTF("[]");
+    
+    std::string eventCategoriesJson = extractJsonArray(appData.fullJson, "event_categories");
+    if (eventCategoriesJson == "[]") {
+        eventCategoriesJson = extractJsonArray(appData.fullJson, "eventCategories");
+    }
+    
+    return env->NewStringUTF(eventCategoriesJson.c_str());
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeIsDataLoaded(JNIEnv* env, jobject) {
     return appData.isLoaded ? JNI_TRUE : JNI_FALSE;
