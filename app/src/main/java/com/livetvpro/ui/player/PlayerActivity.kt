@@ -529,19 +529,21 @@ class PlayerActivity : AppCompatActivity() {
 
     /**
      * Configure UI for entering PiP mode
-     * UPDATED: Keep all UI elements visible in background as-is, no system bars manipulation
+     * UPDATED: Hide controls in PiP window, but background activity stays intact
      */
     private fun enterPipUIMode() {
-        // Don't hide anything - keep controls, overlays, and all UI visible in background
-        // The PiP window will show the player, and the background activity
-        // remains intact with all UI elements in place
+        // Hide controls in the PiP window to avoid glitches/conflicts
+        // The PiP window is small and uses system RemoteActions instead
+        binding.playerView.useController = false
+        binding.playerView.hideController()
         
-        // Don't change resize mode - keep current user setting
-        // binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        // Hide overlays in PiP window (they don't make sense in small PiP)
+        binding.lockOverlay.visibility = View.GONE
+        binding.unlockButton.visibility = View.GONE
         
-        // DON'T manipulate system bars in PiP - this causes black bars at top
-        // The system bars push content down, creating gaps in the PiP window
-        // Let PiP handle its own display naturally
+        // DON'T hide related channels and links - they stay in background activity
+        // DON'T manipulate system bars - this causes black bars at top
+        // DON'T change resize mode - keep current user setting
     }
 
     /**
@@ -1507,11 +1509,6 @@ class PlayerActivity : AppCompatActivity() {
                 it.play()
             }
         }
-
-        // Don't hide UI elements - keep everything visible in background
-        // binding.playerView.useController = false  // REMOVED
-        // binding.lockOverlay.visibility = View.GONE  // REMOVED
-        // binding.unlockButton.visibility = View.GONE  // REMOVED
 
         setSubtitleTextSizePiP()
 
