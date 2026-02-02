@@ -48,15 +48,14 @@ class EventCategoryAdapter(
 
         fun bind(category: EventCategory, isSelected: Boolean) {
             binding.categoryName.text = category.name
-            binding.categoryName.isSelected = true // Enable marquee scrolling
             
-            // Set selection state with RED border when selected
+            // Set selection state with MORE RED border when selected
             binding.root.isSelected = isSelected
-            binding.categoryCard.strokeWidth = if (isSelected) 3 else 2
+            binding.categoryCard.strokeWidth = if (isSelected) 8 else 1
             binding.categoryCard.strokeColor = if (isSelected) {
-                android.graphics.Color.parseColor("#EF4444") // RED for selected
+                android.graphics.Color.parseColor("#EF4444") // Bright RED for selected
             } else {
-                android.graphics.Color.parseColor("#3A3A3A") // Gray for unselected
+                android.graphics.Color.parseColor("#5A5A5A") // Lighter Gray for unselected
             }
             
             // Load circular logo
