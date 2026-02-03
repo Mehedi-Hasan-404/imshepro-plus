@@ -159,6 +159,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         val dialogView = layoutInflater.inflate(R.layout.dialog_category_groups, null)
         val recyclerView = dialogView.findViewById<RecyclerView>(R.id.recycler_view_groups)
         val searchEditText = dialogView.findViewById<EditText>(R.id.search_group)
+        val clearSearchButton = dialogView.findViewById<ImageView>(R.id.clear_search_button)
         val closeButton = dialogView.findViewById<ImageView>(R.id.close_button)
         
         val dialog = MaterialAlertDialogBuilder(requireContext())
@@ -185,9 +186,13 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         
         dialogAdapter.submitList(filteredGroups)
         
+        // Search functionality with clear button
         searchEditText.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                // Show/hide clear button based on text
+                clearSearchButton.visibility = if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
+            }
             override fun afterTextChanged(s: Editable?) {
                 val query = s.toString().trim()
                 filteredGroups = if (query.isEmpty()) {
@@ -198,6 +203,11 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
                 dialogAdapter.submitList(filteredGroups)
             }
         })
+        
+        // Clear search button click
+        clearSearchButton.setOnClickListener {
+            searchEditText.text.clear()
+        }
         
         closeButton.setOnClickListener {
             dialog.dismiss()
@@ -224,7 +234,14 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         
         // Observe groups and update tabs
         viewModel.categoryGroups.observe(viewLifecycleOwner) { groups ->
-            updateTabs(groups)
+            // Only show groups section if there are more than just "All"
+            val hasGroups = groups.size > 1
+            binding.groupsHeader.visibility = if (hasGroups) View.VISIBLE else View.GONE
+            binding.headerDivider.visibility = if (hasGroups) View.VISIBLE else View.GONE
+            
+            if (hasGroups) {
+                updateTabs(groups)
+            }
         }
         
         // Observe current group selection
