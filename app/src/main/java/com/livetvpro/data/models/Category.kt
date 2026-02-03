@@ -23,6 +23,9 @@ data class Channel(
     val categoryId: String = "",
     val categoryName: String = "",
     
+    // Group title from M3U (for sub-categorization)
+    val groupTitle: String = "",
+    
     // ✅ ADDED: Support for multiple links in channels
     val links: List<ChannelLink>? = null,
     
