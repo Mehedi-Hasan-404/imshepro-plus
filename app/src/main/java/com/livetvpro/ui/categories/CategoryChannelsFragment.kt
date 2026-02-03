@@ -73,12 +73,10 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         setupRecyclerView()
         observeViewModel()
 
-        // Set up groups icon click listener
         binding.groupsIcon.setOnClickListener {
             showGroupsDialog()
         }
 
-        // Only load if we haven't already (prevents reloading on configuration changes)
         if (viewModel.filteredChannels.value.isNullOrEmpty()) {
             currentCategoryId?.let {
                 viewModel.loadChannels(it)
@@ -111,7 +109,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
                     return@ChannelAdapter
                 }
 
-                // Check for multiple links
                 if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
                     showLinkSelectionDialog(channel)
                 } else {
@@ -171,7 +168,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         
         val dialogAdapter = CategoryGroupDialogAdapter { groupName ->
             viewModel.selectGroup(groupName)
-            // Update tab selection
             val tabIndex = allGroups.indexOf(groupName)
             if (tabIndex >= 0 && tabIndex < binding.tabLayoutGroups.tabCount) {
                 binding.tabLayoutGroups.getTabAt(tabIndex)?.select()
@@ -186,12 +182,10 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         
         dialogAdapter.submitList(filteredGroups)
         
-        // Show clear button when search box is focused
         searchEditText.setOnFocusChangeListener { _, hasFocus ->
             clearSearchButton.visibility = if (hasFocus) View.VISIBLE else View.GONE
         }
         
-        // Search functionality
         searchEditText.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -206,7 +200,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             }
         })
         
-        // Clear search button click - clears text and removes focus (exits search)
         clearSearchButton.setOnClickListener {
             searchEditText.text.clear()
             searchEditText.clearFocus()
@@ -247,9 +240,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             }
         }
         
-        // Observe current group selection
         viewModel.currentGroup.observe(viewLifecycleOwner) { selectedGroup ->
-            // Select the appropriate tab
             val groups = viewModel.categoryGroups.value ?: emptyList()
             val tabIndex = groups.indexOf(selectedGroup)
             if (tabIndex >= 0 && tabIndex < binding.tabLayoutGroups.tabCount) {
@@ -262,11 +253,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         binding.tabLayoutGroups.removeAllTabs()
         groups.forEach { groupName ->
             val tab = binding.tabLayoutGroups.newTab().setText(groupName)
-            
-            if (groupName == "All") {
-                tab.setIcon(R.drawable.ic_category)
-            }
-            
             binding.tabLayoutGroups.addTab(tab)
         }
         if (binding.tabLayoutGroups.tabCount > 0) {
