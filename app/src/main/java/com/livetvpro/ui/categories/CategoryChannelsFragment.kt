@@ -17,13 +17,12 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.tabs.TabLayout
 import com.livetvpro.R
 import com.livetvpro.SearchableFragment
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentCategoryChannelsBinding
-import com.livetvpro.ui.adapters.CategoryGroup
-import com.livetvpro.ui.adapters.CategoryGroupChipAdapter
 import com.livetvpro.ui.adapters.CategoryGroupDialogAdapter
 import com.livetvpro.ui.adapters.ChannelAdapter
 import com.livetvpro.ui.player.PlayerActivity
@@ -41,7 +40,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     private val viewModel: CategoryChannelsViewModel by viewModels()
     private lateinit var channelAdapter: ChannelAdapter
-    private lateinit var categoryGroupAdapter: CategoryGroupChipAdapter
 
     @Inject
     lateinit var listenerManager: NativeListenerManager
@@ -71,13 +69,13 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             Log.e("CategoryChannels", "Error setting toolbar title", e)
         }
 
-        setupCategoryGroupsRecyclerView()
+        setupTabLayout()
         setupRecyclerView()
         observeViewModel()
 
-        // Set up category icon click listener
-        binding.categoryIcon.setOnClickListener {
-            showCategoryGroupsDialog()
+        // Set up groups icon click listener
+        binding.groupsIcon.setOnClickListener {
+            showGroupsDialog()
         }
 
         // Only load if we haven't already (prevents reloading on configuration changes)
@@ -88,15 +86,17 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         }
     }
 
-    private fun setupCategoryGroupsRecyclerView() {
-        categoryGroupAdapter = CategoryGroupChipAdapter { groupName ->
-            viewModel.selectGroup(groupName)
-        }
+    private fun setupTabLayout() {
+        binding.tabLayoutGroups.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                tab?.text?.toString()?.let { groupName ->
+                    viewModel.selectGroup(groupName)
+                }
+            }
 
-        binding.recyclerViewCategoryGroups.apply {
-            layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-            adapter = categoryGroupAdapter
-        }
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {}
+        })
     }
 
     private fun setupRecyclerView() {
@@ -119,12 +119,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
                 }
             },
             onFavoriteToggle = { channel ->
-                // 1. Toggle in ViewModel
                 viewModel.toggleFavorite(channel)
-
-                // 2. Refresh ONLY the specific item to update the heart icon.
-                // We reduce the delay to 50ms (just enough for the DB write to likely finish)
-                // Note: For instant updates, your ViewModel should optimistically update its cache.
                 lifecycleScope.launch {
                     delay(50) 
                     if (_binding != null) {
@@ -135,13 +130,11 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             isFavorite = { channelId -> viewModel.isFavorite(channelId) }
         )
 
-        // Get responsive column count from resources
         val columnCount = resources.getInteger(R.integer.grid_column_count)
 
         binding.recyclerViewChannels.apply {
             layoutManager = GridLayoutManager(context, columnCount)
             adapter = channelAdapter
-            // Optimization: Prevents RecyclerView from blinking on updates
             itemAnimator = null 
         }
     }
@@ -154,11 +147,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             .setTitle("Select Stream")
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
-
-                val modifiedChannel = channel.copy(
-                    streamUrl = selectedLink.url
-                )
-
+                val modifiedChannel = channel.copy(streamUrl = selectedLink.url)
                 PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
                 dialog.dismiss()
             }
@@ -166,10 +155,10 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             .show()
     }
 
-    private fun showCategoryGroupsDialog() {
+    private fun showGroupsDialog() {
         val dialogView = layoutInflater.inflate(R.layout.dialog_category_groups, null)
-        val recyclerView = dialogView.findViewById<RecyclerView>(R.id.recycler_view_categories)
-        val searchEditText = dialogView.findViewById<EditText>(R.id.search_category)
+        val recyclerView = dialogView.findViewById<RecyclerView>(R.id.recycler_view_groups)
+        val searchEditText = dialogView.findViewById<EditText>(R.id.search_group)
         val closeButton = dialogView.findViewById<ImageView>(R.id.close_button)
         
         val dialog = MaterialAlertDialogBuilder(requireContext())
@@ -181,6 +170,11 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         
         val dialogAdapter = CategoryGroupDialogAdapter { groupName ->
             viewModel.selectGroup(groupName)
+            // Update tab selection
+            val tabIndex = allGroups.indexOf(groupName)
+            if (tabIndex >= 0 && tabIndex < binding.tabLayoutGroups.tabCount) {
+                binding.tabLayoutGroups.getTabAt(tabIndex)?.select()
+            }
             dialog.dismiss()
         }
         
@@ -191,7 +185,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         
         dialogAdapter.submitList(filteredGroups)
         
-        // Search functionality
         searchEditText.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
@@ -229,25 +222,33 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             if (error != null) binding.errorText.text = error
         }
         
-        // Observe category groups and update chips
+        // Observe groups and update tabs
         viewModel.categoryGroups.observe(viewLifecycleOwner) { groups ->
-            updateCategoryChips(groups)
+            updateTabs(groups)
         }
         
         // Observe current group selection
         viewModel.currentGroup.observe(viewLifecycleOwner) { selectedGroup ->
-            updateCategoryChips(viewModel.categoryGroups.value ?: emptyList(), selectedGroup)
+            // Select the appropriate tab
+            val groups = viewModel.categoryGroups.value ?: emptyList()
+            val tabIndex = groups.indexOf(selectedGroup)
+            if (tabIndex >= 0 && tabIndex < binding.tabLayoutGroups.tabCount) {
+                binding.tabLayoutGroups.getTabAt(tabIndex)?.select()
+            }
         }
     }
     
-    private fun updateCategoryChips(groups: List<String>, selectedGroup: String = "All") {
-        val categoryGroups = groups.map { groupName ->
-            CategoryGroup(
-                name = groupName,
-                isSelected = groupName == selectedGroup
+    private fun updateTabs(groups: List<String>) {
+        binding.tabLayoutGroups.removeAllTabs()
+        groups.forEach { groupName ->
+            binding.tabLayoutGroups.addTab(
+                binding.tabLayoutGroups.newTab().setText(groupName)
             )
         }
-        categoryGroupAdapter.submitList(categoryGroups)
+        // Select first tab (All) by default
+        if (binding.tabLayoutGroups.tabCount > 0) {
+            binding.tabLayoutGroups.getTabAt(0)?.select()
+        }
     }
 
     private fun updateUiState(isListEmpty: Boolean, isLoading: Boolean) {
@@ -260,8 +261,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onResume() {
         super.onResume()
-        // REMOVED: The full refreshAll() call that was causing the screen to flash
-        // Adapters retain state, so we don't need to force a redraw of the whole list here.
     }
 
     override fun onDestroyView() {
