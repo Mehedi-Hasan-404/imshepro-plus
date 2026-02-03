@@ -1,195 +1,293 @@
 package com.livetvpro.ui.categories
 
-import androidx.lifecycle.LiveData
-import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.asLiveData
-import androidx.lifecycle.viewModelScope
+import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.util.Log
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.EditText
+import android.widget.ImageView
+import android.widget.TextView
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.viewModels
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.tabs.TabLayout
+import com.livetvpro.R
+import com.livetvpro.SearchableFragment
 import com.livetvpro.data.models.Channel
-import com.livetvpro.data.models.ChannelLink
-import com.livetvpro.data.models.FavoriteChannel
-import com.livetvpro.data.repository.CategoryRepository
-import com.livetvpro.data.repository.ChannelRepository
-import com.livetvpro.data.repository.FavoritesRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.combine
+import com.livetvpro.data.models.ListenerConfig
+import com.livetvpro.databinding.FragmentCategoryChannelsBinding
+import com.livetvpro.ui.adapters.CategoryGroupDialogAdapter
+import com.livetvpro.ui.adapters.ChannelAdapter
+import com.livetvpro.ui.player.PlayerActivity
+import com.livetvpro.utils.NativeListenerManager
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-@HiltViewModel
-class CategoryChannelsViewModel @Inject constructor(
-    private val channelRepository: ChannelRepository,
-    private val categoryRepository: CategoryRepository,
-    private val favoritesRepository: FavoritesRepository,
-    private val savedStateHandle: SavedStateHandle
-) : ViewModel() {
+@AndroidEntryPoint
+class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
-    private val _channels = MutableStateFlow<List<Channel>>(emptyList())
-    private val _searchQuery = MutableStateFlow("")
-    private val _selectedGroup = MutableStateFlow("All")
-    
-    // Cache for favorite status to avoid repeated DB queries
-    private val _favoriteStatusCache = MutableStateFlow<Set<String>>(emptySet())
-    
-    val categoryName: String = savedStateHandle.get<String>("categoryName") ?: "Channels"
+    private var _binding: FragmentCategoryChannelsBinding? = null
+    private val binding get() = _binding!!
 
-    private val _isLoading = MutableLiveData<Boolean>(false)
-    val isLoading: LiveData<Boolean> = _isLoading
+    private val viewModel: CategoryChannelsViewModel by viewModels()
+    private lateinit var channelAdapter: ChannelAdapter
 
-    private val _error = MutableLiveData<String?>(null)
-    val error: LiveData<String?> = _error
+    @Inject
+    lateinit var listenerManager: NativeListenerManager
 
-    // List of available category groups extracted from channels
-    private val _categoryGroups = MutableLiveData<List<String>>(emptyList())
-    val categoryGroups: LiveData<List<String>> = _categoryGroups
-    
-    // Currently selected group
-    private val _currentGroup = MutableLiveData<String>("All")
-    val currentGroup: LiveData<String> = _currentGroup
+    private var currentCategoryId: String? = null
 
-    val filteredChannels: LiveData<List<Channel>> = combine(
-        _channels, 
-        _searchQuery, 
-        _selectedGroup
-    ) { list, query, group ->
-        var filtered = list
-        
-        // Filter by group
-        if (group != "All") {
-            filtered = filtered.filter { channel ->
-                extractGroupFromChannel(channel) == group
-            }
-        }
-        
-        // Filter by search query
-        if (query.isNotEmpty()) {
-            filtered = filtered.filter { it.name.contains(query, ignoreCase = true) }
-        }
-        
-        filtered
-    }.asLiveData(viewModelScope.coroutineContext + Dispatchers.Main)
-
-    init {
-        // Load favorite status cache
-        loadFavoriteCache()
+    override fun onSearchQuery(query: String) {
+        viewModel.searchChannels(query)
     }
 
-    /**
-     * Load all favorite IDs into cache
-     */
-    private fun loadFavoriteCache() {
-        viewModelScope.launch {
-            favoritesRepository.getFavoritesFlow().collect { favorites ->
-                _favoriteStatusCache.value = favorites.map { it.id }.toSet()
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+        _binding = FragmentCategoryChannelsBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        currentCategoryId = arguments?.getString("categoryId")
+
+        try {
+            val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
+            if (viewModel.categoryName.isNotEmpty()) {
+                toolbarTitle?.text = viewModel.categoryName
+            }
+        } catch (e: Exception) {
+            Log.e("CategoryChannels", "Error setting toolbar title", e)
+        }
+
+        setupTabLayout()
+        setupRecyclerView()
+        observeViewModel()
+
+        // Set up groups icon click listener
+        binding.groupsIcon.setOnClickListener {
+            showGroupsDialog()
+        }
+
+        // Only load if we haven't already (prevents reloading on configuration changes)
+        if (viewModel.filteredChannels.value.isNullOrEmpty()) {
+            currentCategoryId?.let {
+                viewModel.loadChannels(it)
             }
         }
     }
 
-    fun loadChannels(categoryId: String) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                val result = channelRepository.getChannelsByCategory(categoryId)
-                _channels.value = result
-                
-                // Extract unique groups from channels
-                extractCategoryGroups(result)
-            } catch (e: Exception) {
-                _error.value = e.message
-            } finally {
-                _isLoading.value = false
+    private fun setupTabLayout() {
+        binding.tabLayoutGroups.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab?) {
+                tab?.text?.toString()?.let { groupName ->
+                    viewModel.selectGroup(groupName)
+                }
             }
-        }
-    }
-    
-    /**
-     * Extract category groups from channels based on group-title attribute
-     */
-    private fun extractCategoryGroups(channels: List<Channel>) {
-        val groups = mutableSetOf<String>()
-        
-        channels.forEach { channel ->
-            val group = extractGroupFromChannel(channel)
-            if (group.isNotEmpty()) {
-                groups.add(group)
-            }
-        }
-        
-        // Only add "All" and show groups if there are actual group titles
-        // If groups is empty, it means no channels have group-title attributes
-        val groupList = if (groups.isNotEmpty()) {
-            mutableListOf("All").apply {
-                addAll(groups.sorted())
-            }
-        } else {
-            emptyList()
-        }
-        
-        _categoryGroups.value = groupList
-    }
-    
-    /**
-     * Extract group name from channel
-     * Uses the groupTitle parsed from M3U group-title attribute
-     */
-    private fun extractGroupFromChannel(channel: Channel): String {
-        // Use the groupTitle from M3U parsing
-        return channel.groupTitle.ifEmpty { 
-            // Fallback to categoryName if groupTitle is not available
-            channel.categoryName 
-        }
-    }
-    
-    /**
-     * Select a category group for filtering
-     */
-    fun selectGroup(group: String) {
-        _selectedGroup.value = group
-        _currentGroup.value = group
+
+            override fun onTabUnselected(tab: TabLayout.Tab?) {}
+            override fun onTabReselected(tab: TabLayout.Tab?) {}
+        })
     }
 
-    fun searchChannels(query: String) {
-        _searchQuery.value = query
-    }
-
-    fun toggleFavorite(channel: Channel) {
-        viewModelScope.launch {
-            // Convert Channel.links to FavoriteChannel.links
-            val favoriteLinks = channel.links?.map { channelLink ->
-                ChannelLink(
-                    quality = channelLink.quality,
-                    url = channelLink.url
+    private fun setupRecyclerView() {
+        channelAdapter = ChannelAdapter(
+            onChannelClick = { channel ->
+                val shouldBlock = listenerManager.onPageInteraction(
+                    ListenerConfig.PAGE_CHANNELS,
+                    uniqueId = currentCategoryId
                 )
-            }
-            
-            val favoriteChannel = FavoriteChannel(
-                id = channel.id,
-                name = channel.name,
-                logoUrl = channel.logoUrl,
-                streamUrl = channel.streamUrl,
-                categoryId = channel.categoryId,
-                categoryName = channel.categoryName,
-                links = favoriteLinks // Pass links to favorite
-            )
-            
-            if (favoritesRepository.isFavorite(channel.id)) {
-                favoritesRepository.removeFavorite(channel.id)
-            } else {
-                favoritesRepository.addFavorite(favoriteChannel)
-            }
-            
-            // Cache will update automatically via Flow
+
+                if (shouldBlock) {
+                    return@ChannelAdapter
+                }
+
+                // Check for multiple links
+                if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
+                    showLinkSelectionDialog(channel)
+                } else {
+                    PlayerActivity.startWithChannel(requireContext(), channel)
+                }
+            },
+            onFavoriteToggle = { channel ->
+                viewModel.toggleFavorite(channel)
+                lifecycleScope.launch {
+                    delay(50) 
+                    if (_binding != null) {
+                        channelAdapter.refreshItem(channel.id)
+                    }
+                }
+            },
+            isFavorite = { channelId -> viewModel.isFavorite(channelId) }
+        )
+
+        val columnCount = resources.getInteger(R.integer.grid_column_count)
+
+        binding.recyclerViewChannels.apply {
+            layoutManager = GridLayoutManager(context, columnCount)
+            adapter = channelAdapter
+            itemAnimator = null 
         }
     }
 
-    /**
-     * Check if a channel is favorited using the cache
-     * This is called synchronously from the adapter
-     */
-    fun isFavorite(channelId: String): Boolean {
-        return _favoriteStatusCache.value.contains(channelId)
+    private fun showLinkSelectionDialog(channel: Channel) {
+        val links = channel.links ?: return
+        val linkLabels = links.map { it.quality }.toTypedArray()
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Select Stream")
+            .setItems(linkLabels) { dialog, which ->
+                val selectedLink = links[which]
+                val modifiedChannel = channel.copy(streamUrl = selectedLink.url)
+                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showGroupsDialog() {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_category_groups, null)
+        val recyclerView = dialogView.findViewById<RecyclerView>(R.id.recycler_view_groups)
+        val searchEditText = dialogView.findViewById<EditText>(R.id.search_group)
+        val clearSearchButton = dialogView.findViewById<ImageView>(R.id.clear_search_button)
+        val closeButton = dialogView.findViewById<ImageView>(R.id.close_button)
+        
+        val dialog = MaterialAlertDialogBuilder(requireContext())
+            .setView(dialogView)
+            .create()
+        
+        val allGroups = viewModel.categoryGroups.value ?: emptyList()
+        var filteredGroups = allGroups.toList()
+        
+        val dialogAdapter = CategoryGroupDialogAdapter { groupName ->
+            viewModel.selectGroup(groupName)
+            // Update tab selection
+            val tabIndex = allGroups.indexOf(groupName)
+            if (tabIndex >= 0 && tabIndex < binding.tabLayoutGroups.tabCount) {
+                binding.tabLayoutGroups.getTabAt(tabIndex)?.select()
+            }
+            dialog.dismiss()
+        }
+        
+        recyclerView.apply {
+            layoutManager = LinearLayoutManager(context)
+            adapter = dialogAdapter
+        }
+        
+        dialogAdapter.submitList(filteredGroups)
+        
+        // Show clear button when search box is focused
+        searchEditText.setOnFocusChangeListener { _, hasFocus ->
+            clearSearchButton.visibility = if (hasFocus) View.VISIBLE else View.GONE
+        }
+        
+        // Search functionality
+        searchEditText.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                val query = s.toString().trim()
+                filteredGroups = if (query.isEmpty()) {
+                    allGroups
+                } else {
+                    allGroups.filter { it.contains(query, ignoreCase = true) }
+                }
+                dialogAdapter.submitList(filteredGroups)
+            }
+        })
+        
+        // Clear search button click - clears text and removes focus (exits search)
+        clearSearchButton.setOnClickListener {
+            searchEditText.text.clear()
+            searchEditText.clearFocus()
+        }
+        
+        closeButton.setOnClickListener {
+            dialog.dismiss()
+        }
+        
+        dialog.show()
+    }
+
+    private fun observeViewModel() {
+        viewModel.filteredChannels.observe(viewLifecycleOwner) { channels ->
+            channelAdapter.submitList(channels)
+            updateUiState(channels.isEmpty(), viewModel.isLoading.value ?: false)
+        }
+        
+        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
+            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+            updateUiState(viewModel.filteredChannels.value?.isEmpty() ?: true, isLoading)
+        }
+        
+        viewModel.error.observe(viewLifecycleOwner) { error ->
+            binding.errorView.visibility = if (error != null) View.VISIBLE else View.GONE
+            if (error != null) binding.errorText.text = error
+        }
+        
+        viewModel.categoryGroups.observe(viewLifecycleOwner) { groups ->
+            val hasGroups = groups.isNotEmpty()
+            binding.groupsHeader.visibility = if (hasGroups) View.VISIBLE else View.GONE
+            binding.headerDivider.visibility = if (hasGroups) View.VISIBLE else View.GONE
+            
+            if (hasGroups) {
+                updateTabs(groups)
+            } else {
+                binding.tabLayoutGroups.removeAllTabs()
+            }
+        }
+        
+        // Observe current group selection
+        viewModel.currentGroup.observe(viewLifecycleOwner) { selectedGroup ->
+            // Select the appropriate tab
+            val groups = viewModel.categoryGroups.value ?: emptyList()
+            val tabIndex = groups.indexOf(selectedGroup)
+            if (tabIndex >= 0 && tabIndex < binding.tabLayoutGroups.tabCount) {
+                binding.tabLayoutGroups.getTabAt(tabIndex)?.select()
+            }
+        }
+    }
+    
+    private fun updateTabs(groups: List<String>) {
+        binding.tabLayoutGroups.removeAllTabs()
+        groups.forEach { groupName ->
+            val tab = binding.tabLayoutGroups.newTab().setText(groupName)
+            
+            if (groupName == "All") {
+                tab.setIcon(R.drawable.ic_category)
+            }
+            
+            binding.tabLayoutGroups.addTab(tab)
+        }
+        if (binding.tabLayoutGroups.tabCount > 0) {
+            binding.tabLayoutGroups.getTabAt(0)?.select()
+        }
+    }
+
+    private fun updateUiState(isListEmpty: Boolean, isLoading: Boolean) {
+        if (isLoading) {
+            binding.emptyView.visibility = View.GONE
+        } else {
+            binding.emptyView.visibility = if (isListEmpty) View.VISIBLE else View.GONE
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
     }
 }
