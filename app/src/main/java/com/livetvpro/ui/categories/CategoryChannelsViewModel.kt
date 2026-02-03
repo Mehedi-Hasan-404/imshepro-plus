@@ -117,9 +117,7 @@ class CategoryChannelsViewModel @Inject constructor(
     }
     
     private fun extractGroupFromChannel(channel: Channel): String {
-        return channel.groupTitle.ifEmpty { 
-            channel.categoryName 
-        }
+        return channel.groupTitle
     }
     
     fun selectGroup(group: String) {
