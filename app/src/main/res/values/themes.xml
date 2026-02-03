@@ -19,6 +19,13 @@
         <item name="android:statusBarColor">@color/background_dark</item>
         <item name="android:navigationBarColor">@color/surface_dark</item>
         <item name="android:windowLightStatusBar">false</item>
+        
+        <!-- Disable elevation overlays -->
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="elevationOverlayColor">@android:color/transparent</item>
+        
+        <!-- Set window background -->
+        <item name="android:windowBackground">@color/background_dark</item>
     </style>
 
     <!-- LIGHT THEME -->
@@ -44,6 +51,13 @@
         <item name="android:statusBarColor">#FAFAFA</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
         <item name="android:windowLightStatusBar">true</item>
+        
+        <!-- Disable elevation overlays -->
+        <item name="elevationOverlayEnabled">false</item>
+        <item name="elevationOverlayColor">@android:color/transparent</item>
+        
+        <!-- Set window background -->
+        <item name="android:windowBackground">#FAFAFA</item>
     </style>
 
     <!-- FULLSCREEN THEME -->
