@@ -5,7 +5,7 @@
     android:layout_width="match_parent" 
     android:layout_height="match_parent">
 
-    <!-- Groups Header with TabLayout -->
+    <!-- Groups Header with TabLayout (Only visible when groups exist) -->
     <LinearLayout
         android:id="@+id/groups_header"
         android:layout_width="0dp"
@@ -13,21 +13,22 @@
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:background="?attr/colorSurface"
+        android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Group Icon Button -->
+        <!-- Group Icon Button (Menu icon) -->
         <ImageView
             android:id="@+id/groups_icon"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginStart="8dp"
-            android:padding="8dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="4dp"
+            android:padding="12dp"
             android:src="@drawable/ic_live_indicator"
             android:contentDescription="Groups"
             android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="?android:attr/textColorPrimary" />
+            app:tint="?android:attr/textColorSecondary" />
 
         <!-- TabLayout for Groups -->
         <com.google.android.material.tabs.TabLayout
@@ -35,24 +36,29 @@
             android:layout_width="0dp"
             android:layout_height="48dp"
             android:layout_weight="1"
+            android:background="@android:color/transparent"
             app:tabMode="scrollable"
             app:tabGravity="start"
-            app:tabIndicatorColor="?attr/colorPrimary"
+            app:tabIndicatorColor="#EF4444"
             app:tabIndicatorHeight="3dp"
-            app:tabSelectedTextColor="?attr/colorPrimary"
-            app:tabTextColor="?android:attr/textColorSecondary"
+            app:tabSelectedTextColor="#EF4444"
+            app:tabTextColor="#888888"
             app:tabTextAppearance="@style/TabTextAppearance"
-            app:tabRippleColor="@color/chip_ripple_color"
-            app:tabIndicatorFullWidth="false" />
+            app:tabRippleColor="#40EF4444"
+            app:tabIndicatorFullWidth="false"
+            app:tabPaddingStart="16dp"
+            app:tabPaddingEnd="16dp"
+            app:tabMinWidth="60dp" />
     </LinearLayout>
 
-    <!-- Divider -->
+    <!-- Divider (Only visible when groups exist) -->
     <View
         android:id="@+id/header_divider"
         android:layout_width="0dp"
         android:layout_height="1dp"
         android:background="?android:attr/dividerHorizontal"
         android:alpha="0.2"
+        android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/groups_header"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
