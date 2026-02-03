@@ -186,13 +186,15 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         
         dialogAdapter.submitList(filteredGroups)
         
-        // Search functionality with clear button
+        // Show clear button when search box is focused
+        searchEditText.setOnFocusChangeListener { _, hasFocus ->
+            clearSearchButton.visibility = if (hasFocus) View.VISIBLE else View.GONE
+        }
+        
+        // Search functionality
         searchEditText.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                // Show/hide clear button based on text
-                clearSearchButton.visibility = if (s.isNullOrEmpty()) View.GONE else View.VISIBLE
-            }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
             override fun afterTextChanged(s: Editable?) {
                 val query = s.toString().trim()
                 filteredGroups = if (query.isEmpty()) {
@@ -204,9 +206,10 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             }
         })
         
-        // Clear search button click
+        // Clear search button click - clears text and removes focus (exits search)
         clearSearchButton.setOnClickListener {
             searchEditText.text.clear()
+            searchEditText.clearFocus()
         }
         
         closeButton.setOnClickListener {
@@ -258,9 +261,14 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun updateTabs(groups: List<String>) {
         binding.tabLayoutGroups.removeAllTabs()
         groups.forEach { groupName ->
-            binding.tabLayoutGroups.addTab(
-                binding.tabLayoutGroups.newTab().setText(groupName)
-            )
+            val tab = binding.tabLayoutGroups.newTab().setText(groupName)
+            
+            // Add icon only to "All" tab
+            if (groupName == "All") {
+                tab.setIcon(R.drawable.ic_category_icon)
+            }
+            
+            binding.tabLayoutGroups.addTab(tab)
         }
         // Select first tab (All) by default
         if (binding.tabLayoutGroups.tabCount > 0) {
