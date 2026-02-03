@@ -159,6 +159,8 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         val clearSearchButton = dialogView.findViewById<ImageView>(R.id.clear_search_button)
         val closeButton = dialogView.findViewById<ImageView>(R.id.close_button)
         
+        searchEditText.typeface = resources.getFont(R.font.bergen_sans)
+        
         val dialog = MaterialAlertDialogBuilder(requireContext())
             .setView(dialogView)
             .create()
@@ -257,6 +259,15 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         }
         if (binding.tabLayoutGroups.tabCount > 0) {
             binding.tabLayoutGroups.getTabAt(0)?.select()
+        }
+        
+        binding.tabLayoutGroups.post {
+            for (i in 0 until binding.tabLayoutGroups.tabCount) {
+                val tab = binding.tabLayoutGroups.getTabAt(i)
+                val tabView = tab?.view
+                val tabTextView = tabView?.findViewById<TextView>(com.google.android.material.R.id.text)
+                tabTextView?.typeface = resources.getFont(R.font.bergen_sans)
+            }
         }
     }
 
