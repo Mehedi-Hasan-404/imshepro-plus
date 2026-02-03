@@ -5,43 +5,45 @@
     android:layout_width="match_parent" 
     android:layout_height="match_parent">
 
-    <!-- Category Groups Header -->
+    <!-- Groups Header with TabLayout -->
     <LinearLayout
-        android:id="@+id/category_groups_header"
+        android:id="@+id/groups_header"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="8dp"
-        android:paddingEnd="8dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
         android:background="?attr/colorSurface"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- Category Icon Button -->
+        <!-- Group Icon Button -->
         <ImageView
-            android:id="@+id/category_icon"
+            android:id="@+id/groups_icon"
             android:layout_width="40dp"
             android:layout_height="40dp"
+            android:layout_marginStart="8dp"
             android:padding="8dp"
             android:src="@drawable/ic_live_indicator"
-            android:contentDescription="Categories"
+            android:contentDescription="Groups"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="?android:attr/textColorPrimary" />
 
-        <!-- Horizontal RecyclerView for Category Chips -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recycler_view_category_groups"
+        <!-- TabLayout for Groups -->
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/tab_layout_groups"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
-            android:orientation="horizontal"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:clipToPadding="false" />
+            app:tabMode="scrollable"
+            app:tabGravity="start"
+            app:tabIndicatorColor="?attr/colorPrimary"
+            app:tabIndicatorHeight="3dp"
+            app:tabSelectedTextColor="?attr/colorPrimary"
+            app:tabTextColor="?android:attr/textColorSecondary"
+            app:tabTextAppearance="@style/TabTextAppearance"
+            app:tabRippleColor="@color/chip_ripple_color"
+            app:tabIndicatorFullWidth="false" />
     </LinearLayout>
 
     <!-- Divider -->
@@ -51,7 +53,7 @@
         android:layout_height="1dp"
         android:background="?android:attr/dividerHorizontal"
         android:alpha="0.2"
-        app:layout_constraintTop_toBottomOf="@id/category_groups_header"
+        app:layout_constraintTop_toBottomOf="@id/groups_header"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
