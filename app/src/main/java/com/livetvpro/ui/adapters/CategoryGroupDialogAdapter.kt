@@ -33,8 +33,8 @@ class CategoryGroupDialogAdapter(
 
         fun bind(group: String) {
             groupName.text = group
+            groupName.typeface = itemView.context.resources.getFont(R.font.bergen_sans)
             
-            // All items in dialog use ic_playlist icon
             groupIcon.visibility = View.VISIBLE
             groupIcon.setImageResource(R.drawable.ic_playlist)
             
