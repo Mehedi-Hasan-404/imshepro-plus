@@ -265,7 +265,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             
             // Add icon only to "All" tab
             if (groupName == "All") {
-                tab.setIcon(R.drawable.ic_category_icon)
+                tab.setIcon(R.drawable.ic_category)
             }
             
             binding.tabLayoutGroups.addTab(tab)
