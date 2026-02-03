@@ -5,13 +5,63 @@
     android:layout_width="match_parent" 
     android:layout_height="match_parent">
 
+    <!-- Category Groups Header -->
+    <LinearLayout
+        android:id="@+id/category_groups_header"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:background="?attr/colorSurface"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <!-- Category Icon Button -->
+        <ImageView
+            android:id="@+id/category_icon"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_live_indicator"
+            android:contentDescription="Categories"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="?android:attr/textColorPrimary" />
+
+        <!-- Horizontal RecyclerView for Category Chips -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view_category_groups"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:clipToPadding="false" />
+    </LinearLayout>
+
+    <!-- Divider -->
+    <View
+        android:id="@+id/header_divider"
+        android:layout_width="0dp"
+        android:layout_height="1dp"
+        android:background="?android:attr/dividerHorizontal"
+        android:alpha="0.2"
+        app:layout_constraintTop_toBottomOf="@id/category_groups_header"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recycler_view_channels" 
         android:layout_width="0dp" 
         android:layout_height="0dp"
         android:padding="4dp"
         android:clipToPadding="false"
-        app:layout_constraintTop_toTopOf="parent" 
+        app:layout_constraintTop_toBottomOf="@id/header_divider" 
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent" 
         app:layout_constraintEnd_toEndOf="parent" />
