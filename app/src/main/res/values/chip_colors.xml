@@ -11,4 +11,7 @@
     <!-- Chip Text Colors -->
     <color name="chip_text_normal">#CCCCCC</color>
     <color name="chip_text_selected">#FFFFFF</color>
+    
+    <!-- Chip Ripple Color -->
+    <color name="chip_ripple_color">#40FFFFFF</color>
 </resources>
