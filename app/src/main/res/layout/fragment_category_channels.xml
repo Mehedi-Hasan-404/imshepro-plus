@@ -25,7 +25,7 @@
             android:layout_height="48dp"
             android:layout_marginStart="4dp"
             android:padding="12dp"
-            android:src="@drawable/ic_live_indicator"
+            android:src="@drawable/ic_category"
             android:contentDescription="Groups"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="?android:attr/textColorSecondary" />
