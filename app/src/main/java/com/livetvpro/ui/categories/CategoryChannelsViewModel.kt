@@ -29,6 +29,7 @@ class CategoryChannelsViewModel @Inject constructor(
 
     private val _channels = MutableStateFlow<List<Channel>>(emptyList())
     private val _searchQuery = MutableStateFlow("")
+    private val _selectedGroup = MutableStateFlow("All")
     
     // Cache for favorite status to avoid repeated DB queries
     private val _favoriteStatusCache = MutableStateFlow<Set<String>>(emptySet())
@@ -41,9 +42,34 @@ class CategoryChannelsViewModel @Inject constructor(
     private val _error = MutableLiveData<String?>(null)
     val error: LiveData<String?> = _error
 
-    val filteredChannels: LiveData<List<Channel>> = combine(_channels, _searchQuery) { list, query ->
-        if (query.isEmpty()) list
-        else list.filter { it.name.contains(query, ignoreCase = true) }
+    // List of available category groups extracted from channels
+    private val _categoryGroups = MutableLiveData<List<String>>(emptyList())
+    val categoryGroups: LiveData<List<String>> = _categoryGroups
+    
+    // Currently selected group
+    private val _currentGroup = MutableLiveData<String>("All")
+    val currentGroup: LiveData<String> = _currentGroup
+
+    val filteredChannels: LiveData<List<Channel>> = combine(
+        _channels, 
+        _searchQuery, 
+        _selectedGroup
+    ) { list, query, group ->
+        var filtered = list
+        
+        // Filter by group
+        if (group != "All") {
+            filtered = filtered.filter { channel ->
+                extractGroupFromChannel(channel) == group
+            }
+        }
+        
+        // Filter by search query
+        if (query.isNotEmpty()) {
+            filtered = filtered.filter { it.name.contains(query, ignoreCase = true) }
+        }
+        
+        filtered
     }.asLiveData(viewModelScope.coroutineContext + Dispatchers.Main)
 
     init {
@@ -68,12 +94,55 @@ class CategoryChannelsViewModel @Inject constructor(
             try {
                 val result = channelRepository.getChannelsByCategory(categoryId)
                 _channels.value = result
+                
+                // Extract unique groups from channels
+                extractCategoryGroups(result)
             } catch (e: Exception) {
                 _error.value = e.message
             } finally {
                 _isLoading.value = false
             }
         }
+    }
+    
+    /**
+     * Extract category groups from channels based on group-title attribute
+     */
+    private fun extractCategoryGroups(channels: List<Channel>) {
+        val groups = mutableSetOf<String>()
+        
+        channels.forEach { channel ->
+            val group = extractGroupFromChannel(channel)
+            if (group.isNotEmpty()) {
+                groups.add(group)
+            }
+        }
+        
+        // Always add "All" at the beginning
+        val groupList = mutableListOf("All")
+        groupList.addAll(groups.sorted())
+        
+        _categoryGroups.value = groupList
+    }
+    
+    /**
+     * Extract group name from channel
+     * Uses the groupTitle parsed from M3U group-title attribute
+     */
+    private fun extractGroupFromChannel(channel: Channel): String {
+        // Use the groupTitle from M3U parsing
+        return channel.groupTitle.ifEmpty { 
+            // Fallback to categoryName if groupTitle is not available
+            channel.categoryName 
+        }
+    }
+    
+    /**
+     * Select a category group for filtering
+     */
+    fun selectGroup(group: String) {
+        _selectedGroup.value = group
+        _currentGroup.value = group
     }
 
     fun searchChannels(query: String) {
