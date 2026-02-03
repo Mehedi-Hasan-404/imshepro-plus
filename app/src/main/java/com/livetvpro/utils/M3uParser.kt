@@ -922,13 +922,14 @@ object M3uParser {
             val metaUrl = buildStreamUrlWithMetadata(m3u)
             
             Channel(
-                id = generateChannelId(m3u.streamUrl, m3u.name),
-                name = m3u.name,
-                logoUrl = m3u.logoUrl,
-                streamUrl = metaUrl,
-                categoryId = categoryId,
-                categoryName = categoryName
-            )
+    id = generateChannelId(m3u.streamUrl, m3u.name),
+    name = m3u.name,
+    logoUrl = m3u.logoUrl,
+    streamUrl = metaUrl,
+    categoryId = categoryId,
+    categoryName = categoryName,
+    groupTitle = m3u.groupTitle  
+)
         }
     }
 
