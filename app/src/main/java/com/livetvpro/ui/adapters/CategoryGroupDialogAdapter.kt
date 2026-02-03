@@ -34,11 +34,23 @@ class CategoryGroupDialogAdapter(
         fun bind(group: String) {
             groupName.text = group
             
-            // Set different icon for "All"
-            if (group == "All") {
-                groupIcon.setImageResource(R.drawable.ic_home)
+            // Set icon based on group name (no home icon for "All")
+            val iconRes = when {
+                group == "All" -> null  // No icon for "All"
+                group.contains("Sport", ignoreCase = true) -> R.drawable.ic_live
+                group.contains("Movie", ignoreCase = true) -> R.drawable.ic_play
+                group.contains("News", ignoreCase = true) -> R.drawable.ic_broadcast_live
+                group.contains("Kids", ignoreCase = true) -> R.drawable.ic_star_filled
+                group.contains("Entertainment", ignoreCase = true) -> R.drawable.ic_play
+                else -> R.drawable.ic_live_indicator
+            }
+            
+            if (iconRes == null) {
+                // Hide icon for "All"
+                groupIcon.visibility = View.GONE
             } else {
-                groupIcon.setImageResource(R.drawable.ic_live_indicator)
+                groupIcon.visibility = View.VISIBLE
+                groupIcon.setImageResource(iconRes)
             }
             
             itemView.setOnClickListener {
