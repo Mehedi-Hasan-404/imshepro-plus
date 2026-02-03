@@ -37,6 +37,14 @@ class CategoryGroupChipAdapter(
             chip.text = group.name
             chip.isChecked = group.isSelected
             
+            // Set icon for "All" category
+            if (group.name == "All") {
+                chip.chipIcon = ContextCompat.getDrawable(chip.context, R.drawable.ic_category_icon)
+                chip.isChipIconVisible = true
+            } else {
+                chip.isChipIconVisible = false
+            }
+            
             // Update chip appearance based on selection
             if (group.isSelected) {
                 chip.chipBackgroundColor = ContextCompat.getColorStateList(chip.context, R.color.chip_background_selected)
