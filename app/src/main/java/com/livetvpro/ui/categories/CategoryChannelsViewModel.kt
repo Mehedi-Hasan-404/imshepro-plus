@@ -31,7 +31,6 @@ class CategoryChannelsViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     private val _selectedGroup = MutableStateFlow("All")
     
-    // Cache for favorite status to avoid repeated DB queries
     private val _favoriteStatusCache = MutableStateFlow<Set<String>>(emptySet())
     
     val categoryName: String = savedStateHandle.get<String>("categoryName") ?: "Channels"
@@ -42,11 +41,9 @@ class CategoryChannelsViewModel @Inject constructor(
     private val _error = MutableLiveData<String?>(null)
     val error: LiveData<String?> = _error
 
-    // List of available category groups extracted from channels
     private val _categoryGroups = MutableLiveData<List<String>>(emptyList())
     val categoryGroups: LiveData<List<String>> = _categoryGroups
     
-    // Currently selected group
     private val _currentGroup = MutableLiveData<String>("All")
     val currentGroup: LiveData<String> = _currentGroup
 
@@ -57,14 +54,12 @@ class CategoryChannelsViewModel @Inject constructor(
     ) { list, query, group ->
         var filtered = list
         
-        // Filter by group
         if (group != "All") {
             filtered = filtered.filter { channel ->
                 extractGroupFromChannel(channel) == group
             }
         }
         
-        // Filter by search query
         if (query.isNotEmpty()) {
             filtered = filtered.filter { it.name.contains(query, ignoreCase = true) }
         }
@@ -73,13 +68,9 @@ class CategoryChannelsViewModel @Inject constructor(
     }.asLiveData(viewModelScope.coroutineContext + Dispatchers.Main)
 
     init {
-        // Load favorite status cache
         loadFavoriteCache()
     }
 
-    /**
-     * Load all favorite IDs into cache
-     */
     private fun loadFavoriteCache() {
         viewModelScope.launch {
             favoritesRepository.getFavoritesFlow().collect { favorites ->
@@ -95,7 +86,6 @@ class CategoryChannelsViewModel @Inject constructor(
                 val result = channelRepository.getChannelsByCategory(categoryId)
                 _channels.value = result
                 
-                // Extract unique groups from channels
                 extractCategoryGroups(result)
             } catch (e: Exception) {
                 _error.value = e.message
@@ -105,9 +95,6 @@ class CategoryChannelsViewModel @Inject constructor(
         }
     }
     
-    /**
-     * Extract category groups from channels based on group-title attribute
-     */
     private fun extractCategoryGroups(channels: List<Channel>) {
         val groups = mutableSetOf<String>()
         
@@ -118,8 +105,6 @@ class CategoryChannelsViewModel @Inject constructor(
             }
         }
         
-        // Only add "All" and show groups if there are actual group titles
-        // If groups is empty, it means no channels have group-title attributes
         val groupList = if (groups.isNotEmpty()) {
             mutableListOf("All").apply {
                 addAll(groups.sorted())
@@ -131,21 +116,12 @@ class CategoryChannelsViewModel @Inject constructor(
         _categoryGroups.value = groupList
     }
     
-    /**
-     * Extract group name from channel
-     * Uses the groupTitle parsed from M3U group-title attribute
-     */
     private fun extractGroupFromChannel(channel: Channel): String {
-        // Use the groupTitle from M3U parsing
         return channel.groupTitle.ifEmpty { 
-            // Fallback to categoryName if groupTitle is not available
             channel.categoryName 
         }
     }
     
-    /**
-     * Select a category group for filtering
-     */
     fun selectGroup(group: String) {
         _selectedGroup.value = group
         _currentGroup.value = group
@@ -157,7 +133,6 @@ class CategoryChannelsViewModel @Inject constructor(
 
     fun toggleFavorite(channel: Channel) {
         viewModelScope.launch {
-            // Convert Channel.links to FavoriteChannel.links
             val favoriteLinks = channel.links?.map { channelLink ->
                 ChannelLink(
                     quality = channelLink.quality,
@@ -172,7 +147,7 @@ class CategoryChannelsViewModel @Inject constructor(
                 streamUrl = channel.streamUrl,
                 categoryId = channel.categoryId,
                 categoryName = channel.categoryName,
-                links = favoriteLinks // Pass links to favorite
+                links = favoriteLinks
             )
             
             if (favoritesRepository.isFavorite(channel.id)) {
@@ -180,15 +155,9 @@ class CategoryChannelsViewModel @Inject constructor(
             } else {
                 favoritesRepository.addFavorite(favoriteChannel)
             }
-            
-            // Cache will update automatically via Flow
         }
     }
 
-    /**
-     * Check if a channel is favorited using the cache
-     * This is called synchronously from the adapter
-     */
     fun isFavorite(channelId: String): Boolean {
         return _favoriteStatusCache.value.contains(channelId)
     }
