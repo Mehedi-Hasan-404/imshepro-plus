@@ -21,34 +21,30 @@ class PlayerViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
     private val channelRepository: ChannelRepository,
     private val liveEventRepository: LiveEventRepository,
-    private val nativeDataRepository: NativeDataRepository // ✅ Added Injection
+    private val nativeDataRepository: NativeDataRepository
 ) : ViewModel() {
 
     private val _relatedItems = MutableLiveData<List<Channel>>()
     val relatedItems: LiveData<List<Channel>> = _relatedItems
 
+    private val _relatedLiveEvents = MutableLiveData<List<LiveEvent>>()
+    val relatedLiveEvents: LiveData<List<LiveEvent>> = _relatedLiveEvents
+
     private val _isFavorite = MutableLiveData<Boolean>()
     val isFavorite: LiveData<Boolean> = _isFavorite
 
-    // ✅ NEW: LiveData to hold refreshed channel data
     private val _refreshedChannel = MutableLiveData<Channel?>()
     val refreshedChannel: LiveData<Channel?> = _refreshedChannel
 
-    /**
-     * ✅ NEW: Refresh channel data from the live repository using ID
-     * This fixes missing links if the intent data was stale (e.g. from Favorites)
-     */
     fun refreshChannelData(channelId: String) {
         viewModelScope.launch {
             try {
-                // nativeDataRepository.getChannels() returns the raw list from JSON
                 val allChannels = nativeDataRepository.getChannels()
                 val freshChannel = allChannels.find { it.id == channelId }
                 if (freshChannel != null) {
                     _refreshedChannel.postValue(freshChannel)
                 }
             } catch (e: Exception) {
-                // Ignore errors, stick to what we have
             }
         }
     }
@@ -141,29 +137,26 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val allEvents = liveEventRepository.getLiveEvents()
-                val relatedEvents = allEvents.filter { event ->
-                    event.id != currentEventId && 
-                    (event.isLive || event.getStatus(System.currentTimeMillis()) == com.livetvpro.data.models.EventStatus.UPCOMING)
+                val currentTime = System.currentTimeMillis()
+                
+                val eventsWithStatus = allEvents.map { event ->
+                    event to event.getStatus(currentTime)
                 }
-
-                val eventsAsChannels = relatedEvents.take(9).map { event ->
-                    Channel(
-                        id = event.id,
-                        name = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" },
-                        logoUrl = event.team1Logo.ifEmpty { event.team2Logo },
-                        streamUrl = event.links.firstOrNull()?.url ?: "",
-                        categoryId = "live_events",
-                        categoryName = event.league,
-                        team1Logo = event.team1Logo,
-                        team2Logo = event.team2Logo,
-                        isLive = event.isLive,
-                        startTime = event.startTime,
-                        endTime = event.endTime ?: ""
-                    )
+                
+                val liveEvents = eventsWithStatus.filter { (event, status) ->
+                    event.id != currentEventId && status == com.livetvpro.data.models.EventStatus.LIVE
                 }
-                _relatedItems.postValue(eventsAsChannels)
+                
+                val upcomingEvents = eventsWithStatus.filter { (event, status) ->
+                    event.id != currentEventId && status == com.livetvpro.data.models.EventStatus.UPCOMING
+                }
+                
+                val relatedEvents = (liveEvents.map { it.first } + upcomingEvents.map { it.first }).take(6)
+                
+                _relatedLiveEvents.postValue(relatedEvents)
+                
             } catch (e: Exception) {
-                _relatedItems.postValue(emptyList())
+                _relatedLiveEvents.postValue(emptyList())
             }
         }
     }
