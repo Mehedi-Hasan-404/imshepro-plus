@@ -78,7 +78,8 @@ data class LiveEvent(
         val endTimestamp = endTime?.let { parseTimestamp(it) }
 
         return when {
-            isLive -> EventStatus.LIVE
+            endTimestamp != null && currentTime >= startTimestamp && currentTime <= endTimestamp -> EventStatus.LIVE
+            isLive && currentTime >= startTimestamp -> EventStatus.LIVE
             currentTime < startTimestamp -> EventStatus.UPCOMING
             endTimestamp != null && currentTime > endTimestamp -> EventStatus.RECENT
             currentTime > startTimestamp -> EventStatus.RECENT
