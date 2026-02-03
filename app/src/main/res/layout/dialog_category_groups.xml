@@ -16,11 +16,11 @@
         android:background="?attr/colorSurface">
 
         <EditText
-            android:id="@+id/search_category"
+            android:id="@+id/search_group"
             android:layout_width="0dp"
             android:layout_height="48dp"
             android:layout_weight="1"
-            android:hint="Search Categories"
+            android:hint="Search Groups"
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:background="@drawable/circular_button_bg"
@@ -48,9 +48,9 @@
         android:background="?android:attr/dividerHorizontal"
         android:alpha="0.3" />
 
-    <!-- Category list -->
+    <!-- Group list -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_view_categories"
+        android:id="@+id/recycler_view_groups"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:maxHeight="400dp"
