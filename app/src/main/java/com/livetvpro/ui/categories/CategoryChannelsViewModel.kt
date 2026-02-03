@@ -118,9 +118,15 @@ class CategoryChannelsViewModel @Inject constructor(
             }
         }
         
-        // Always add "All" at the beginning
-        val groupList = mutableListOf("All")
-        groupList.addAll(groups.sorted())
+        // Only add "All" and show groups if there are actual group titles
+        // If groups is empty, it means no channels have group-title attributes
+        val groupList = if (groups.isNotEmpty()) {
+            mutableListOf("All").apply {
+                addAll(groups.sorted())
+            }
+        } else {
+            emptyList()
+        }
         
         _categoryGroups.value = groupList
     }
