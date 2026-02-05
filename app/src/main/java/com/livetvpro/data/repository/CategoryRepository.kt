@@ -1,6 +1,9 @@
 package com.livetvpro.data.repository
 
 import com.livetvpro.data.models.Category
+import com.livetvpro.data.models.Sport
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -18,5 +21,13 @@ class CategoryRepository @Inject constructor(
 
     suspend fun getCategoryBySlug(slug: String): Category? {
         return getCategories().find { it.slug == slug }
+    }
+
+    fun getSports(): Flow<List<Sport>> = flow {
+        if (!dataRepository.isDataLoaded()) {
+            emit(emptyList())
+        } else {
+            emit(dataRepository.getSports())
+        }
     }
 }
