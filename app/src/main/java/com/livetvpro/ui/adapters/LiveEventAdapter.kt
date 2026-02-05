@@ -67,7 +67,15 @@ class LiveEventAdapter(
             event.eventCategoryName.ifEmpty { "Sports" }
         }
         
-        // 3. Load League Logo (from leagueLogo URL) with SVG support
+        // 3. Set Wrapper Badge if present
+        if (event.wrapper.isNotEmpty()) {
+            binding.wrapperBadge.text = event.wrapper
+            binding.wrapperBadge.visibility = View.VISIBLE
+        } else {
+            binding.wrapperBadge.visibility = View.GONE
+        }
+        
+        // 4. Load League Logo (from leagueLogo URL) with SVG support
         GlideExtensions.loadImage(
             binding.leagueLogo,
             event.leagueLogo,
@@ -76,11 +84,11 @@ class LiveEventAdapter(
             isCircular = false
         )
 
-        // 4. Set Team Names with bold font
+        // 5. Set Team Names with bold font
         binding.team1Name.text = event.team1Name
         binding.team2Name.text = event.team2Name
 
-        // 5. Load Team Logos with CIRCULAR CROP (SVG support)
+        // 6. Load Team Logos with CIRCULAR CROP (SVG support)
         GlideExtensions.loadImage(
             binding.team1Logo,
             event.team1Logo,
@@ -97,7 +105,7 @@ class LiveEventAdapter(
             isCircular = true
         )
 
-        // 6. Logic: LIVE vs UPCOMING vs ENDED
+        // 7. Logic: LIVE vs UPCOMING vs ENDED
         try {
             val startDate = apiDateFormat.parse(event.startTime)
             val startTimeMillis = startDate?.time ?: 0L
