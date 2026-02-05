@@ -11,7 +11,7 @@
         android:title="@string/nav_live" />
 
     <item
-        android:id="@+id/contactFragment"
-        android:icon="@drawable/ic_contact"
-        android:title="@string/nav_contact" />
+        android:id="@+id/sportsFragment"
+        android:icon="@drawable/ic_sports"
+        android:title="@string/nav_sports" />
 </menu>
