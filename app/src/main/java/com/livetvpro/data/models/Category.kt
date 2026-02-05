@@ -74,7 +74,8 @@ data class LiveEvent(
     val title: String = "",
     val description: String = "",
     val eventCategoryId: String = "",
-    val eventCategoryName: String = ""
+    val eventCategoryName: String = "",
+    val wrapper: String = "" // ✅ NEW: Wrapper text (e.g., "🔥 Hot")
 ) : Parcelable {
     fun getStatus(currentTime: Long): EventStatus {
         val startTimestamp = parseTimestamp(startTime)
@@ -121,3 +122,28 @@ data class EventCategory(
 enum class EventStatus {
     LIVE, UPCOMING, RECENT
 }
+
+// ✅ NEW: Sport model for the Sports page
+@Parcelize
+data class Sport(
+    val id: String = "",
+    val name: String = "",
+    val logoUrl: String = "",
+    val streamUrl: String = "",
+    val slug: String = "",
+    val channels: List<String> = emptyList(), // ✅ Channel IDs
+    val links: List<SportLink> = emptyList() // ✅ Multiple quality links
+) : Parcelable
+
+@Parcelize
+data class SportLink(
+    @SerializedName(value = "quality", alternate = ["label", "name"])
+    val quality: String = "",
+    val url: String = "",
+    val cookie: String? = null,
+    val referer: String? = null,
+    val origin: String? = null,
+    val userAgent: String? = null,
+    val drmScheme: String? = null,
+    val drmLicenseUrl: String? = null
+) : Parcelable
