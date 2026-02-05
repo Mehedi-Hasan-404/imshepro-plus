@@ -84,7 +84,7 @@ class MainActivity : AppCompatActivity() {
         val topLevelDestinations = setOf(
             R.id.homeFragment,
             R.id.liveEventsFragment,
-            R.id.contactFragment
+            R.id.sportsFragment
         )
         
         val graphStartDestinationId = navController.graph.startDestinationId 
@@ -132,6 +132,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.categoryChannelsFragment -> "Channels"
                 R.id.liveEventsFragment -> "Live Events"
                 R.id.favoritesFragment -> "Favorites"
+                R.id.sportsFragment -> "Sports"
                 R.id.contactFragment -> "Contact"
                 else -> "Live TV Pro"
             }
@@ -473,7 +474,7 @@ class MainActivity : AppCompatActivity() {
         val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
         val currentId = navHostFragment?.navController?.currentDestination?.id
         
-        val topLevelDestinations = setOf(R.id.homeFragment, R.id.liveEventsFragment, R.id.contactFragment)
+        val topLevelDestinations = setOf(R.id.homeFragment, R.id.liveEventsFragment, R.id.sportsFragment)
         val isTopLevel = currentId in topLevelDestinations
 
         animateNavigationIcon(if (isTopLevel) 0f else 1f)
