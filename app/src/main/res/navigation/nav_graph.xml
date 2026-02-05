@@ -18,8 +18,8 @@
             android:id="@+id/action_home_to_live"
             app:destination="@id/liveEventsFragment" />
         <action
-            android:id="@+id/action_home_to_contact"
-            app:destination="@id/contactFragment" />
+            android:id="@+id/action_home_to_sports"
+            app:destination="@id/sportsFragment" />
     </fragment>
 
     <fragment
@@ -55,8 +55,8 @@
             android:id="@+id/action_favorites_to_live"
             app:destination="@id/liveEventsFragment" />
         <action
-            android:id="@+id/action_favorites_to_contact"
-            app:destination="@id/contactFragment" />
+            android:id="@+id/action_favorites_to_sports"
+            app:destination="@id/sportsFragment" />
     </fragment>
 
     <fragment
@@ -72,8 +72,25 @@
             app:popUpTo="@id/homeFragment"
             app:popUpToInclusive="false" />
         <action
-            android:id="@+id/action_live_to_contact"
-            app:destination="@id/contactFragment" />
+            android:id="@+id/action_live_to_sports"
+            app:destination="@id/sportsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/sportsFragment"
+        android:name="com.livetvpro.ui.sports.SportsFragment"
+        android:label="Sports">
+        <action
+            android:id="@+id/action_sports_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="false" />
+        <action
+            android:id="@+id/action_sports_to_favorites"
+            app:destination="@id/favoritesFragment" />
+        <action
+            android:id="@+id/action_sports_to_live"
+            app:destination="@id/liveEventsFragment" />
     </fragment>
 
     <fragment
