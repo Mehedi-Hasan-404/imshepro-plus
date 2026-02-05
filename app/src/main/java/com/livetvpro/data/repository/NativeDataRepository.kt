@@ -52,6 +52,7 @@ class NativeDataRepository @Inject constructor(
     private external fun nativeGetLiveEvents(): String
     private external fun nativeIsDataLoaded(): Boolean
     private external fun nativeGetEventCategories(): String
+    private external fun nativeGetSports(): String
 
     private fun safeNativeValidateIntegrity(): Boolean {
         return try {
@@ -137,6 +138,15 @@ class NativeDataRepository @Inject constructor(
         return try {
             if (!isNativeLibraryLoaded) return "[]"
             nativeGetEventCategories()
+        } catch (e: Throwable) {
+            "[]"
+        }
+    }
+
+    private fun safeNativeGetSports(): String {
+        return try {
+            if (!isNativeLibraryLoaded) return "[]"
+            nativeGetSports()
         } catch (e: Throwable) {
             "[]"
         }
@@ -264,6 +274,16 @@ class NativeDataRepository @Inject constructor(
             val json = safeNativeGetEventCategories()
             if (json.isEmpty() || json == "[]") return emptyList()
             gson.fromJson(json, Array<EventCategory>::class.java).toList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getSports(): List<com.livetvpro.data.models.Sport> {
+        return try {
+            val json = safeNativeGetSports()
+            if (json.isEmpty() || json == "[]") return emptyList()
+            gson.fromJson(json, Array<com.livetvpro.data.models.Sport>::class.java).toList()
         } catch (e: Exception) {
             emptyList()
         }
