@@ -44,9 +44,28 @@
             android:maxLines="1"
             android:ellipsize="end"
             app:layout_constraintBottom_toBottomOf="@+id/leagueLogo"
-            app:layout_constraintEnd_toStartOf="@+id/categoryTag"
+            app:layout_constraintEnd_toStartOf="@+id/wrapperBadge"
             app:layout_constraintStart_toEndOf="@+id/leagueLogo"
             app:layout_constraintTop_toTopOf="@+id/leagueLogo" />
+
+        <!-- Wrapper Badge (e.g., "🔥 Hot") -->
+        <TextView
+            android:id="@+id/wrapperBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_wrapper_badge"
+            android:fontFamily="@font/bergen_sans"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="2dp"
+            android:text="🔥 Hot"
+            android:textColor="#FFFFFF"
+            android:textSize="9sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            android:layout_marginEnd="4dp"
+            app:layout_constraintBottom_toBottomOf="@+id/leagueName"
+            app:layout_constraintEnd_toStartOf="@+id/categoryTag"
+            app:layout_constraintTop_toTopOf="@+id/leagueName" />
 
         <!-- Category Tag -->
         <TextView
