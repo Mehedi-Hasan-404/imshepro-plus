@@ -10,6 +10,7 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
+// ==================== LISTENER CONFIG STATE ====================
 struct ListenerConfigState {
     bool enableDirectLink;
     std::string directLinkUrl;
@@ -17,8 +18,10 @@ struct ListenerConfigState {
     bool isInitialized;
 } static listenerState = {false, "", {}, false};
 
+// Track which pages/items have already shown the link
 static std::set<std::string> triggeredSessions;
 
+// ==================== DATA STORAGE ====================
 struct AppData {
     std::string fullJson;
     bool isLoaded;
@@ -26,6 +29,8 @@ struct AppData {
 
 static std::string remoteConfigUrl = "";
 static bool remoteConfigFetched = false;
+
+// ==================== JSON EXTRACTION HELPERS ====================
 
 static std::string extractDataObject(const std::string& json) {
     try {
@@ -107,6 +112,7 @@ static void extractListenerConfig(const std::string& json) {
             return;
         }
         
+        // Extract enable_direct_link
         size_t enablePos = json.find("\"enable_direct_link\"", configPos);
         if (enablePos != std::string::npos) {
             size_t truePos = json.find("true", enablePos);
@@ -121,6 +127,7 @@ static void extractListenerConfig(const std::string& json) {
             }
         }
         
+        // Extract direct_link_url
         size_t urlKeyPos = json.find("\"direct_link_url\"", configPos);
         if (urlKeyPos != std::string::npos) {
             size_t urlStart = json.find("\"", urlKeyPos + 18);
@@ -134,6 +141,7 @@ static void extractListenerConfig(const std::string& json) {
             }
         }
         
+        // Extract allowed_pages array
         listenerState.allowedPages.clear();
         size_t pagesPos = json.find("\"allowed_pages\"", configPos);
         if (pagesPos != std::string::npos) {
@@ -143,6 +151,7 @@ static void extractListenerConfig(const std::string& json) {
                 if (arrayEnd != std::string::npos) {
                     std::string pagesArray = json.substr(arrayStart + 1, arrayEnd - arrayStart - 1);
                     
+                    // Simple parsing: find each "page_name"
                     size_t pos = 0;
                     while (pos < pagesArray.length()) {
                         size_t quoteStart = pagesArray.find('\"', pos);
@@ -169,6 +178,8 @@ static void extractListenerConfig(const std::string& json) {
         listenerState.isInitialized = false;
     }
 }
+
+// ==================== JNI EXPORTS ====================
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeValidateIntegrity(JNIEnv* env, jobject thiz) {
@@ -265,25 +276,22 @@ Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetEventCategories
     return env->NewStringUTF(eventCategoriesJson.c_str());
 }
 
-extern "C" JNIEXPORT jstring JNICALL
-Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetSports(JNIEnv* env, jobject) {
-    if (!appData.isLoaded) return env->NewStringUTF("[]");
-    
-    // Sports_slug has the same structure as channels, so we extract it as channels
-    std::string sportsJson = extractJsonArray(appData.fullJson, "sports_slug");
-    if (sportsJson == "[]") {
-        sportsJson = extractJsonArray(appData.fullJson, "sports");
-    }
-    
-    LOGD("📺 Sports extracted: %zu characters", sportsJson.length());
-    return env->NewStringUTF(sportsJson.c_str());
-}
-
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeIsDataLoaded(JNIEnv* env, jobject) {
     return appData.isLoaded ? JNI_TRUE : JNI_FALSE;
 }
 
+// ==================== LISTENER MANAGER - PROPER LOGIC ====================
+
+/**
+ * PROPER LOGIC:
+ * - Returns TRUE if should show the direct link (and BLOCK the player)
+ * - Returns FALSE if should allow normal playback
+ * 
+ * BEHAVIOR:
+ * - First time accessing a page/item: Show link (returns TRUE)
+ * - Subsequent times: Allow normal playback (returns FALSE)
+ */
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_livetvpro_utils_NativeListenerManager_nativeShouldShowLink(
     JNIEnv* env, 
@@ -291,11 +299,13 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeShouldShowLink(
     jstring pageType, 
     jstring uniqueId
 ) {
+    // If not initialized or disabled, never show link
     if (!listenerState.isInitialized || !listenerState.enableDirectLink) {
         LOGD("❌ Link disabled or not initialized");
         return JNI_FALSE;
     }
     
+    // Get page type
     const char* pageTypeStr = env->GetStringUTFChars(pageType, nullptr);
     if (pageTypeStr == nullptr) {
         return JNI_FALSE;
@@ -303,13 +313,16 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeShouldShowLink(
     std::string pageTypeString(pageTypeStr);
     env->ReleaseStringUTFChars(pageType, pageTypeStr);
     
+    // Check if this page is allowed
     if (listenerState.allowedPages.find(pageTypeString) == listenerState.allowedPages.end()) {
         LOGD("❌ Page '%s' not in allowed list", pageTypeString.c_str());
         return JNI_FALSE;
     }
     
+    // Build session key
     std::string sessionKey = pageTypeString;
     
+    // If uniqueId is provided, append it (for per-category tracking)
     if (uniqueId != nullptr) {
         const char* uniqueIdStr = env->GetStringUTFChars(uniqueId, nullptr);
         if (uniqueIdStr != nullptr) {
@@ -318,14 +331,16 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeShouldShowLink(
         }
     }
     
+    // Check if this session has already been triggered
     if (triggeredSessions.find(sessionKey) != triggeredSessions.end()) {
         LOGD("✅ Session '%s' already triggered - ALLOW PLAYBACK", sessionKey.c_str());
-        return JNI_FALSE;
+        return JNI_FALSE;  // Already shown, allow normal playback
     }
     
+    // First time - mark as triggered and show link
     triggeredSessions.insert(sessionKey);
     LOGD("🔗 First access to '%s' - SHOW LINK", sessionKey.c_str());
-    return JNI_TRUE;
+    return JNI_TRUE;  // Show link this time
 }
 
 extern "C" JNIEXPORT jstring JNICALL
@@ -343,6 +358,8 @@ extern "C" JNIEXPORT jboolean JNICALL
 Java_com_livetvpro_utils_NativeListenerManager_nativeIsConfigValid(JNIEnv* env, jobject) {
     return listenerState.isInitialized ? JNI_TRUE : JNI_FALSE;
 }
+
+// ==================== REMOTE CONFIG ====================
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeStoreConfigUrl(JNIEnv* env, jobject thiz, jstring configUrl) {
