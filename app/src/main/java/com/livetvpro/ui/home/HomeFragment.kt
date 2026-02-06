@@ -11,9 +11,12 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.GridLayoutManager
 import com.livetvpro.R
 import com.livetvpro.SearchableFragment
+import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentHomeBinding
 import com.livetvpro.ui.adapters.CategoryAdapter
+import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class HomeFragment : Fragment(), SearchableFragment {
@@ -22,6 +25,9 @@ class HomeFragment : Fragment(), SearchableFragment {
     private val binding get() = _binding!!
     private val viewModel: HomeViewModel by viewModels()
     private lateinit var categoryAdapter: CategoryAdapter
+
+    @Inject
+    lateinit var listenerManager: NativeListenerManager
 
     override fun onSearchQuery(query: String) {
         viewModel.searchCategories(query)
@@ -41,7 +47,18 @@ class HomeFragment : Fragment(), SearchableFragment {
 
     private fun setupRecyclerView() {
         categoryAdapter = CategoryAdapter { category ->
-            // No Ad here, just navigation
+            // Check if should show direct link for this category (first time only)
+            val shouldBlock = listenerManager.onPageInteraction(
+                pageType = ListenerConfig.PAGE_HOME,
+                uniqueId = category.id  // Use category ID to track first time per category
+            )
+            
+            if (shouldBlock) {
+                // Direct link shown, don't navigate
+                return@CategoryAdapter
+            }
+            
+            // Navigate to category channels
             val bundle = bundleOf(
                 "categoryId" to category.id,
                 "categoryName" to category.name
