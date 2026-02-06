@@ -28,124 +28,137 @@ class NativeDataRepository @Inject constructor(
     private val gson: Gson
 ) {
     companion object {
-        private var isNativeLibLoaded = false
+        private var isNativeLibraryLoaded = false
+
         init {
             try {
                 System.loadLibrary("native-lib")
-                isNativeLibLoaded = true
+                isNativeLibraryLoaded = true
             } catch (e: UnsatisfiedLinkError) {
-                isNativeLibLoaded = false
+                isNativeLibraryLoaded = false
             } catch (e: Exception) {
-                isNativeLibLoaded = false
+                isNativeLibraryLoaded = false
             }
         }
     }
 
-    private external fun isEnabled(): Boolean
-    private external fun getConfigKey(): String
-    private external fun saveConfigUrl(url: String)
-    private external fun getDataUrl(): String
-    private external fun saveData(jsonData: String): Boolean
-    private external fun getCategoriesJson(): String
-    private external fun getChannelsJson(): String
-    private external fun getLiveEventsJson(): String
-    private external fun isDataAvailable(): Boolean
-    private external fun getEventCategoriesJson(): String
-    private external fun getSportsJson(): String
+    // Native JNI functions - these names must match the C++ function signatures exactly
+    private external fun nativeValidateIntegrity(): Boolean
+    private external fun nativeGetConfigKey(): String
+    private external fun nativeStoreConfigUrl(configUrl: String)
+    private external fun nativeGetConfigUrl(): String
+    private external fun nativeStoreData(jsonData: String): Boolean
+    private external fun nativeGetCategories(): String
+    private external fun nativeGetChannels(): String
+    private external fun nativeGetLiveEvents(): String
+    private external fun nativeIsDataLoaded(): Boolean
+    private external fun nativeGetEventCategories(): String
+    private external fun nativeGetSports(): String
 
-    private fun checkEnabled(): Boolean {
+    // Safe wrapper for integrity validation
+    private fun checkIntegrityAndEnabled(): Boolean {
         return try {
-            if (!isNativeLibLoaded) return true
-            isEnabled()
+            if (!isNativeLibraryLoaded) return true
+            nativeValidateIntegrity()
         } catch (error: Throwable) {
             true
         }
     }
 
+    // Safe wrapper for getting remote config key
     private fun getRemoteConfigKey(): String {
         return try {
-            if (!isNativeLibLoaded) return "data_file_url"
-            getConfigKey()
+            if (!isNativeLibraryLoaded) return "data_file_url"
+            nativeGetConfigKey()
         } catch (error: Throwable) {
             "data_file_url"
         }
     }
 
+    // Safe wrapper for storing config URL
     private fun storeConfigUrl(url: String) {
         try {
-            if (!isNativeLibLoaded) return
-            saveConfigUrl(url)
+            if (!isNativeLibraryLoaded) return
+            nativeStoreConfigUrl(url)
         } catch (error: Throwable) {
         }
     }
 
+    // Safe wrapper for retrieving data URL
     private fun retrieveDataUrl(): String {
         return try {
-            if (!isNativeLibLoaded) return ""
-            getDataUrl()
+            if (!isNativeLibraryLoaded) return ""
+            nativeGetConfigUrl()
         } catch (error: Throwable) {
             ""
         }
     }
 
+    // Safe wrapper for storing JSON data
     private fun storeJsonData(jsonData: String): Boolean {
         return try {
-            if (!isNativeLibLoaded) return false
-            saveData(jsonData)
+            if (!isNativeLibraryLoaded) return false
+            nativeStoreData(jsonData)
         } catch (error: Throwable) {
             false
         }
     }
 
+    // Safe wrapper for retrieving categories
     private fun retrieveCategoriesJson(): String {
         return try {
-            if (!isNativeLibLoaded) return "[]"
-            getCategoriesJson()
+            if (!isNativeLibraryLoaded) return "[]"
+            nativeGetCategories()
         } catch (error: Throwable) {
             "[]"
         }
     }
 
+    // Safe wrapper for retrieving channels
     private fun retrieveChannelsJson(): String {
         return try {
-            if (!isNativeLibLoaded) return "[]"
-            getChannelsJson()
+            if (!isNativeLibraryLoaded) return "[]"
+            nativeGetChannels()
         } catch (error: Throwable) {
             "[]"
         }
     }
 
+    // Safe wrapper for retrieving live events
     private fun retrieveLiveEventsJson(): String {
         return try {
-            if (!isNativeLibLoaded) return "[]"
-            getLiveEventsJson()
+            if (!isNativeLibraryLoaded) return "[]"
+            nativeGetLiveEvents()
         } catch (error: Throwable) {
             "[]"
         }
     }
 
-    private fun checkDataAvailable(): Boolean {
+    // Safe wrapper for checking if data is loaded
+    private fun checkDataLoaded(): Boolean {
         return try {
-            if (!isNativeLibLoaded) return false
-            isDataAvailable()
+            if (!isNativeLibraryLoaded) return false
+            nativeIsDataLoaded()
         } catch (error: Throwable) {
             false
         }
     }
 
+    // Safe wrapper for retrieving event categories
     private fun retrieveEventCategoriesJson(): String {
         return try {
-            if (!isNativeLibLoaded) return "[]"
-            getEventCategoriesJson()
+            if (!isNativeLibraryLoaded) return "[]"
+            nativeGetEventCategories()
         } catch (error: Throwable) {
             "[]"
         }
     }
 
+    // Safe wrapper for retrieving sports
     private fun retrieveSportsJson(): String {
         return try {
-            if (!isNativeLibLoaded) return "[]"
-            getSportsJson()
+            if (!isNativeLibraryLoaded) return "[]"
+            nativeGetSports()
         } catch (error: Throwable) {
             "[]"
         }
@@ -190,7 +203,7 @@ class NativeDataRepository @Inject constructor(
     suspend fun refreshData(): Boolean = withContext(Dispatchers.IO) {
         refreshMutex.withLock {
             try {
-                if (!checkEnabled()) {
+                if (!checkIntegrityAndEnabled()) {
                     return@withContext false
                 }
                 
@@ -289,7 +302,7 @@ class NativeDataRepository @Inject constructor(
     }
 
     fun isDataLoaded(): Boolean {
-        return checkDataAvailable()
+        return checkDataLoaded()
     }
 
     private fun isDebugBuild(): Boolean {
