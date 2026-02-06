@@ -23,216 +23,215 @@ import javax.inject.Singleton
 
 @Singleton
 class NativeDataRepository @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val client: OkHttpClient,
-    private val gson: Gson
+    @ApplicationContext private val a: Context,
+    private val b: OkHttpClient,
+    private val c: Gson
 ) {
     companion object {
-        private var isNativeLibraryLoaded = false
-
+        private var d = false
         init {
             try {
                 System.loadLibrary("native-lib")
-                isNativeLibraryLoaded = true
+                d = true
             } catch (e: UnsatisfiedLinkError) {
-                isNativeLibraryLoaded = false
+                d = false
             } catch (e: Exception) {
-                isNativeLibraryLoaded = false
+                d = false
             }
         }
     }
 
-    private external fun nativeValidateIntegrity(): Boolean
-    private external fun nativeGetConfigKey(): String
-    private external fun nativeStoreConfigUrl(configUrl: String)
-    private external fun nativeGetConfigUrl(): String
-    private external fun nativeStoreData(jsonData: String): Boolean
-    private external fun nativeGetCategories(): String
-    private external fun nativeGetChannels(): String
-    private external fun nativeGetLiveEvents(): String
-    private external fun nativeIsDataLoaded(): Boolean
-    private external fun nativeGetEventCategories(): String
-    private external fun nativeGetSports(): String
+    private external fun e(): Boolean
+    private external fun f(): String
+    private external fun g(h: String)
+    private external fun i(): String
+    private external fun j(k: String): Boolean
+    private external fun l(): String
+    private external fun m(): String
+    private external fun n(): String
+    private external fun o(): Boolean
+    private external fun p(): String
+    private external fun q(): String
 
-    private fun safeNativeValidateIntegrity(): Boolean {
+    private fun r(): Boolean {
         return try {
-            if (!isNativeLibraryLoaded) return true
-            nativeValidateIntegrity()
-        } catch (e: Throwable) {
+            if (!d) return true
+            e()
+        } catch (s: Throwable) {
             true
         }
     }
 
-    private fun safeNativeGetConfigKey(): String {
+    private fun t(): String {
         return try {
-            if (!isNativeLibraryLoaded) return "data_file_url"
-            nativeGetConfigKey()
-        } catch (e: Throwable) {
+            if (!d) return "data_file_url"
+            f()
+        } catch (u: Throwable) {
             "data_file_url"
         }
     }
 
-    private fun safeNativeStoreConfigUrl(url: String) {
+    private fun v(w: String) {
         try {
-            if (!isNativeLibraryLoaded) return
-            nativeStoreConfigUrl(url)
-        } catch (e: Throwable) {
+            if (!d) return
+            g(w)
+        } catch (x: Throwable) {
         }
     }
 
-    private fun safeNativeGetConfigUrl(): String {
+    private fun y(): String {
         return try {
-            if (!isNativeLibraryLoaded) return ""
-            nativeGetConfigUrl()
-        } catch (e: Throwable) {
+            if (!d) return ""
+            i()
+        } catch (z: Throwable) {
             ""
         }
     }
 
-    private fun safeNativeStoreData(jsonData: String): Boolean {
+    private fun aa(ab: String): Boolean {
         return try {
-            if (!isNativeLibraryLoaded) return false
-            nativeStoreData(jsonData)
-        } catch (e: Throwable) {
+            if (!d) return false
+            j(ab)
+        } catch (ac: Throwable) {
             false
         }
     }
 
-    private fun safeNativeGetCategories(): String {
+    private fun ad(): String {
         return try {
-            if (!isNativeLibraryLoaded) return "[]"
-            nativeGetCategories()
-        } catch (e: Throwable) {
+            if (!d) return "[]"
+            l()
+        } catch (ae: Throwable) {
             "[]"
         }
     }
 
-    private fun safeNativeGetChannels(): String {
+    private fun af(): String {
         return try {
-            if (!isNativeLibraryLoaded) return "[]"
-            nativeGetChannels()
-        } catch (e: Throwable) {
+            if (!d) return "[]"
+            m()
+        } catch (ag: Throwable) {
             "[]"
         }
     }
 
-    private fun safeNativeGetLiveEvents(): String {
+    private fun ah(): String {
         return try {
-            if (!isNativeLibraryLoaded) return "[]"
-            nativeGetLiveEvents()
-        } catch (e: Throwable) {
+            if (!d) return "[]"
+            n()
+        } catch (ai: Throwable) {
             "[]"
         }
     }
 
-    private fun safeNativeIsDataLoaded(): Boolean {
+    private fun aj(): Boolean {
         return try {
-            if (!isNativeLibraryLoaded) return false
-            nativeIsDataLoaded()
-        } catch (e: Throwable) {
+            if (!d) return false
+            o()
+        } catch (ak: Throwable) {
             false
         }
     }
 
-    private fun safeNativeGetEventCategories(): String {
+    private fun al(): String {
         return try {
-            if (!isNativeLibraryLoaded) return "[]"
-            nativeGetEventCategories()
-        } catch (e: Throwable) {
+            if (!d) return "[]"
+            p()
+        } catch (am: Throwable) {
             "[]"
         }
     }
 
-    private fun safeNativeGetSports(): String {
+    private fun an(): String {
         return try {
-            if (!isNativeLibraryLoaded) return "[]"
-            nativeGetSports()
-        } catch (e: Throwable) {
+            if (!d) return "[]"
+            q()
+        } catch (ao: Throwable) {
             "[]"
         }
     }
 
-    private val mutex = Mutex()
-    private val remoteConfig = Firebase.remoteConfig
+    private val ap = Mutex()
+    private val aq = Firebase.remoteConfig
 
     init {
         try {
-            val configSettings = remoteConfigSettings {
-                minimumFetchIntervalInSeconds = if (isDebugBuild()) 0L else 3600L
+            val ar = remoteConfigSettings {
+                minimumFetchIntervalInSeconds = if (av()) 0L else 3600L
             }
-            remoteConfig.setConfigSettingsAsync(configSettings)
+            aq.setConfigSettingsAsync(ar)
             
             try {
-                val nativeKey = safeNativeGetConfigKey()
-                remoteConfig.setDefaultsAsync(mapOf(nativeKey to ""))
-            } catch (e: Exception) {
+                val as = t()
+                aq.setDefaultsAsync(mapOf(as to ""))
+            } catch (at: Exception) {
             }
-        } catch (e: Exception) {
+        } catch (au: Exception) {
         }
     }
 
     suspend fun fetchRemoteConfig(): Boolean = withContext(Dispatchers.IO) {
         try {
-            val result = remoteConfig.fetchAndActivate().await()
-            val nativeKey = safeNativeGetConfigKey()
-            val url = remoteConfig.getString(nativeKey)
+            val aw = aq.fetchAndActivate().await()
+            val ax = t()
+            val ay = aq.getString(ax)
             
-            if (url.isNotEmpty()) {
-                safeNativeStoreConfigUrl(url)
+            if (ay.isNotEmpty()) {
+                v(ay)
                 return@withContext true
             } else {
                 return@withContext false
             }
-        } catch (e: Exception) {
+        } catch (az: Exception) {
             return@withContext false
         }
     }
 
     suspend fun refreshData(): Boolean = withContext(Dispatchers.IO) {
-        mutex.withLock {
+        ap.withLock {
             try {
-                if (!safeNativeValidateIntegrity()) {
+                if (!r()) {
                     return@withContext false
                 }
                 
-                val remoteConfigUrl = safeNativeGetConfigUrl()
-                if (remoteConfigUrl.isBlank()) {
+                val ba = y()
+                if (ba.isBlank()) {
                     withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Configuration URL not found", Toast.LENGTH_LONG).show()
+                        Toast.makeText(a, "Configuration URL not found", Toast.LENGTH_LONG).show()
                     }
                     return@withContext false
                 }
                 
-                val request = Request.Builder().url(remoteConfigUrl).build()
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
+                val bb = Request.Builder().url(ba).build()
+                b.newCall(bb).execute().use { bc ->
+                    if (!bc.isSuccessful) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Server error: ${response.code}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(a, "Server error: ${bc.code}", Toast.LENGTH_LONG).show()
                         }
                         return@withContext false
                     }
                     
-                    val jsonString = response.body?.string()
-                    if (jsonString.isNullOrBlank()) {
+                    val bd = bc.body?.string()
+                    if (bd.isNullOrBlank()) {
                         return@withContext false
                     }
                     
-                    val stored = safeNativeStoreData(jsonString)
-                    if (stored) {
+                    val be = aa(bd)
+                    if (be) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Data loaded successfully", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(a, "Data loaded successfully", Toast.LENGTH_SHORT).show()
                         }
                         return@withContext true
                     } else {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Failed to process data", Toast.LENGTH_LONG).show()
+                            Toast.makeText(a, "Failed to process data", Toast.LENGTH_LONG).show()
                         }
                         return@withContext false
                     }
                 }
-            } catch (e: Exception) {
+            } catch (bf: Exception) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Network error: ${e.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(a, "Network error: ${bf.message}", Toast.LENGTH_LONG).show()
                 }
                 return@withContext false
             }
@@ -241,60 +240,59 @@ class NativeDataRepository @Inject constructor(
 
     fun getCategories(): List<Category> {
         return try {
-            val json = safeNativeGetCategories()
-            if (json.isEmpty() || json == "[]") return emptyList()
-            gson.fromJson(json, Array<Category>::class.java).toList()
-        } catch (e: Exception) {
+            val bg = ad()
+            if (bg.isEmpty() || bg == "[]") return emptyList()
+            c.fromJson(bg, Array<Category>::class.java).toList()
+        } catch (bh: Exception) {
             emptyList()
         }
     }
 
     fun getChannels(): List<Channel> {
         return try {
-            val json = safeNativeGetChannels()
-            if (json.isEmpty() || json == "[]") return emptyList()
-            gson.fromJson(json, Array<Channel>::class.java).toList()
-        } catch (e: Exception) {
+            val bi = af()
+            if (bi.isEmpty() || bi == "[]") return emptyList()
+            c.fromJson(bi, Array<Channel>::class.java).toList()
+        } catch (bj: Exception) {
             emptyList()
         }
     }
 
     fun getLiveEvents(): List<LiveEvent> {
         return try {
-            val json = safeNativeGetLiveEvents()
-            if (json.isEmpty() || json == "[]") return emptyList()
-            gson.fromJson(json, Array<LiveEvent>::class.java).toList()
-        } catch (e: Exception) {
+            val bk = ah()
+            if (bk.isEmpty() || bk == "[]") return emptyList()
+            c.fromJson(bk, Array<LiveEvent>::class.java).toList()
+        } catch (bl: Exception) {
             emptyList()
         }
     }
 
     fun getEventCategories(): List<EventCategory> {
         return try {
-            val json = safeNativeGetEventCategories()
-            if (json.isEmpty() || json == "[]") return emptyList()
-            gson.fromJson(json, Array<EventCategory>::class.java).toList()
-        } catch (e: Exception) {
+            val bm = al()
+            if (bm.isEmpty() || bm == "[]") return emptyList()
+            c.fromJson(bm, Array<EventCategory>::class.java).toList()
+        } catch (bn: Exception) {
             emptyList()
         }
     }
 
     fun getSports(): List<Channel> {
         return try {
-            val json = safeNativeGetSports()
-            if (json.isEmpty() || json == "[]") return emptyList()
-            // Sports have the same structure as channels
-            gson.fromJson(json, Array<Channel>::class.java).toList()
-        } catch (e: Exception) {
+            val bo = an()
+            if (bo.isEmpty() || bo == "[]") return emptyList()
+            c.fromJson(bo, Array<Channel>::class.java).toList()
+        } catch (bp: Exception) {
             emptyList()
         }
     }
 
     fun isDataLoaded(): Boolean {
-        return safeNativeIsDataLoaded()
+        return aj()
     }
 
-    private fun isDebugBuild(): Boolean {
-        return context.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
+    private fun av(): Boolean {
+        return a.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0
     }
 }
