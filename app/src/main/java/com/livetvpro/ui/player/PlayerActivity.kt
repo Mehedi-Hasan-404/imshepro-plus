@@ -258,7 +258,16 @@ class PlayerActivity : AppCompatActivity() {
             if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
                 if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
                     allEventLinks = freshChannel.links.map { 
-                        LiveEventLink(quality = it.quality, url = it.url) 
+                        LiveEventLink(
+                            quality = it.quality,
+                            url = it.url,
+                            cookie = it.cookie,
+                            referer = it.referer,
+                            origin = it.origin,
+                            userAgent = it.userAgent,
+                            drmScheme = it.drmScheme,
+                            drmLicenseUrl = it.drmLicenseUrl
+                        ) 
                     }
                     
                     val matchIndex = allEventLinks.indexOfFirst { it.url == streamUrl }
@@ -637,7 +646,16 @@ class PlayerActivity : AppCompatActivity() {
 
             if (channel.links != null && channel.links.isNotEmpty()) {
                 allEventLinks = channel.links.map { 
-                    LiveEventLink(quality = it.quality, url = it.url) 
+                    LiveEventLink(
+                        quality = it.quality,
+                        url = it.url,
+                        cookie = it.cookie,
+                        referer = it.referer,
+                        origin = it.origin,
+                        userAgent = it.userAgent,
+                        drmScheme = it.drmScheme,
+                        drmLicenseUrl = it.drmLicenseUrl
+                    ) 
                 }
                 
                 if (passedLinkIndex in allEventLinks.indices) {
@@ -647,7 +665,7 @@ class PlayerActivity : AppCompatActivity() {
                     currentLinkIndex = if (matchIndex != -1) matchIndex else 0
                 }
                 
-                streamUrl = allEventLinks[currentLinkIndex].url
+                streamUrl = buildStreamUrl(allEventLinks[currentLinkIndex])
             } else {
                 streamUrl = channel.streamUrl
                 allEventLinks = emptyList()
@@ -663,7 +681,7 @@ class PlayerActivity : AppCompatActivity() {
             
             if (allEventLinks.isNotEmpty()) {
                 currentLinkIndex = if (passedLinkIndex in allEventLinks.indices) passedLinkIndex else 0
-                streamUrl = allEventLinks[currentLinkIndex].url
+                streamUrl = buildStreamUrl(allEventLinks[currentLinkIndex])
             } else {
                 currentLinkIndex = 0
                 streamUrl = ""
@@ -781,10 +799,19 @@ class PlayerActivity : AppCompatActivity() {
         
         if (newChannel.links != null && newChannel.links.isNotEmpty()) {
             allEventLinks = newChannel.links.map { 
-                LiveEventLink(quality = it.quality, url = it.url) 
+                LiveEventLink(
+                    quality = it.quality,
+                    url = it.url,
+                    cookie = it.cookie,
+                    referer = it.referer,
+                    origin = it.origin,
+                    userAgent = it.userAgent,
+                    drmScheme = it.drmScheme,
+                    drmLicenseUrl = it.drmLicenseUrl
+                ) 
             }
             currentLinkIndex = 0
-            streamUrl = allEventLinks.firstOrNull()?.url ?: newChannel.streamUrl
+            streamUrl = allEventLinks.firstOrNull()?.let { buildStreamUrl(it) } ?: newChannel.streamUrl
         } else {
             allEventLinks = emptyList()
             streamUrl = newChannel.streamUrl
@@ -822,7 +849,7 @@ class PlayerActivity : AppCompatActivity() {
             
             if (allEventLinks.isNotEmpty()) {
                 currentLinkIndex = 0
-                streamUrl = allEventLinks.firstOrNull()?.url ?: ""
+                streamUrl = allEventLinks.firstOrNull()?.let { buildStreamUrl(it) } ?: ""
             } else {
                 currentLinkIndex = 0
                 streamUrl = ""
@@ -845,7 +872,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun switchToLink(link: LiveEventLink, position: Int) {
         currentLinkIndex = position
-        streamUrl = link.url
+        streamUrl = buildStreamUrl(link)
         
         linkChipAdapter.setSelectedPosition(position)
         
@@ -964,6 +991,24 @@ class PlayerActivity : AppCompatActivity() {
             lower.contains("fairplay") -> "fairplay"
             else -> lower
         }
+    }
+
+    private fun buildStreamUrl(link: LiveEventLink): String {
+        var url = link.url
+        val params = mutableListOf<String>()
+        
+        link.referer?.let { if (it.isNotEmpty()) params.add("referer=$it") }
+        link.cookie?.let { if (it.isNotEmpty()) params.add("cookie=$it") }
+        link.origin?.let { if (it.isNotEmpty()) params.add("origin=$it") }
+        link.userAgent?.let { if (it.isNotEmpty()) params.add("user-agent=$it") }
+        link.drmScheme?.let { if (it.isNotEmpty()) params.add("drmScheme=$it") }
+        link.drmLicenseUrl?.let { if (it.isNotEmpty()) params.add("drmLicense=$it") }
+        
+        if (params.isNotEmpty()) {
+            url += "|" + params.joinToString("|")
+        }
+        
+        return url
     }
 
         private fun setupPlayer() {
