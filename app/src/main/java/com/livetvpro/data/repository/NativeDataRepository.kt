@@ -162,8 +162,8 @@ class NativeDataRepository @Inject constructor(
             aq.setConfigSettingsAsync(ar)
             
             try {
-                val as = t()
-                aq.setDefaultsAsync(mapOf(as to ""))
+                val asKey = t()
+                aq.setDefaultsAsync(mapOf(asKey to ""))
             } catch (at: Exception) {
             }
         } catch (au: Exception) {
