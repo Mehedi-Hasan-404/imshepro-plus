@@ -39,7 +39,7 @@ class LinkChipAdapter(
         private val checkIcon: ImageView = itemView.findViewById(R.id.checkIcon)
 
         fun bind(link: LiveEventLink, isSelected: Boolean) {
-            linkTitle.text = link.label
+            linkTitle.text = link.quality
             checkIcon.visibility = if (isSelected) View.VISIBLE else View.GONE
 
             itemView.isSelected = isSelected
