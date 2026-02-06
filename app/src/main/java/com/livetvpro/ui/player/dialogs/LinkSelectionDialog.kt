@@ -13,7 +13,7 @@ class LinkSelectionDialog(
 
     fun show() {
         // Convert the list of link objects to a simple array of Strings (labels)
-        val labels = links.map { it.label }.toTypedArray()
+        val labels = links.map { it.quality }.toTypedArray()
 
         MaterialAlertDialogBuilder(context)
             .setTitle("Select Stream")
