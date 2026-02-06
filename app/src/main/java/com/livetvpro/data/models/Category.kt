@@ -11,7 +11,9 @@ data class Category(
     val slug: String = "",
     val iconUrl: String? = null,
     val m3uUrl: String? = null,
-    val order: Int = 0
+    val order: Int = 0,
+    val createdAt: String = "",
+    val updatedAt: String = ""
 ) : Parcelable
 
 @Parcelize
@@ -26,7 +28,7 @@ data class Channel(
     // Group title from M3U (for sub-categorization)
     val groupTitle: String = "",
     
-    // ✅ ADDED: Support for multiple links in channels
+    // Support for multiple links in channels
     val links: List<ChannelLink>? = null,
     
     // Event-specific fields (for when Channel is used to represent events)
@@ -34,15 +36,25 @@ data class Channel(
     val team2Logo: String = "",
     val isLive: Boolean = false,
     val startTime: String = "",
-    val endTime: String = ""
+    val endTime: String = "",
+    
+    // Timestamps
+    val createdAt: String = "",
+    val updatedAt: String = ""
 ) : Parcelable
 
-// ✅ NEW: Channel link data class
+// Channel link data class with DRM support
 @Parcelize
 data class ChannelLink(
     @SerializedName(value = "quality", alternate = ["label", "name"])
     val quality: String = "",
-    val url: String = ""
+    val url: String = "",
+    val cookie: String? = null,
+    val referer: String? = null,
+    val origin: String? = null,
+    val userAgent: String? = null,
+    val drmScheme: String? = null,
+    val drmLicenseUrl: String? = null
 ) : Parcelable
 
 @Parcelize
@@ -54,12 +66,15 @@ data class FavoriteChannel(
     val categoryId: String = "",
     val categoryName: String = "",
     val addedAt: Long = System.currentTimeMillis(),
-    val links: List<ChannelLink>? = null // ✅ ADDED: Links support in favorites
+    val links: List<ChannelLink>? = null
 ) : Parcelable
 
 @Parcelize
 data class LiveEvent(
     val id: String = "",
+    val eventCategoryId: String = "",
+    val eventCategoryName: String = "",
+    @SerializedName(value = "category", alternate = ["eventCategoryName"])
     val category: String = "",
     val league: String = "",
     val leagueLogo: String = "",
@@ -73,9 +88,9 @@ data class LiveEvent(
     val links: List<LiveEventLink> = emptyList(),
     val title: String = "",
     val description: String = "",
-    val eventCategoryId: String = "",
-    val eventCategoryName: String = "",
-    val wrapper: String = "" // ✅ NEW: Wrapper text (e.g., "🔥 Hot")
+    val wrapper: String = "", // Wrapper text (e.g., "🔥 Hot")
+    val createdAt: String = "",
+    val updatedAt: String = ""
 ) : Parcelable {
     fun getStatus(currentTime: Long): EventStatus {
         val startTimestamp = parseTimestamp(startTime)
@@ -104,39 +119,6 @@ data class LiveEvent(
 
 @Parcelize
 data class LiveEventLink(
-    @SerializedName(value = "label", alternate = ["quality", "name"])
-    val label: String = "",
-    val url: String = ""
-) : Parcelable
-
-@Parcelize
-data class EventCategory(
-    val id: String = "",
-    val name: String = "",
-    val slug: String = "",
-    val logoUrl: String = "",
-    val order: Int = 0,
-    val isDefault: Boolean = false
-) : Parcelable
-
-enum class EventStatus {
-    LIVE, UPCOMING, RECENT
-}
-
-// ✅ NEW: Sport model for the Sports page
-@Parcelize
-data class Sport(
-    val id: String = "",
-    val name: String = "",
-    val logoUrl: String = "",
-    val streamUrl: String = "",
-    val slug: String = "",
-    val channels: List<String> = emptyList(), // ✅ Channel IDs
-    val links: List<SportLink> = emptyList() // ✅ Multiple quality links
-) : Parcelable
-
-@Parcelize
-data class SportLink(
     @SerializedName(value = "quality", alternate = ["label", "name"])
     val quality: String = "",
     val url: String = "",
@@ -147,3 +129,19 @@ data class SportLink(
     val drmScheme: String? = null,
     val drmLicenseUrl: String? = null
 ) : Parcelable
+
+@Parcelize
+data class EventCategory(
+    val id: String = "",
+    val name: String = "",
+    val slug: String = "",
+    val logoUrl: String = "",
+    val order: Int = 0,
+    val isDefault: Boolean = false,
+    val createdAt: String = "",
+    val updatedAt: String = ""
+) : Parcelable
+
+enum class EventStatus {
+    LIVE, UPCOMING, RECENT
+}
