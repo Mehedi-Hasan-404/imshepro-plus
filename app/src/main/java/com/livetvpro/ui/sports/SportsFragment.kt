@@ -113,7 +113,6 @@ class SportsFragment : Fragment(), SearchableFragment {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
         observeViewModel()
-        setupSwipeRefresh()
     }
 
     private fun setupRecyclerView() {
@@ -142,7 +141,7 @@ class SportsFragment : Fragment(), SearchableFragment {
             isFavorite = { false } // Sports are never favorites
         )
 
-        val spanCount = resources.getInteger(com.livetvpro.R.integer.channel_grid_span_count)
+        val spanCount = resources.getInteger(com.livetvpro.R.integer.grid_column_count)
         binding.recyclerViewChannels.apply {
             layoutManager = GridLayoutManager(context, spanCount)
             adapter = channelAdapter
@@ -173,7 +172,6 @@ class SportsFragment : Fragment(), SearchableFragment {
 
         viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
             binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.swipeRefresh.isRefreshing = isLoading
         }
 
         viewModel.error.observe(viewLifecycleOwner) { error ->
@@ -185,12 +183,6 @@ class SportsFragment : Fragment(), SearchableFragment {
                 binding.errorView.visibility = View.GONE
                 binding.recyclerViewChannels.visibility = View.VISIBLE
             }
-        }
-    }
-
-    private fun setupSwipeRefresh() {
-        binding.swipeRefresh.setOnRefreshListener {
-            viewModel.loadSports()
         }
         
         binding.retryButton.setOnClickListener {
