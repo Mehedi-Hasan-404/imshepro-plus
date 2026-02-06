@@ -268,7 +268,14 @@ Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetEventCategories
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetSports(JNIEnv* env, jobject) {
     if (!appData.isLoaded) return env->NewStringUTF("[]");
-    std::string sportsJson = extractJsonArray(appData.fullJson, "sports");
+    
+    // Sports_slug has the same structure as channels, so we extract it as channels
+    std::string sportsJson = extractJsonArray(appData.fullJson, "sports_slug");
+    if (sportsJson == "[]") {
+        sportsJson = extractJsonArray(appData.fullJson, "sports");
+    }
+    
+    LOGD("📺 Sports extracted: %zu characters", sportsJson.length());
     return env->NewStringUTF(sportsJson.c_str());
 }
 
