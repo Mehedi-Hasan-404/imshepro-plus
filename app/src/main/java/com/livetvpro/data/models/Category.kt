@@ -24,26 +24,17 @@ data class Channel(
     val streamUrl: String = "",
     val categoryId: String = "",
     val categoryName: String = "",
-    
-    // Group title from M3U (for sub-categorization)
     val groupTitle: String = "",
-    
-    // Support for multiple links in channels
     val links: List<ChannelLink>? = null,
-    
-    // Event-specific fields (for when Channel is used to represent events)
     val team1Logo: String = "",
     val team2Logo: String = "",
     val isLive: Boolean = false,
     val startTime: String = "",
     val endTime: String = "",
-    
-    // Timestamps
     val createdAt: String = "",
     val updatedAt: String = ""
 ) : Parcelable
 
-// Channel link data class with DRM support
 @Parcelize
 data class ChannelLink(
     @SerializedName(value = "quality", alternate = ["label", "name"])
@@ -72,9 +63,6 @@ data class FavoriteChannel(
 @Parcelize
 data class LiveEvent(
     val id: String = "",
-    val eventCategoryId: String = "",
-    val eventCategoryName: String = "",
-    @SerializedName(value = "category", alternate = ["eventCategoryName"])
     val category: String = "",
     val league: String = "",
     val leagueLogo: String = "",
@@ -88,7 +76,9 @@ data class LiveEvent(
     val links: List<LiveEventLink> = emptyList(),
     val title: String = "",
     val description: String = "",
-    val wrapper: String = "", // Wrapper text (e.g., "🔥 Hot")
+    val wrapper: String = "",
+    val eventCategoryId: String = "",
+    val eventCategoryName: String = "",
     val createdAt: String = "",
     val updatedAt: String = ""
 ) : Parcelable {
