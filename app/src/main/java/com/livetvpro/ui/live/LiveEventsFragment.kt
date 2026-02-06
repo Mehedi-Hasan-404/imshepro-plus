@@ -113,7 +113,7 @@ class LiveEventsFragment : Fragment() {
     }
 
     private fun showLinkSelectionDialog(event: LiveEvent) {
-        val linkLabels = event.links.map { it.label }.toTypedArray()
+        val linkLabels = event.links.map { it.quality }.toTypedArray()
         
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Select Stream")
