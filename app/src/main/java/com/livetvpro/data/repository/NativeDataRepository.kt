@@ -279,11 +279,12 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    fun getSports(): List<com.livetvpro.data.models.Sport> {
+    fun getSports(): List<Channel> {
         return try {
             val json = safeNativeGetSports()
             if (json.isEmpty() || json == "[]") return emptyList()
-            gson.fromJson(json, Array<com.livetvpro.data.models.Sport>::class.java).toList()
+            // Sports have the same structure as channels
+            gson.fromJson(json, Array<Channel>::class.java).toList()
         } catch (e: Exception) {
             emptyList()
         }
