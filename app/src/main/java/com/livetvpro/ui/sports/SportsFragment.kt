@@ -119,8 +119,16 @@ class SportsFragment : Fragment(), SearchableFragment {
     private fun setupRecyclerView() {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
-                val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
-                if (shouldBlock) return@ChannelAdapter
+                // Check if should show direct link for this sport (first time only)
+                val shouldBlock = listenerManager.onPageInteraction(
+                    pageType = ListenerConfig.PAGE_LIVE_EVENTS,  // Using live_events page type for sports
+                    uniqueId = channel.id  // Track per-sport by ID
+                )
+                
+                if (shouldBlock) {
+                    // Direct link shown, don't play
+                    return@ChannelAdapter
+                }
                 
                 // Show link selection dialog if multiple links exist
                 if (channel.links != null && channel.links.size > 1) {
