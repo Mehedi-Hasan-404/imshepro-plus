@@ -258,7 +258,7 @@ class PlayerActivity : AppCompatActivity() {
             if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
                 if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
                     allEventLinks = freshChannel.links.map { 
-                        LiveEventLink(label = it.quality, url = it.url) 
+                        LiveEventLink(quality = it.quality, url = it.url) 
                     }
                     
                     val matchIndex = allEventLinks.indexOfFirst { it.url == streamUrl }
@@ -637,7 +637,7 @@ class PlayerActivity : AppCompatActivity() {
 
             if (channel.links != null && channel.links.isNotEmpty()) {
                 allEventLinks = channel.links.map { 
-                    LiveEventLink(label = it.quality, url = it.url) 
+                    LiveEventLink(quality = it.quality, url = it.url) 
                 }
                 
                 if (passedLinkIndex in allEventLinks.indices) {
@@ -781,7 +781,7 @@ class PlayerActivity : AppCompatActivity() {
         
         if (newChannel.links != null && newChannel.links.isNotEmpty()) {
             allEventLinks = newChannel.links.map { 
-                LiveEventLink(label = it.quality, url = it.url) 
+                LiveEventLink(quality = it.quality, url = it.url) 
             }
             currentLinkIndex = 0
             streamUrl = allEventLinks.firstOrNull()?.url ?: newChannel.streamUrl
