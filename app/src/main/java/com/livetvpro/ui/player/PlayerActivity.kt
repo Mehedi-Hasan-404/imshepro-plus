@@ -137,7 +137,6 @@ class PlayerActivity : AppCompatActivity() {
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
-        private const val EXTRA_SPORT = "extra_sport"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
         private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
         private const val EXTRA_CONTROL_TYPE = "control_type"
@@ -163,20 +162,6 @@ class PlayerActivity : AppCompatActivity() {
         fun startWithEvent(context: Context, event: LiveEvent, linkIndex: Int = -1) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_EVENT, event as Parcelable)
-                putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
-                // Disable enter animation to prevent black screen
-                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            }
-            context.startActivity(intent)
-            // Override transition to instant (no animation)
-            if (context is android.app.Activity) {
-                context.overridePendingTransition(0, 0)
-            }
-        }
-
-        fun startWithSport(context: Context, sport: com.livetvpro.data.models.Sport, linkIndex: Int = -1) {
-            val intent = Intent(context, PlayerActivity::class.java).apply {
-                putExtra(EXTRA_SPORT, sport as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
                 // Disable enter animation to prevent black screen
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
@@ -642,13 +627,6 @@ class PlayerActivity : AppCompatActivity() {
             intent.getParcelableExtra(EXTRA_EVENT)
         }
 
-        val sportData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            intent.getParcelableExtra(EXTRA_SPORT, com.livetvpro.data.models.Sport::class.java)
-        } else {
-            @Suppress("DEPRECATION")
-            intent.getParcelableExtra(EXTRA_SPORT)
-        }
-
         val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
 
         if (channelData != null) {
@@ -689,28 +667,6 @@ class PlayerActivity : AppCompatActivity() {
             } else {
                 currentLinkIndex = 0
                 streamUrl = ""
-            }
-        } else if (sportData != null) {
-            contentType = ContentType.CHANNEL // Sports behave like channels
-            val sport = sportData
-            contentId = sport.id
-            contentName = sport.name
-
-            if (sport.links.isNotEmpty()) {
-                allEventLinks = sport.links.map { 
-                    LiveEventLink(label = it.quality, url = it.url) 
-                }
-                
-                if (passedLinkIndex in allEventLinks.indices) {
-                    currentLinkIndex = passedLinkIndex
-                } else {
-                    currentLinkIndex = 0
-                }
-                
-                streamUrl = allEventLinks[currentLinkIndex].url
-            } else {
-                streamUrl = sport.streamUrl
-                allEventLinks = emptyList()
             }
         } else {
             finish()
