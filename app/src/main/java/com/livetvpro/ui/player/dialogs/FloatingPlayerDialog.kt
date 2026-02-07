@@ -1,7 +1,6 @@
 package com.livetvpro.ui.player.dialogs
 
 import android.app.Dialog
-import android.content.Context
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
@@ -11,8 +10,6 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import androidx.fragment.app.DialogFragment
-import com.google.android.material.switchmaterial.SwitchMaterial
-import com.livetvpro.R
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.databinding.DialogFloatingPlayerSettingsBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -52,7 +49,11 @@ class FloatingPlayerDialog : DialogFragment() {
     private fun setupViews() {
         // Setup dropdown for max floating windows
         val maxWindowsOptions = listOf("Disable", "TWO", "Three", "FOUR", "FIVE (MAX)")
-        val adapter = ArrayAdapter(requireContext(), R.layout.item_dropdown_menu, maxWindowsOptions)
+        val adapter = ArrayAdapter(
+            requireContext(), 
+            android.R.layout.simple_dropdown_item_1line, 
+            maxWindowsOptions
+        )
         (binding.maxFloatingWindowsDropdown as? AutoCompleteTextView)?.setAdapter(adapter)
 
         // Floating player switch listener
@@ -88,15 +89,6 @@ class FloatingPlayerDialog : DialogFragment() {
         binding.maxFloatingWindowsContainer.visibility = if (isEnabled) View.VISIBLE else View.GONE
 
         // Set dropdown selection
-        val selectionIndex = when (maxWindows) {
-            0 -> 0 // Disable
-            2 -> 1 // TWO
-            3 -> 2 // Three
-            4 -> 3 // FOUR
-            5 -> 4 // FIVE (MAX)
-            else -> 0
-        }
-        
         (binding.maxFloatingWindowsDropdown as? AutoCompleteTextView)?.setText(
             when (maxWindows) {
                 0 -> "Disable"
