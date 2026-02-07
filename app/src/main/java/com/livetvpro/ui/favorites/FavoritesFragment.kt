@@ -46,23 +46,7 @@ class FavoritesFragment : Fragment() {
 
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
-            onChannelClick = { favChannel ->
-                val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
-                
-                if (shouldBlock) {
-                    return@FavoriteAdapter
-                }
-                
-                val liveChannel = viewModel.getLiveChannel(favChannel.id)
-                
-                val finalChannel = liveChannel ?: convertToChannel(favChannel)
-
-                if (finalChannel.links != null && finalChannel.links.isNotEmpty() && finalChannel.links.size > 1) {
-                    showLinkSelectionDialog(finalChannel)
-                } else {
-                    PlayerActivity.startWithChannel(requireContext(), finalChannel)
-                }
-            },
+            preferencesManager = preferencesManager,
             onFavoriteToggle = { favChannel -> 
                 showRemoveConfirmation(favChannel) 
             }
