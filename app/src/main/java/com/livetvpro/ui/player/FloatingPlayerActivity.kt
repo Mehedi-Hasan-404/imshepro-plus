@@ -85,6 +85,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private var trackSelector: DefaultTrackSelector? = null
     private var playerListener: Player.Listener? = null
     
+    @javax.inject.Inject
+    lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
+    
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
     private lateinit var relatedEventsAdapter: LiveEventAdapter
@@ -695,9 +698,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     private fun setupRelatedChannels() {
         if (contentType == ContentType.EVENT) {
-            relatedEventsAdapter = LiveEventAdapter(this, emptyList()) { event ->
-                switchToEventFromLiveEvent(event)
-            }
+            relatedEventsAdapter = LiveEventAdapter(this, emptyList(), preferencesManager)
             
             binding.relatedChannelsRecycler.layoutManager = LinearLayoutManager(this)
             binding.relatedChannelsRecycler.adapter = relatedEventsAdapter
