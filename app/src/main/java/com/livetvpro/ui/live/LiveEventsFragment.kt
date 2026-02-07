@@ -92,17 +92,7 @@ class LiveEventsFragment : Fragment() {
     }
 
     private fun setupEventRecycler() {
-        eventAdapter = LiveEventAdapter(requireContext(), emptyList()) { event ->
-            val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_LIVE_EVENTS)
-            
-            if (shouldBlock) return@LiveEventAdapter
-            
-            // Show link selection dialog if multiple links exist
-            if (event.links.size > 1) {
-                showLinkSelectionDialog(event)
-            } else {
-                // Single link or no links - go directly to player
-                PlayerActivity.startWithEvent(requireContext(), event)
+        eventAdapter = LiveEventAdapter(requireContext(), emptyList(), preferencesManager)
             }
         }
         
