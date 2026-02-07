@@ -231,45 +231,85 @@ class LiveEventAdapter(
     }
 
     private fun launchPlayer(event: LiveEvent) {
-        // Convert LiveEvent to Channel format for floating player
-        val channel = Channel(
-            id = event.id,
-            name = "${event.team1Name} vs ${event.team2Name}",
-            logoUrl = event.leagueLogo.ifEmpty { event.team1Logo },
-            categoryName = event.category,
-            links = event.links.map { liveEventLink ->
-                com.livetvpro.data.models.ChannelLink(
-                    quality = liveEventLink.quality,
-                    url = liveEventLink.url,
-                    cookie = liveEventLink.cookie,
-                    referer = liveEventLink.referer,
-                    origin = liveEventLink.origin,
-                    userAgent = liveEventLink.userAgent,
-                    drmScheme = liveEventLink.drmScheme,
-                    drmLicenseUrl = liveEventLink.drmLicenseUrl
-                )
-            }
-        )
+        android.util.Log.d("LiveEventAdapter", "=== Launch Player Called ===")
+        android.util.Log.d("LiveEventAdapter", "Event: ${event.team1Name} vs ${event.team2Name}")
+        
+        // Validate event has links
+        if (event.links.isEmpty()) {
+            android.util.Log.w("LiveEventAdapter", "Event has no links!")
+            android.widget.Toast.makeText(
+                context,
+                "No streams available for this event",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            return
+        }
         
         // Check if floating player is enabled
-        if (preferencesManager.isFloatingPlayerEnabled() && 
-            FloatingPlayerHelper.hasOverlayPermission(context)) {
+        val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
+        val hasPermission = FloatingPlayerHelper.hasOverlayPermission(context)
+        
+        android.util.Log.d("LiveEventAdapter", "Floating enabled: $floatingEnabled")
+        android.util.Log.d("LiveEventAdapter", "Has overlay permission: $hasPermission")
+        
+        if (floatingEnabled) {
+            if (!hasPermission) {
+                // No overlay permission - show explanation and fallback to fullscreen
+                android.util.Log.w("LiveEventAdapter", "Missing overlay permission, falling back to fullscreen")
+                android.widget.Toast.makeText(
+                    context,
+                    "Overlay permission required for floating player. Opening fullscreen instead.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                
+                // Open fullscreen instead
+                PlayerActivity.startWithEvent(context, event)
+                return
+            }
             
-            // Floating player is ON - use floating player
-            FloatingPlayerHelper.launchFloatingPlayer(context, channel)
+            try {
+                // Has permission - create channel and launch floating player
+                val channel = Channel(
+                    id = event.id,
+                    name = "${event.team1Name} vs ${event.team2Name}",
+                    logoUrl = event.leagueLogo.ifEmpty { event.team1Logo },
+                    categoryName = event.category,
+                    links = event.links.map { liveEventLink ->
+                        com.livetvpro.data.models.ChannelLink(
+                            quality = liveEventLink.quality,
+                            url = liveEventLink.url,
+                            cookie = liveEventLink.cookie,
+                            referer = liveEventLink.referer,
+                            origin = liveEventLink.origin,
+                            userAgent = liveEventLink.userAgent,
+                            drmScheme = liveEventLink.drmScheme,
+                            drmLicenseUrl = liveEventLink.drmLicenseUrl
+                        )
+                    }
+                )
+                
+                android.util.Log.d("LiveEventAdapter", "Launching floating player...")
+                android.util.Log.d("LiveEventAdapter", "Stream URL: ${channel.links?.firstOrNull()?.url}")
+                
+                FloatingPlayerHelper.launchFloatingPlayer(context, channel)
+                
+            } catch (e: Exception) {
+                android.util.Log.e("LiveEventAdapter", "Failed to launch floating player", e)
+                android.widget.Toast.makeText(
+                    context,
+                    "Failed to start floating player: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                
+                // Fallback to fullscreen player
+                android.util.Log.d("LiveEventAdapter", "Falling back to fullscreen player")
+                PlayerActivity.startWithEvent(context, event)
+            }
         } else {
             // Floating player is OFF - use regular PlayerActivity
-            openFullscreenPlayer(event)
+            android.util.Log.d("LiveEventAdapter", "Floating player disabled, using fullscreen")
+            PlayerActivity.startWithEvent(context, event)
         }
-    }
-
-    private fun openFullscreenPlayer(event: LiveEvent) {
-        val intent = Intent(context, PlayerActivity::class.java).apply {
-            putExtra("event", event)
-            putExtra("stream_url", event.links.firstOrNull()?.url ?: "")
-            putExtra("title", "${event.team1Name} vs ${event.team2Name}")
-        }
-        context.startActivity(intent)
     }
 
     override fun getItemCount(): Int = events.size
