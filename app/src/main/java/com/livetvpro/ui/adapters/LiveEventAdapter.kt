@@ -1,6 +1,7 @@
 package com.livetvpro.ui.adapters
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
@@ -10,8 +11,12 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.livetvpro.R
+import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.databinding.ItemLiveEventBinding
 import com.livetvpro.data.models.LiveEvent
+import com.livetvpro.data.models.Channel
+import com.livetvpro.ui.player.PlayerActivity
+import com.livetvpro.utils.FloatingPlayerHelper
 import com.livetvpro.utils.GlideExtensions
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -20,7 +25,7 @@ import java.util.TimeZone
 class LiveEventAdapter(
     private val context: Context,
     private var events: List<LiveEvent>,
-    private val onEventClick: (LiveEvent) -> Unit
+    private val preferencesManager: PreferencesManager
 ) : RecyclerView.Adapter<LiveEventAdapter.EventViewHolder>() {
 
     private val apiDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
@@ -124,7 +129,6 @@ class LiveEventAdapter(
             
             when {
                 // ===== LIVE EVENT =====
-                // Show as LIVE if: (time is between start-end) OR isLive flag is true
                 (currentTime >= startTimeMillis && currentTime <= endTimeMillis) || event.isLive -> {
                     // Show LARGER Lottie animation
                     binding.liveAnimation.visibility = View.VISIBLE
@@ -220,10 +224,41 @@ class LiveEventAdapter(
             binding.statusText.visibility = View.VISIBLE
         }
 
-        // Click Listener
+        // Click Listener - Launch player based on floating player setting
         holder.itemView.setOnClickListener {
-            onEventClick(event)
+            launchPlayer(event)
         }
+    }
+
+    private fun launchPlayer(event: LiveEvent) {
+        // Convert LiveEvent to Channel format for floating player
+        val channel = Channel(
+            id = event.id,
+            name = "${event.team1Name} vs ${event.team2Name}",
+            channel_logo = event.leagueLogo.ifEmpty { event.team1Logo },
+            category = event.category,
+            links = event.links
+        )
+        
+        // Check if floating player is enabled
+        if (preferencesManager.isFloatingPlayerEnabled() && 
+            FloatingPlayerHelper.hasOverlayPermission(context)) {
+            
+            // Floating player is ON - use floating player
+            FloatingPlayerHelper.launchFloatingPlayer(context, channel)
+        } else {
+            // Floating player is OFF - use regular PlayerActivity
+            openFullscreenPlayer(event)
+        }
+    }
+
+    private fun openFullscreenPlayer(event: LiveEvent) {
+        val intent = Intent(context, PlayerActivity::class.java).apply {
+            putExtra("event", event)
+            putExtra("stream_url", event.links.firstOrNull() ?: "")
+            putExtra("title", "${event.team1Name} vs ${event.team2Name}")
+        }
+        context.startActivity(intent)
     }
 
     override fun getItemCount(): Int = events.size
