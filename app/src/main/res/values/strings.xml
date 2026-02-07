@@ -58,6 +58,13 @@
     <string name="max_floating_windows_reached">Maximum floating windows reached</string>
     <string name="overlay_permission_denied">Overlay permission is required for Floating Player</string>
     
+    <!-- Favorites -->
+    <string name="no_favorites">No favorites yet</string>
+    <string name="no_favorites_message">Add channels to favorites to see them here</string>
+    <string name="clear_all">Clear All</string>
+    <string name="clear_favorites_confirm">Clear all favorites?</string>
+    <string name="favorites_cleared">Favorites cleared</string>
+    
     <!-- Content Descriptions -->
     <string name="close_button">Close</string>
     <string name="resize_button">Resize window</string>
