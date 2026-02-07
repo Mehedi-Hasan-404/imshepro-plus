@@ -22,6 +22,7 @@ class PreferencesManager @Inject constructor(
         
         // Floating Player Preferences
         private const val KEY_FLOATING_PLAYER_ENABLED = "floating_player_enabled"
+        private const val KEY_FLOATING_PLAYER_AUTO_START = "floating_player_auto_start"
         private const val KEY_MAX_FLOATING_WINDOWS = "max_floating_windows"
         private const val KEY_FLOATING_PLAYER_WIDTH = "floating_player_width"
         private const val KEY_FLOATING_PLAYER_HEIGHT = "floating_player_height"
@@ -53,6 +54,14 @@ class PreferencesManager @Inject constructor(
 
     fun setFloatingPlayerEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_FLOATING_PLAYER_ENABLED, enabled).apply()
+    }
+
+    fun isFloatingPlayerAutoStart(): Boolean {
+        return prefs.getBoolean(KEY_FLOATING_PLAYER_AUTO_START, false)
+    }
+
+    fun setFloatingPlayerAutoStart(autoStart: Boolean) {
+        prefs.edit().putBoolean(KEY_FLOATING_PLAYER_AUTO_START, autoStart).apply()
     }
 
     fun getMaxFloatingWindows(): Int {
