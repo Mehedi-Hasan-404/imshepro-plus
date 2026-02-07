@@ -13,19 +13,33 @@ import com.livetvpro.ui.player.FloatingPlayerService
 object FloatingPlayerHelper {
 
     fun launchFloatingPlayer(context: Context, channel: Channel) {
-        android.util.Log.d("FloatingPlayerHelper", "=== Launch Floating Player ===")
-        android.util.Log.d("FloatingPlayerHelper", "Channel: ${channel.name}")
-        android.util.Log.d("FloatingPlayerHelper", "Links count: ${channel.links?.size ?: 0}")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "========================================")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "launchFloatingPlayer() CALLED")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "========================================")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "Context type: ${context.javaClass.simpleName}")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "Channel name: ${channel.name}")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "Channel ID: ${channel.id}")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "Channel links: ${channel.links?.size ?: 0}")
+        
+        android.widget.Toast.makeText(
+            context,
+            "FloatingPlayerHelper called",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (!Settings.canDrawOverlays(context)) {
-                android.util.Log.w("FloatingPlayerHelper", "Missing overlay permission")
+            android.util.Log.e("DEBUG_FLOATING_HELPER", "Checking overlay permission...")
+            val canDraw = Settings.canDrawOverlays(context)
+            android.util.Log.e("DEBUG_FLOATING_HELPER", "Can draw overlays: $canDraw")
+            
+            if (!canDraw) {
+                android.util.Log.e("DEBUG_FLOATING_HELPER", "NO PERMISSION - showing dialog or toast")
                 
                 if (context is Activity) {
-                    // Show permission dialog if context is an Activity
+                    android.util.Log.e("DEBUG_FLOATING_HELPER", "Context is Activity - showing dialog")
                     showPermissionDialog(context)
                 } else {
-                    // If not an activity, just show a toast
+                    android.util.Log.e("DEBUG_FLOATING_HELPER", "Context is NOT Activity - showing toast")
                     android.widget.Toast.makeText(
                         context,
                         "Overlay permission required. Please enable in settings.",
@@ -36,17 +50,41 @@ object FloatingPlayerHelper {
             }
         }
         
-        android.util.Log.d("FloatingPlayerHelper", "Starting floating player service...")
-        FloatingPlayerService.start(context, channel)
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "Permission OK - calling FloatingPlayerService.start()...")
+        
+        try {
+            FloatingPlayerService.start(context, channel)
+            android.util.Log.e("DEBUG_FLOATING_HELPER", "FloatingPlayerService.start() returned successfully")
+            
+            android.widget.Toast.makeText(
+                context,
+                "Service start called",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            
+        } catch (e: Exception) {
+            android.util.Log.e("DEBUG_FLOATING_HELPER", "EXCEPTION calling service!", e)
+            android.util.Log.e("DEBUG_FLOATING_HELPER", "Exception: ${e.message}")
+            
+            android.widget.Toast.makeText(
+                context,
+                "Service start failed: ${e.message}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+        
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "========================================")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "launchFloatingPlayer() COMPLETED")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "========================================")
     }
 
     fun stopFloatingPlayer(context: Context) {
-        android.util.Log.d("FloatingPlayerHelper", "Stopping floating player service")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "Stopping floating player service")
         FloatingPlayerService.stop(context)
     }
 
     private fun showPermissionDialog(activity: Activity) {
-        android.util.Log.d("FloatingPlayerHelper", "Showing permission dialog")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "Showing permission dialog")
         AlertDialog.Builder(activity)
             .setTitle("Permission Required")
             .setMessage("Floating Player requires permission to display over other apps. Please enable it in the settings.")
@@ -69,7 +107,7 @@ object FloatingPlayerHelper {
         } else {
             true
         }
-        android.util.Log.d("FloatingPlayerHelper", "Has overlay permission: $hasPermission")
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "hasOverlayPermission: $hasPermission")
         return hasPermission
     }
 }
