@@ -235,9 +235,20 @@ class LiveEventAdapter(
         val channel = Channel(
             id = event.id,
             name = "${event.team1Name} vs ${event.team2Name}",
-            channel_logo = event.leagueLogo.ifEmpty { event.team1Logo },
-            category = event.category,
-            links = event.links
+            logoUrl = event.leagueLogo.ifEmpty { event.team1Logo },
+            categoryName = event.category,
+            links = event.links.map { liveEventLink ->
+                com.livetvpro.data.models.ChannelLink(
+                    quality = liveEventLink.quality,
+                    url = liveEventLink.url,
+                    cookie = liveEventLink.cookie,
+                    referer = liveEventLink.referer,
+                    origin = liveEventLink.origin,
+                    userAgent = liveEventLink.userAgent,
+                    drmScheme = liveEventLink.drmScheme,
+                    drmLicenseUrl = liveEventLink.drmLicenseUrl
+                )
+            }
         )
         
         // Check if floating player is enabled
@@ -255,7 +266,7 @@ class LiveEventAdapter(
     private fun openFullscreenPlayer(event: LiveEvent) {
         val intent = Intent(context, PlayerActivity::class.java).apply {
             putExtra("event", event)
-            putExtra("stream_url", event.links.firstOrNull() ?: "")
+            putExtra("stream_url", event.links.firstOrNull()?.url ?: "")
             putExtra("title", "${event.team1Name} vs ${event.team2Name}")
         }
         context.startActivity(intent)
