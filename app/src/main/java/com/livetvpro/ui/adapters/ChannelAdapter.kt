@@ -1,26 +1,21 @@
 package com.livetvpro.ui.adapters
 
-import android.content.Intent
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
-import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ItemChannelBinding
-import com.livetvpro.ui.player.PlayerActivity
-import com.livetvpro.utils.FloatingPlayerHelper
-import javax.inject.Inject
 
-class ChannelAdapter @Inject constructor(
-    private val preferencesManager: PreferencesManager
+class ChannelAdapter(
+    private val onChannelClick: (Channel) -> Unit,
+    private val onFavoriteToggle: (Channel) -> Unit,
+    private val isFavorite: (String) -> Boolean
 ) : ListAdapter<Channel, ChannelAdapter.ChannelViewHolder>(ChannelDiffCallback()) {
-
-    private var onChannelClickListener: ((Channel) -> Unit)? = null
-    private var onChannelLongClickListener: ((Channel) -> Unit)? = null
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChannelViewHolder {
         val binding = ItemChannelBinding.inflate(
@@ -39,56 +34,69 @@ class ChannelAdapter @Inject constructor(
         private val binding: ItemChannelBinding
     ) : RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(channel: Channel) {
-            binding.apply {
-                // Set channel name
-                channelName.text = channel.name
-
-                // Load channel logo
-                Glide.with(itemView.context)
-                    .load(channel.logoUrl)
-                    .placeholder(R.drawable.ic_tv_placeholder)
-                    .error(R.drawable.ic_tv_placeholder)
-                    .into(channelLogo)
-
-                // Handle item click
-                root.setOnClickListener {
-                    // Check if custom click listener is set
-                    if (onChannelClickListener != null) {
-                        // Use custom listener
-                        onChannelClickListener?.invoke(channel)
-                    } else {
-                        // Default behavior - check floating player preference
-                        if (preferencesManager.isFloatingPlayerEnabled()) {
-                            FloatingPlayerHelper.playChannel(itemView.context, channel)
-                        } else {
-                            // Normal full-screen player
-                            val intent = Intent(itemView.context, PlayerActivity::class.java).apply {
-                                putExtra("channel", channel)
-                            }
-                            itemView.context.startActivity(intent)
-                        }
-                    }
-                }
-
-                // Handle long click
-                root.setOnLongClickListener {
-                    onChannelLongClickListener?.invoke(channel)
-                    true
+        init {
+            binding.root.setOnClickListener {
+                val position = bindingAdapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    onChannelClick(getItem(position))
                 }
             }
+
+            binding.root.setOnLongClickListener {
+                val position = bindingAdapterPosition
+                if (position != RecyclerView.NO_POSITION) {
+                    showFavoriteDialog(getItem(position))
+                }
+                true
+            }
+        }
+
+        private fun showFavoriteDialog(channel: Channel) {
+            val context = binding.root.context
+            val isFav = isFavorite(channel.id)
+            
+            val title = if (isFav) "Remove from Favorites?" else "Add to Favorites?"
+            val message = if (isFav) {
+                "Remove \"${channel.name}\" from favorites?"
+            } else {
+                "Add \"${channel.name}\" to favorites?"
+            }
+            val positiveButton = if (isFav) "Remove" else "Add"
+
+            MaterialAlertDialogBuilder(context)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton(positiveButton) { dialog, _ ->
+                    onFavoriteToggle(channel)
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+
+        fun bind(channel: Channel) {
+            binding.channelName.text = channel.name
+            
+            // CRITICAL: Enable marquee scrolling
+            binding.channelName.isSelected = true
+
+            val isFav = isFavorite(channel.id)
+            binding.favoriteIndicator.visibility = if (isFav) {
+                android.view.View.VISIBLE
+            } else {
+                android.view.View.GONE
+            }
+
+            Glide.with(binding.channelLogo)
+                .load(channel.logoUrl)
+                .placeholder(R.drawable.ic_channel_placeholder)
+                .error(R.drawable.ic_channel_placeholder)
+                .centerInside()
+                .into(binding.channelLogo)
         }
     }
 
-    fun setOnChannelClickListener(listener: (Channel) -> Unit) {
-        this.onChannelClickListener = listener
-    }
-
-    fun setOnChannelLongClickListener(listener: (Channel) -> Unit) {
-        this.onChannelLongClickListener = listener
-    }
-
-    class ChannelDiffCallback : DiffUtil.ItemCallback<Channel>() {
+    private class ChannelDiffCallback : DiffUtil.ItemCallback<Channel>() {
         override fun areItemsTheSame(oldItem: Channel, newItem: Channel): Boolean {
             return oldItem.id == newItem.id
         }
@@ -96,5 +104,16 @@ class ChannelAdapter @Inject constructor(
         override fun areContentsTheSame(oldItem: Channel, newItem: Channel): Boolean {
             return oldItem == newItem
         }
+    }
+
+    fun refreshItem(channelId: String) {
+        val position = currentList.indexOfFirst { it.id == channelId }
+        if (position != -1) {
+            notifyItemChanged(position)
+        }
+    }
+
+    fun refreshAll() {
+        notifyDataSetChanged()
     }
 }
