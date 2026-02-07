@@ -68,8 +68,8 @@ class FavoriteAdapter(
             val channel = Channel(
                 id = favorite.id,
                 name = favorite.name,
-                channel_logo = favorite.logoUrl,
-                category = favorite.category,
+                logoUrl = favorite.logoUrl,
+                categoryName = favorite.categoryName,
                 links = favorite.links
             )
             
@@ -88,7 +88,7 @@ class FavoriteAdapter(
         private fun openFullscreenPlayer(favorite: FavoriteChannel) {
             val context = binding.root.context
             val intent = Intent(context, PlayerActivity::class.java).apply {
-                putExtra("stream_url", favorite.links.firstOrNull() ?: "")
+                putExtra("stream_url", favorite.links?.firstOrNull()?.url ?: "")
                 putExtra("title", favorite.name)
                 putExtra("channel_logo", favorite.logoUrl)
             }
