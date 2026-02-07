@@ -2,10 +2,15 @@ package com.livetvpro
 
 import android.animation.ArgbEvaluator
 import android.animation.ValueAnimator
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.appcompat.app.ActionBarDrawerToggle
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
@@ -14,6 +19,7 @@ import androidx.navigation.fragment.NavHostFragment
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.local.ThemeManager
 import com.livetvpro.databinding.ActivityMainBinding
+import com.livetvpro.ui.player.dialogs.FloatingPlayerDialog
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -37,6 +43,10 @@ class MainActivity : AppCompatActivity() {
     private var lastSelectedView: View? = null 
     
     private val indicator by lazy { binding.bottomNavIndicator } 
+
+    companion object {
+        private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -103,11 +113,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.navigationView.setNavigationItemSelectedListener { menuItem ->
-            if (menuItem.itemId in topLevelDestinations) {
-                navigateTopLevel(menuItem.itemId)
+            when (menuItem.itemId) {
+                R.id.floating_player_settings -> {
+                    showFloatingPlayerDialog()
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
+                else -> {
+                    if (menuItem.itemId in topLevelDestinations) {
+                        navigateTopLevel(menuItem.itemId)
+                    }
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
             }
-            binding.drawerLayout.closeDrawer(GravityCompat.START)
-            true
         }
 
         binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
@@ -185,6 +204,37 @@ class MainActivity : AppCompatActivity() {
         binding.btnFavorites.setOnClickListener {
             if (navController.currentDestination?.id != R.id.favoritesFragment) {
                 navController.navigate(R.id.favoritesFragment)
+            }
+        }
+    }
+
+    private fun showFloatingPlayerDialog() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+            // Show permission explanation dialog
+            AlertDialog.Builder(this)
+                .setTitle("Permission Required")
+                .setMessage("Floating Player requires permission to draw over other apps. Please enable it in the next screen.")
+                .setPositiveButton("Settings") { _, _ ->
+                    val intent = Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                    startActivityForResult(intent, REQUEST_CODE_OVERLAY_PERMISSION)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        } else {
+            // Show floating player settings dialog
+            FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQUEST_CODE_OVERLAY_PERMISSION) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+                // Permission granted, show dialog
+                FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
             }
         }
     }
