@@ -53,36 +53,93 @@ class FloatingPlayerService : Service() {
         private const val CHANNEL_ID = "floating_player_channel"
         
         fun start(context: Context, channel: Channel) {
-            val intent = Intent(context, FloatingPlayerService::class.java).apply {
-                putExtra(EXTRA_STREAM_URL, channel.links?.firstOrNull()?.url ?: "")
-                putExtra(EXTRA_TITLE, channel.name)
-            }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
+            try {
+                android.util.Log.d("FloatingPlayerService", "=== Start Called ===")
+                android.util.Log.d("FloatingPlayerService", "Channel: ${channel.name}")
+                android.util.Log.d("FloatingPlayerService", "Links count: ${channel.links?.size ?: 0}")
+                
+                // Validate channel has links
+                if (channel.links == null || channel.links.isEmpty()) {
+                    android.util.Log.e("FloatingPlayerService", "ERROR: Channel has no links!")
+                    android.widget.Toast.makeText(
+                        context,
+                        "No stream available for ${channel.name}",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
+                
+                val streamUrl = channel.links.firstOrNull()?.url ?: ""
+                if (streamUrl.isEmpty()) {
+                    android.util.Log.e("FloatingPlayerService", "ERROR: Stream URL is empty!")
+                    android.widget.Toast.makeText(
+                        context,
+                        "Invalid stream URL",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
+                
+                android.util.Log.d("FloatingPlayerService", "Stream URL: $streamUrl")
+                
+                val intent = Intent(context, FloatingPlayerService::class.java).apply {
+                    putExtra(EXTRA_STREAM_URL, streamUrl)
+                    putExtra(EXTRA_TITLE, channel.name)
+                }
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    android.util.Log.d("FloatingPlayerService", "Starting foreground service")
+                    context.startForegroundService(intent)
+                } else {
+                    android.util.Log.d("FloatingPlayerService", "Starting service")
+                    context.startService(intent)
+                }
+                
+                android.util.Log.d("FloatingPlayerService", "Service start requested successfully")
+                
+            } catch (e: Exception) {
+                android.util.Log.e("FloatingPlayerService", "Failed to start service", e)
+                android.widget.Toast.makeText(
+                    context,
+                    "Failed to start floating player: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
             }
         }
         
         fun stop(context: Context) {
+            android.util.Log.d("FloatingPlayerService", "Stopping service")
             context.stopService(Intent(context, FloatingPlayerService::class.java))
         }
     }
 
     override fun onCreate() {
         super.onCreate()
+        android.util.Log.d("FloatingPlayerService", "onCreate called")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.d("FloatingPlayerService", "onStartCommand called")
+        
         if (intent?.action == ACTION_STOP) {
+            android.util.Log.d("FloatingPlayerService", "Stop action received")
             stopSelf()
             return START_NOT_STICKY
         }
         
         val streamUrl = intent?.getStringExtra(EXTRA_STREAM_URL) ?: ""
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Live Stream"
+        
+        android.util.Log.d("FloatingPlayerService", "Stream URL: $streamUrl")
+        android.util.Log.d("FloatingPlayerService", "Title: $title")
+        
+        if (streamUrl.isEmpty()) {
+            android.util.Log.e("FloatingPlayerService", "Stream URL is empty, stopping service")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         
         startForeground(NOTIFICATION_ID, createNotification(title))
         
@@ -94,49 +151,79 @@ class FloatingPlayerService : Service() {
     }
 
     private fun createFloatingView(streamUrl: String, title: String) {
-        floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
-        
-        val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-            } else {
-                WindowManager.LayoutParams.TYPE_PHONE
-            },
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-            PixelFormat.TRANSLUCENT
-        )
-        
-        params.gravity = Gravity.TOP or Gravity.START
-        params.x = 100
-        params.y = 100
-        params.width = dpToPx(320)
-        params.height = dpToPx(240)
-        
-        windowManager?.addView(floatingView, params)
-        
-        setupPlayer(streamUrl, title)
-        setupControls(params)
+        try {
+            android.util.Log.d("FloatingPlayerService", "Creating floating view...")
+            
+            floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
+            
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                } else {
+                    WindowManager.LayoutParams.TYPE_PHONE
+                },
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                PixelFormat.TRANSLUCENT
+            )
+            
+            params.gravity = Gravity.TOP or Gravity.START
+            params.x = 100
+            params.y = 100
+            params.width = dpToPx(320)
+            params.height = dpToPx(240)
+            
+            try {
+                windowManager?.addView(floatingView, params)
+                android.util.Log.d("FloatingPlayerService", "Floating view added to window manager")
+            } catch (e: Exception) {
+                android.util.Log.e("FloatingPlayerService", "Failed to add view to window", e)
+                android.widget.Toast.makeText(
+                    this,
+                    "Failed to create floating window: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                stopSelf()
+                return
+            }
+            
+            setupPlayer(streamUrl, title)
+            setupControls(params)
+            
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
+            stopSelf()
+        }
     }
 
     private fun setupPlayer(streamUrl: String, title: String) {
-        player = ExoPlayer.Builder(this).build()
-        playerView = floatingView?.findViewById(R.id.player_view)
-        
-        playerView?.apply {
-            player = this@FloatingPlayerService.player
-            useController = false
-        }
-        
-        val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
-        titleText?.text = title
-        
-        val mediaItem = MediaItem.fromUri(streamUrl)
-        player?.apply {
-            setMediaItem(mediaItem)
-            prepare()
-            playWhenReady = true
+        try {
+            android.util.Log.d("FloatingPlayerService", "Setting up player...")
+            
+            player = ExoPlayer.Builder(this).build()
+            playerView = floatingView?.findViewById(R.id.player_view)
+            
+            playerView?.apply {
+                player = this@FloatingPlayerService.player
+                useController = false
+            }
+            
+            val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
+            titleText?.text = title
+            
+            val mediaItem = MediaItem.fromUri(streamUrl)
+            player?.apply {
+                setMediaItem(mediaItem)
+                prepare()
+                playWhenReady = true
+            }
+            
+            android.util.Log.d("FloatingPlayerService", "Player setup complete")
+            
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingPlayerService", "Error setting up player", e)
+            stopSelf()
         }
     }
 
@@ -154,10 +241,12 @@ class FloatingPlayerService : Service() {
         val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
         
         closeBtn?.setOnClickListener {
+            android.util.Log.d("FloatingPlayerService", "Close button clicked")
             stopSelf()
         }
         
         fullscreenBtn?.setOnClickListener {
+            android.util.Log.d("FloatingPlayerService", "Fullscreen button clicked")
             val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
                 putExtra("stream_url", player?.currentMediaItem?.localConfiguration?.uri.toString())
                 putExtra("title", floatingView?.findViewById<TextView>(R.id.tv_title)?.text.toString())
@@ -299,6 +388,8 @@ class FloatingPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        android.util.Log.d("FloatingPlayerService", "onDestroy called")
+        
         player?.release()
         player = null
         
