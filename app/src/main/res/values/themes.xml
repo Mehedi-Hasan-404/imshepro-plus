@@ -54,6 +54,16 @@
         <item name="android:windowNoTitle">true</item>
     </style>
 
+    <!-- SPLASH THEME -->
+    <style name="Theme.LiveTVPro.Splash" parent="Theme.LiveTVPro">
+        <item name="android:windowBackground">@color/background_dark</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:statusBarColor">@color/background_dark</item>
+    </style>
+
     <!-- TAB TEXT STYLE -->
     <style name="TabTextStyle" parent="TextAppearance.Design.Tab">
         <item name="android:textSize">14sp</item>
