@@ -93,8 +93,6 @@ class LiveEventsFragment : Fragment() {
 
     private fun setupEventRecycler() {
         eventAdapter = LiveEventAdapter(requireContext(), emptyList(), preferencesManager)
-            }
-        }
         
         binding.recyclerViewEvents.apply {
             layoutManager = LinearLayoutManager(context)
