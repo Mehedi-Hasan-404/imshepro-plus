@@ -1,141 +1,181 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black">
+    app:cardCornerRadius="12dp"
+    app:cardElevation="8dp"
+    android:background="#000000">
 
-    <!-- ExoPlayer Video View -->
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/floating_player_view"
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:resize_mode="fit"
-        app:show_buffering="when_playing"
-        app:use_controller="false" />
+        android:layout_height="match_parent">
 
-    <!-- Drag Handle (Top Bar) -->
-    <LinearLayout
-        android:id="@+id/drag_handle"
-        android:layout_width="match_parent"
-        android:layout_height="40dp"
-        android:layout_gravity="top"
-        android:background="#80000000"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp">
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/player_view"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            app:show_buffering="when_playing"
+            app:use_controller="false"
+            app:resize_mode="fill"
+            app:surface_type="texture_view" />
 
-        <!-- Stream Title -->
-        <TextView
-            android:id="@+id/tv_stream_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:ellipsize="marquee"
-            android:marqueeRepeatLimit="marquee_forever"
-            android:scrollHorizontally="true"
-            android:singleLine="true"
-            android:text="Live Stream"
-            android:textColor="@android:color/white"
-            android:textSize="14sp"
-            android:textStyle="bold" />
-
-        <!-- Close Button -->
-        <ImageButton
-            android:id="@+id/btn_close"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Close"
-            android:src="@drawable/ic_close"
-            android:tint="@android:color/white" />
-    </LinearLayout>
-
-    <!-- Controls Layout (Bottom) -->
-    <LinearLayout
-        android:id="@+id/controls_layout"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="#80000000"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:visibility="visible">
-
-        <!-- Play/Pause Button -->
-        <ImageButton
-            android:id="@+id/btn_play_pause"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Play/Pause"
-            android:src="@drawable/ic_pause"
-            android:tint="@android:color/white" />
-
-        <!-- Rewind Button -->
-        <ImageButton
-            android:id="@+id/btn_rewind"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Rewind"
-            android:src="@drawable/ic_skip_backward"
-            android:tint="@android:color/white" />
-
-        <!-- Forward Button -->
-        <ImageButton
-            android:id="@+id/btn_forward"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Forward"
-            android:src="@drawable/ic_skip_forward"
-            android:tint="@android:color/white" />
-
-        <!-- Spacer -->
         <View
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
+            android:id="@+id/drag_handle"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/gradient_overlay_top" />
 
-        <!-- Mute Button -->
-        <ImageButton
-            android:id="@+id/btn_mute"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Mute"
-            android:src="@drawable/ic_volume_up"
-            android:tint="@android:color/white" />
+        <LinearLayout
+            android:id="@+id/top_controls_container"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
 
-        <!-- Fullscreen Button -->
-        <ImageButton
-            android:id="@+id/btn_fullscreen"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Fullscreen"
-            android:src="@drawable/ic_fullscreen"
-            android:tint="@android:color/white" />
-    </LinearLayout>
+            <ImageButton
+                android:id="@+id/btn_close"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_close"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@android:color/white"
+                android:contentDescription="Close" />
 
-    <!-- Resize Handle (Bottom-Right Corner) -->
-    <ImageView
-        android:id="@+id/resize_handle"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="4dp"
-        android:background="@drawable/circle_bg"
-        android:contentDescription="Resize"
-        android:padding="8dp"
-        android:src="@drawable/ic_resize"
-        android:tint="@android:color/white" />
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="12dp"
+                android:layout_marginEnd="12dp"
+                android:text="Live Stream"
+                android:textColor="@android:color/white"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="marquee"
+                android:marqueeRepeatLimit="marquee_forever"
+                android:scrollHorizontally="true"
+                android:focusable="true"
+                android:focusableInTouchMode="true" />
 
-</FrameLayout>
+            <ImageButton
+                android:id="@+id/btn_mute"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_volume_up"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@android:color/white"
+                android:layout_marginEnd="8dp"
+                android:contentDescription="Mute" />
+
+            <ImageButton
+                android:id="@+id/btn_fullscreen"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_fullscreen"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@android:color/white"
+                android:layout_marginEnd="8dp"
+                android:contentDescription="Fullscreen" />
+
+            <ImageButton
+                android:id="@+id/btn_lock"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:src="@drawable/ic_lock_open"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:tint="@android:color/white"
+                android:contentDescription="Lock" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/bottom_controls_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:orientation="vertical"
+            android:background="@drawable/gradient_overlay_bottom"
+            android:paddingTop="24dp"
+            android:paddingBottom="12dp"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp">
+
+            <androidx.media3.ui.DefaultTimeBar
+                android:id="@+id/exo_progress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:played_color="#FF0000"
+                app:scrubber_color="#FFFFFF"
+                app:buffered_color="#80FFFFFF"
+                app:unplayed_color="#40FFFFFF"
+                app:bar_height="3dp"
+                app:touch_target_height="26dp"
+                app:scrubber_enabled_size="12dp"
+                app:scrubber_disabled_size="0dp"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <ImageButton
+                    android:id="@+id/btn_seek_back"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_skip_backward"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@android:color/white"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="Rewind" />
+
+                <ImageButton
+                    android:id="@+id/btn_play_pause"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_pause"
+                    android:background="@drawable/circular_button_bg"
+                    android:tint="@android:color/white"
+                    android:scaleType="fitCenter"
+                    android:layout_marginStart="24dp"
+                    android:layout_marginEnd="24dp"
+                    android:contentDescription="Play/Pause" />
+
+                <ImageButton
+                    android:id="@+id/btn_seek_forward"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:src="@drawable/ic_skip_forward"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@android:color/white"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="Forward" />
+
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
+                <ImageButton
+                    android:id="@+id/btn_resize"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_resize"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:tint="@android:color/white"
+                    android:scaleType="fitCenter"
+                    android:contentDescription="Resize" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </FrameLayout>
+
+</androidx.cardview.widget.CardView>
