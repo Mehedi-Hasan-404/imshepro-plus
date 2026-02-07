@@ -15,5 +15,10 @@
             android:id="@+id/contactFragment"
             android:icon="@drawable/ic_contact"
             android:title="@string/nav_contact" />
+            
+        <item
+            android:id="@+id/floating_player_settings"
+            android:icon="@drawable/ic_pip"
+            android:title="Floating Player" />
     </group>
 </menu>
