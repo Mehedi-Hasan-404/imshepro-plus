@@ -42,47 +42,36 @@ class ChannelAdapter @Inject constructor(
         fun bind(channel: Channel) {
             binding.apply {
                 // Set channel name
-                tvChannelName.text = channel.name
-                
-                // Set channel category
-                tvChannelCategory.text = channel.category
+                channelName.text = channel.name
 
                 // Load channel logo
                 Glide.with(itemView.context)
                     .load(channel.logoUrl)
                     .placeholder(R.drawable.ic_tv_placeholder)
                     .error(R.drawable.ic_tv_placeholder)
-                    .into(ivChannelLogo)
+                    .into(channelLogo)
 
                 // Handle item click
                 root.setOnClickListener {
                     // Check if custom click listener is set
                     if (onChannelClickListener != null) {
+                        // Use custom listener
                         onChannelClickListener?.invoke(channel)
                     } else {
-                        // Default behavior: Check if floating player is enabled
+                        // Default behavior - check floating player preference
                         if (preferencesManager.isFloatingPlayerEnabled()) {
-                            // Start floating player
-                            FloatingPlayerHelper.startFloatingPlayer(
-                                context = itemView.context,
-                                streamUrl = channel.streamUrl,
-                                streamTitle = channel.name,
-                                preferencesManager = preferencesManager
-                            )
+                            FloatingPlayerHelper.playChannel(itemView.context, channel)
                         } else {
-                            // Open normal player activity
+                            // Normal full-screen player
                             val intent = Intent(itemView.context, PlayerActivity::class.java).apply {
-                                putExtra("stream_url", channel.streamUrl)
-                                putExtra("stream_title", channel.name)
-                                putExtra("channel_logo", channel.logoUrl)
-                                putExtra("channel_id", channel.id)
+                                putExtra("channel", channel)
                             }
                             itemView.context.startActivity(intent)
                         }
                     }
                 }
 
-                // Handle long click (e.g., for favorites)
+                // Handle long click
                 root.setOnLongClickListener {
                     onChannelLongClickListener?.invoke(channel)
                     true
@@ -92,14 +81,14 @@ class ChannelAdapter @Inject constructor(
     }
 
     fun setOnChannelClickListener(listener: (Channel) -> Unit) {
-        onChannelClickListener = listener
+        this.onChannelClickListener = listener
     }
 
     fun setOnChannelLongClickListener(listener: (Channel) -> Unit) {
-        onChannelLongClickListener = listener
+        this.onChannelLongClickListener = listener
     }
 
-    private class ChannelDiffCallback : DiffUtil.ItemCallback<Channel>() {
+    class ChannelDiffCallback : DiffUtil.ItemCallback<Channel>() {
         override fun areItemsTheSame(oldItem: Channel, newItem: Channel): Boolean {
             return oldItem.id == newItem.id
         }
@@ -109,22 +98,3 @@ class ChannelAdapter @Inject constructor(
         }
     }
 }
-
-// Channel data class (if you don't have it already)
-// Put this in app/src/main/java/com/livetvpro/data/models/Channel.kt
-
-/*
-package com.livetvpro.data.models
-
-data class Channel(
-    val id: String,
-    val name: String,
-    val streamUrl: String,
-    val logoUrl: String?,
-    val category: String,
-    val groupTitle: String? = null,
-    val tvgId: String? = null,
-    val language: String? = null,
-    val country: String? = null
-)
-*/
