@@ -49,7 +49,6 @@ class MainActivity : AppCompatActivity() {
         setupDrawer()
         setupNavigation()
         setupSearch()
-        setupThemeToggle()
     }
 
     private fun setupToolbar() {
@@ -210,63 +209,68 @@ class MainActivity : AppCompatActivity() {
         
         val duration = 300L 
         
-        indicator.alpha = 1f
-        
-        val targetX = newSelectedView.x + newSelectedView.width * 0.25f 
-        val targetWidth = newSelectedView.width * 0.5f 
-
-        indicator.animate()
-            .translationX(targetX)
-            .setDuration(duration)
-            .start()
-
-        val widthAnimator = ValueAnimator.ofInt(indicator.width, targetWidth.toInt())
-        widthAnimator.addUpdateListener { animator ->
-            indicator.layoutParams.width = animator.animatedValue as Int
-            indicator.requestLayout()
-        }
-        widthAnimator.duration = duration
-        widthAnimator.start()
-
         lastSelectedView?.animate()
             ?.scaleX(1.0f)
             ?.scaleY(1.0f)
-            ?.translationY(0f) 
+            ?.translationY(0f)
             ?.setDuration(duration)
             ?.start()
-
+        
         newSelectedView.animate()
-            ?.scaleX(1.15f) 
-            ?.scaleY(1.15f)
-            ?.translationY(-8f)
-            ?.setDuration(duration)
-            ?.start()
-            
+            .scaleX(1.1f)
+            .scaleY(1.1f)
+            .translationY(-8f)
+            .setDuration(duration)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
+        
+        val startX = indicator.translationX
+        val startWidth = indicator.layoutParams.width
+        val endX = newSelectedView.x + newSelectedView.width * 0.25f
+        val endWidth = newSelectedView.width * 0.5f
+        
+        val xAnimator = ValueAnimator.ofFloat(startX, endX)
+        xAnimator.addUpdateListener { animator ->
+            indicator.translationX = animator.animatedValue as Float
+        }
+        xAnimator.duration = duration
+        xAnimator.interpolator = AccelerateDecelerateInterpolator()
+        
+        val widthAnimator = ValueAnimator.ofInt(startWidth, endWidth.toInt())
+        widthAnimator.addUpdateListener { animator ->
+            val params = indicator.layoutParams
+            params.width = animator.animatedValue as Int
+            indicator.layoutParams = params
+        }
+        widthAnimator.duration = duration
+        widthAnimator.interpolator = AccelerateDecelerateInterpolator()
+        
+        xAnimator.start()
+        widthAnimator.start()
+        
         lastSelectedView = newSelectedView
     }
 
     private fun setupSearch() {
-        binding.searchView.visibility = View.GONE
-        
         binding.btnSearch.setOnClickListener {
             showSearch()
         }
         
         binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
-                binding.searchView.clearFocus()
                 return true
             }
 
             override fun onQueryTextChange(newText: String?): Boolean {
-                val query = newText ?: ""
-                binding.btnSearchClear.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
-                
-                val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
-                val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
-                
-                if (currentFragment is SearchableFragment) {
-                    currentFragment.onSearchQuery(query)
+                newText?.let { query ->
+                    val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+                    val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
+                    
+                    if (currentFragment is SearchableFragment) {
+                        currentFragment.onSearchQuery(query)
+                    }
+                    
+                    binding.btnSearchClear.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
                 }
                 return true
             }
@@ -275,170 +279,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnSearchClear.setOnClickListener {
             binding.searchView.setQuery("", false)
         }
-    }
-
-    private fun setupThemeToggle() {
-        val themeAutoButton = findViewById<View>(R.id.theme_auto_button)
-        val themeLightButton = findViewById<View>(R.id.theme_light_button)
-        val themeDarkButton = findViewById<View>(R.id.theme_dark_button)
-        
-        val themeAutoIcon = findViewById<android.widget.ImageView>(R.id.theme_auto_icon)
-        val themeLightIcon = findViewById<android.widget.ImageView>(R.id.theme_light_icon)
-        val themeDarkIcon = findViewById<android.widget.ImageView>(R.id.theme_dark_icon)
-        val themeAutoText = findViewById<android.widget.TextView>(R.id.theme_auto_text)
-        val themeLightText = findViewById<android.widget.TextView>(R.id.theme_light_text)
-        val themeDarkText = findViewById<android.widget.TextView>(R.id.theme_dark_text)
-        
-        updateThemeToggleUI(
-            themeManager.getThemeMode(),
-            themeAutoIcon, themeLightIcon, themeDarkIcon,
-            themeAutoText, themeLightText, themeDarkText,
-            animated = false
-        )
-        
-        themeAutoButton?.setOnClickListener {
-            if (themeManager.getThemeMode() != ThemeManager.THEME_AUTO) {
-                animateButtonPress(themeAutoButton)
-                themeManager.setThemeMode(ThemeManager.THEME_AUTO)
-                updateThemeToggleUI(
-                    ThemeManager.THEME_AUTO,
-                    themeAutoIcon, themeLightIcon, themeDarkIcon,
-                    themeAutoText, themeLightText, themeDarkText,
-                    animated = true
-                )
-            }
-        }
-        
-        themeLightButton?.setOnClickListener {
-            if (themeManager.getThemeMode() != ThemeManager.THEME_LIGHT) {
-                animateButtonPress(themeLightButton)
-                themeManager.setThemeMode(ThemeManager.THEME_LIGHT)
-                updateThemeToggleUI(
-                    ThemeManager.THEME_LIGHT,
-                    themeAutoIcon, themeLightIcon, themeDarkIcon,
-                    themeAutoText, themeLightText, themeDarkText,
-                    animated = true
-                )
-            }
-        }
-        
-        themeDarkButton?.setOnClickListener {
-            if (themeManager.getThemeMode() != ThemeManager.THEME_DARK) {
-                animateButtonPress(themeDarkButton)
-                themeManager.setThemeMode(ThemeManager.THEME_DARK)
-                updateThemeToggleUI(
-                    ThemeManager.THEME_DARK,
-                    themeAutoIcon, themeLightIcon, themeDarkIcon,
-                    themeAutoText, themeLightText, themeDarkText,
-                    animated = true
-                )
-            }
-        }
-    }
-    
-    private fun updateThemeToggleUI(
-        selectedMode: Int,
-        themeAutoIcon: android.widget.ImageView?,
-        themeLightIcon: android.widget.ImageView?,
-        themeDarkIcon: android.widget.ImageView?,
-        themeAutoText: android.widget.TextView?,
-        themeLightText: android.widget.TextView?,
-        themeDarkText: android.widget.TextView?,
-        animated: Boolean = true
-    ) {
-        val primaryColor = ContextCompat.getColor(this, R.color.accent)
-        val normalColor = ContextCompat.getColor(this, R.color.text_secondary_dark)
-        val selectedBg = ContextCompat.getDrawable(this, R.drawable.theme_button_selected)
-        val normalBg = ContextCompat.getDrawable(this, R.drawable.theme_button_background)
-        
-        val duration = if (animated) 200L else 0L
-        
-        val themeAutoButton = findViewById<View>(R.id.theme_auto_button)
-        val themeLightButton = findViewById<View>(R.id.theme_light_button)
-        val themeDarkButton = findViewById<View>(R.id.theme_dark_button)
-        
-        fun animateColorChange(
-            icon: android.widget.ImageView?, 
-            text: android.widget.TextView?, 
-            button: View?,
-            toColor: Int,
-            isSelected: Boolean
-        ) {
-            if (animated) {
-                val currentIconColor = icon?.imageTintList?.defaultColor ?: normalColor
-                val currentTextColor = text?.currentTextColor ?: normalColor
-                
-                icon?.let {
-                    ValueAnimator.ofObject(ArgbEvaluator(), currentIconColor, toColor).apply {
-                        this.duration = duration
-                        addUpdateListener { animator ->
-                            it.setColorFilter(animator.animatedValue as Int)
-                        }
-                        start()
-                    }
-                }
-                
-                text?.let {
-                    ValueAnimator.ofObject(ArgbEvaluator(), currentTextColor, toColor).apply {
-                        this.duration = duration
-                        addUpdateListener { animator ->
-                            it.setTextColor(animator.animatedValue as Int)
-                        }
-                        start()
-                    }
-                }
-                
-                button?.let {
-                    if (isSelected) {
-                        it.alpha = 0.7f
-                        it.background = selectedBg
-                        it.animate().alpha(1f).setDuration(duration).start()
-                    } else {
-                        it.animate().alpha(0.7f).setDuration(duration).withEndAction {
-                            it.background = normalBg
-                            it.alpha = 1f
-                        }.start()
-                    }
-                }
-            } else {
-                icon?.setColorFilter(toColor)
-                text?.setTextColor(toColor)
-                button?.background = if (isSelected) selectedBg else normalBg
-            }
-        }
-        
-        animateColorChange(themeAutoIcon, themeAutoText, themeAutoButton, normalColor, false)
-        animateColorChange(themeLightIcon, themeLightText, themeLightButton, normalColor, false)
-        animateColorChange(themeDarkIcon, themeDarkText, themeDarkButton, normalColor, false)
-        
-        when (selectedMode) {
-            ThemeManager.THEME_AUTO -> {
-                animateColorChange(themeAutoIcon, themeAutoText, themeAutoButton, primaryColor, true)
-            }
-            ThemeManager.THEME_LIGHT -> {
-                animateColorChange(themeLightIcon, themeLightText, themeLightButton, primaryColor, true)
-            }
-            ThemeManager.THEME_DARK -> {
-                animateColorChange(themeDarkIcon, themeDarkText, themeDarkButton, primaryColor, true)
-            }
-        }
-    }
-
-    private fun animateButtonPress(view: View) {
-        view.animate()
-            .scaleX(0.92f)
-            .scaleY(0.92f)
-            .setDuration(100)
-            .setInterpolator(AccelerateDecelerateInterpolator())
-            .withEndAction {
-                view.animate()
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .setDuration(100)
-                    .setInterpolator(AccelerateDecelerateInterpolator())
-                    .start()
-            }
-            .start()
     }
 
     private fun showSearch() {
