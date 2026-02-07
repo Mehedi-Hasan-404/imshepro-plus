@@ -35,6 +35,9 @@ class LiveEventsFragment : Fragment() {
     
     @Inject
     lateinit var listenerManager: NativeListenerManager
+    
+    @Inject
+    lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
 
     private var selectedCategoryId: String = "evt_cat_all"
     private var selectedStatusFilter: EventStatus? = null
