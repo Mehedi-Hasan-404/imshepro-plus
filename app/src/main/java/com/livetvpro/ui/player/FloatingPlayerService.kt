@@ -54,7 +54,7 @@ class FloatingPlayerService : Service() {
         
         fun start(context: Context, channel: Channel) {
             val intent = Intent(context, FloatingPlayerService::class.java).apply {
-                putExtra(EXTRA_STREAM_URL, channel.links.firstOrNull() ?: "")
+                putExtra(EXTRA_STREAM_URL, channel.links?.firstOrNull()?.url ?: "")
                 putExtra(EXTRA_TITLE, channel.name)
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
