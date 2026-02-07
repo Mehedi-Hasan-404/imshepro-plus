@@ -32,6 +32,9 @@ class FavoritesFragment : Fragment() {
     @Inject
     lateinit var listenerManager: NativeListenerManager
     
+    @Inject
+    lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
+    
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
         return binding.root
