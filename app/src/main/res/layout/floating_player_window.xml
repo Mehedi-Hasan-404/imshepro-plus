@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Player View -->
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/floating_player_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:show_buffering="when_playing"
+        app:resize_mode="fit"
+        app:controller_layout_id="@layout/floating_player_controls"
+        app:show_timeout="3000"
+        app:use_controller="true" />
+
+    <!-- Drag Handle (Top bar) -->
+    <View
+        android:id="@+id/floating_drag_handle"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_gravity="top"
+        android:background="#80000000" />
+
+    <!-- Control Buttons Overlay -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_gravity="top"
+        android:orientation="horizontal"
+        android:gravity="end"
+        android:paddingEnd="8dp"
+        android:paddingStart="8dp">
+
+        <!-- Resize Button -->
+        <ImageButton
+            android:id="@+id/btn_floating_resize"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_resize"
+            android:tint="@android:color/white"
+            android:contentDescription="Resize"
+            android:padding="6dp" />
+
+        <!-- Fullscreen Button -->
+        <ImageButton
+            android:id="@+id/btn_floating_fullscreen"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginEnd="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_fullscreen"
+            android:tint="@android:color/white"
+            android:contentDescription="Fullscreen"
+            android:padding="6dp" />
+
+        <!-- Close Button -->
+        <ImageButton
+            android:id="@+id/btn_floating_close"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_close"
+            android:tint="@android:color/white"
+            android:contentDescription="Close"
+            android:padding="6dp" />
+
+    </LinearLayout>
+
+</FrameLayout>
