@@ -144,10 +144,10 @@ class FloatingPlayerService : Service() {
             floatingView = LayoutInflater.from(service).inflate(R.layout.floating_player_window, null)
             
             val playerView = floatingView?.findViewById<PlayerView>(R.id.floating_player_view)
-            val btnClose = floatingView?.findViewById<ImageButton>(R.id.btn_floating_close)
-            val btnFullscreen = floatingView?.findViewById<ImageButton>(R.id.btn_floating_fullscreen)
-            val btnResize = floatingView?.findViewById<ImageButton>(R.id.btn_floating_resize)
-            val dragHandle = floatingView?.findViewById<View>(R.id.floating_drag_handle)
+            val btnClose = floatingView?.findViewById<ImageButton>(R.id.btn_close)
+            val btnFullscreen = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
+            val btnResize = floatingView?.findViewById<ImageButton>(R.id.resize_handle)
+            val dragHandle = floatingView?.findViewById<View>(R.id.drag_handle)
 
             // Initialize player
             player = ExoPlayer.Builder(service).build().apply {
