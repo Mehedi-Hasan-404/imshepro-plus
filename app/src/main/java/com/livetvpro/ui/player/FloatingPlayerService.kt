@@ -26,8 +26,7 @@ import androidx.media3.ui.PlayerView
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
+import kotlin.math.sqrt
 
 class FloatingPlayerService : Service() {
 
@@ -51,11 +50,11 @@ class FloatingPlayerService : Service() {
     private var bottomControlsContainer: View? = null
     private var params: WindowManager.LayoutParams? = null
     
-    // Size limits (in pixels)
+    // Size limits (in pixels) - ADDED BOUNDS
     private val MIN_WIDTH = 240
     private val MAX_WIDTH = 1200
-    private val MIN_HEIGHT = 180
-    private val MAX_HEIGHT = 900
+    private val MIN_HEIGHT = 135
+    private val MAX_HEIGHT = 675
     
     companion object {
         const val EXTRA_CHANNEL = "extra_channel"
@@ -173,9 +172,9 @@ class FloatingPlayerService : Service() {
             
             windowManager?.addView(floatingView, params)
             
+            setupPlayer(streamUrl, title)
             setupControls()
             setupGestures()
-            setupPlayer(streamUrl, title)
             
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayer", "Error creating floating view", e)
@@ -197,7 +196,10 @@ class FloatingPlayerService : Service() {
             
             playerView?.apply {
                 player = this@FloatingPlayerService.player
-                useController = false  // We're using custom controls
+                // IMPORTANT: Enable built-in controls like PlayerActivity does
+                useController = true
+                controllerAutoShow = false
+                controllerShowTimeoutMs = 3000
             }
             
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
@@ -257,13 +259,17 @@ class FloatingPlayerService : Service() {
             )
             
             if (controlsLocked) {
-                // Hide controls when locked
+                // Hide custom controls when locked
                 controlsContainer?.visibility = View.GONE
                 bottomControlsContainer?.visibility = View.GONE
+                // Also hide PlayerView's built-in controls
+                playerView?.useController = false
             } else {
-                // Show controls when unlocked
+                // Show custom controls when unlocked
                 controlsContainer?.visibility = View.VISIBLE
                 bottomControlsContainer?.visibility = View.VISIBLE
+                // Re-enable PlayerView's built-in controls
+                playerView?.useController = true
             }
         }
         
@@ -313,19 +319,20 @@ class FloatingPlayerService : Service() {
                         val dy = event.rawY - resizeInitialTouchY
                         
                         // Use diagonal distance for resize sensitivity
-                        val distance = kotlin.math.sqrt((dx * dx + dy * dy).toDouble()).toInt()
+                        val distance = sqrt((dx * dx + dy * dy).toDouble()).toInt()
                         val direction = if (dx + dy > 0) 1 else -1
                         
                         // Calculate new width based on drag distance
-                        val newWidth = resizeInitialWidth + (distance * direction)
-                        val newHeight = (newWidth * 9 / 16)  // Maintain 16:9 aspect ratio
+                        var newWidth = resizeInitialWidth + (distance * direction)
+                        var newHeight = (newWidth * 9 / 16)  // Maintain 16:9 aspect ratio
                         
-                        // Apply bounds
-                        if (newWidth in MIN_WIDTH..MAX_WIDTH && newHeight in MIN_HEIGHT..MAX_HEIGHT) {
-                            p.width = newWidth
-                            p.height = newHeight
-                            windowManager?.updateViewLayout(floatingView, p)
-                        }
+                        // Apply bounds - FIXED TO ENFORCE LIMITS
+                        newWidth = newWidth.coerceIn(MIN_WIDTH, MAX_WIDTH)
+                        newHeight = newHeight.coerceIn(MIN_HEIGHT, MAX_HEIGHT)
+                        
+                        p.width = newWidth
+                        p.height = newHeight
+                        windowManager?.updateViewLayout(floatingView, p)
                         true
                     }
                     
@@ -350,8 +357,10 @@ class FloatingPlayerService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
-        // Setup drag handling on player view (no tap action)
-        playerView?.setOnTouchListener { view, event ->
+        // FIXED: Attach touch listener to the drag handle, not playerView
+        val dragHandle = floatingView?.findViewById<View>(R.id.drag_handle)
+        
+        dragHandle?.setOnTouchListener { view, event ->
             // If locked, consume touch events but don't do anything
             if (controlsLocked) {
                 return@setOnTouchListener true
@@ -365,7 +374,7 @@ class FloatingPlayerService : Service() {
                         initialY = p.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
-                        false  // Allow other touch handlers to see this event
+                        true
                     }
                     
                     MotionEvent.ACTION_MOVE -> {
@@ -376,7 +385,7 @@ class FloatingPlayerService : Service() {
                         p.x = initialX + dx
                         p.y = initialY + dy
                         windowManager?.updateViewLayout(floatingView, p)
-                        true  // Consume event during drag
+                        true
                     }
                     
                     MotionEvent.ACTION_UP -> {
@@ -388,13 +397,14 @@ class FloatingPlayerService : Service() {
             } ?: false
         }
         
-        // Alternative: Handle unlock on locked screen by tapping container
-        floatingView?.setOnClickListener {
+        // Handle unlock on locked screen by tapping anywhere on container
+        floatingView?.findViewById<View>(R.id.floating_container)?.setOnClickListener {
             if (controlsLocked) {
                 controlsLocked = false
                 floatingView?.findViewById<ImageButton>(R.id.btn_lock)?.setImageResource(R.drawable.ic_lock_open)
                 controlsContainer?.visibility = View.VISIBLE
                 bottomControlsContainer?.visibility = View.VISIBLE
+                playerView?.useController = true
             }
         }
     }
