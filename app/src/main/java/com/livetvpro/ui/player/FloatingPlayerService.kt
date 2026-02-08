@@ -29,6 +29,7 @@ import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import kotlin.math.abs
 
+@dagger.hilt.android.AndroidEntryPoint
 class FloatingPlayerService : Service() {
 
     private var windowManager: WindowManager? = null
@@ -65,6 +66,10 @@ class FloatingPlayerService : Service() {
     private var currentChannel: Channel? = null
     private var currentPlaybackPosition: Long = 0L
     
+    
+    // FIXED: Add PreferencesManager to save/restore window position
+    @javax.inject.Inject
+    lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
     // Size limits
     private fun getMinWidth() = dpToPx(180)
     private fun getMaxWidth() = dpToPx(400)
