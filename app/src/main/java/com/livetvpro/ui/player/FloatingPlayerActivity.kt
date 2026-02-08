@@ -1036,6 +1036,32 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 
         private fun setupPlayer() {
+        // FIXED: Check if we should use a transferred player (no loading!)
+        val useTransferredPlayer = intent.getBooleanExtra("use_transferred_player", false)
+        
+        if (useTransferredPlayer) {
+            val (transferredPlayer, transferredUrl, transferredName) = PlayerHolder.retrievePlayer()
+            
+            if (transferredPlayer != null) {
+                android.util.Log.d("FloatingPlayerActivity", "Using transferred player - NO LOADING!")
+                
+                // Use the existing player
+                player = transferredPlayer
+                binding.playerView.player = player
+                
+                // Clear holder
+                PlayerHolder.clearReferences()
+                
+                // Setup UI but don't recreate player
+                bindControllerViews()
+                configurePlayerInteractions()
+                setupLockOverlay()
+                
+                // Player is already playing - just continue!
+                return  // Exit early - no need to create new player
+            }
+        }
+        
         if (player != null) return
         binding.errorView.visibility = View.GONE
         binding.errorText.text = ""
@@ -1414,31 +1440,32 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         btnPip?.setOnClickListener {
             if (!isLocked) {
-                // Return to floating window service
                 val currentChannel = channelData
-                val currentPosition = player?.currentPosition ?: 0L
+                val currentPlayer = player
+                val currentStreamUrl = streamUrl
+                val currentName = contentName
                 
-                android.util.Log.d("FloatingPlayerActivity", "Starting floating player at position: $currentPosition")
-                
-                if (currentChannel != null) {
-                    FloatingPlayerService.start(this, currentChannel, currentPosition)
-                } else {
-                    val currentStreamUrl = player?.currentMediaItem?.localConfiguration?.uri.toString()
-                    val currentTitle = tvChannelName?.text?.toString() ?: contentName
+                if (currentPlayer != null && currentChannel != null) {
+                    // FIXED: Transfer player instead of destroying it - NO LOADING!
+                    PlayerHolder.transferPlayer(currentPlayer, currentStreamUrl, currentName)
                     
+                    android.util.Log.d("FloatingPlayerActivity", "Player transferred to service")
+                    
+                    // Start service - it will use the transferred player
                     val intent = Intent(this, FloatingPlayerService::class.java).apply {
-                        putExtra(FloatingPlayerService.EXTRA_STREAM_URL, currentStreamUrl)
-                        putExtra(FloatingPlayerService.EXTRA_TITLE, currentTitle)
-                        putExtra(FloatingPlayerService.EXTRA_PLAYBACK_POSITION, currentPosition)
+                        putExtra(FloatingPlayerService.EXTRA_CHANNEL, currentChannel)
+                        putExtra("use_transferred_player", true)
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         startForegroundService(intent)
                     } else {
                         startService(intent)
                     }
+                    
+                    // Don't release player - it's been transferred!
+                    player = null  // Remove reference so finish() won't release it
+                    finish()
                 }
-                
-                finish()
             }
         }
         
@@ -1870,7 +1897,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     override fun finish() {
         try {
-            releasePlayer()
+            // FIXED: Only release player if it wasn't transferred
+            if (player != null) {
+                releasePlayer()
+            }
             unregisterPipReceiver()
             isInPipMode = false
             userRequestedPip = false
