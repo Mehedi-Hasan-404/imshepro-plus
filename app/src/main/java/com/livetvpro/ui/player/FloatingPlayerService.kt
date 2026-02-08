@@ -8,11 +8,10 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.PixelFormat
+import android.graphics.Point
 import android.os.Build
 import android.os.IBinder
-import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -54,7 +53,7 @@ class FloatingPlayerService : Service() {
             hideControls()
         }
     }
-    private val HIDE_CONTROLS_DELAY = 3000L // 3 seconds
+    private val HIDE_CONTROLS_DELAY = 3000L
     
     // UI components
     private var controlsContainer: View? = null
@@ -65,7 +64,7 @@ class FloatingPlayerService : Service() {
     private var currentChannel: Channel? = null
     private var currentPlaybackPosition: Long = 0L
     
-    // Size limits (in DP for better cross-device compatibility)
+    // Size limits
     private fun getMinWidth() = dpToPx(180)
     private fun getMaxWidth() = dpToPx(400)
     private fun getMinHeight() = getMinWidth() * 9 / 16
@@ -116,8 +115,13 @@ class FloatingPlayerService : Service() {
                 }
                 
             } catch (e: Exception) {
-                android.util.Log.e("FloatingPlayer", "Error starting service", e)
+                android.util.Log.e("FloatingPlayerService", "Error starting service", e)
                 e.printStackTrace()
+                android.widget.Toast.makeText(
+                    context,
+                    "Failed to start floating player: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
             }
         }
         
@@ -138,7 +142,6 @@ class FloatingPlayerService : Service() {
             return START_NOT_STICKY
         }
         
-        // Extract the channel object
         currentChannel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
@@ -171,19 +174,25 @@ class FloatingPlayerService : Service() {
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
             
-            // Get screen metrics - CRITICAL: Use real metrics for proper centering
-            val displayMetrics = DisplayMetrics()
+            // FIXED: Get screen size using WindowManager directly (works in Service context)
+            val screenWidth: Int
+            val screenHeight: Int
+            
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                display?.getRealMetrics(displayMetrics)
+                // Android 11+ (API 30+)
+                val windowMetrics = windowManager?.currentWindowMetrics
+                val bounds = windowMetrics?.bounds
+                screenWidth = bounds?.width() ?: 1080
+                screenHeight = bounds?.height() ?: 1920
             } else {
+                // Android 10 and below
+                val size = Point()
                 @Suppress("DEPRECATION")
-                windowManager?.defaultDisplay?.getRealMetrics(displayMetrics)
+                windowManager?.defaultDisplay?.getRealSize(size)
+                screenWidth = size.x
+                screenHeight = size.y
             }
             
-            val screenWidth = displayMetrics.widthPixels
-            val screenHeight = displayMetrics.heightPixels
-            
-            // Calculate initial size (16:9 aspect ratio)
             val initialWidth = dpToPx(320)
             val initialHeight = (initialWidth * 9 / 16)
             
@@ -204,18 +213,14 @@ class FloatingPlayerService : Service() {
                 PixelFormat.TRANSLUCENT
             )
             
-            // CRITICAL FIX: Center the window properly for ANY orientation
+            // FIXED: Calculate center position using the correctly obtained screen dimensions
             params?.apply {
                 gravity = Gravity.TOP or Gravity.START
-                
-                // Calculate center position
                 val centerX = (screenWidth - initialWidth) / 2
                 val centerY = (screenHeight - initialHeight) / 2
-                
                 x = centerX
                 y = centerY
-                
-                android.util.Log.d("FloatingPlayerService", "Positioning at: ($centerX, $centerY)")
+                android.util.Log.d("FloatingPlayerService", "Centering at: ($centerX, $centerY)")
             }
             
             windowManager?.addView(floatingView, params)
@@ -225,7 +230,7 @@ class FloatingPlayerService : Service() {
             setupGestures()
             
         } catch (e: Exception) {
-            android.util.Log.e("FloatingPlayer", "Error creating floating view", e)
+            android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
             e.printStackTrace()
             android.widget.Toast.makeText(
                 this,
@@ -256,7 +261,6 @@ class FloatingPlayerService : Service() {
                 setMediaItem(mediaItem)
                 prepare()
                 
-                // Seek to the saved position if available
                 if (currentPlaybackPosition > 0) {
                     android.util.Log.d("FloatingPlayerService", "Seeking to position: $currentPlaybackPosition")
                     seekTo(currentPlaybackPosition)
@@ -266,7 +270,7 @@ class FloatingPlayerService : Service() {
             }
             
         } catch (e: Exception) {
-            android.util.Log.e("FloatingPlayer", "Error setting up player", e)
+            android.util.Log.e("FloatingPlayerService", "Error setting up player", e)
             e.printStackTrace()
         }
     }
@@ -289,12 +293,10 @@ class FloatingPlayerService : Service() {
         
         fullscreenBtn?.setOnClickListener {
             if (currentChannel != null) {
-                // Save current playback position
                 val position = player?.currentPosition ?: 0L
                 
                 android.util.Log.d("FloatingPlayerService", "Launching fullscreen at position: $position")
                 
-                // Pass channel and position to FloatingPlayerActivity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
                     putExtra("extra_channel", currentChannel)
                     putExtra("playback_position", position)
@@ -302,7 +304,6 @@ class FloatingPlayerService : Service() {
                 }
                 startActivity(intent)
                 
-                // Small delay to allow activity to start
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     stopSelf()
                 }, 200)
@@ -358,7 +359,6 @@ class FloatingPlayerService : Service() {
             showControls()
         }
         
-        // Resize button
         val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
         
         var resizeInitialWidth = 0
@@ -404,7 +404,6 @@ class FloatingPlayerService : Service() {
             } ?: false
         }
         
-        // Update play/pause icon based on player state
         player?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playPauseBtn?.setImageResource(
