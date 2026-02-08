@@ -60,11 +60,11 @@ class FloatingPlayerService : Service() {
     private var bottomControlsContainer: View? = null
     private var params: WindowManager.LayoutParams? = null
     
-    // Size limits (in pixels) - ADDED BOUNDS
-    private val MIN_WIDTH = 240
-    private val MAX_WIDTH = 1200
-    private val MIN_HEIGHT = 135
-    private val MAX_HEIGHT = 675
+    // Size limits (in pixels) - Adjusted to match visible player size
+    private val MIN_WIDTH = 320   // Matches the small floating player size
+    private val MAX_WIDTH = 1000  // Reasonable max for phone screens
+    private val MIN_HEIGHT = 180  // Maintains 16:9 ratio (320 * 9/16)
+    private val MAX_HEIGHT = 562  // Maintains 16:9 ratio (1000 * 9/16)
     
     companion object {
         const val EXTRA_CHANNEL = "extra_channel"
@@ -209,17 +209,7 @@ class FloatingPlayerService : Service() {
                 // DISABLE built-in controls - we're using custom controls only
                 useController = false
                 controllerAutoShow = false
-                
-                // Add click listener to toggle controls
-                setOnClickListener {
-                    if (!controlsLocked) {
-                        if (controlsVisible) {
-                            hideControls()
-                        } else {
-                            showControls()
-                        }
-                    }
-                }
+                // Touch handling is done in setupGestures() - drag and tap-to-toggle
             }
             
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
@@ -334,18 +324,20 @@ class FloatingPlayerService : Service() {
                         val dx = event.rawX - resizeInitialTouchX
                         val dy = event.rawY - resizeInitialTouchY
                         
-                        // Use diagonal distance for resize sensitivity
+                        // Use diagonal distance for resize sensitivity (reduced for smoother control)
                         val distance = sqrt((dx * dx + dy * dy).toDouble()).toInt()
                         val direction = if (dx + dy > 0) 1 else -1
                         
                         // Calculate new width based on drag distance
                         var newWidth = resizeInitialWidth + (distance * direction)
-                        var newHeight = (newWidth * 9 / 16)  // Maintain 16:9 aspect ratio
                         
-                        // Apply bounds - FIXED TO ENFORCE LIMITS
+                        // Apply width bounds FIRST
                         newWidth = newWidth.coerceIn(MIN_WIDTH, MAX_WIDTH)
-                        newHeight = newHeight.coerceIn(MIN_HEIGHT, MAX_HEIGHT)
                         
+                        // THEN calculate height to maintain perfect 16:9 ratio
+                        val newHeight = (newWidth * 9 / 16)
+                        
+                        // Update both dimensions
                         p.width = newWidth
                         p.height = newHeight
                         windowManager?.updateViewLayout(floatingView, p)
@@ -373,13 +365,11 @@ class FloatingPlayerService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
-        // Attach touch listener to top controls for dragging
-        val topControls = floatingView?.findViewById<View>(R.id.top_controls_container)
-        
+        // Attach touch listener to the player view for dragging
         var isDragging = false
         var hasMoved = false
         
-        topControls?.setOnTouchListener { view, event ->
+        playerView?.setOnTouchListener { view, event ->
             // If locked, only allow unlock tap
             if (controlsLocked) {
                 if (event.action == MotionEvent.ACTION_UP && !hasMoved) {
@@ -388,6 +378,7 @@ class FloatingPlayerService : Service() {
                     floatingView?.findViewById<ImageButton>(R.id.btn_lock)?.setImageResource(R.drawable.ic_lock_open)
                     showControls()
                 }
+                hasMoved = false
                 return@setOnTouchListener true
             }
             
@@ -409,7 +400,7 @@ class FloatingPlayerService : Service() {
                         val dy = (event.rawY - initialTouchY).toInt()
                         
                         // Check if user actually moved (threshold to distinguish from tap)
-                        if (abs(dx) > 5 || abs(dy) > 5) {
+                        if (abs(dx) > 10 || abs(dy) > 10) {
                             isDragging = true
                             hasMoved = true
                             
@@ -422,6 +413,15 @@ class FloatingPlayerService : Service() {
                     }
                     
                     MotionEvent.ACTION_UP -> {
+                        // If it was just a tap (not a drag), toggle controls
+                        if (!hasMoved) {
+                            if (controlsVisible) {
+                                hideControls()
+                            } else {
+                                showControls()
+                            }
+                        }
+                        
                         isDragging = false
                         hasMoved = false
                         true
