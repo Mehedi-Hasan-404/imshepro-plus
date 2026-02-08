@@ -26,7 +26,6 @@ import androidx.media3.ui.PlayerView
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import kotlin.math.abs
-import kotlin.math.sqrt
 
 class FloatingPlayerService : Service() {
 
@@ -60,8 +59,11 @@ class FloatingPlayerService : Service() {
     private var bottomControlsContainer: View? = null
     private var params: WindowManager.LayoutParams? = null
     
-    // FIXED: Store the channel data for passing to FloatingPlayerActivity
+    // Store the channel data for passing to FloatingPlayerActivity
     private var currentChannel: Channel? = null
+    
+    // Store the current playback position for seamless transition
+    private var currentPlaybackPosition: Long = 0L
     
     // Size limits (in DP for better cross-device compatibility)
     private fun getMinWidth() = dpToPx(180)   // Small but controls still usable
@@ -73,11 +75,12 @@ class FloatingPlayerService : Service() {
         const val EXTRA_CHANNEL = "extra_channel"
         const val EXTRA_STREAM_URL = "extra_stream_url"
         const val EXTRA_TITLE = "extra_title"
+        const val EXTRA_PLAYBACK_POSITION = "extra_playback_position"
         const val ACTION_STOP = "action_stop"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "floating_player_channel"
         
-        fun start(context: Context, channel: Channel) {
+        fun start(context: Context, channel: Channel, playbackPosition: Long = 0L) {
             try {
                 if (channel.links == null || channel.links.isEmpty()) {
                     android.widget.Toast.makeText(
@@ -99,11 +102,12 @@ class FloatingPlayerService : Service() {
                     return
                 }
                 
-                // FIXED: Pass the entire channel object
+                // Pass the entire channel object and playback position
                 val intent = Intent(context, FloatingPlayerService::class.java).apply {
                     putExtra(EXTRA_CHANNEL, channel)
                     putExtra(EXTRA_STREAM_URL, streamUrl)
                     putExtra(EXTRA_TITLE, channel.name)
+                    putExtra(EXTRA_PLAYBACK_POSITION, playbackPosition)
                 }
                 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -135,7 +139,7 @@ class FloatingPlayerService : Service() {
             return START_NOT_STICKY
         }
         
-        // FIXED: Extract the channel object
+        // Extract the channel object
         currentChannel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
@@ -145,6 +149,7 @@ class FloatingPlayerService : Service() {
         
         val streamUrl = intent?.getStringExtra(EXTRA_STREAM_URL) ?: ""
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Live Stream"
+        currentPlaybackPosition = intent?.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L) ?: 0L
         
         if (streamUrl.isEmpty()) {
             stopSelf()
@@ -186,11 +191,13 @@ class FloatingPlayerService : Service() {
                 PixelFormat.TRANSLUCENT
             )
             
-            // Position at top-right corner
+            // FIXED: Position at screen center (both horizontally AND vertically)
             params?.apply {
                 gravity = Gravity.TOP or Gravity.START
-                x = (metrics.widthPixels - initialWidth) / 2  // Center horizontally
-                y = dpToPx(100)  // Start 100dp from top
+                // Center horizontally: (screen width - window width) / 2
+                x = (metrics.widthPixels - initialWidth) / 2
+                // Center vertically: (screen height - window height) / 2
+                y = (metrics.heightPixels - initialHeight) / 2
             }
             
             windowManager?.addView(floatingView, params)
@@ -222,7 +229,6 @@ class FloatingPlayerService : Service() {
                 // DISABLE built-in controls - we're using custom controls only
                 useController = false
                 controllerAutoShow = false
-                // Touch handling is done in setupGestures() - drag and tap-to-toggle
             }
             
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
@@ -232,6 +238,12 @@ class FloatingPlayerService : Service() {
             player?.apply {
                 setMediaItem(mediaItem)
                 prepare()
+                
+                // FIXED: Seek to the saved position if available
+                if (currentPlaybackPosition > 0) {
+                    seekTo(currentPlaybackPosition)
+                }
+                
                 playWhenReady = true
             }
             
@@ -257,22 +269,24 @@ class FloatingPlayerService : Service() {
             stopSelf()
         }
         
-        // FIXED: Properly pass the channel object to FloatingPlayerActivity
-        // and delay stopping the service until after the activity starts
+        // FIXED: Pass channel and preserve playback position for seamless transition
         fullscreenBtn?.setOnClickListener {
             if (currentChannel != null) {
-                // Use the channel's startActivity method which expects a Channel object
+                // Save current playback position
+                val position = player?.currentPosition ?: 0L
+                
+                // Pass channel and position to FloatingPlayerActivity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
                     putExtra("extra_channel", currentChannel)
+                    putExtra("playback_position", position)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 startActivity(intent)
                 
-                // FIXED: Delay stopping the service to allow smooth transition
-                // This ensures the player in FloatingPlayerActivity has time to initialize
+                // FIXED: Small delay to allow activity to start before stopping service
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     stopSelf()
-                }, 500) // 500ms delay
+                }, 300) // Reduced to 300ms for faster transition
             } else {
                 android.widget.Toast.makeText(
                     this,
