@@ -8,9 +8,11 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
+import android.util.DisplayMetrics
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -59,15 +61,13 @@ class FloatingPlayerService : Service() {
     private var bottomControlsContainer: View? = null
     private var params: WindowManager.LayoutParams? = null
     
-    // Store the channel data for passing to FloatingPlayerActivity
+    // Store the channel data and playback position
     private var currentChannel: Channel? = null
-    
-    // Store the current playback position for seamless transition
     private var currentPlaybackPosition: Long = 0L
     
     // Size limits (in DP for better cross-device compatibility)
-    private fun getMinWidth() = dpToPx(180)   // Small but controls still usable
-    private fun getMaxWidth() = dpToPx(400)   // Large but not fullscreen
+    private fun getMinWidth() = dpToPx(180)
+    private fun getMaxWidth() = dpToPx(400)
     private fun getMinHeight() = getMinWidth() * 9 / 16
     private fun getMaxHeight() = getMaxWidth() * 9 / 16
     
@@ -102,7 +102,6 @@ class FloatingPlayerService : Service() {
                     return
                 }
                 
-                // Pass the entire channel object and playback position
                 val intent = Intent(context, FloatingPlayerService::class.java).apply {
                     putExtra(EXTRA_CHANNEL, channel)
                     putExtra(EXTRA_STREAM_URL, streamUrl)
@@ -151,6 +150,8 @@ class FloatingPlayerService : Service() {
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Live Stream"
         currentPlaybackPosition = intent?.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L) ?: 0L
         
+        android.util.Log.d("FloatingPlayerService", "Starting with position: $currentPlaybackPosition")
+        
         if (streamUrl.isEmpty()) {
             stopSelf()
             return START_NOT_STICKY
@@ -167,14 +168,26 @@ class FloatingPlayerService : Service() {
 
     private fun createFloatingView(streamUrl: String, title: String) {
         try {
-            // Use ContextThemeWrapper for proper theming
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
             
-            // Calculate proper initial size (16:9 aspect ratio)
-            val metrics = resources.displayMetrics
-            val initialWidth = dpToPx(320)  // Start at a good viewing size
-            val initialHeight = (initialWidth * 9 / 16)  // Maintain 16:9 aspect ratio
+            // Get screen metrics - CRITICAL: Use real metrics for proper centering
+            val displayMetrics = DisplayMetrics()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                display?.getRealMetrics(displayMetrics)
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager?.defaultDisplay?.getRealMetrics(displayMetrics)
+            }
+            
+            val screenWidth = displayMetrics.widthPixels
+            val screenHeight = displayMetrics.heightPixels
+            
+            // Calculate initial size (16:9 aspect ratio)
+            val initialWidth = dpToPx(320)
+            val initialHeight = (initialWidth * 9 / 16)
+            
+            android.util.Log.d("FloatingPlayerService", "Screen: ${screenWidth}x${screenHeight}, Window: ${initialWidth}x${initialHeight}")
             
             val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -187,17 +200,22 @@ class FloatingPlayerService : Service() {
                 initialHeight,
                 layoutFlag,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,  // Allows dragging slightly off-screen
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             )
             
-            // FIXED: Position at screen center (both horizontally AND vertically)
+            // CRITICAL FIX: Center the window properly for ANY orientation
             params?.apply {
                 gravity = Gravity.TOP or Gravity.START
-                // Center horizontally: (screen width - window width) / 2
-                x = (metrics.widthPixels - initialWidth) / 2
-                // Center vertically: (screen height - window height) / 2
-                y = (metrics.heightPixels - initialHeight) / 2
+                
+                // Calculate center position
+                val centerX = (screenWidth - initialWidth) / 2
+                val centerY = (screenHeight - initialHeight) / 2
+                
+                x = centerX
+                y = centerY
+                
+                android.util.Log.d("FloatingPlayerService", "Positioning at: ($centerX, $centerY)")
             }
             
             windowManager?.addView(floatingView, params)
@@ -226,7 +244,6 @@ class FloatingPlayerService : Service() {
             
             playerView?.apply {
                 player = this@FloatingPlayerService.player
-                // DISABLE built-in controls - we're using custom controls only
                 useController = false
                 controllerAutoShow = false
             }
@@ -239,8 +256,9 @@ class FloatingPlayerService : Service() {
                 setMediaItem(mediaItem)
                 prepare()
                 
-                // FIXED: Seek to the saved position if available
+                // Seek to the saved position if available
                 if (currentPlaybackPosition > 0) {
+                    android.util.Log.d("FloatingPlayerService", "Seeking to position: $currentPlaybackPosition")
                     seekTo(currentPlaybackPosition)
                 }
                 
@@ -269,11 +287,12 @@ class FloatingPlayerService : Service() {
             stopSelf()
         }
         
-        // FIXED: Pass channel and preserve playback position for seamless transition
         fullscreenBtn?.setOnClickListener {
             if (currentChannel != null) {
                 // Save current playback position
                 val position = player?.currentPosition ?: 0L
+                
+                android.util.Log.d("FloatingPlayerService", "Launching fullscreen at position: $position")
                 
                 // Pass channel and position to FloatingPlayerActivity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
@@ -283,10 +302,10 @@ class FloatingPlayerService : Service() {
                 }
                 startActivity(intent)
                 
-                // FIXED: Small delay to allow activity to start before stopping service
+                // Small delay to allow activity to start
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     stopSelf()
-                }, 300) // Reduced to 300ms for faster transition
+                }, 200)
             } else {
                 android.widget.Toast.makeText(
                     this,
@@ -302,7 +321,7 @@ class FloatingPlayerService : Service() {
             muteBtn.setImageResource(
                 if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
             )
-            showControls() // Reset timer
+            showControls()
         }
         
         lockBtn?.setOnClickListener {
@@ -326,20 +345,20 @@ class FloatingPlayerService : Service() {
                 player?.play()
                 playPauseBtn.setImageResource(R.drawable.ic_pause)
             }
-            showControls() // Reset timer
+            showControls()
         }
         
         seekBackBtn?.setOnClickListener {
             player?.seekBack()
-            showControls() // Reset timer
+            showControls()
         }
         
         seekForwardBtn?.setOnClickListener {
             player?.seekForward()
-            showControls() // Reset timer
+            showControls()
         }
         
-        // Resize button - drag to resize (no tap action)
+        // Resize button
         val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
         
         var resizeInitialWidth = 0
@@ -353,7 +372,6 @@ class FloatingPlayerService : Service() {
             params?.let { p ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        // Record initial size and touch position
                         resizeInitialWidth = p.width
                         resizeInitialHeight = p.height
                         resizeInitialTouchX = event.rawX
@@ -362,23 +380,13 @@ class FloatingPlayerService : Service() {
                     }
                     
                     MotionEvent.ACTION_MOVE -> {
-                        // Calculate how much finger moved in X and Y
                         val dx = event.rawX - resizeInitialTouchX
                         val dy = event.rawY - resizeInitialTouchY
-                        
-                        // Use average of both directions for smoother resize
                         val delta = ((dx + dy) / 2).toInt()
-                        
-                        // Calculate new width
                         var newWidth = resizeInitialWidth + delta
-                        
-                        // Apply width bounds
                         newWidth = newWidth.coerceIn(getMinWidth(), getMaxWidth())
-                        
-                        // Calculate height maintaining 16:9 ratio
                         val newHeight = newWidth * 9 / 16
                         
-                        // Only update if size actually changed (prevents micro-jumps)
                         if (newWidth != p.width || newHeight != p.height) {
                             p.width = newWidth
                             p.height = newHeight
@@ -408,15 +416,12 @@ class FloatingPlayerService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
-        // Attach touch listener to the player view for dragging
         var isDragging = false
         var hasMoved = false
         
         playerView?.setOnTouchListener { view, event ->
-            // If locked, only allow unlock tap
             if (controlsLocked) {
                 if (event.action == MotionEvent.ACTION_UP && !hasMoved) {
-                    // Unlock on tap
                     controlsLocked = false
                     floatingView?.findViewById<ImageButton>(R.id.btn_lock)?.setImageResource(R.drawable.ic_lock_open)
                     showControls()
@@ -428,7 +433,6 @@ class FloatingPlayerService : Service() {
             params?.let { p ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        // Record initial positions
                         initialX = p.x
                         initialY = p.y
                         initialTouchX = event.rawX
@@ -442,12 +446,9 @@ class FloatingPlayerService : Service() {
                         val dx = (event.rawX - initialTouchX).toInt()
                         val dy = (event.rawY - initialTouchY).toInt()
                         
-                        // Check if user actually moved (threshold to distinguish from tap)
                         if (abs(dx) > 10 || abs(dy) > 10) {
                             isDragging = true
                             hasMoved = true
-                            
-                            // Update window position
                             p.x = initialX + dx
                             p.y = initialY + dy
                             windowManager?.updateViewLayout(floatingView, p)
@@ -456,7 +457,6 @@ class FloatingPlayerService : Service() {
                     }
                     
                     MotionEvent.ACTION_UP -> {
-                        // If it was just a tap (not a drag), toggle controls
                         if (!hasMoved) {
                             if (controlsVisible) {
                                 hideControls()
@@ -464,7 +464,6 @@ class FloatingPlayerService : Service() {
                                 showControls()
                             }
                         }
-                        
                         isDragging = false
                         hasMoved = false
                         true
@@ -483,7 +482,6 @@ class FloatingPlayerService : Service() {
         bottomControlsContainer?.visibility = View.VISIBLE
         controlsVisible = true
         
-        // Reset auto-hide timer
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
         hideControlsHandler.postDelayed(hideControlsRunnable, HIDE_CONTROLS_DELAY)
     }
@@ -492,8 +490,6 @@ class FloatingPlayerService : Service() {
         controlsContainer?.visibility = View.GONE
         bottomControlsContainer?.visibility = View.GONE
         controlsVisible = false
-        
-        // Cancel auto-hide timer
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
     }
 
@@ -537,10 +533,7 @@ class FloatingPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        
-        // Clean up auto-hide timer
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
-        
         player?.release()
         player = null
         
