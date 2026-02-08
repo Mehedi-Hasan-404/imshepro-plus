@@ -133,6 +133,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private var contentId: String = ""
     private var contentName: String = ""
     private var streamUrl: String = ""
+    
+    // FIXED: Store playback position for seamless transitions
+    private var savedPlaybackPosition: Long = -1L
 
     enum class ContentType {
         CHANNEL, EVENT
@@ -413,14 +416,26 @@ class FloatingPlayerActivity : AppCompatActivity() {
     
     val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
     
+    // FIXED: Remember if controls were visible before orientation change
+    val wasControllerVisible = binding.playerView.isControllerFullyVisible
+    val isBuffering = player?.playbackState == Player.STATE_BUFFERING
+    
     // Apply all orientation-related changes in the correct sequence
     setupWindowFlags(isLandscape)
     setupSystemUI(isLandscape)
     applyOrientationSettings(isLandscape)
     setSubtitleTextSize()
     
-    // FIX: Safety check to keep controls hidden if we are currently loading/buffering
-    if (player?.playbackState == Player.STATE_BUFFERING) {
+    // FIXED: Restore controller visibility if it was visible and we're not buffering
+    // This prevents the controls from disappearing during orientation change
+    if (wasControllerVisible && !isBuffering) {
+        binding.playerView.postDelayed({
+            if (player?.playbackState != Player.STATE_BUFFERING) {
+                binding.playerView.showController()
+            }
+        }, 100)
+    } else if (isBuffering) {
+        // Keep controls hidden during buffering
         binding.playerView.hideController()
     }
 
@@ -693,6 +708,13 @@ class FloatingPlayerActivity : AppCompatActivity() {
         } else {
             finish()
             return
+        }
+        
+        // FIXED: Extract playback position if coming from FloatingPlayerService
+        val savedPosition = intent.getLongExtra("playback_position", -1L)
+        if (savedPosition > 0) {
+            this.savedPlaybackPosition = savedPosition
+            android.util.Log.d("FloatingPlayerActivity", "Received saved position: $savedPosition")
         }
     }
 
@@ -1092,6 +1114,14 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     val mediaItem = MediaItem.fromUri(streamInfo.url)
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
+                    
+                    // FIXED: Seek to saved position if available (for seamless transition from floating player)
+                    if (savedPlaybackPosition > 0) {
+                        android.util.Log.d("FloatingPlayerActivity", "Seeking to saved position: $savedPlaybackPosition")
+                        exo.seekTo(savedPlaybackPosition)
+                        savedPlaybackPosition = -1L // Reset after using
+                    }
+                    
                     exo.playWhenReady = true
 
                     playerListener = object : Player.Listener {
@@ -1384,19 +1414,23 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         btnPip?.setOnClickListener {
             if (!isLocked) {
-                // Get current content data
+                // Get current content data and playback state
                 val currentChannel = channelData
+                val currentPosition = player?.currentPosition ?: 0L  // FIXED: Get current position
                 val currentStreamUrl = player?.currentMediaItem?.localConfiguration?.uri.toString()
                 val currentTitle = tvChannelName?.text?.toString() ?: contentName
                 
-                // Start floating player service
+                android.util.Log.d("FloatingPlayerActivity", "Starting floating player at position: $currentPosition")
+                
+                // Start floating player service with playback position
                 if (currentChannel != null) {
-                    FloatingPlayerService.start(this, currentChannel)
+                    FloatingPlayerService.start(this, currentChannel, currentPosition)  // FIXED: Pass position
                 } else {
                     // If no channel data, create a temporary one with the stream URL
                     val intent = Intent(this, FloatingPlayerService::class.java).apply {
                         putExtra(FloatingPlayerService.EXTRA_STREAM_URL, currentStreamUrl)
                         putExtra(FloatingPlayerService.EXTRA_TITLE, currentTitle)
+                        putExtra(FloatingPlayerService.EXTRA_PLAYBACK_POSITION, currentPosition)  // FIXED: Pass position
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         startForegroundService(intent)
