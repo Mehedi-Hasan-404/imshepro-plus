@@ -316,6 +316,10 @@ class FloatingPlayerService : Service() {
         val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
         
         closeBtn?.setOnClickListener {
+            // FIXED: Clear saved position when user closes, so it centers next time
+            preferencesManager.setFloatingPlayerX(50)  // Reset to default
+            preferencesManager.setFloatingPlayerY(100) // Reset to default
+            android.util.Log.d("FloatingPlayerService", "Position cleared - will center on next open")
             stopSelf()
         }
         
@@ -331,6 +335,13 @@ class FloatingPlayerService : Service() {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 startActivity(intent)
+                
+                // FIXED: Save current position before closing so it's remembered when returning
+                params?.let { p ->
+                    preferencesManager.setFloatingPlayerX(p.x)
+                    preferencesManager.setFloatingPlayerY(p.y)
+                    android.util.Log.d("FloatingPlayerService", "Position saved before fullscreen: x=${p.x}, y=${p.y}")
+                }
                 
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                     stopSelf()
