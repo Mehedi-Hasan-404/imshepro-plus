@@ -60,6 +60,9 @@ class FloatingPlayerService : Service() {
     private var bottomControlsContainer: View? = null
     private var params: WindowManager.LayoutParams? = null
     
+    // FIXED: Store the channel data for passing to FloatingPlayerActivity
+    private var currentChannel: Channel? = null
+    
     // Size limits (in DP for better cross-device compatibility)
     private fun getMinWidth() = dpToPx(180)   // Small but controls still usable
     private fun getMaxWidth() = dpToPx(400)   // Large but not fullscreen
@@ -96,7 +99,9 @@ class FloatingPlayerService : Service() {
                     return
                 }
                 
+                // FIXED: Pass the entire channel object
                 val intent = Intent(context, FloatingPlayerService::class.java).apply {
+                    putExtra(EXTRA_CHANNEL, channel)
                     putExtra(EXTRA_STREAM_URL, streamUrl)
                     putExtra(EXTRA_TITLE, channel.name)
                 }
@@ -128,6 +133,14 @@ class FloatingPlayerService : Service() {
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
+        }
+        
+        // FIXED: Extract the channel object
+        currentChannel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_CHANNEL)
         }
         
         val streamUrl = intent?.getStringExtra(EXTRA_STREAM_URL) ?: ""
@@ -244,14 +257,29 @@ class FloatingPlayerService : Service() {
             stopSelf()
         }
         
+        // FIXED: Properly pass the channel object to FloatingPlayerActivity
+        // and delay stopping the service until after the activity starts
         fullscreenBtn?.setOnClickListener {
-            val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                putExtra("stream_url", player?.currentMediaItem?.localConfiguration?.uri.toString())
-                putExtra("title", floatingView?.findViewById<TextView>(R.id.tv_title)?.text.toString())
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            if (currentChannel != null) {
+                // Use the channel's startActivity method which expects a Channel object
+                val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
+                    putExtra("extra_channel", currentChannel)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+                
+                // FIXED: Delay stopping the service to allow smooth transition
+                // This ensures the player in FloatingPlayerActivity has time to initialize
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    stopSelf()
+                }, 500) // 500ms delay
+            } else {
+                android.widget.Toast.makeText(
+                    this,
+                    "Unable to open fullscreen mode",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
             }
-            startActivity(intent)
-            stopSelf()
         }
         
         muteBtn?.setOnClickListener {
