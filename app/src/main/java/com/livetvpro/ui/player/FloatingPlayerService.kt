@@ -41,12 +41,10 @@ class FloatingPlayerService : Service() {
     private var initialY = 0
     private var initialTouchX = 0f
     private var initialTouchY = 0f
-    private var startClickTime: Long = 0
     
     // State
     private var controlsLocked = false
     private var isMuted = false
-    private var isDragging = false
     
     // UI components
     private var controlsContainer: View? = null
@@ -229,7 +227,6 @@ class FloatingPlayerService : Service() {
         val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
         val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
         val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
-        val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
         
         closeBtn?.setOnClickListener {
             stopSelf()
@@ -353,7 +350,7 @@ class FloatingPlayerService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
-        // Setup drag and click handling on player view
+        // Setup drag handling on player view (no tap action)
         playerView?.setOnTouchListener { view, event ->
             // If locked, consume touch events but don't do anything
             if (controlsLocked) {
@@ -368,8 +365,6 @@ class FloatingPlayerService : Service() {
                         initialY = p.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
-                        startClickTime = System.currentTimeMillis()
-                        isDragging = false
                         false  // Allow other touch handlers to see this event
                     }
                     
@@ -377,33 +372,14 @@ class FloatingPlayerService : Service() {
                         val dx = (event.rawX - initialTouchX).toInt()
                         val dy = (event.rawY - initialTouchY).toInt()
                         
-                        // Only consider it a drag if movement is significant
-                        if (abs(dx) > 10 || abs(dy) > 10) {
-                            isDragging = true
-                            p.x = initialX + dx
-                            p.y = initialY + dy
-                            windowManager?.updateViewLayout(floatingView, p)
-                            true  // Consume event during drag
-                        } else {
-                            false
-                        }
+                        // Update window position
+                        p.x = initialX + dx
+                        p.y = initialY + dy
+                        windowManager?.updateViewLayout(floatingView, p)
+                        true  // Consume event during drag
                     }
                     
                     MotionEvent.ACTION_UP -> {
-                        val duration = System.currentTimeMillis() - startClickTime
-                        val dx = abs(event.rawX - initialTouchX)
-                        val dy = abs(event.rawY - initialTouchY)
-                        
-                        // Distinguish between click and drag
-                        if (!isDragging && duration < 300 && dx < 20 && dy < 20) {
-                            // It was a click - toggle play/pause
-                            if (player?.isPlaying == true) {
-                                player?.pause()
-                            } else {
-                                player?.play()
-                            }
-                        }
-                        isDragging = false
                         true
                     }
                     
