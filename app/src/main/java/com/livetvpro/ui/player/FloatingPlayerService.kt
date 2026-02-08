@@ -197,6 +197,9 @@ class FloatingPlayerService : Service() {
             android.widget.Toast.makeText(this, "Creating floating view...", android.widget.Toast.LENGTH_SHORT).show()
             
             android.util.Log.e("DEBUG_SERVICE", "Inflating layout...")
+            // ✅ CRITICAL FIX: Wrap Service context with app theme so attributes like ripple effects work
+            val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
+            floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
             floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
             android.util.Log.e("DEBUG_SERVICE", "Layout inflated successfully")
             
