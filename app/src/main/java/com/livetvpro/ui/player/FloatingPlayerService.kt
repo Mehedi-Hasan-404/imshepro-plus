@@ -159,6 +159,8 @@ class FloatingPlayerService : Service() {
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Live Stream"
         currentPlaybackPosition = intent?.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L) ?: 0L
         
+        
+        val useTransferredPlayer = intent?.getBooleanExtra("use_transferred_player", false) ?: false
         android.util.Log.d("FloatingPlayerService", "Starting with position: $currentPlaybackPosition")
         
         if (streamUrl.isEmpty()) {
@@ -169,13 +171,13 @@ class FloatingPlayerService : Service() {
         startForeground(NOTIFICATION_ID, createNotification(title))
         
         if (floatingView == null) {
-            createFloatingView(streamUrl, title)
+            createFloatingView(streamUrl, title, useTransferredPlayer)
         }
         
         return START_STICKY
     }
 
-    private fun createFloatingView(streamUrl: String, title: String) {
+    private fun createFloatingView(streamUrl: String, title: String, useTransferredPlayer: Boolean = false) {
         try {
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
@@ -253,7 +255,19 @@ class FloatingPlayerService : Service() {
             
             windowManager?.addView(floatingView, params)
             
-            setupPlayer(streamUrl, title)
+            if (useTransferredPlayer) {
+
+            
+                setupTransferredPlayer(title)
+
+            
+            } else {
+
+            
+                setupPlayer(streamUrl, title)
+
+            
+            }
             setupControls()
             setupGestures()
             
@@ -325,27 +339,36 @@ class FloatingPlayerService : Service() {
         
         fullscreenBtn?.setOnClickListener {
             if (currentChannel != null) {
-                val position = player?.currentPosition ?: 0L
+                val currentPlayer = player
                 
-                android.util.Log.d("FloatingPlayerService", "Launching fullscreen at position: $position")
-                
-                val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                    putExtra("extra_channel", currentChannel)
-                    putExtra("playback_position", position)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                if (currentPlayer != null) {
+                    // FIXED: Transfer player to activity - no recreation!
+                    val streamUrl = currentChannel.links?.firstOrNull()?.url ?: ""
+                    PlayerHolder.transferPlayer(currentPlayer, streamUrl, currentChannel.name)
+                    
+                    android.util.Log.d("FloatingPlayerService", "Player transferred to activity")
+                    
+                    val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
+                        putExtra("extra_channel", currentChannel)
+                        putExtra("use_transferred_player", true)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(intent)
+                    
+                    // Save position before closing
+                    params?.let { p ->
+                        preferencesManager.setFloatingPlayerX(p.x)
+                        preferencesManager.setFloatingPlayerY(p.y)
+                        android.util.Log.d("FloatingPlayerService", "Position saved before fullscreen: x=${p.x}, y=${p.y}")
+                    }
+                    
+                    // Don't release player - it's been transferred!
+                    player = null
+                    
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        stopSelf()
+                    }, 200)
                 }
-                startActivity(intent)
-                
-                // FIXED: Save current position before closing so it's remembered when returning
-                params?.let { p ->
-                    preferencesManager.setFloatingPlayerX(p.x)
-                    preferencesManager.setFloatingPlayerY(p.y)
-                    android.util.Log.d("FloatingPlayerService", "Position saved before fullscreen: x=${p.x}, y=${p.y}")
-                }
-                
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    stopSelf()
-                }, 200)
             } else {
                 android.widget.Toast.makeText(
                     this,
