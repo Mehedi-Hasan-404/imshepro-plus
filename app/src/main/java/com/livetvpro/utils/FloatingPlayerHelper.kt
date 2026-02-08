@@ -12,7 +12,7 @@ import com.livetvpro.ui.player.FloatingPlayerService
 
 object FloatingPlayerHelper {
 
-    fun launchFloatingPlayer(context: Context, channel: Channel) {
+    fun launchFloatingPlayer(context: Context, channel: Channel, playbackPosition: Long = 0L) {
         android.util.Log.e("DEBUG_FLOATING_HELPER", "========================================")
         android.util.Log.e("DEBUG_FLOATING_HELPER", "launchFloatingPlayer() CALLED")
         android.util.Log.e("DEBUG_FLOATING_HELPER", "========================================")
@@ -20,12 +20,7 @@ object FloatingPlayerHelper {
         android.util.Log.e("DEBUG_FLOATING_HELPER", "Channel name: ${channel.name}")
         android.util.Log.e("DEBUG_FLOATING_HELPER", "Channel ID: ${channel.id}")
         android.util.Log.e("DEBUG_FLOATING_HELPER", "Channel links: ${channel.links?.size ?: 0}")
-        
-        android.widget.Toast.makeText(
-            context,
-            "FloatingPlayerHelper called",
-            android.widget.Toast.LENGTH_SHORT
-        ).show()
+        android.util.Log.e("DEBUG_FLOATING_HELPER", "Playback position: $playbackPosition")
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             android.util.Log.e("DEBUG_FLOATING_HELPER", "Checking overlay permission...")
@@ -53,22 +48,18 @@ object FloatingPlayerHelper {
         android.util.Log.e("DEBUG_FLOATING_HELPER", "Permission OK - calling FloatingPlayerService.start()...")
         
         try {
-            FloatingPlayerService.start(context, channel)
+            // FIXED: Pass playback position as third parameter
+            FloatingPlayerService.start(context, channel, playbackPosition)
             android.util.Log.e("DEBUG_FLOATING_HELPER", "FloatingPlayerService.start() returned successfully")
-            
-            android.widget.Toast.makeText(
-                context,
-                "Service start called",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
             
         } catch (e: Exception) {
             android.util.Log.e("DEBUG_FLOATING_HELPER", "EXCEPTION calling service!", e)
             android.util.Log.e("DEBUG_FLOATING_HELPER", "Exception: ${e.message}")
+            e.printStackTrace()
             
             android.widget.Toast.makeText(
                 context,
-                "Service start failed: ${e.message}",
+                "Failed to start floating player: ${e.message}",
                 android.widget.Toast.LENGTH_LONG
             ).show()
         }
