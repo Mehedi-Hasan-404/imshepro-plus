@@ -357,8 +357,8 @@ class FloatingPlayerService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
-        // FIXED: Attach touch listener to the drag handle, not playerView
-        val dragHandle = floatingView?.findViewById<View>(R.id.drag_handle)
+        // FIXED: Attach touch listener to the floating container
+        val dragHandle = floatingView?.findViewById<View>(R.id.floating_container)
         
         dragHandle?.setOnTouchListener { view, event ->
             // If locked, consume touch events but don't do anything
