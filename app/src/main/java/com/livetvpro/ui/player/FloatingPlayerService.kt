@@ -44,6 +44,16 @@ class FloatingPlayerService : Service() {
     // State
     private var controlsLocked = false
     private var isMuted = false
+    private var controlsVisible = true
+    
+    // Auto-hide controls
+    private val hideControlsHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val hideControlsRunnable = Runnable {
+        if (!controlsLocked && controlsVisible) {
+            hideControls()
+        }
+    }
+    private val HIDE_CONTROLS_DELAY = 3000L // 3 seconds
     
     // UI components
     private var controlsContainer: View? = null
@@ -196,10 +206,20 @@ class FloatingPlayerService : Service() {
             
             playerView?.apply {
                 player = this@FloatingPlayerService.player
-                // IMPORTANT: Enable built-in controls like PlayerActivity does
-                useController = true
+                // DISABLE built-in controls - we're using custom controls only
+                useController = false
                 controllerAutoShow = false
-                controllerShowTimeoutMs = 3000
+                
+                // Add click listener to toggle controls
+                setOnClickListener {
+                    if (!controlsLocked) {
+                        if (controlsVisible) {
+                            hideControls()
+                        } else {
+                            showControls()
+                        }
+                    }
+                }
             }
             
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
@@ -250,6 +270,7 @@ class FloatingPlayerService : Service() {
             muteBtn.setImageResource(
                 if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
             )
+            showControls() // Reset timer
         }
         
         lockBtn?.setOnClickListener {
@@ -259,17 +280,9 @@ class FloatingPlayerService : Service() {
             )
             
             if (controlsLocked) {
-                // Hide custom controls when locked
-                controlsContainer?.visibility = View.GONE
-                bottomControlsContainer?.visibility = View.GONE
-                // Also hide PlayerView's built-in controls
-                playerView?.useController = false
+                hideControls()
             } else {
-                // Show custom controls when unlocked
-                controlsContainer?.visibility = View.VISIBLE
-                bottomControlsContainer?.visibility = View.VISIBLE
-                // Re-enable PlayerView's built-in controls
-                playerView?.useController = true
+                showControls()
             }
         }
         
@@ -281,14 +294,17 @@ class FloatingPlayerService : Service() {
                 player?.play()
                 playPauseBtn.setImageResource(R.drawable.ic_pause)
             }
+            showControls() // Reset timer
         }
         
         seekBackBtn?.setOnClickListener {
             player?.seekBack()
+            showControls() // Reset timer
         }
         
         seekForwardBtn?.setOnClickListener {
             player?.seekForward()
+            showControls() // Reset timer
         }
         
         // Resize button - drag to resize (no tap action)
@@ -357,12 +373,21 @@ class FloatingPlayerService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
-        // FIXED: Attach touch listener to the floating container
-        val dragHandle = floatingView?.findViewById<View>(R.id.floating_container)
+        // Attach touch listener to top controls for dragging
+        val topControls = floatingView?.findViewById<View>(R.id.top_controls_container)
         
-        dragHandle?.setOnTouchListener { view, event ->
-            // If locked, consume touch events but don't do anything
+        var isDragging = false
+        var hasMoved = false
+        
+        topControls?.setOnTouchListener { view, event ->
+            // If locked, only allow unlock tap
             if (controlsLocked) {
+                if (event.action == MotionEvent.ACTION_UP && !hasMoved) {
+                    // Unlock on tap
+                    controlsLocked = false
+                    floatingView?.findViewById<ImageButton>(R.id.btn_lock)?.setImageResource(R.drawable.ic_lock_open)
+                    showControls()
+                }
                 return@setOnTouchListener true
             }
             
@@ -374,6 +399,8 @@ class FloatingPlayerService : Service() {
                         initialY = p.y
                         initialTouchX = event.rawX
                         initialTouchY = event.rawY
+                        isDragging = false
+                        hasMoved = false
                         true
                     }
                     
@@ -381,14 +408,22 @@ class FloatingPlayerService : Service() {
                         val dx = (event.rawX - initialTouchX).toInt()
                         val dy = (event.rawY - initialTouchY).toInt()
                         
-                        // Update window position
-                        p.x = initialX + dx
-                        p.y = initialY + dy
-                        windowManager?.updateViewLayout(floatingView, p)
+                        // Check if user actually moved (threshold to distinguish from tap)
+                        if (abs(dx) > 5 || abs(dy) > 5) {
+                            isDragging = true
+                            hasMoved = true
+                            
+                            // Update window position
+                            p.x = initialX + dx
+                            p.y = initialY + dy
+                            windowManager?.updateViewLayout(floatingView, p)
+                        }
                         true
                     }
                     
                     MotionEvent.ACTION_UP -> {
+                        isDragging = false
+                        hasMoved = false
                         true
                     }
                     
@@ -396,17 +431,27 @@ class FloatingPlayerService : Service() {
                 }
             } ?: false
         }
+    }
+    
+    private fun showControls() {
+        if (controlsLocked) return
         
-        // Handle unlock on locked screen by tapping anywhere on container
-        floatingView?.findViewById<View>(R.id.floating_container)?.setOnClickListener {
-            if (controlsLocked) {
-                controlsLocked = false
-                floatingView?.findViewById<ImageButton>(R.id.btn_lock)?.setImageResource(R.drawable.ic_lock_open)
-                controlsContainer?.visibility = View.VISIBLE
-                bottomControlsContainer?.visibility = View.VISIBLE
-                playerView?.useController = true
-            }
-        }
+        controlsContainer?.visibility = View.VISIBLE
+        bottomControlsContainer?.visibility = View.VISIBLE
+        controlsVisible = true
+        
+        // Reset auto-hide timer
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        hideControlsHandler.postDelayed(hideControlsRunnable, HIDE_CONTROLS_DELAY)
+    }
+    
+    private fun hideControls() {
+        controlsContainer?.visibility = View.GONE
+        bottomControlsContainer?.visibility = View.GONE
+        controlsVisible = false
+        
+        // Cancel auto-hide timer
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
     }
 
     private fun createNotificationChannel() {
@@ -449,6 +494,9 @@ class FloatingPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        
+        // Clean up auto-hide timer
+        hideControlsHandler.removeCallbacks(hideControlsRunnable)
         
         player?.release()
         player = null
