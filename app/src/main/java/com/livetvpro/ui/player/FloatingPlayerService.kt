@@ -317,6 +317,49 @@ class FloatingPlayerService : Service() {
         }
     }
 
+    private fun setupTransferredPlayer(title: String) {
+        try {
+            // FIXED: Retrieve the transferred player (no loading!)
+            val (transferredPlayer, transferredUrl, transferredName) = PlayerHolder.retrievePlayer()
+            
+            if (transferredPlayer != null) {
+                android.util.Log.d("FloatingPlayerService", "Using transferred player - NO LOADING!")
+                
+                // Use the existing player instance
+                player = transferredPlayer
+                
+                playerView = floatingView?.findViewById(R.id.player_view)
+                playerView?.apply {
+                    player = this@FloatingPlayerService.player
+                    useController = false
+                    controllerAutoShow = false
+                }
+                
+                val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
+                titleText?.text = transferredName ?: title
+                
+                // Player is already prepared and playing!
+                // No need to load, prepare, or seek - it continues seamlessly!
+                
+                // Clear the holder now that service has taken ownership
+                PlayerHolder.clearReferences()
+                
+            } else {
+                // Fallback to normal setup if transfer failed
+                android.util.Log.w("FloatingPlayerService", "No transferred player, creating new one")
+                val url = currentChannel?.links?.firstOrNull()?.url ?: ""
+                setupPlayer(url, title)
+            }
+            
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingPlayerService", "Error using transferred player", e)
+            // Fallback to creating new player
+            val url = currentChannel?.links?.firstOrNull()?.url ?: ""
+            setupPlayer(url, title)
+        }
+    }
+
+
     private fun setupControls() {
         controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
         bottomControlsContainer = floatingView?.findViewById(R.id.bottom_controls_container)
@@ -340,16 +383,17 @@ class FloatingPlayerService : Service() {
         fullscreenBtn?.setOnClickListener {
             if (currentChannel != null) {
                 val currentPlayer = player
+                val channel = currentChannel  // Local copy to avoid smart cast issues
                 
-                if (currentPlayer != null) {
+                if (currentPlayer != null && channel != null) {
                     // FIXED: Transfer player to activity - no recreation!
-                    val streamUrl = currentChannel.links?.firstOrNull()?.url ?: ""
-                    PlayerHolder.transferPlayer(currentPlayer, streamUrl, currentChannel.name)
+                    val streamUrl = channel.links?.firstOrNull()?.url ?: ""
+                    PlayerHolder.transferPlayer(currentPlayer, streamUrl, channel.name)
                     
                     android.util.Log.d("FloatingPlayerService", "Player transferred to activity")
                     
                     val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                        putExtra("extra_channel", currentChannel)
+                        putExtra("extra_channel", channel)
                         putExtra("use_transferred_player", true)
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     }
