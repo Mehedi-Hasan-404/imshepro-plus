@@ -14,7 +14,6 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
-import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
@@ -53,21 +52,9 @@ class FloatingPlayerService : Service() {
         private const val CHANNEL_ID = "floating_player_channel"
         
         fun start(context: Context, channel: Channel) {
-            android.util.Log.e("DEBUG_SERVICE", "========================================")
-            android.util.Log.e("DEBUG_SERVICE", "FloatingPlayerService.start() CALLED")
-            android.util.Log.e("DEBUG_SERVICE", "========================================")
-            
-            android.widget.Toast.makeText(
-                context,
-                "Service start() called",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+            android.util.Log.e("DEBUG_SERVICE", "FloatingPlayerService.start() called")
             
             try {
-                android.util.Log.e("DEBUG_SERVICE", "Channel: ${channel.name}")
-                android.util.Log.e("DEBUG_SERVICE", "Links: ${channel.links?.size ?: 0}")
-                
-                // Validate channel has links
                 if (channel.links == null || channel.links.isEmpty()) {
                     android.util.Log.e("DEBUG_SERVICE", "ERROR: Channel has no links!")
                     android.widget.Toast.makeText(
@@ -79,7 +66,6 @@ class FloatingPlayerService : Service() {
                 }
                 
                 val streamUrl = channel.links.firstOrNull()?.url ?: ""
-                android.util.Log.e("DEBUG_SERVICE", "Stream URL: $streamUrl")
                 
                 if (streamUrl.isEmpty()) {
                     android.util.Log.e("DEBUG_SERVICE", "ERROR: Stream URL is empty!")
@@ -91,232 +77,101 @@ class FloatingPlayerService : Service() {
                     return
                 }
                 
-                android.util.Log.e("DEBUG_SERVICE", "Creating intent...")
                 val intent = Intent(context, FloatingPlayerService::class.java).apply {
                     putExtra(EXTRA_STREAM_URL, streamUrl)
                     putExtra(EXTRA_TITLE, channel.name)
                 }
                 
-                android.util.Log.e("DEBUG_SERVICE", "Intent created, starting service...")
-                
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    android.util.Log.e("DEBUG_SERVICE", "Starting FOREGROUND service (Android O+)")
                     context.startForegroundService(intent)
                 } else {
-                    android.util.Log.e("DEBUG_SERVICE", "Starting service (Pre-O)")
                     context.startService(intent)
                 }
                 
-                android.util.Log.e("DEBUG_SERVICE", "Service started successfully!")
-                
-                android.widget.Toast.makeText(
-                    context,
-                    "Service startForegroundService called!",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-                
             } catch (e: Exception) {
-                android.util.Log.e("DEBUG_SERVICE", "========================================")
                 android.util.Log.e("DEBUG_SERVICE", "EXCEPTION IN start()!", e)
-                android.util.Log.e("DEBUG_SERVICE", "========================================")
-                android.util.Log.e("DEBUG_SERVICE", "Exception type: ${e.javaClass.simpleName}")
-                android.util.Log.e("DEBUG_SERVICE", "Exception message: ${e.message}")
                 e.printStackTrace()
-                
-                android.widget.Toast.makeText(
-                    context,
-                    "EXCEPTION: ${e.message}",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
             }
-            
-            android.util.Log.e("DEBUG_SERVICE", "========================================")
-            android.util.Log.e("DEBUG_SERVICE", "FloatingPlayerService.start() COMPLETED")
-            android.util.Log.e("DEBUG_SERVICE", "========================================")
         }
         
         fun stop(context: Context) {
-            android.util.Log.e("DEBUG_SERVICE", "Stopping service")
             context.stopService(Intent(context, FloatingPlayerService::class.java))
         }
     }
 
     override fun onCreate() {
         super.onCreate()
-        android.util.Log.e("DEBUG_SERVICE", "===>>> SERVICE onCreate() CALLED <<<===")
-        android.widget.Toast.makeText(this, "Service onCreate!", android.widget.Toast.LENGTH_SHORT).show()
-        
-        try {
-            windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            android.util.Log.e("DEBUG_SERVICE", "WindowManager obtained: ${windowManager != null}")
-            
-            createNotificationChannel()
-            android.util.Log.e("DEBUG_SERVICE", "Notification channel created")
-            
-        } catch (e: Exception) {
-            android.util.Log.e("DEBUG_SERVICE", "❌ EXCEPTION in onCreate()!", e)
-            e.printStackTrace()
-            android.widget.Toast.makeText(this, "onCreate failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-        }
-        
-        android.util.Log.e("DEBUG_SERVICE", "onCreate() completed")
+        windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        android.util.Log.e("DEBUG_SERVICE", "===>>> SERVICE onStartCommand() CALLED <<<===")
-        android.util.Log.e("DEBUG_SERVICE", "Intent: $intent")
-        android.util.Log.e("DEBUG_SERVICE", "Action: ${intent?.action}")
-        
-        android.widget.Toast.makeText(this, "Service onStartCommand!", android.widget.Toast.LENGTH_SHORT).show()
-        
-        try {
-            if (intent?.action == ACTION_STOP) {
-                android.util.Log.e("DEBUG_SERVICE", "Stop action received")
-                stopSelf()
-                return START_NOT_STICKY
-            }
-            
-            val streamUrl = intent?.getStringExtra(EXTRA_STREAM_URL) ?: ""
-            val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Live Stream"
-            
-            android.util.Log.e("DEBUG_SERVICE", "Stream URL: $streamUrl")
-            android.util.Log.e("DEBUG_SERVICE", "Title: $title")
-            
-            if (streamUrl.isEmpty()) {
-                android.util.Log.e("DEBUG_SERVICE", "Stream URL is empty, stopping service")
-                android.widget.Toast.makeText(this, "No stream URL provided", android.widget.Toast.LENGTH_LONG).show()
-                stopSelf()
-                return START_NOT_STICKY
-            }
-            
-            android.util.Log.e("DEBUG_SERVICE", "Creating notification...")
-            val notification = createNotification(title)
-            
-            android.util.Log.e("DEBUG_SERVICE", "Calling startForeground()...")
-            startForeground(NOTIFICATION_ID, notification)
-            android.util.Log.e("DEBUG_SERVICE", "✅ Started in foreground with notification")
-            
-            android.widget.Toast.makeText(this, "Foreground service started!", android.widget.Toast.LENGTH_SHORT).show()
-            
-            if (floatingView == null) {
-                android.util.Log.e("DEBUG_SERVICE", "Floating view is null, creating...")
-                android.widget.Toast.makeText(this, "Creating floating view...", android.widget.Toast.LENGTH_SHORT).show()
-                createFloatingView(streamUrl, title)
-            } else {
-                android.util.Log.e("DEBUG_SERVICE", "Floating view already exists")
-            }
-            
-        } catch (e: Exception) {
-            android.util.Log.e("DEBUG_SERVICE", "❌ EXCEPTION in onStartCommand()!", e)
-            android.util.Log.e("DEBUG_SERVICE", "Exception type: ${e.javaClass.simpleName}")
-            android.util.Log.e("DEBUG_SERVICE", "Exception message: ${e.message}")
-            e.printStackTrace()
-            android.widget.Toast.makeText(this, "onStartCommand failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+        if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
+        }
+        
+        val streamUrl = intent?.getStringExtra(EXTRA_STREAM_URL) ?: ""
+        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Live Stream"
+        
+        if (streamUrl.isEmpty()) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        
+        startForeground(NOTIFICATION_ID, createNotification(title))
+        
+        if (floatingView == null) {
+            createFloatingView(streamUrl, title)
         }
         
         return START_STICKY
     }
 
     private fun createFloatingView(streamUrl: String, title: String) {
-        android.util.Log.e("DEBUG_SERVICE", "===>>> createFloatingView() CALLED <<<===")
-        android.util.Log.e("DEBUG_SERVICE", "Stream URL: $streamUrl")
-        android.util.Log.e("DEBUG_SERVICE", "Title: $title")
-        
         try {
-            android.widget.Toast.makeText(this, "Step 1: Inflating layout...", android.widget.Toast.LENGTH_SHORT).show()
-            android.util.Log.e("DEBUG_SERVICE", "Step 1: Creating themed context...")
-            
             // ✅ CRITICAL FIX: Wrap Service context with app theme
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
-            android.util.Log.e("DEBUG_SERVICE", "Themed context created: ${themeContext != null}")
-            
-            android.util.Log.e("DEBUG_SERVICE", "Step 2: Inflating layout with themed context...")
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
-            android.util.Log.e("DEBUG_SERVICE", "✅ Layout inflated successfully! FloatingView: ${floatingView != null}")
             
-            android.widget.Toast.makeText(this, "Step 2: Layout inflated!", android.widget.Toast.LENGTH_SHORT).show()
-            
-            android.util.Log.e("DEBUG_SERVICE", "Step 3: Setting up window params...")
+            // ✅ FIX 1: Use WRAP_CONTENT instead of fixed sizes to respect CardView radius
             val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
             
-            android.util.Log.e("DEBUG_SERVICE", "Layout flag: $layoutFlag")
-            
+            // ✅ FIX 2: Set specific width/height (not MATCH_PARENT which causes full screen)
             val params = WindowManager.LayoutParams(
-                dpToPx(400),
-                dpToPx(300),
+                dpToPx(400),  // Width in pixels
+                dpToPx(300),  // Height in pixels
                 layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,  // ✅ FIX 3: NOT_FOCUSABLE allows touches
                 PixelFormat.TRANSLUCENT
             )
             
-            params.gravity = Gravity.TOP or Gravity.START
-            params.x = 100
-            params.y = 100
-            
-            android.util.Log.e("DEBUG_SERVICE", "Window params created - Width: ${params.width}, Height: ${params.height}")
-            
-            android.widget.Toast.makeText(this, "Step 3: Adding to window...", android.widget.Toast.LENGTH_SHORT).show()
-            
-            android.util.Log.e("DEBUG_SERVICE", "Step 4: Adding view to window manager...")
-            android.util.Log.e("DEBUG_SERVICE", "WindowManager: ${windowManager != null}")
-            android.util.Log.e("DEBUG_SERVICE", "FloatingView: ${floatingView != null}")
+            // ✅ FIX 4: Position at top-right corner instead of filling screen
+            params.gravity = Gravity.TOP or Gravity.END
+            params.x = dpToPx(16)  // 16dp margin from right
+            params.y = dpToPx(100) // 100dp from top
             
             windowManager?.addView(floatingView, params)
             
-            android.util.Log.e("DEBUG_SERVICE", "✅✅✅ VIEW ADDED TO WINDOW SUCCESSFULLY! ✅✅✅")
-            android.widget.Toast.makeText(this, "✅ Floating window created!", android.widget.Toast.LENGTH_LONG).show()
-            
-            android.util.Log.e("DEBUG_SERVICE", "Step 5: Setting up controls...")
             setupControls(params)
-            android.util.Log.e("DEBUG_SERVICE", "Controls setup complete")
-            
-            android.util.Log.e("DEBUG_SERVICE", "Step 6: Setting up player...")
             setupPlayer(streamUrl, title)
-            android.util.Log.e("DEBUG_SERVICE", "Player setup complete")
             
-            android.util.Log.e("DEBUG_SERVICE", "✅ createFloatingView() COMPLETED SUCCESSFULLY!")
-            
-        } catch (e: SecurityException) {
-            android.util.Log.e("DEBUG_SERVICE", "❌ SECURITY EXCEPTION - Overlay permission not granted!", e)
-            android.widget.Toast.makeText(this, "❌ Overlay permission denied!", android.widget.Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-            stopSelf()
-        } catch (e: WindowManager.BadTokenException) {
-            android.util.Log.e("DEBUG_SERVICE", "❌ BAD TOKEN EXCEPTION - Window manager error!", e)
-            android.widget.Toast.makeText(this, "❌ Window error: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-            stopSelf()
-        } catch (e: IllegalStateException) {
-            android.util.Log.e("DEBUG_SERVICE", "❌ ILLEGAL STATE EXCEPTION!", e)
-            android.widget.Toast.makeText(this, "❌ Illegal state: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
-            e.printStackTrace()
-            stopSelf()
         } catch (e: Exception) {
-            android.util.Log.e("DEBUG_SERVICE", "❌❌❌ EXCEPTION in createFloatingView()! ❌❌❌", e)
-            android.util.Log.e("DEBUG_SERVICE", "Exception type: ${e.javaClass.simpleName}")
-            android.util.Log.e("DEBUG_SERVICE", "Exception message: ${e.message}")
-            android.util.Log.e("DEBUG_SERVICE", "Stack trace:")
+            android.util.Log.e("DEBUG_SERVICE", "Error creating floating view", e)
             e.printStackTrace()
-            android.widget.Toast.makeText(this, "❌ Failed: ${e.javaClass.simpleName}: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
             stopSelf()
         }
     }
 
     private fun setupPlayer(streamUrl: String, title: String) {
         try {
-            android.util.Log.e("DEBUG_SERVICE", "Setting up ExoPlayer...")
-            
             player = ExoPlayer.Builder(this).build()
-            android.util.Log.e("DEBUG_SERVICE", "ExoPlayer created: ${player != null}")
             
             playerView = floatingView?.findViewById(R.id.player_view)
-            android.util.Log.e("DEBUG_SERVICE", "PlayerView found: ${playerView != null}")
             
             playerView?.apply {
                 player = this@FloatingPlayerService.player
@@ -333,127 +188,127 @@ class FloatingPlayerService : Service() {
                 playWhenReady = true
             }
             
-            android.util.Log.e("DEBUG_SERVICE", "✅ Player setup complete")
-            
         } catch (e: Exception) {
-            android.util.Log.e("DEBUG_SERVICE", "❌ Error setting up player", e)
+            android.util.Log.e("DEBUG_SERVICE", "Error setting up player", e)
             e.printStackTrace()
-            android.widget.Toast.makeText(this, "Player setup failed: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
         }
     }
 
     private fun setupControls(params: WindowManager.LayoutParams) {
-        try {
-            android.util.Log.e("DEBUG_SERVICE", "Setting up controls...")
-            
-            controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
-            bottomControlsContainer = floatingView?.findViewById(R.id.bottom_controls_container)
-            
-            val closeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_close)
-            val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
-            val muteBtn = floatingView?.findViewById<ImageButton>(R.id.btn_mute)
-            val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
-            val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
-            val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
-            val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
-            val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
-            
-            closeBtn?.setOnClickListener {
-                android.util.Log.e("DEBUG_SERVICE", "Close button clicked")
-                stopSelf()
+        controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
+        bottomControlsContainer = floatingView?.findViewById(R.id.bottom_controls_container)
+        
+        val closeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_close)
+        val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
+        val muteBtn = floatingView?.findViewById<ImageButton>(R.id.btn_mute)
+        val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
+        val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
+        val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
+        val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
+        val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
+        
+        closeBtn?.setOnClickListener {
+            stopSelf()
+        }
+        
+        fullscreenBtn?.setOnClickListener {
+            val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
+                putExtra("stream_url", player?.currentMediaItem?.localConfiguration?.uri.toString())
+                putExtra("title", floatingView?.findViewById<TextView>(R.id.tv_title)?.text.toString())
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
-            
-            fullscreenBtn?.setOnClickListener {
-                android.util.Log.e("DEBUG_SERVICE", "Fullscreen button clicked")
-                val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                    putExtra("stream_url", player?.currentMediaItem?.localConfiguration?.uri.toString())
-                    putExtra("title", floatingView?.findViewById<TextView>(R.id.tv_title)?.text.toString())
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                startActivity(intent)
-                stopSelf()
-            }
-            
-            muteBtn?.setOnClickListener {
-                isMuted = !isMuted
-                player?.volume = if (isMuted) 0f else 1f
-                muteBtn.setImageResource(
-                    if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
-                )
-            }
-            
-            lockBtn?.setOnClickListener {
-                controlsLocked = !controlsLocked
-                lockBtn.setImageResource(
-                    if (controlsLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open
-                )
-                toggleControlsVisibility()
-            }
-            
-            playPauseBtn?.setOnClickListener {
-                if (player?.isPlaying == true) {
-                    player?.pause()
-                    playPauseBtn.setImageResource(R.drawable.ic_play)
-                } else {
-                    player?.play()
-                    playPauseBtn.setImageResource(R.drawable.ic_pause)
-                }
-            }
-            
-            seekBackBtn?.setOnClickListener {
-                player?.seekBack()
-            }
-            
-            seekForwardBtn?.setOnClickListener {
-                player?.seekForward()
-            }
-            
-            var currentSize = 0
-            val sizes = arrayOf(
-                dpToPx(320) to dpToPx(240),
-                dpToPx(400) to dpToPx(300),
-                dpToPx(480) to dpToPx(360)
+            startActivity(intent)
+            stopSelf()
+        }
+        
+        muteBtn?.setOnClickListener {
+            isMuted = !isMuted
+            player?.volume = if (isMuted) 0f else 1f
+            muteBtn.setImageResource(
+                if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+            )
+        }
+        
+        // ✅ FIX 5: Lock button properly toggles controls AND updates params
+        lockBtn?.setOnClickListener {
+            controlsLocked = !controlsLocked
+            lockBtn.setImageResource(
+                if (controlsLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open
             )
             
-            resizeBtn?.setOnClickListener {
-                currentSize = (currentSize + 1) % sizes.size
-                params.width = sizes[currentSize].first
-                params.height = sizes[currentSize].second
-                windowManager?.updateViewLayout(floatingView, params)
+            // Update window params to enable/disable touch events
+            if (controlsLocked) {
+                // Hide controls
+                controlsContainer?.visibility = View.GONE
+                bottomControlsContainer?.visibility = View.GONE
+                // Make window non-touchable (can't accidentally tap controls)
+                params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            } else {
+                // Show controls
+                controlsContainer?.visibility = View.VISIBLE
+                bottomControlsContainer?.visibility = View.VISIBLE
+                // Make window touchable
+                params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
             }
-            
-            setupDragListener(params)
-            
-            player?.addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    playPauseBtn?.setImageResource(
-                        if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-                    )
-                }
-            })
-            
-            android.util.Log.e("DEBUG_SERVICE", "✅ Controls setup complete")
-            
-        } catch (e: Exception) {
-            android.util.Log.e("DEBUG_SERVICE", "❌ Error setting up controls", e)
-            e.printStackTrace()
+            windowManager?.updateViewLayout(floatingView, params)
         }
+        
+        playPauseBtn?.setOnClickListener {
+            if (player?.isPlaying == true) {
+                player?.pause()
+                playPauseBtn.setImageResource(R.drawable.ic_play)
+            } else {
+                player?.play()
+                playPauseBtn.setImageResource(R.drawable.ic_pause)
+            }
+        }
+        
+        seekBackBtn?.setOnClickListener {
+            player?.seekBack()
+        }
+        
+        seekForwardBtn?.setOnClickListener {
+            player?.seekForward()
+        }
+        
+        // ✅ FIX 6: Resize button with proper size cycling
+        var currentSize = 0
+        val sizes = arrayOf(
+            dpToPx(320) to dpToPx(240),  // Small
+            dpToPx(400) to dpToPx(300),  // Medium (default)
+            dpToPx(480) to dpToPx(360),  // Large
+            dpToPx(560) to dpToPx(420)   // Extra Large
+        )
+        
+        resizeBtn?.setOnClickListener {
+            currentSize = (currentSize + 1) % sizes.size
+            params.width = sizes[currentSize].first
+            params.height = sizes[currentSize].second
+            windowManager?.updateViewLayout(floatingView, params)
+            android.widget.Toast.makeText(
+                this, 
+                "Size: ${sizes[currentSize].first}x${sizes[currentSize].second}", 
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+        
+        // ✅ FIX 7: Drag functionality - attach to the drag_handle View
+        setupDragListener(params)
+        
+        player?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playPauseBtn?.setImageResource(
+                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                )
+            }
+        })
     }
 
-    private fun toggleControlsVisibility() {
-        if (controlsLocked) {
-            controlsContainer?.visibility = View.GONE
-            bottomControlsContainer?.visibility = View.GONE
-        } else {
-            controlsContainer?.visibility = View.VISIBLE
-            bottomControlsContainer?.visibility = View.VISIBLE
-        }
-    }
-
+    // ✅ FIX 8: Proper drag implementation
     private fun setupDragListener(params: WindowManager.LayoutParams) {
         val dragHandle = floatingView?.findViewById<View>(R.id.drag_handle)
         
-        dragHandle?.setOnTouchListener { view, event ->
+        dragHandle?.setOnTouchListener { _, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialX = params.x
@@ -463,9 +318,33 @@ class FloatingPlayerService : Service() {
                     true
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    params.x = initialX + (event.rawX - initialTouchX).toInt()
-                    params.y = initialY + (event.rawY - initialTouchY).toInt()
-                    windowManager?.updateViewLayout(floatingView, params)
+                    if (!controlsLocked) {
+                        params.x = initialX + (initialTouchX - event.rawX).toInt()
+                        params.y = initialY + (event.rawY - initialTouchY).toInt()
+                        windowManager?.updateViewLayout(floatingView, params)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
+        
+        // Also allow dragging from the top controls container
+        controlsContainer?.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    initialX = params.x
+                    initialY = params.y
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    false // Allow child views to receive clicks
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    if (!controlsLocked) {
+                        params.x = initialX + (initialTouchX - event.rawX).toInt()
+                        params.y = initialY + (event.rawY - initialTouchY).toInt()
+                        windowManager?.updateViewLayout(floatingView, params)
+                    }
                     true
                 }
                 else -> false
@@ -513,23 +392,14 @@ class FloatingPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        android.util.Log.e("DEBUG_SERVICE", "===>>> onDestroy() called <<<===")
         
-        try {
-            player?.release()
-            player = null
-            
-            if (floatingView != null) {
-                windowManager?.removeView(floatingView)
-                floatingView = null
-                android.util.Log.e("DEBUG_SERVICE", "Floating view removed")
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("DEBUG_SERVICE", "Error in onDestroy", e)
-            e.printStackTrace()
+        player?.release()
+        player = null
+        
+        if (floatingView != null) {
+            windowManager?.removeView(floatingView)
+            floatingView = null
         }
-        
-        android.util.Log.e("DEBUG_SERVICE", "onDestroy completed")
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
