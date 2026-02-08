@@ -1414,36 +1414,31 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         btnPip?.setOnClickListener {
             if (!isLocked) {
-                // Use Android's built-in PIP mode instead of floating service
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    enterPipMode()
+                // Return to floating window service
+                val currentChannel = channelData
+                val currentPosition = player?.currentPosition ?: 0L
+                
+                android.util.Log.d("FloatingPlayerActivity", "Starting floating player at position: $currentPosition")
+                
+                if (currentChannel != null) {
+                    FloatingPlayerService.start(this, currentChannel, currentPosition)
                 } else {
-                    // Fallback for older Android versions - use floating service
-                    val currentChannel = channelData
-                    val currentPosition = player?.currentPosition ?: 0L
+                    val currentStreamUrl = player?.currentMediaItem?.localConfiguration?.uri.toString()
+                    val currentTitle = tvChannelName?.text?.toString() ?: contentName
                     
-                    android.util.Log.d("FloatingPlayerActivity", "Starting floating player at position: $currentPosition")
-                    
-                    if (currentChannel != null) {
-                        FloatingPlayerService.start(this, currentChannel, currentPosition)
-                    } else {
-                        val currentStreamUrl = player?.currentMediaItem?.localConfiguration?.uri.toString()
-                        val currentTitle = tvChannelName?.text?.toString() ?: contentName
-                        
-                        val intent = Intent(this, FloatingPlayerService::class.java).apply {
-                            putExtra(FloatingPlayerService.EXTRA_STREAM_URL, currentStreamUrl)
-                            putExtra(FloatingPlayerService.EXTRA_TITLE, currentTitle)
-                            putExtra(FloatingPlayerService.EXTRA_PLAYBACK_POSITION, currentPosition)
-                        }
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            startForegroundService(intent)
-                        } else {
-                            startService(intent)
-                        }
+                    val intent = Intent(this, FloatingPlayerService::class.java).apply {
+                        putExtra(FloatingPlayerService.EXTRA_STREAM_URL, currentStreamUrl)
+                        putExtra(FloatingPlayerService.EXTRA_TITLE, currentTitle)
+                        putExtra(FloatingPlayerService.EXTRA_PLAYBACK_POSITION, currentPosition)
                     }
-                    
-                    finish()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
                 }
+                
+                finish()
             }
         }
         
