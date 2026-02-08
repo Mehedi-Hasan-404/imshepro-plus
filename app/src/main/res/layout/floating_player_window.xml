@@ -5,12 +5,14 @@
     android:layout_height="wrap_content"
     app:cardCornerRadius="12dp"
     app:cardElevation="8dp"
-    android:background="#000000">
+    app:cardBackgroundColor="#000000">
 
     <FrameLayout
+        android:id="@+id/floating_container"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content">
 
+        <!-- Video Player -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
             android:layout_width="match_parent"
@@ -20,79 +22,78 @@
             app:resize_mode="fill"
             app:surface_type="texture_view" />
 
-        <View
-            android:id="@+id/drag_handle"
-            android:layout_width="match_parent"
-            android:layout_height="48dp"
-            android:background="@drawable/gradient_overlay_top" />
-
+        <!-- Top Controls Container -->
         <LinearLayout
             android:id="@+id/top_controls_container"
             android:layout_width="match_parent"
-            android:layout_height="48dp"
+            android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
+            android:background="@drawable/gradient_overlay_top"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="32dp">
 
             <ImageButton
                 android:id="@+id/btn_close"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:src="@drawable/ic_close"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:tint="@android:color/white"
-                android:contentDescription="Close" />
+                android:contentDescription="Close"
+                android:padding="4dp" />
 
             <TextView
                 android:id="@+id/tv_title"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_marginStart="12dp"
-                android:layout_marginEnd="12dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
                 android:text="Live Stream"
                 android:textColor="@android:color/white"
-                android:textSize="14sp"
+                android:textSize="12sp"
                 android:textStyle="bold"
                 android:singleLine="true"
-                android:ellipsize="marquee"
-                android:marqueeRepeatLimit="marquee_forever"
-                android:scrollHorizontally="true"
-                android:focusable="true"
-                android:focusableInTouchMode="true" />
+                android:ellipsize="end" />
 
             <ImageButton
                 android:id="@+id/btn_mute"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:src="@drawable/ic_volume_up"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:tint="@android:color/white"
-                android:layout_marginEnd="8dp"
-                android:contentDescription="Mute" />
+                android:layout_marginEnd="4dp"
+                android:contentDescription="Mute"
+                android:padding="4dp" />
 
             <ImageButton
                 android:id="@+id/btn_fullscreen"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:src="@drawable/ic_fullscreen"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:tint="@android:color/white"
-                android:layout_marginEnd="8dp"
-                android:contentDescription="Fullscreen" />
+                android:layout_marginEnd="4dp"
+                android:contentDescription="Fullscreen"
+                android:padding="4dp" />
 
             <ImageButton
                 android:id="@+id/btn_lock"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
                 android:src="@drawable/ic_lock_open"
                 android:background="?attr/selectableItemBackgroundBorderless"
                 android:tint="@android:color/white"
-                android:contentDescription="Lock" />
+                android:contentDescription="Lock"
+                android:padding="4dp" />
 
         </LinearLayout>
 
+        <!-- Bottom Controls Container -->
         <LinearLayout
             android:id="@+id/bottom_controls_container"
             android:layout_width="match_parent"
@@ -101,10 +102,11 @@
             android:orientation="vertical"
             android:background="@drawable/gradient_overlay_bottom"
             android:paddingTop="24dp"
-            android:paddingBottom="12dp"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp">
+            android:paddingBottom="8dp"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp">
 
+            <!-- Seekbar -->
             <androidx.media3.ui.DefaultTimeBar
                 android:id="@+id/exo_progress"
                 android:layout_width="match_parent"
@@ -113,12 +115,13 @@
                 app:scrubber_color="#FFFFFF"
                 app:buffered_color="#80FFFFFF"
                 app:unplayed_color="#40FFFFFF"
-                app:bar_height="3dp"
-                app:touch_target_height="26dp"
-                app:scrubber_enabled_size="12dp"
+                app:bar_height="2dp"
+                app:touch_target_height="20dp"
+                app:scrubber_enabled_size="10dp"
                 app:scrubber_disabled_size="0dp"
-                android:layout_marginBottom="8dp" />
+                android:layout_marginBottom="6dp" />
 
+            <!-- Playback Controls -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -127,35 +130,38 @@
 
                 <ImageButton
                     android:id="@+id/btn_seek_back"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:src="@drawable/ic_skip_backward"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="@android:color/white"
                     android:scaleType="fitCenter"
-                    android:contentDescription="Rewind" />
+                    android:contentDescription="Rewind"
+                    android:padding="6dp" />
 
                 <ImageButton
                     android:id="@+id/btn_play_pause"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
                     android:src="@drawable/ic_pause"
                     android:background="@drawable/circular_button_bg"
                     android:tint="@android:color/white"
                     android:scaleType="fitCenter"
-                    android:layout_marginStart="24dp"
-                    android:layout_marginEnd="24dp"
-                    android:contentDescription="Play/Pause" />
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    android:contentDescription="Play/Pause"
+                    android:padding="8dp" />
 
                 <ImageButton
                     android:id="@+id/btn_seek_forward"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:src="@drawable/ic_skip_forward"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="@android:color/white"
                     android:scaleType="fitCenter"
-                    android:contentDescription="Forward" />
+                    android:contentDescription="Forward"
+                    android:padding="6dp" />
 
                 <Space
                     android:layout_width="0dp"
@@ -164,17 +170,29 @@
 
                 <ImageButton
                     android:id="@+id/btn_resize"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
                     android:src="@drawable/ic_resize"
                     android:background="?attr/selectableItemBackgroundBorderless"
                     android:tint="@android:color/white"
                     android:scaleType="fitCenter"
-                    android:contentDescription="Resize" />
+                    android:contentDescription="Resize"
+                    android:padding="6dp" />
 
             </LinearLayout>
 
         </LinearLayout>
+
+        <!-- Locked Indicator (shown when controls are locked) -->
+        <ImageView
+            android:id="@+id/img_locked_status"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="center"
+            android:src="@drawable/ic_lock_closed"
+            android:visibility="gone"
+            android:alpha="0.7"
+            app:tint="@android:color/white" />
 
     </FrameLayout>
 
