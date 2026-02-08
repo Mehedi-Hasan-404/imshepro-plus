@@ -52,15 +52,12 @@ class FloatingPlayerService : Service() {
         private const val CHANNEL_ID = "floating_player_channel"
         
         fun start(context: Context, channel: Channel) {
-            android.util.Log.e("DEBUG_SERVICE", "FloatingPlayerService.start() called")
-            
             try {
                 if (channel.links == null || channel.links.isEmpty()) {
-                    android.util.Log.e("DEBUG_SERVICE", "ERROR: Channel has no links!")
                     android.widget.Toast.makeText(
                         context,
-                        "ERROR: No stream available",
-                        android.widget.Toast.LENGTH_LONG
+                        "No stream available",
+                        android.widget.Toast.LENGTH_SHORT
                     ).show()
                     return
                 }
@@ -68,11 +65,10 @@ class FloatingPlayerService : Service() {
                 val streamUrl = channel.links.firstOrNull()?.url ?: ""
                 
                 if (streamUrl.isEmpty()) {
-                    android.util.Log.e("DEBUG_SERVICE", "ERROR: Stream URL is empty!")
                     android.widget.Toast.makeText(
                         context,
-                        "ERROR: Invalid stream URL",
-                        android.widget.Toast.LENGTH_LONG
+                        "Invalid stream URL",
+                        android.widget.Toast.LENGTH_SHORT
                     ).show()
                     return
                 }
@@ -89,7 +85,7 @@ class FloatingPlayerService : Service() {
                 }
                 
             } catch (e: Exception) {
-                android.util.Log.e("DEBUG_SERVICE", "EXCEPTION IN start()!", e)
+                android.util.Log.e("FloatingPlayer", "Error starting service", e)
                 e.printStackTrace()
             }
         }
@@ -130,30 +126,29 @@ class FloatingPlayerService : Service() {
 
     private fun createFloatingView(streamUrl: String, title: String) {
         try {
-            // ✅ CRITICAL FIX: Wrap Service context with app theme
+            // ✅ CRITICAL FIX 1: Use ContextThemeWrapper
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
             
-            // ✅ FIX 1: Use WRAP_CONTENT instead of fixed sizes to respect CardView radius
+            // ✅ CRITICAL FIX 2: Proper window sizing - NOT full screen
             val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 WindowManager.LayoutParams.TYPE_PHONE
             }
             
-            // ✅ FIX 2: Set specific width/height (not MATCH_PARENT which causes full screen)
             val params = WindowManager.LayoutParams(
-                dpToPx(400),  // Width in pixels
-                dpToPx(300),  // Height in pixels
+                dpToPx(400),  // Fixed width
+                dpToPx(300),  // Fixed height
                 layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,  // ✅ FIX 3: NOT_FOCUSABLE allows touches
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
             )
             
-            // ✅ FIX 4: Position at top-right corner instead of filling screen
+            // ✅ CRITICAL FIX 3: Position at top-right, not centered
             params.gravity = Gravity.TOP or Gravity.END
-            params.x = dpToPx(16)  // 16dp margin from right
-            params.y = dpToPx(100) // 100dp from top
+            params.x = dpToPx(16)
+            params.y = dpToPx(100)
             
             windowManager?.addView(floatingView, params)
             
@@ -161,8 +156,13 @@ class FloatingPlayerService : Service() {
             setupPlayer(streamUrl, title)
             
         } catch (e: Exception) {
-            android.util.Log.e("DEBUG_SERVICE", "Error creating floating view", e)
+            android.util.Log.e("FloatingPlayer", "Error creating floating view", e)
             e.printStackTrace()
+            android.widget.Toast.makeText(
+                this,
+                "Failed to create floating player: ${e.message}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
             stopSelf()
         }
     }
@@ -189,7 +189,7 @@ class FloatingPlayerService : Service() {
             }
             
         } catch (e: Exception) {
-            android.util.Log.e("DEBUG_SERVICE", "Error setting up player", e)
+            android.util.Log.e("FloatingPlayer", "Error setting up player", e)
             e.printStackTrace()
         }
     }
@@ -229,25 +229,19 @@ class FloatingPlayerService : Service() {
             )
         }
         
-        // ✅ FIX 5: Lock button properly toggles controls AND updates params
         lockBtn?.setOnClickListener {
             controlsLocked = !controlsLocked
             lockBtn.setImageResource(
                 if (controlsLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open
             )
             
-            // Update window params to enable/disable touch events
             if (controlsLocked) {
-                // Hide controls
                 controlsContainer?.visibility = View.GONE
                 bottomControlsContainer?.visibility = View.GONE
-                // Make window non-touchable (can't accidentally tap controls)
                 params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
             } else {
-                // Show controls
                 controlsContainer?.visibility = View.VISIBLE
                 bottomControlsContainer?.visibility = View.VISIBLE
-                // Make window touchable
                 params.flags = params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
             }
             windowManager?.updateViewLayout(floatingView, params)
@@ -271,13 +265,12 @@ class FloatingPlayerService : Service() {
             player?.seekForward()
         }
         
-        // ✅ FIX 6: Resize button with proper size cycling
         var currentSize = 0
         val sizes = arrayOf(
-            dpToPx(320) to dpToPx(240),  // Small
-            dpToPx(400) to dpToPx(300),  // Medium (default)
-            dpToPx(480) to dpToPx(360),  // Large
-            dpToPx(560) to dpToPx(420)   // Extra Large
+            dpToPx(320) to dpToPx(240),
+            dpToPx(400) to dpToPx(300),
+            dpToPx(480) to dpToPx(360),
+            dpToPx(560) to dpToPx(420)
         )
         
         resizeBtn?.setOnClickListener {
@@ -285,15 +278,10 @@ class FloatingPlayerService : Service() {
             params.width = sizes[currentSize].first
             params.height = sizes[currentSize].second
             windowManager?.updateViewLayout(floatingView, params)
-            android.widget.Toast.makeText(
-                this, 
-                "Size: ${sizes[currentSize].first}x${sizes[currentSize].second}", 
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
         }
         
-        // ✅ FIX 7: Drag functionality - attach to the drag_handle View
-        setupDragListener(params)
+        // ✅ CRITICAL FIX 4: Make ENTIRE PlayerView draggable
+        setupDragOnPlayerView(params)
         
         player?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -304,13 +292,12 @@ class FloatingPlayerService : Service() {
         })
     }
 
-    // ✅ FIX 8: Proper drag implementation
-    private fun setupDragListener(params: WindowManager.LayoutParams) {
-        val dragHandle = floatingView?.findViewById<View>(R.id.drag_handle)
-        
-        dragHandle?.setOnTouchListener { _, event ->
+    // ✅ NEW: Make the entire PlayerView draggable (not just title bar)
+    private fun setupDragOnPlayerView(params: WindowManager.LayoutParams) {
+        playerView?.setOnTouchListener { view, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
+                    // Save initial position
                     initialX = params.x
                     initialY = params.y
                     initialTouchX = event.rawX
@@ -319,31 +306,27 @@ class FloatingPlayerService : Service() {
                 }
                 MotionEvent.ACTION_MOVE -> {
                     if (!controlsLocked) {
+                        // Calculate new position
                         params.x = initialX + (initialTouchX - event.rawX).toInt()
                         params.y = initialY + (event.rawY - initialTouchY).toInt()
+                        
+                        // Update window position
                         windowManager?.updateViewLayout(floatingView, params)
                     }
                     true
                 }
-                else -> false
-            }
-        }
-        
-        // Also allow dragging from the top controls container
-        controlsContainer?.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    initialX = params.x
-                    initialY = params.y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
-                    false // Allow child views to receive clicks
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    if (!controlsLocked) {
-                        params.x = initialX + (initialTouchX - event.rawX).toInt()
-                        params.y = initialY + (event.rawY - initialTouchY).toInt()
-                        windowManager?.updateViewLayout(floatingView, params)
+                MotionEvent.ACTION_UP -> {
+                    // Check if this was a click (not a drag)
+                    val dx = Math.abs(event.rawX - initialTouchX)
+                    val dy = Math.abs(event.rawY - initialTouchY)
+                    
+                    if (dx < 10 && dy < 10) {
+                        // It was a click, not a drag - toggle play/pause
+                        if (player?.isPlaying == true) {
+                            player?.pause()
+                        } else {
+                            player?.play()
+                        }
                     }
                     true
                 }
