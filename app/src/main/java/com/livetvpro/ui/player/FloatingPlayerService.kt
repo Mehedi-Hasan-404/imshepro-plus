@@ -14,7 +14,6 @@ import android.os.IBinder
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
-import android.view.ScaleGestureDetector
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
@@ -36,7 +35,6 @@ class FloatingPlayerService : Service() {
     private var floatingView: View? = null
     private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
-    private lateinit var scaleGestureDetector: ScaleGestureDetector
     
     // Position and touch tracking
     private var initialX = 0
@@ -290,22 +288,57 @@ class FloatingPlayerService : Service() {
             player?.seekForward()
         }
         
-        // Resize button cycles through preset sizes
-        var currentSize = 1  // Start at index 1 (320x180)
-        val sizes = arrayOf(
-            dpToPx(240) to dpToPx(135),   // Small
-            dpToPx(320) to dpToPx(180),   // Medium (default)
-            dpToPx(480) to dpToPx(270),   // Large
-            dpToPx(640) to dpToPx(360)    // Extra Large
-        )
+        // Resize button - drag to resize (no tap action)
+        val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
         
-        resizeBtn?.setOnClickListener {
-            currentSize = (currentSize + 1) % sizes.size
-            params?.apply {
-                width = sizes[currentSize].first
-                height = sizes[currentSize].second
-                windowManager?.updateViewLayout(floatingView, this)
-            }
+        var resizeInitialWidth = 0
+        var resizeInitialHeight = 0
+        var resizeInitialTouchX = 0f
+        var resizeInitialTouchY = 0f
+        
+        resizeBtn?.setOnTouchListener { view, event ->
+            if (controlsLocked) return@setOnTouchListener false
+            
+            params?.let { p ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        // Record initial size and touch position
+                        resizeInitialWidth = p.width
+                        resizeInitialHeight = p.height
+                        resizeInitialTouchX = event.rawX
+                        resizeInitialTouchY = event.rawY
+                        true
+                    }
+                    
+                    MotionEvent.ACTION_MOVE -> {
+                        // Calculate distance moved (diagonal drag)
+                        val dx = event.rawX - resizeInitialTouchX
+                        val dy = event.rawY - resizeInitialTouchY
+                        
+                        // Use diagonal distance for resize sensitivity
+                        val distance = kotlin.math.sqrt((dx * dx + dy * dy).toDouble()).toInt()
+                        val direction = if (dx + dy > 0) 1 else -1
+                        
+                        // Calculate new width based on drag distance
+                        val newWidth = resizeInitialWidth + (distance * direction)
+                        val newHeight = (newWidth * 9 / 16)  // Maintain 16:9 aspect ratio
+                        
+                        // Apply bounds
+                        if (newWidth in MIN_WIDTH..MAX_WIDTH && newHeight in MIN_HEIGHT..MAX_HEIGHT) {
+                            p.width = newWidth
+                            p.height = newHeight
+                            windowManager?.updateViewLayout(floatingView, p)
+                        }
+                        true
+                    }
+                    
+                    MotionEvent.ACTION_UP -> {
+                        true
+                    }
+                    
+                    else -> false
+                }
+            } ?: false
         }
         
         // Update play/pause icon based on player state
@@ -320,39 +353,8 @@ class FloatingPlayerService : Service() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
-        // Setup pinch-to-resize gesture detector
-        scaleGestureDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-            override fun onScale(detector: ScaleGestureDetector): Boolean {
-                if (controlsLocked) return false
-                
-                val scaleFactor = detector.scaleFactor
-                
-                params?.let { p ->
-                    // Calculate new dimensions while maintaining aspect ratio
-                    val newWidth = (p.width * scaleFactor).toInt()
-                    val newHeight = (newWidth * 9 / 16)  // Maintain 16:9 aspect ratio
-                    
-                    // Clamp to min/max bounds
-                    if (newWidth in MIN_WIDTH..MAX_WIDTH && newHeight in MIN_HEIGHT..MAX_HEIGHT) {
-                        p.width = newWidth
-                        p.height = newHeight
-                        windowManager?.updateViewLayout(floatingView, p)
-                    }
-                }
-                return true
-            }
-        })
-        
         // Setup drag and click handling on player view
         playerView?.setOnTouchListener { view, event ->
-            // Pass event to scale detector first
-            scaleGestureDetector.onTouchEvent(event)
-            
-            // If pinch-zooming, don't handle drag
-            if (scaleGestureDetector.isInProgress) {
-                return@setOnTouchListener true
-            }
-            
             // If locked, consume touch events but don't do anything
             if (controlsLocked) {
                 return@setOnTouchListener true
