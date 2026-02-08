@@ -60,11 +60,11 @@ class FloatingPlayerService : Service() {
     private var bottomControlsContainer: View? = null
     private var params: WindowManager.LayoutParams? = null
     
-    // Size limits (in pixels) - Adjusted to match visible player size
-    private val MIN_WIDTH = 320   // Matches the small floating player size
-    private val MAX_WIDTH = 1000  // Reasonable max for phone screens
-    private val MIN_HEIGHT = 180  // Maintains 16:9 ratio (320 * 9/16)
-    private val MAX_HEIGHT = 562  // Maintains 16:9 ratio (1000 * 9/16)
+    // Size limits (in DP for better cross-device compatibility)
+    private fun getMinWidth() = dpToPx(180)   // Small but controls still usable
+    private fun getMaxWidth() = dpToPx(400)   // Large but not fullscreen
+    private fun getMinHeight() = getMinWidth() * 9 / 16
+    private fun getMaxHeight() = getMaxWidth() * 9 / 16
     
     companion object {
         const val EXTRA_CHANNEL = "extra_channel"
@@ -155,7 +155,7 @@ class FloatingPlayerService : Service() {
             
             // Calculate proper initial size (16:9 aspect ratio)
             val metrics = resources.displayMetrics
-            val initialWidth = dpToPx(320)  // Start with a reasonable size
+            val initialWidth = dpToPx(320)  // Start at a good viewing size
             val initialHeight = (initialWidth * 9 / 16)  // Maintain 16:9 aspect ratio
             
             val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -320,27 +320,28 @@ class FloatingPlayerService : Service() {
                     }
                     
                     MotionEvent.ACTION_MOVE -> {
-                        // Calculate distance moved (diagonal drag)
+                        // Calculate how much finger moved in X and Y
                         val dx = event.rawX - resizeInitialTouchX
                         val dy = event.rawY - resizeInitialTouchY
                         
-                        // Use diagonal distance for resize sensitivity (reduced for smoother control)
-                        val distance = sqrt((dx * dx + dy * dy).toDouble()).toInt()
-                        val direction = if (dx + dy > 0) 1 else -1
+                        // Use average of both directions for smoother resize
+                        val delta = ((dx + dy) / 2).toInt()
                         
-                        // Calculate new width based on drag distance
-                        var newWidth = resizeInitialWidth + (distance * direction)
+                        // Calculate new width
+                        var newWidth = resizeInitialWidth + delta
                         
-                        // Apply width bounds FIRST
-                        newWidth = newWidth.coerceIn(MIN_WIDTH, MAX_WIDTH)
+                        // Apply width bounds
+                        newWidth = newWidth.coerceIn(getMinWidth(), getMaxWidth())
                         
-                        // THEN calculate height to maintain perfect 16:9 ratio
-                        val newHeight = (newWidth * 9 / 16)
+                        // Calculate height maintaining 16:9 ratio
+                        val newHeight = newWidth * 9 / 16
                         
-                        // Update both dimensions
-                        p.width = newWidth
-                        p.height = newHeight
-                        windowManager?.updateViewLayout(floatingView, p)
+                        // Only update if size actually changed (prevents micro-jumps)
+                        if (newWidth != p.width || newHeight != p.height) {
+                            p.width = newWidth
+                            p.height = newHeight
+                            windowManager?.updateViewLayout(floatingView, p)
+                        }
                         true
                     }
                     
