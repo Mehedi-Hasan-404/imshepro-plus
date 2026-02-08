@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.os.Build
@@ -174,7 +175,8 @@ class FloatingPlayerService : Service() {
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
             
-            // FIXED: Get screen size using WindowManager directly (works in Service context)
+            // FIXED: Get screen dimensions correctly for PORTRAIT mode
+            // Always center based on portrait dimensions even if launched from landscape
             val screenWidth: Int
             val screenHeight: Int
             
@@ -182,21 +184,42 @@ class FloatingPlayerService : Service() {
                 // Android 11+ (API 30+)
                 val windowMetrics = windowManager?.currentWindowMetrics
                 val bounds = windowMetrics?.bounds
-                screenWidth = bounds?.width() ?: 1080
-                screenHeight = bounds?.height() ?: 1920
+                val width = bounds?.width() ?: 1080
+                val height = bounds?.height() ?: 1920
+                
+                // CRITICAL FIX: Ensure we always use portrait dimensions
+                // (smaller value = width, larger value = height)
+                if (width < height) {
+                    // Already in portrait
+                    screenWidth = width
+                    screenHeight = height
+                } else {
+                    // Currently in landscape, swap for portrait calculation
+                    screenWidth = height
+                    screenHeight = width
+                }
             } else {
                 // Android 10 and below
                 val size = Point()
                 @Suppress("DEPRECATION")
                 windowManager?.defaultDisplay?.getRealSize(size)
-                screenWidth = size.x
-                screenHeight = size.y
+                
+                // CRITICAL FIX: Ensure we always use portrait dimensions
+                if (size.x < size.y) {
+                    // Already in portrait
+                    screenWidth = size.x
+                    screenHeight = size.y
+                } else {
+                    // Currently in landscape, swap for portrait calculation
+                    screenWidth = size.y
+                    screenHeight = size.x
+                }
             }
             
             val initialWidth = dpToPx(320)
             val initialHeight = (initialWidth * 9 / 16)
             
-            android.util.Log.d("FloatingPlayerService", "Screen: ${screenWidth}x${screenHeight}, Window: ${initialWidth}x${initialHeight}")
+            android.util.Log.d("FloatingPlayerService", "Screen (portrait): ${screenWidth}x${screenHeight}, Window: ${initialWidth}x${initialHeight}")
             
             val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -213,14 +236,14 @@ class FloatingPlayerService : Service() {
                 PixelFormat.TRANSLUCENT
             )
             
-            // FIXED: Calculate center position using the correctly obtained screen dimensions
+            // FIXED: Calculate center position using portrait dimensions
             params?.apply {
                 gravity = Gravity.TOP or Gravity.START
                 val centerX = (screenWidth - initialWidth) / 2
                 val centerY = (screenHeight - initialHeight) / 2
                 x = centerX
                 y = centerY
-                android.util.Log.d("FloatingPlayerService", "Centering at: ($centerX, $centerY)")
+                android.util.Log.d("FloatingPlayerService", "Centering at (portrait): ($centerX, $centerY)")
             }
             
             windowManager?.addView(floatingView, params)
