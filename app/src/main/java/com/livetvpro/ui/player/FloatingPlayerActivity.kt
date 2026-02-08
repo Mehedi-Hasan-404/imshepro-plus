@@ -1383,9 +1383,30 @@ class FloatingPlayerActivity : AppCompatActivity() {
         btnBack?.setOnClickListener { if (!isLocked) finish() }
         
         btnPip?.setOnClickListener {
-            if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                userRequestedPip = true
-                enterPipMode()
+            if (!isLocked) {
+                // Get current content data
+                val currentChannel = channelData
+                val currentStreamUrl = player?.currentMediaItem?.localConfiguration?.uri.toString()
+                val currentTitle = tvChannelName?.text?.toString() ?: contentName
+                
+                // Start floating player service
+                if (currentChannel != null) {
+                    FloatingPlayerService.start(this, currentChannel)
+                } else {
+                    // If no channel data, create a temporary one with the stream URL
+                    val intent = Intent(this, FloatingPlayerService::class.java).apply {
+                        putExtra(FloatingPlayerService.EXTRA_STREAM_URL, currentStreamUrl)
+                        putExtra(FloatingPlayerService.EXTRA_TITLE, currentTitle)
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(intent)
+                    } else {
+                        startService(intent)
+                    }
+                }
+                
+                // Close this activity
+                finish()
             }
         }
         
