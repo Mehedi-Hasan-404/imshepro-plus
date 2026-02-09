@@ -20,6 +20,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.ImageView
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -60,7 +61,14 @@ class FloatingPlayerService : Service() {
     // UI components
     private var controlsContainer: View? = null
     private var bottomControlsContainer: View? = null
+    private var lockOverlay: View? = null
+    private var unlockButton: ImageButton? = null
     private var params: WindowManager.LayoutParams? = null
+    
+    // Handler for auto-hiding unlock button
+    private val hideUnlockButtonRunnable = Runnable {
+        unlockButton?.visibility = View.GONE
+    }
     
     // Store the channel data and playback position
     private var currentChannel: Channel? = null
@@ -287,6 +295,13 @@ class FloatingPlayerService : Service() {
             setupControls()
             setupGestures()
             
+            // FIXED: Auto-hide controls on first start after a short delay
+            hideControlsHandler.postDelayed({
+                if (!controlsLocked && controlsVisible) {
+                    hideControls()
+                }
+            }, HIDE_CONTROLS_DELAY)
+            
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
             e.printStackTrace()
@@ -379,6 +394,8 @@ class FloatingPlayerService : Service() {
     private fun setupControls() {
         controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
         bottomControlsContainer = floatingView?.findViewById(R.id.bottom_controls_container)
+        lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
+        unlockButton = floatingView?.findViewById(R.id.unlock_button)
         
         val closeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_close)
         val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
@@ -387,6 +404,19 @@ class FloatingPlayerService : Service() {
         val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
         val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
         val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
+        
+        // Setup lock overlay and unlock button
+        unlockButton?.setOnClickListener {
+            toggleLock()
+        }
+        
+        lockOverlay?.setOnClickListener {
+            if (unlockButton?.visibility == View.VISIBLE) {
+                hideUnlockButton()
+            } else {
+                showUnlockButton()
+            }
+        }
         
         closeBtn?.setOnClickListener {
             // FIXED: Clear saved position when user closes, so it centers next time
@@ -448,16 +478,7 @@ class FloatingPlayerService : Service() {
         }
         
         lockBtn?.setOnClickListener {
-            controlsLocked = !controlsLocked
-            lockBtn.setImageResource(
-                if (controlsLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open
-            )
-            
-            if (controlsLocked) {
-                hideControls()
-            } else {
-                showControls()
-            }
+            toggleLock()
         }
         
         playPauseBtn?.setOnClickListener {
@@ -541,13 +562,8 @@ class FloatingPlayerService : Service() {
         var hasMoved = false
         
         playerView?.setOnTouchListener { view, event ->
+            // When locked, don't allow dragging or interaction
             if (controlsLocked) {
-                if (event.action == MotionEvent.ACTION_UP && !hasMoved) {
-                    controlsLocked = false
-                    floatingView?.findViewById<ImageButton>(R.id.btn_lock)?.setImageResource(R.drawable.ic_lock_open)
-                    showControls()
-                }
-                hasMoved = false
                 return@setOnTouchListener true
             }
             
@@ -579,6 +595,7 @@ class FloatingPlayerService : Service() {
                     
                     MotionEvent.ACTION_UP -> {
                         if (!hasMoved) {
+                            // Tap to toggle controls
                             if (controlsVisible) {
                                 hideControls()
                             } else {
@@ -612,6 +629,40 @@ class FloatingPlayerService : Service() {
         bottomControlsContainer?.visibility = View.GONE
         controlsVisible = false
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
+    }
+    
+    private fun toggleLock() {
+        controlsLocked = !controlsLocked
+        val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
+        
+        if (controlsLocked) {
+            // Lock: hide controls, show overlay and unlock button
+            hideControls()
+            lockOverlay?.apply {
+                visibility = View.VISIBLE
+                isClickable = true
+                isFocusable = true
+            }
+            showUnlockButton()
+            lockBtn?.setImageResource(R.drawable.ic_lock_closed)
+        } else {
+            // Unlock: show controls, hide overlay and unlock button
+            lockOverlay?.visibility = View.GONE
+            hideUnlockButton()
+            lockBtn?.setImageResource(R.drawable.ic_lock_open)
+            showControls()
+        }
+    }
+    
+    private fun showUnlockButton() {
+        unlockButton?.visibility = View.VISIBLE
+        hideControlsHandler.removeCallbacks(hideUnlockButtonRunnable)
+        hideControlsHandler.postDelayed(hideUnlockButtonRunnable, 3000)
+    }
+    
+    private fun hideUnlockButton() {
+        hideControlsHandler.removeCallbacks(hideUnlockButtonRunnable)
+        unlockButton?.visibility = View.GONE
     }
 
     private fun createNotificationChannel() {
@@ -655,6 +706,7 @@ class FloatingPlayerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
+        hideControlsHandler.removeCallbacks(hideUnlockButtonRunnable)
         player?.release()
         player = null
         
