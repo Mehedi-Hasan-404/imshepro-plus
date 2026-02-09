@@ -21,7 +21,6 @@
             app:use_controller="true"
             app:controller_layout_id="@layout/floating_player_controls"
             app:show_timeout="3000"
-            app:controller_hide_on_touch="false"
             app:resize_mode="fill"
             app:surface_type="texture_view" />
 
