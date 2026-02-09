@@ -639,45 +639,12 @@ class FloatingPlayerService : Service() {
         var isDragging = false
         var hasMoved = false
         
-        // IMPORTANT: Player view touch listener - for tap to show/hide controls
-        // This should NOT handle dragging - that's handled by the container
         playerView?.setOnTouchListener { view, event ->
-            // When locked, don't respond to taps (lock overlay handles that)
+            // When locked, don't allow dragging or interaction
             if (controlsLocked) {
-                return@setOnTouchListener false
+                return@setOnTouchListener true
             }
             
-            // Only handle tap gestures, not dragging
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    hasMoved = false
-                    true
-                }
-                
-                MotionEvent.ACTION_MOVE -> {
-                    hasMoved = true
-                    false // Don't consume move events
-                }
-                
-                MotionEvent.ACTION_UP -> {
-                    if (!hasMoved) {
-                        // Tap to toggle controls
-                        if (controlsVisible) {
-                            hideControls()
-                        } else {
-                            showControls()
-                        }
-                    }
-                    true
-                }
-                
-                else -> false
-            }
-        }
-        
-        // Dragging handler on the entire floating container
-        val floatingContainer = floatingView?.findViewById<View>(R.id.floating_container)
-        floatingContainer?.setOnTouchListener { view, event ->
             params?.let { p ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
@@ -705,6 +672,14 @@ class FloatingPlayerService : Service() {
                     }
                     
                     MotionEvent.ACTION_UP -> {
+                        if (!hasMoved) {
+                            // Tap to toggle controls
+                            if (controlsVisible) {
+                                hideControls()
+                            } else {
+                                showControls()
+                            }
+                        }
                         isDragging = false
                         hasMoved = false
                         true
