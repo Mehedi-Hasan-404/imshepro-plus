@@ -14,7 +14,7 @@
         android:clickable="true"
         android:focusable="true">
 
-        <!-- Video Player with ExoPlayer controller enabled -->
+        <!-- Video Player with ExoPlayer controller -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
             android:layout_width="match_parent"
