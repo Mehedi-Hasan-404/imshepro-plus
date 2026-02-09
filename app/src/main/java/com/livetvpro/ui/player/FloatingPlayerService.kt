@@ -60,6 +60,7 @@ class FloatingPlayerService : Service() {
     
     // UI components
     private var controlsContainer: View? = null
+    private var bottomControlsContainer: View? = null
     private var lockOverlay: View? = null
     private var unlockButton: ImageButton? = null
     private var params: WindowManager.LayoutParams? = null
@@ -321,17 +322,12 @@ class FloatingPlayerService : Service() {
             
             playerView?.apply {
                 player = this@FloatingPlayerService.player
-                // Enable controller - ExoPlayer will automatically update seekbar and times
-                useController = true
+                useController = false
                 controllerAutoShow = false
-                controllerShowTimeoutMs = 4000
             }
             
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
             titleText?.text = title
-            
-            // No need to setup seekbar manually - ExoPlayer handles it automatically!
-            
             val mediaItem = MediaItem.fromUri(streamUrl)
             player?.apply {
                 setMediaItem(mediaItem)
@@ -365,18 +361,13 @@ class FloatingPlayerService : Service() {
                 playerView = floatingView?.findViewById(R.id.player_view)
                 playerView?.apply {
                     player = this@FloatingPlayerService.player
-                    // Enable controller - ExoPlayer will automatically update seekbar and times
-                    useController = true
+                    useController = false
                     controllerAutoShow = false
-                    controllerShowTimeoutMs = 4000
                 }
                 
                 val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
                 titleText?.text = transferredName ?: title
-                
-                // No need to setup seekbar manually - ExoPlayer handles it automatically!
-                
-                // Player is already prepared and playing!
+            // Player is already prepared and playing!
                 // No need to load, prepare, or seek - it continues seamlessly!
                 
                 // Clear the holder now that service has taken ownership
@@ -397,10 +388,13 @@ class FloatingPlayerService : Service() {
         }
     }
 
+    
+    
+    
 
     private fun setupControls() {
         controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
-        // Note: bottom_controls_container is now in the custom controller layout
+        bottomControlsContainer = floatingView?.findViewById(R.id.bottom_controls_container)
         lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
         unlockButton = floatingView?.findViewById(R.id.unlock_button)
         
@@ -408,10 +402,6 @@ class FloatingPlayerService : Service() {
         val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
         val muteBtn = floatingView?.findViewById<ImageButton>(R.id.btn_mute)
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
-        // Use your custom button IDs from floating_player_controls.xml
-        val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
-        val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
-        val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
         
         // Setup lock overlay and unlock button
         unlockButton?.setOnClickListener {
@@ -489,26 +479,11 @@ class FloatingPlayerService : Service() {
             toggleLock()
         }
         
-        playPauseBtn?.setOnClickListener {
-            if (player?.isPlaying == true) {
-                player?.pause()
-                playPauseBtn.setImageResource(R.drawable.ic_play)
-            } else {
-                player?.play()
-                playPauseBtn.setImageResource(R.drawable.ic_pause)
-            }
-            showControls()
-        }
         
-        seekBackBtn?.setOnClickListener {
-            player?.seekBack()
-            showControls()
-        }
         
-        seekForwardBtn?.setOnClickListener {
-            player?.seekForward()
-            showControls()
-        }
+        
+        
+        
         
         val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
         
@@ -555,13 +530,7 @@ class FloatingPlayerService : Service() {
             } ?: false
         }
         
-        player?.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playPauseBtn?.setImageResource(
-                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-                )
-            }
-        })
+        
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -569,10 +538,7 @@ class FloatingPlayerService : Service() {
         var isDragging = false
         var hasMoved = false
         
-        // Use floating_container instead of playerView to avoid interfering with controller touches
-        val container = floatingView?.findViewById<View>(R.id.floating_container)
-        
-        container?.setOnTouchListener { view, event ->
+        playerView?.setOnTouchListener { view, event ->
             // When locked, don't allow dragging or interaction
             if (controlsLocked) {
                 return@setOnTouchListener true
@@ -606,11 +572,11 @@ class FloatingPlayerService : Service() {
                     
                     MotionEvent.ACTION_UP -> {
                         if (!hasMoved) {
-                            // Tap to toggle controls
-                            if (controlsVisible) {
-                                hideControls()
+                            // Tap to toggle controller visibility
+                            if (playerView?.isControllerFullyVisible == true) {
+                                playerView?.hideController()
                             } else {
-                                showControls()
+                                playerView?.showController()
                             }
                         }
                         isDragging = false
@@ -627,8 +593,7 @@ class FloatingPlayerService : Service() {
     private fun showControls() {
         if (controlsLocked) return
         
-        controlsContainer?.visibility = View.VISIBLE
-        // Show ExoPlayer's controller (bottom controls with seekbar)
+        // Show the PlayerView controller (automatically shows all controls)
         playerView?.showController()
         controlsVisible = true
         
@@ -637,8 +602,7 @@ class FloatingPlayerService : Service() {
     }
     
     private fun hideControls() {
-        controlsContainer?.visibility = View.GONE
-        // Hide ExoPlayer's controller (bottom controls with seekbar)
+        // Hide the PlayerView controller
         playerView?.hideController()
         controlsVisible = false
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
@@ -649,8 +613,10 @@ class FloatingPlayerService : Service() {
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
         
         if (controlsLocked) {
-            // Lock: hide controls, show overlay and unlock button
-            hideControls()
+            // Lock: hide controller, disable interaction, show overlay
+            playerView?.hideController()
+            playerView?.useController = false  // Disable controller interaction
+            
             lockOverlay?.apply {
                 visibility = View.VISIBLE
                 isClickable = true
@@ -659,7 +625,8 @@ class FloatingPlayerService : Service() {
             showUnlockButton()
             lockBtn?.setImageResource(R.drawable.ic_lock_closed)
         } else {
-            // Unlock: show controls, hide overlay and unlock button
+            // Unlock: enable controller, hide overlay
+            playerView?.useController = true  // Re-enable controller interaction
             lockOverlay?.visibility = View.GONE
             hideUnlockButton()
             lockBtn?.setImageResource(R.drawable.ic_lock_open)
