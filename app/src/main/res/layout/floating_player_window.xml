@@ -61,9 +61,7 @@
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
             android:paddingTop="8dp"
-            android:paddingBottom="32dp"
-            android:clickable="false"
-            android:focusable="false">
+            android:paddingBottom="32dp">
 
             <ImageButton
                 android:id="@+id/btn_close"
@@ -87,9 +85,7 @@
                 android:textSize="12sp"
                 android:textStyle="bold"
                 android:singleLine="true"
-                android:ellipsize="end"
-                android:clickable="false"
-                android:focusable="false" />
+                android:ellipsize="end" />
 
             <ImageButton
                 android:id="@+id/btn_mute"
@@ -136,9 +132,7 @@
             android:paddingTop="24dp"
             android:paddingBottom="8dp"
             android:paddingStart="12dp"
-            android:paddingEnd="12dp"
-            android:clickable="false"
-            android:focusable="false">
+            android:paddingEnd="12dp">
 
             <!-- Seekbar with Times -->
             <LinearLayout
@@ -191,14 +185,13 @@
 
             </LinearLayout>
 
-            <!-- Playback Controls - Properly Centered Layout -->
+            <!-- Playback Buttons Container - Can be hidden while seekbar stays visible -->
             <LinearLayout
+                android:id="@+id/bottom_buttons_container"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:clickable="false"
-                android:focusable="false">
+                android:gravity="center_vertical">
 
                 <!-- Centered Play Controls Group -->
                 <Space
@@ -210,9 +203,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center"
-                    android:clickable="false"
-                    android:focusable="false">
+                    android:gravity="center">
 
                     <ImageButton
                         android:id="@+id/btn_seek_back"
