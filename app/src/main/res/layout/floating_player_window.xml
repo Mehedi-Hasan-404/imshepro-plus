@@ -143,11 +143,13 @@
                 <!-- Current Time -->
                 <TextView
                     android:id="@+id/exo_position"
+                    style="@android:style/TextAppearance.StatusBar.EventContent.Title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="00:00"
                     android:textColor="@android:color/white"
                     android:textSize="10sp"
+                    android:fontFamily="@font/bergen_sans"
                     android:includeFontPadding="false"
                     android:layout_marginEnd="6dp" />
 
@@ -169,24 +171,31 @@
                 <!-- Duration/Total Time -->
                 <TextView
                     android:id="@+id/exo_duration"
+                    style="@android:style/TextAppearance.StatusBar.EventContent.Title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="00:00"
                     android:textColor="@android:color/white"
                     android:textSize="10sp"
+                    android:fontFamily="@font/bergen_sans"
                     android:includeFontPadding="false"
                     android:layout_marginStart="6dp" />
 
             </LinearLayout>
 
-            <!-- Playback Controls - Centered Layout -->
+            <!-- Playback Controls - Properly Centered Layout -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:gravity="center">
+                android:gravity="center_vertical">
 
                 <!-- Centered Play Controls Group -->
+                <Space
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1" />
+
                 <LinearLayout
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
