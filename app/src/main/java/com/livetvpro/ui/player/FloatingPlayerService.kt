@@ -26,6 +26,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.DefaultTimeBar
+import androidx.media3.ui.TimeBar  // ====== FIXED: Add TimeBar import ======
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import kotlin.math.abs
@@ -260,9 +261,9 @@ class FloatingPlayerService : Service() {
             positionView = floatingView?.findViewById(R.id.exo_position)
             durationView = floatingView?.findViewById(R.id.exo_duration)
             
-            // Set up seekbar listener for user interaction
-            timeBar?.addListener(object : DefaultTimeBar.OnScrubListener {
-                override fun onScrubStart(timeBar: DefaultTimeBar, position: Long) {
+            // ====== FIXED: Use TimeBar.OnScrubListener instead of DefaultTimeBar.OnScrubListener ======
+            timeBar?.addListener(object : TimeBar.OnScrubListener {
+                override fun onScrubStart(timeBar: TimeBar, position: Long) {
                     // Check if it's a live stream that shouldn't be seekable
                     val currentPlayer = player
                     if (currentPlayer != null && currentPlayer.isCurrentWindowLive && !currentPlayer.isCurrentWindowSeekable) {
@@ -272,12 +273,12 @@ class FloatingPlayerService : Service() {
                     updateProgressHandler.removeCallbacks(updateProgressRunnable)
                 }
 
-                override fun onScrubMove(timeBar: DefaultTimeBar, position: Long) {
+                override fun onScrubMove(timeBar: TimeBar, position: Long) {
                     // Update position display during scrub
                     positionView?.text = formatTime(position)
                 }
 
-                override fun onScrubStop(timeBar: DefaultTimeBar, position: Long, canceled: Boolean) {
+                override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
                     if (!canceled) {
                         player?.seekTo(position)
                     }
