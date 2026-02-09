@@ -631,11 +631,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        if (!isInPipMode && player?.isPlaying == true) {
-            userRequestedPip = true
-            wasLockedBeforePip = isLocked
-            enterPipMode()
-        }
+        // FIXED: Disable auto PIP for FloatingPlayerActivity
+        // User should explicitly click PIP button to return to floating window
+        // Auto PIP is disabled here
+        android.util.Log.d("FloatingPlayerActivity", "onUserLeaveHint - Auto PIP disabled for this activity")
     }
 
     // ===== Rest of your existing methods (unchanged) =====
@@ -1044,6 +1043,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
             
             if (transferredPlayer != null) {
                 android.util.Log.d("FloatingPlayerActivity", "Using transferred player - NO LOADING!")
+                
+                // FIXED: Hide loading indicator since we're not loading!
+                binding.progressBar.visibility = View.GONE
+                binding.errorView.visibility = View.GONE
                 
                 // Use the existing player
                 player = transferredPlayer
