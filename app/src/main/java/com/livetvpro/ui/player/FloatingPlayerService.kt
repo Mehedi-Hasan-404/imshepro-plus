@@ -295,12 +295,9 @@ class FloatingPlayerService : Service() {
             setupControls()
             setupGestures()
             
-            // FIXED: Auto-hide controls on first start after a short delay
-            hideControlsHandler.postDelayed({
-                if (!controlsLocked && controlsVisible) {
-                    hideControls()
-                }
-            }, HIDE_CONTROLS_DELAY)
+            // Show controls initially when floating player starts
+            playerView?.showController()
+            controlsVisible = true
             
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
@@ -537,8 +534,11 @@ class FloatingPlayerService : Service() {
     private fun setupGestures() {
         var isDragging = false
         var hasMoved = false
+        var lastTapTime = 0L
         
-        playerView?.setOnTouchListener { view, event ->
+        // CRITICAL: Set touch listener on floating_container, NOT playerView
+        // This allows taps to toggle controls while still allowing dragging
+        floatingView?.findViewById<android.widget.FrameLayout>(R.id.floating_container)?.setOnTouchListener { view, event ->
             // When locked, don't allow dragging or interaction
             if (controlsLocked) {
                 return@setOnTouchListener true
@@ -572,11 +572,17 @@ class FloatingPlayerService : Service() {
                     
                     MotionEvent.ACTION_UP -> {
                         if (!hasMoved) {
-                            // Tap to toggle controller visibility
-                            if (playerView?.isControllerFullyVisible == true) {
-                                playerView?.hideController()
-                            } else {
-                                playerView?.showController()
+                            // Single tap to toggle controller visibility
+                            val currentTime = System.currentTimeMillis()
+                            
+                            // Prevent double-tap issues
+                            if (currentTime - lastTapTime > 200) {
+                                if (playerView?.isControllerFullyVisible == true) {
+                                    playerView?.hideController()
+                                } else {
+                                    playerView?.showController()
+                                }
+                                lastTapTime = currentTime
                             }
                         }
                         isDragging = false
@@ -588,6 +594,14 @@ class FloatingPlayerService : Service() {
                 }
             } ?: false
         }
+        
+        // Also set touch listener on playerView to allow controls to work
+        // But don't handle dragging there
+        playerView?.setOnTouchListener { view, event ->
+            // Let the controller handle touches when controls are visible
+            // This allows buttons and seekbar to work properly
+            false // Return false to let PlayerView handle the touch
+        }
     }
     
     private fun showControls() {
@@ -596,16 +610,12 @@ class FloatingPlayerService : Service() {
         // Show the PlayerView controller (automatically shows all controls)
         playerView?.showController()
         controlsVisible = true
-        
-        hideControlsHandler.removeCallbacks(hideControlsRunnable)
-        hideControlsHandler.postDelayed(hideControlsRunnable, HIDE_CONTROLS_DELAY)
     }
     
     private fun hideControls() {
         // Hide the PlayerView controller
         playerView?.hideController()
         controlsVisible = false
-        hideControlsHandler.removeCallbacks(hideControlsRunnable)
     }
     
     private fun toggleLock() {
