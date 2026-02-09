@@ -316,7 +316,7 @@ class FloatingPlayerService : Service() {
                 controllerShowTimeoutMs = 3000 // Match with HIDE_CONTROLS_DELAY
                 
                 // Sync ExoPlayer controller visibility with top controls
-                setControllerVisibilityListener { visibility ->
+                setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
                     when (visibility) {
                         View.VISIBLE -> {
                             // ExoPlayer controller is showing, show top controls too
@@ -331,7 +331,7 @@ class FloatingPlayerService : Service() {
                             }
                         }
                     }
-                }
+                })
             }
             
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
@@ -378,7 +378,7 @@ class FloatingPlayerService : Service() {
                     controllerShowTimeoutMs = 3000 // Match with HIDE_CONTROLS_DELAY
                     
                     // Sync ExoPlayer controller visibility with top controls
-                    setControllerVisibilityListener { visibility ->
+                    setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
                         when (visibility) {
                             View.VISIBLE -> {
                                 // ExoPlayer controller is showing, show top controls too
@@ -393,7 +393,7 @@ class FloatingPlayerService : Service() {
                                 }
                             }
                         }
-                    }
+                    })
                 }
                 
                 val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
