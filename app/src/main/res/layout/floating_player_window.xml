@@ -39,7 +39,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:src="@drawable/ic_lock_open"
-                android:background="@drawable/ripple_circle_dark"
+                android:background="@drawable/ripple_square_white"
                 android:tint="@android:color/white"
                 android:layout_gravity="top|start"
                 android:layout_margin="12dp"
