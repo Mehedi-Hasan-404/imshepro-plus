@@ -217,8 +217,8 @@ class FloatingPlayerService : Service() {
             }
             val windowHeight = windowWidth * 9 / 16
             
-            // Window layout parameters
-            val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Setup window parameters
+            val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 @Suppress("DEPRECATION")
@@ -228,7 +228,7 @@ class FloatingPlayerService : Service() {
             params = WindowManager.LayoutParams(
                 windowWidth,
                 windowHeight,
-                layoutFlag,
+                layoutType,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
             ).apply {
@@ -237,10 +237,9 @@ class FloatingPlayerService : Service() {
                 y = screenHeight / 4
             }
             
-            // Add the floating view to window
             windowManager?.addView(floatingView, params)
             
-            // Initialize UI components
+            // Get UI references
             playerView = floatingView?.findViewById(R.id.player_view)
             controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
             lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
@@ -251,7 +250,8 @@ class FloatingPlayerService : Service() {
             // Initialize player
             if (useTransferredPlayer) {
                 android.util.Log.d("FloatingPlayerService", "Using transferred player from PlayerHolder")
-                player = PlayerHolder.transferPlayer()
+                val (transferredPlayer, transferredUrl, transferredName) = PlayerHolder.retrievePlayer()
+                player = transferredPlayer
                 playerView?.player = player
             } else {
                 player = ExoPlayer.Builder(this).build().apply {
@@ -267,10 +267,9 @@ class FloatingPlayerService : Service() {
             // IMPORTANT: Setup PlayerView with ExoPlayer's controller
             setupPlayerView()
             
-            // Setup top controls (close, mute, fullscreen, lock)
+            // Setup controls and gestures
             setupTopControls()
-            
-            // Setup gestures for dragging
+            setupResizeHandles()
             setupGestures()
             
         } catch (e: Exception) {
@@ -279,89 +278,44 @@ class FloatingPlayerService : Service() {
             stopSelf()
         }
     }
-
-    /**
-     * Setup PlayerView with ExoPlayer's built-in controller
-     * This replaces the old manual setupControls() method
-     */
+    
     private fun setupPlayerView() {
-        // 1. Assign the player to the view (if not already done)
-        if (playerView?.player == null) {
-            playerView?.player = player
-        }
-        
-        // 2. IMPORTANT: Find the Resize button INSIDE the PlayerView
-        // Because the button is now inside '@layout/floating_player_controls', 
-        // it is a child of playerView, not floatingView
-        val btnResize = playerView?.findViewById<ImageButton>(R.id.btn_resize)
-        
-        btnResize?.setOnClickListener {
-            // Setup resize gesture handling
-            setupResizeGesture()
-        }
-
-        // 3. Handle Controller Visibility (for bottom controls managed by ExoPlayer)
-        playerView?.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
-            override fun onVisibilityChanged(visibility: Int) {
-                // ExoPlayer manages the bottom controls visibility
-                // We just need to sync our state and handle top controls
+        playerView?.apply {
+            player = this@FloatingPlayerService.player
+            
+            // Let ExoPlayer manage its own bottom controls
+            useController = true
+            controllerShowTimeoutMs = 3000
+            controllerHideOnTouch = true
+            
+            // Sync visibility with top controls
+            setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
                 if (visibility == View.VISIBLE) {
-                    // Bottom controls appeared - show top controls too
                     showTopControls()
                 } else {
-                    // Bottom controls hid - hide top controls too
                     hideTopControls()
                 }
-            }
-        })
-        
-        // 4. Listen to player state changes
-        player?.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                // ExoPlayer automatically updates the play/pause button icon
-                // No manual handling needed!
-            }
-            
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                android.util.Log.d("FloatingPlayerService", "Playback state changed: $playbackState")
-            }
-        })
+            })
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
-    private fun setupResizeGesture() {
-        // Variables for resize tracking
-        var resizeInitialWidth = 0
-        var resizeInitialHeight = 0
-        var resizeInitialTouchX = 0f
-        var resizeInitialTouchY = 0f
-        
-        val btnResize = playerView?.findViewById<ImageButton>(R.id.btn_resize)
-        
-        btnResize?.setOnTouchListener { _, event ->
+    private fun setupResizeHandles() {
+        floatingView?.findViewById<View>(R.id.floating_container)?.setOnTouchListener { view, event ->
+            if (controlsLocked) {
+                return@setOnTouchListener false
+            }
+            
             params?.let { p ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
-                        resizeInitialWidth = p.width
-                        resizeInitialHeight = p.height
-                        resizeInitialTouchX = event.rawX
-                        resizeInitialTouchY = event.rawY
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
                         true
                     }
                     
                     MotionEvent.ACTION_MOVE -> {
-                        val dx = event.rawX - resizeInitialTouchX
-                        val dy = event.rawY - resizeInitialTouchY
-                        val delta = ((dx + dy) / 2).toInt()
-                        var newWidth = resizeInitialWidth + delta
-                        newWidth = newWidth.coerceIn(getMinWidth(), getMaxWidth())
-                        val newHeight = newWidth * 9 / 16
-                        
-                        if (newWidth != p.width || newHeight != p.height) {
-                            p.width = newWidth
-                            p.height = newHeight
-                            windowManager?.updateViewLayout(floatingView, p)
-                        }
+                        // Handle pinch to resize in the future
                         true
                     }
                     
@@ -384,7 +338,7 @@ class FloatingPlayerService : Service() {
         floatingView?.findViewById<ImageButton>(R.id.btn_mute)?.setOnClickListener {
             isMuted = !isMuted
             player?.volume = if (isMuted) 0f else 1f
-            it.setImageResource(
+            (it as? ImageButton)?.setImageResource(
                 if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
             )
         }
