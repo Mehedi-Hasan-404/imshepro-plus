@@ -19,13 +19,11 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
-import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import androidx.media3.ui.DefaultTimeBar
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import kotlin.math.abs
@@ -49,7 +47,7 @@ class FloatingPlayerService : Service() {
     private var isMuted = false
     private var controlsVisible = true
     
-    // Auto-hide controls
+    // Auto-hide controls (for top bar only - ExoPlayer handles bottom controls)
     private val hideControlsHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val hideControlsRunnable = Runnable {
         if (!controlsLocked && controlsVisible) {
@@ -60,23 +58,9 @@ class FloatingPlayerService : Service() {
     
     // UI components
     private var controlsContainer: View? = null
-    private var bottomControlsContainer: View? = null
     private var lockOverlay: View? = null
     private var unlockButton: ImageButton? = null
     private var params: WindowManager.LayoutParams? = null
-    
-    // ====== ADDED: Seek bar and time display components ======
-    private var timeBar: DefaultTimeBar? = null
-    private var positionView: TextView? = null
-    private var durationView: TextView? = null
-    private val updateProgressHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val updateProgressRunnable = object : Runnable {
-        override fun run() {
-            updateProgress()
-            updateProgressHandler.postDelayed(this, 500) // Update every 500ms
-        }
-    }
-    // ========================================================
     
     // Handler for auto-hiding unlock button
     private val hideUnlockButtonRunnable = Runnable {
@@ -86,7 +70,6 @@ class FloatingPlayerService : Service() {
     // Store the channel data and playback position
     private var currentChannel: Channel? = null
     private var currentPlaybackPosition: Long = 0L
-    
     
     // FIXED: Add PreferencesManager to save/restore window position
     @javax.inject.Inject
@@ -181,7 +164,6 @@ class FloatingPlayerService : Service() {
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: currentChannel?.name ?: "Live Stream"
         currentPlaybackPosition = intent?.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L) ?: 0L
         
-        
         val useTransferredPlayer = intent?.getBooleanExtra("use_transferred_player", false) ?: false
         
         android.util.Log.d("FloatingPlayerService", "Starting - useTransferredPlayer: $useTransferredPlayer")
@@ -214,36 +196,29 @@ class FloatingPlayerService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 val windowMetrics = windowManager?.currentWindowMetrics
                 val bounds = windowMetrics?.bounds
-                val width = bounds?.width() ?: 1080
-                val height = bounds?.height() ?: 1920
-                
-                if (width < height) {
-                    screenWidth = width
-                    screenHeight = height
-                } else {
-                    screenWidth = height
-                    screenHeight = width
-                }
+                screenWidth = bounds?.width() ?: 1080
+                screenHeight = bounds?.height() ?: 1920
             } else {
                 @Suppress("DEPRECATION")
                 val display = windowManager?.defaultDisplay
                 val size = Point()
                 @Suppress("DEPRECATION")
                 display?.getSize(size)
-                
-                if (size.x < size.y) {
-                    screenWidth = size.x
-                    screenHeight = size.y
-                } else {
-                    screenWidth = size.y
-                    screenHeight = size.x
-                }
+                screenWidth = size.x
+                screenHeight = size.y
             }
             
-            val defaultWidth = dpToPx(280)
-            val defaultHeight = defaultWidth * 9 / 16
+            // Calculate window size (wider in landscape)
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val windowWidth = if (isLandscape) {
+                (screenWidth * 0.45).toInt().coerceIn(getMinWidth(), getMaxWidth())
+            } else {
+                (screenWidth * 0.6).toInt().coerceIn(getMinWidth(), getMaxWidth())
+            }
+            val windowHeight = windowWidth * 9 / 16
             
-            val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Window layout parameters
+            val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 @Suppress("DEPRECATION")
@@ -251,79 +226,52 @@ class FloatingPlayerService : Service() {
             }
             
             params = WindowManager.LayoutParams(
-                defaultWidth,
-                defaultHeight,
-                layoutType,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                windowWidth,
+                windowHeight,
+                layoutFlag,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                x = (screenWidth - defaultWidth) / 2
-                y = screenHeight / 3
+                x = (screenWidth - windowWidth) / 2
+                y = screenHeight / 4
             }
             
+            // Add the floating view to window
             windowManager?.addView(floatingView, params)
             
             // Initialize UI components
             playerView = floatingView?.findViewById(R.id.player_view)
             controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
-            bottomControlsContainer = floatingView?.findViewById(R.id.bottom_controls_container)
             lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
-            unlockButton = floatingView?.findViewById(R.id.unlock_button)
             
-            // ====== ADDED: Initialize seek bar and time views ======
-            timeBar = floatingView?.findViewById(R.id.exo_progress)
-            positionView = floatingView?.findViewById(R.id.exo_position)
-            durationView = floatingView?.findViewById(R.id.exo_duration)
-            // ========================================================
+            // Setup title
+            floatingView?.findViewById<android.widget.TextView>(R.id.tv_title)?.text = title
             
-            val titleView = floatingView?.findViewById<TextView>(R.id.tv_title)
-            titleView?.text = title
-            
-            // Check if we should use transferred player or create new one
+            // Initialize player
             if (useTransferredPlayer) {
-                android.util.Log.d("FloatingPlayerService", "Attempting to use transferred player")
-                val (transferredPlayer, _, _) = PlayerHolder.retrievePlayer()
-                player = transferredPlayer
-                
-                if (player == null) {
-                    android.util.Log.w("FloatingPlayerService", "No transferred player available, creating new one")
-                    player = ExoPlayer.Builder(this).build()
-                    val mediaItem = MediaItem.fromUri(streamUrl)
-                    player?.setMediaItem(mediaItem)
-                    player?.prepare()
-                    player?.playWhenReady = true
-                } else {
-                    android.util.Log.d("FloatingPlayerService", "Successfully got transferred player")
-                    // Clear references now that we have the player
-                    PlayerHolder.clearReferences()
-                }
+                android.util.Log.d("FloatingPlayerService", "Using transferred player from PlayerHolder")
+                player = PlayerHolder.transferPlayer()
+                playerView?.player = player
             } else {
-                android.util.Log.d("FloatingPlayerService", "Creating new player for URL: $streamUrl")
-                player = ExoPlayer.Builder(this).build()
-                val mediaItem = MediaItem.fromUri(streamUrl)
-                player?.setMediaItem(mediaItem)
-                player?.prepare()
-                if (currentPlaybackPosition > 0) {
-                    player?.seekTo(currentPlaybackPosition)
+                player = ExoPlayer.Builder(this).build().apply {
+                    setMediaItem(MediaItem.fromUri(streamUrl))
+                    prepare()
+                    playWhenReady = true
+                    if (currentPlaybackPosition > 0) {
+                        seekTo(currentPlaybackPosition)
+                    }
                 }
-                player?.playWhenReady = true
             }
             
-            playerView?.player = player
+            // IMPORTANT: Setup PlayerView with ExoPlayer's controller
+            setupPlayerView()
             
-            // ====== ADDED: Setup seek bar interaction ======
-            setupTimeBar()
-            // ================================================
+            // Setup top controls (close, mute, fullscreen, lock)
+            setupTopControls()
             
-            setupClickListeners()
+            // Setup gestures for dragging
             setupGestures()
-            
-            showControls()
-            
-            // ====== ADDED: Start progress updates ======
-            updateProgressHandler.post(updateProgressRunnable)
-            // ===========================================
             
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
@@ -332,181 +280,65 @@ class FloatingPlayerService : Service() {
         }
     }
 
-    // ====== ADDED: New method to setup time bar ======
-    private fun setupTimeBar() {
-        timeBar?.addListener(object : androidx.media3.ui.TimeBar.OnScrubListener {
-            override fun onScrubStart(timeBar: androidx.media3.ui.TimeBar, position: Long) {
-                // Stop auto-updates while scrubbing
-                updateProgressHandler.removeCallbacks(updateProgressRunnable)
-            }
+    /**
+     * Setup PlayerView with ExoPlayer's built-in controller
+     * This replaces the old manual setupControls() method
+     */
+    private fun setupPlayerView() {
+        // 1. Assign the player to the view (if not already done)
+        if (playerView?.player == null) {
+            playerView?.player = player
+        }
+        
+        // 2. IMPORTANT: Find the Resize button INSIDE the PlayerView
+        // Because the button is now inside '@layout/floating_player_controls', 
+        // it is a child of playerView, not floatingView
+        val btnResize = playerView?.findViewById<ImageButton>(R.id.btn_resize)
+        
+        btnResize?.setOnClickListener {
+            // Setup resize gesture handling
+            setupResizeGesture()
+        }
 
-            override fun onScrubMove(timeBar: androidx.media3.ui.TimeBar, position: Long) {
-                // Update position text while scrubbing
-                positionView?.text = formatTime(position)
-            }
-
-            override fun onScrubStop(timeBar: androidx.media3.ui.TimeBar, position: Long, canceled: Boolean) {
-                if (!canceled) {
-                    // Seek to the selected position
-                    player?.seekTo(position)
+        // 3. Handle Controller Visibility (for bottom controls managed by ExoPlayer)
+        playerView?.setControllerVisibilityListener(object : PlayerView.ControllerVisibilityListener {
+            override fun onVisibilityChanged(visibility: Int) {
+                // ExoPlayer manages the bottom controls visibility
+                // We just need to sync our state and handle top controls
+                if (visibility == View.VISIBLE) {
+                    // Bottom controls appeared - show top controls too
+                    showTopControls()
+                } else {
+                    // Bottom controls hid - hide top controls too
+                    hideTopControls()
                 }
-                // Resume auto-updates
-                updateProgressHandler.post(updateProgressRunnable)
+            }
+        })
+        
+        // 4. Listen to player state changes
+        player?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                // ExoPlayer automatically updates the play/pause button icon
+                // No manual handling needed!
+            }
+            
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                android.util.Log.d("FloatingPlayerService", "Playback state changed: $playbackState")
             }
         })
     }
 
-    // ====== ADDED: New method to update progress ======
-    private fun updateProgress() {
-        player?.let { p ->
-            val currentPosition = p.currentPosition
-            val duration = p.duration
-            
-            // Update seek bar
-            timeBar?.setDuration(if (duration > 0) duration else 0)
-            timeBar?.setPosition(currentPosition)
-            
-            // Update time displays
-            positionView?.text = formatTime(currentPosition)
-            durationView?.text = if (duration > 0) formatTime(duration) else "LIVE"
-        }
-    }
-
-    // ====== ADDED: New method to format time ======
-    private fun formatTime(millis: Long): String {
-        if (millis < 0) return "00:00"
-        
-        val totalSeconds = millis / 1000
-        val seconds = totalSeconds % 60
-        val minutes = (totalSeconds / 60) % 60
-        val hours = totalSeconds / 3600
-        
-        return if (hours > 0) {
-            String.format("%d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            String.format("%02d:%02d", minutes, seconds)
-        }
-    }
-    // ==================================================
-
-    private fun setupClickListeners() {
-        val closeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_close)
-        val muteBtn = floatingView?.findViewById<ImageButton>(R.id.btn_mute)
-        val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
-        val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
-        val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
-        val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
-        val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
-        val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
-        
-        // Setup lock overlay and unlock button
-        unlockButton?.setOnClickListener {
-            toggleLock()
-        }
-        
-        lockOverlay?.setOnClickListener {
-            if (unlockButton?.visibility == View.VISIBLE) {
-                hideUnlockButton()
-            } else {
-                showUnlockButton()
-            }
-        }
-        
-        closeBtn?.setOnClickListener {
-            // FIXED: Clear saved position when user closes, so it centers next time
-            preferencesManager.setFloatingPlayerX(50)  // Reset to default
-            preferencesManager.setFloatingPlayerY(100) // Reset to default
-            android.util.Log.d("FloatingPlayerService", "Position cleared - will center on next open")
-            stopSelf()
-        }
-        
-        // ====== FIXED: Proper fullscreen button implementation ======
-        fullscreenBtn?.setOnClickListener {
-            if (currentChannel != null) {
-                val currentPlayer = player
-                val channel = currentChannel  // Local copy to avoid smart cast issues
-                
-                if (currentPlayer != null && channel != null) {
-                    // Transfer player to activity - no recreation!
-                    val streamUrl = channel.links?.firstOrNull()?.url ?: ""
-                    PlayerHolder.transferPlayer(currentPlayer, streamUrl, channel.name)
-                    
-                    android.util.Log.d("FloatingPlayerService", "Player transferred to activity")
-                    
-                    val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                        putExtra("extra_channel", channel)
-                        putExtra("use_transferred_player", true)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(intent)
-                    
-                    // Save position before closing
-                    params?.let { p ->
-                        preferencesManager.setFloatingPlayerX(p.x)
-                        preferencesManager.setFloatingPlayerY(p.y)
-                        android.util.Log.d("FloatingPlayerService", "Position saved before fullscreen: x=${p.x}, y=${p.y}")
-                    }
-                    
-                    // Don't release player - it's been transferred!
-                    player = null
-                    
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                        stopSelf()
-                    }, 200)
-                }
-            } else {
-                android.widget.Toast.makeText(
-                    this,
-                    "Unable to open fullscreen mode",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-            }
-        }
-        // ===========================================================
-        
-        muteBtn?.setOnClickListener {
-            isMuted = !isMuted
-            player?.volume = if (isMuted) 0f else 1f
-            muteBtn.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
-            showControls()
-        }
-        
-        lockBtn?.setOnClickListener {
-            toggleLock()
-        }
-        
-        playPauseBtn?.setOnClickListener {
-            if (player?.isPlaying == true) {
-                player?.pause()
-                playPauseBtn.setImageResource(R.drawable.ic_play)
-            } else {
-                player?.play()
-                playPauseBtn.setImageResource(R.drawable.ic_pause)
-            }
-            showControls()
-        }
-        
-        seekBackBtn?.setOnClickListener {
-            player?.seekBack()
-            showControls()
-            resetAutoHideTimer() // ====== ADDED ======
-        }
-        
-        seekForwardBtn?.setOnClickListener {
-            player?.seekForward()
-            showControls()
-            resetAutoHideTimer() // ====== ADDED ======
-        }
-        
-        // Resize button with drag functionality
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupResizeGesture() {
+        // Variables for resize tracking
         var resizeInitialWidth = 0
         var resizeInitialHeight = 0
         var resizeInitialTouchX = 0f
         var resizeInitialTouchY = 0f
         
-        resizeBtn?.setOnTouchListener { view, event ->
-            if (controlsLocked) return@setOnTouchListener false
-            
+        val btnResize = playerView?.findViewById<ImageButton>(R.id.btn_resize)
+        
+        btnResize?.setOnTouchListener { _, event ->
             params?.let { p ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
@@ -541,17 +373,7 @@ class FloatingPlayerService : Service() {
                 }
             } ?: false
         }
-        
-        player?.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playPauseBtn?.setImageResource(
-                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-                )
-            }
-        })
     }
-
-    @SuppressLint("ClickableViewAccessibility")
 
     private fun setupTopControls() {
         // Setup top bar controls (close, mute, fullscreen, lock)
@@ -590,6 +412,7 @@ class FloatingPlayerService : Service() {
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
         var isDragging = false
         var hasMoved = false
@@ -627,11 +450,9 @@ class FloatingPlayerService : Service() {
                     
                     MotionEvent.ACTION_UP -> {
                         if (!hasMoved) {
-                            if (controlsVisible) {
-                                hideControls()
-                            } else {
-                                showControls()
-                            }
+                            // Tap detected - let ExoPlayer handle showing/hiding its controls
+                            // We just need to sync the top controls
+                            playerView?.showController()
                         }
                         isDragging = false
                         hasMoved = false
@@ -644,31 +465,32 @@ class FloatingPlayerService : Service() {
         }
     }
     
-    // ====== ADDED: Helper method to reset auto-hide timer ======
-    private fun resetAutoHideTimer() {
-        if (controlsVisible && !controlsLocked) {
-            hideControlsHandler.removeCallbacks(hideControlsRunnable)
-            hideControlsHandler.postDelayed(hideControlsRunnable, HIDE_CONTROLS_DELAY)
-        }
-    }
-    // ===========================================================
-    
-    private fun showControls() {
+    private fun showTopControls() {
         if (controlsLocked) return
         
         controlsContainer?.visibility = View.VISIBLE
-        bottomControlsContainer?.visibility = View.VISIBLE
         controlsVisible = true
         
+        // Reset auto-hide timer
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
         hideControlsHandler.postDelayed(hideControlsRunnable, HIDE_CONTROLS_DELAY)
     }
     
-    private fun hideControls() {
+    private fun hideTopControls() {
         controlsContainer?.visibility = View.GONE
-        bottomControlsContainer?.visibility = View.GONE
         controlsVisible = false
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
+    }
+    
+    // Legacy methods kept for compatibility
+    private fun showControls() {
+        showTopControls()
+        playerView?.showController()
+    }
+    
+    private fun hideControls() {
+        hideTopControls()
+        playerView?.hideController()
     }
     
     private fun toggleLock() {
@@ -745,10 +567,6 @@ class FloatingPlayerService : Service() {
         super.onDestroy()
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
         hideControlsHandler.removeCallbacks(hideUnlockButtonRunnable)
-        
-        // ====== ADDED: Stop progress updates ======
-        updateProgressHandler.removeCallbacks(updateProgressRunnable)
-        // ==========================================
         
         player?.release()
         player = null
