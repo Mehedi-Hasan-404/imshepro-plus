@@ -49,26 +49,19 @@ class FloatingPlayerService : Service() {
     private var isMuted = false
     private var controlsVisible = true
     
-    // Auto-hide controls
+    // Handler for auto-hiding unlock button (ExoPlayer handles controls auto-hide)
     private val hideControlsHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private val hideControlsRunnable = Runnable {
-        if (!controlsLocked && controlsVisible) {
-            hideControls()
-        }
-    }
-    private val HIDE_CONTROLS_DELAY = 3000L
-    
-    // UI components
-    private var controlsContainer: View? = null
-    private var bottomControlsContainer: View? = null
-    private var lockOverlay: View? = null
-    private var unlockButton: ImageButton? = null
-    private var params: WindowManager.LayoutParams? = null
     
     // Handler for auto-hiding unlock button
     private val hideUnlockButtonRunnable = Runnable {
         unlockButton?.visibility = View.GONE
     }
+    
+    // UI components
+    private var controlsContainer: View? = null
+    private var lockOverlay: View? = null
+    private var unlockButton: ImageButton? = null
+    private var params: WindowManager.LayoutParams? = null
     
     // Store the channel data and playback position
     private var currentChannel: Channel? = null
@@ -295,9 +288,7 @@ class FloatingPlayerService : Service() {
             setupControls()
             setupGestures()
             
-            // Show controls initially when floating player starts
-            playerView?.showController()
-            controlsVisible = true
+            // ExoPlayer's controller will auto-hide after timeout - no manual delay needed
             
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
@@ -319,12 +310,35 @@ class FloatingPlayerService : Service() {
             
             playerView?.apply {
                 player = this@FloatingPlayerService.player
-                useController = false
+                // Enable controller - ExoPlayer will automatically update seekbar and times
+                useController = true
                 controllerAutoShow = false
+                controllerShowTimeoutMs = 3000 // Match with HIDE_CONTROLS_DELAY
+                
+                // Sync ExoPlayer controller visibility with top controls
+                setControllerVisibilityListener { visibility ->
+                    when (visibility) {
+                        View.VISIBLE -> {
+                            // ExoPlayer controller is showing, show top controls too
+                            controlsContainer?.visibility = View.VISIBLE
+                            controlsVisible = true
+                        }
+                        View.GONE -> {
+                            // ExoPlayer controller is hiding, hide top controls too
+                            if (!controlsLocked) {
+                                controlsContainer?.visibility = View.GONE
+                                controlsVisible = false
+                            }
+                        }
+                    }
+                }
             }
             
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
             titleText?.text = title
+            
+            // No need to setup seekbar manually - ExoPlayer handles it automatically!
+            
             val mediaItem = MediaItem.fromUri(streamUrl)
             player?.apply {
                 setMediaItem(mediaItem)
@@ -358,13 +372,36 @@ class FloatingPlayerService : Service() {
                 playerView = floatingView?.findViewById(R.id.player_view)
                 playerView?.apply {
                     player = this@FloatingPlayerService.player
-                    useController = false
+                    // Enable controller - ExoPlayer will automatically update seekbar and times
+                    useController = true
                     controllerAutoShow = false
+                    controllerShowTimeoutMs = 3000 // Match with HIDE_CONTROLS_DELAY
+                    
+                    // Sync ExoPlayer controller visibility with top controls
+                    setControllerVisibilityListener { visibility ->
+                        when (visibility) {
+                            View.VISIBLE -> {
+                                // ExoPlayer controller is showing, show top controls too
+                                controlsContainer?.visibility = View.VISIBLE
+                                controlsVisible = true
+                            }
+                            View.GONE -> {
+                                // ExoPlayer controller is hiding, hide top controls too
+                                if (!controlsLocked) {
+                                    controlsContainer?.visibility = View.GONE
+                                    controlsVisible = false
+                                }
+                            }
+                        }
+                    }
                 }
                 
                 val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
                 titleText?.text = transferredName ?: title
-            // Player is already prepared and playing!
+                
+                // No need to setup seekbar manually - ExoPlayer handles it automatically!
+                
+                // Player is already prepared and playing!
                 // No need to load, prepare, or seek - it continues seamlessly!
                 
                 // Clear the holder now that service has taken ownership
@@ -385,13 +422,10 @@ class FloatingPlayerService : Service() {
         }
     }
 
-    
-    
-    
 
     private fun setupControls() {
         controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
-        bottomControlsContainer = floatingView?.findViewById(R.id.bottom_controls_container)
+        // Note: bottom_controls_container is now in the custom controller layout
         lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
         unlockButton = floatingView?.findViewById(R.id.unlock_button)
         
@@ -399,6 +433,10 @@ class FloatingPlayerService : Service() {
         val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
         val muteBtn = floatingView?.findViewById<ImageButton>(R.id.btn_mute)
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
+        // Use your custom button IDs from floating_player_controls.xml
+        val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
+        val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
+        val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
         
         // Setup lock overlay and unlock button
         unlockButton?.setOnClickListener {
@@ -476,11 +514,26 @@ class FloatingPlayerService : Service() {
             toggleLock()
         }
         
+        playPauseBtn?.setOnClickListener {
+            if (player?.isPlaying == true) {
+                player?.pause()
+                playPauseBtn.setImageResource(R.drawable.ic_play)
+            } else {
+                player?.play()
+                playPauseBtn.setImageResource(R.drawable.ic_pause)
+            }
+            showControls()
+        }
         
+        seekBackBtn?.setOnClickListener {
+            player?.seekBack()
+            showControls()
+        }
         
-        
-        
-        
+        seekForwardBtn?.setOnClickListener {
+            player?.seekForward()
+            showControls()
+        }
         
         val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
         
@@ -527,18 +580,24 @@ class FloatingPlayerService : Service() {
             } ?: false
         }
         
-        
+        player?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playPauseBtn?.setImageResource(
+                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                )
+            }
+        })
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
         var isDragging = false
         var hasMoved = false
-        var lastTapTime = 0L
         
-        // CRITICAL: Set touch listener on floating_container, NOT playerView
-        // This allows taps to toggle controls while still allowing dragging
-        floatingView?.findViewById<android.widget.FrameLayout>(R.id.floating_container)?.setOnTouchListener { view, event ->
+        // Use floating_container instead of playerView to avoid interfering with controller touches
+        val container = floatingView?.findViewById<View>(R.id.floating_container)
+        
+        container?.setOnTouchListener { view, event ->
             // When locked, don't allow dragging or interaction
             if (controlsLocked) {
                 return@setOnTouchListener true
@@ -572,17 +631,11 @@ class FloatingPlayerService : Service() {
                     
                     MotionEvent.ACTION_UP -> {
                         if (!hasMoved) {
-                            // Single tap to toggle controller visibility
-                            val currentTime = System.currentTimeMillis()
-                            
-                            // Prevent double-tap issues
-                            if (currentTime - lastTapTime > 200) {
-                                if (playerView?.isControllerFullyVisible == true) {
-                                    playerView?.hideController()
-                                } else {
-                                    playerView?.showController()
-                                }
-                                lastTapTime = currentTime
+                            // Tap to toggle controls
+                            if (controlsVisible) {
+                                hideControls()
+                            } else {
+                                showControls()
                             }
                         }
                         isDragging = false
@@ -594,28 +647,20 @@ class FloatingPlayerService : Service() {
                 }
             } ?: false
         }
-        
-        // Also set touch listener on playerView to allow controls to work
-        // But don't handle dragging there
-        playerView?.setOnTouchListener { view, event ->
-            // Let the controller handle touches when controls are visible
-            // This allows buttons and seekbar to work properly
-            false // Return false to let PlayerView handle the touch
-        }
     }
     
     private fun showControls() {
         if (controlsLocked) return
         
-        // Show the PlayerView controller (automatically shows all controls)
+        // Show ExoPlayer's controller - it will auto-hide after timeout
+        // The visibility listener will automatically show top controls
         playerView?.showController()
-        controlsVisible = true
     }
     
     private fun hideControls() {
-        // Hide the PlayerView controller
+        // Hide ExoPlayer's controller
+        // The visibility listener will automatically hide top controls
         playerView?.hideController()
-        controlsVisible = false
     }
     
     private fun toggleLock() {
@@ -623,10 +668,8 @@ class FloatingPlayerService : Service() {
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
         
         if (controlsLocked) {
-            // Lock: hide controller, disable interaction, show overlay
-            playerView?.hideController()
-            playerView?.useController = false  // Disable controller interaction
-            
+            // Lock: hide controls, show overlay and unlock button
+            hideControls()
             lockOverlay?.apply {
                 visibility = View.VISIBLE
                 isClickable = true
@@ -635,8 +678,7 @@ class FloatingPlayerService : Service() {
             showUnlockButton()
             lockBtn?.setImageResource(R.drawable.ic_lock_closed)
         } else {
-            // Unlock: enable controller, hide overlay
-            playerView?.useController = true  // Re-enable controller interaction
+            // Unlock: show controls, hide overlay and unlock button
             lockOverlay?.visibility = View.GONE
             hideUnlockButton()
             lockBtn?.setImageResource(R.drawable.ic_lock_open)
@@ -695,7 +737,6 @@ class FloatingPlayerService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        hideControlsHandler.removeCallbacks(hideControlsRunnable)
         hideControlsHandler.removeCallbacks(hideUnlockButtonRunnable)
         player?.release()
         player = null
