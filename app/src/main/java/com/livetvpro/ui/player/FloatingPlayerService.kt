@@ -310,7 +310,7 @@ class FloatingPlayerService : Service() {
             
             if (useTransferredPlayer) {
                 android.util.Log.d("FloatingPlayerService", "Using transferred player from PlayerHolder")
-                val transferredPlayer = PlayerHolder.getPlayer()
+                val transferredPlayer = PlayerHolder.player
                 if (transferredPlayer != null) {
                     player = transferredPlayer
                     playerView?.player = player
@@ -461,7 +461,9 @@ class FloatingPlayerService : Service() {
             if (!controlsLocked) {
                 // Save position before closing
                 params?.let {
-                    preferencesManager.saveFloatingPlayerPosition(it.x, it.y, it.width)
+                    preferencesManager.setFloatingPlayerX(it.x)
+                    preferencesManager.setFloatingPlayerY(it.y)
+                    preferencesManager.setFloatingPlayerWidth(it.width)
                 }
                 stopSelf()
             }
@@ -491,7 +493,7 @@ class FloatingPlayerService : Service() {
                     val currentPosition = player?.currentPosition ?: 0L
                     
                     val playerToTransfer = player
-                    PlayerHolder.setPlayer(playerToTransfer)
+                    PlayerHolder.player = playerToTransfer
                     player = null
                     playerView?.player = null
                     
