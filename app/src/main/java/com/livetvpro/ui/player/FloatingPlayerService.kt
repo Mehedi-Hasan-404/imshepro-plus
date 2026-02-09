@@ -60,7 +60,6 @@ class FloatingPlayerService : Service() {
     
     // UI components
     private var controlsContainer: View? = null
-    private var bottomControlsContainer: View? = null
     private var lockOverlay: View? = null
     private var unlockButton: ImageButton? = null
     private var params: WindowManager.LayoutParams? = null
@@ -322,15 +321,16 @@ class FloatingPlayerService : Service() {
             
             playerView?.apply {
                 player = this@FloatingPlayerService.player
-                useController = false
+                // Enable controller - ExoPlayer will automatically update seekbar and times
+                useController = true
                 controllerAutoShow = false
+                controllerShowTimeoutMs = 4000
             }
             
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
             titleText?.text = title
             
-            // Setup seekbar and time updates
-            setupSeekbarAndTimes()
+            // No need to setup seekbar manually - ExoPlayer handles it automatically!
             
             val mediaItem = MediaItem.fromUri(streamUrl)
             player?.apply {
@@ -365,15 +365,16 @@ class FloatingPlayerService : Service() {
                 playerView = floatingView?.findViewById(R.id.player_view)
                 playerView?.apply {
                     player = this@FloatingPlayerService.player
-                    useController = false
+                    // Enable controller - ExoPlayer will automatically update seekbar and times
+                    useController = true
                     controllerAutoShow = false
+                    controllerShowTimeoutMs = 4000
                 }
                 
                 val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
                 titleText?.text = transferredName ?: title
                 
-                // Setup seekbar and time updates
-                setupSeekbarAndTimes()
+                // No need to setup seekbar manually - ExoPlayer handles it automatically!
                 
                 // Player is already prepared and playing!
                 // No need to load, prepare, or seek - it continues seamlessly!
@@ -397,91 +398,21 @@ class FloatingPlayerService : Service() {
     }
 
 
-    private fun setupSeekbarAndTimes() {
-        val seekBar = floatingView?.findViewById<androidx.media3.ui.DefaultTimeBar>(R.id.exo_progress)
-        val positionView = floatingView?.findViewById<TextView>(R.id.exo_position)
-        val durationView = floatingView?.findViewById<TextView>(R.id.exo_duration)
-        
-        // Update time displays periodically
-        val updateTimeRunnable = object : Runnable {
-            override fun run() {
-                player?.let { p ->
-                    val position = p.currentPosition
-                    val duration = p.duration
-                    
-                    // Update position text
-                    positionView?.text = formatTime(position)
-                    
-                    // Update duration text
-                    if (duration > 0) {
-                        durationView?.text = formatTime(duration)
-                    } else {
-                        durationView?.text = "--:--"
-                    }
-                    
-                    // Update seekbar
-                    seekBar?.setPosition(position)
-                    if (duration > 0) {
-                        seekBar?.setDuration(duration)
-                    }
-                }
-                
-                // Schedule next update
-                hideControlsHandler.postDelayed(this, 500)
-            }
-        }
-        
-        // Start updates
-        hideControlsHandler.post(updateTimeRunnable)
-        
-        // Setup seekbar listener
-        seekBar?.addListener(object : androidx.media3.ui.TimeBar.OnScrubListener {
-            override fun onScrubStart(timeBar: androidx.media3.ui.TimeBar, position: Long) {
-                // User started scrubbing
-            }
-            
-            override fun onScrubMove(timeBar: androidx.media3.ui.TimeBar, position: Long) {
-                // Update position text while scrubbing
-                positionView?.text = formatTime(position)
-            }
-            
-            override fun onScrubStop(timeBar: androidx.media3.ui.TimeBar, position: Long, canceled: Boolean) {
-                if (!canceled) {
-                    player?.seekTo(position)
-                }
-            }
-        })
-    }
-    
-    private fun formatTime(timeMs: Long): String {
-        if (timeMs < 0) return "00:00"
-        
-        val totalSeconds = timeMs / 1000
-        val hours = totalSeconds / 3600
-        val minutes = (totalSeconds % 3600) / 60
-        val seconds = totalSeconds % 60
-        
-        return if (hours > 0) {
-            String.format("%d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            String.format("%02d:%02d", minutes, seconds)
-        }
-    }
-
-
     private fun setupControls() {
         controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
-        bottomControlsContainer = floatingView?.findViewById(R.id.bottom_controls_container)
+        // Note: bottom_controls_container doesn't exist in floating_player_window.xml
+        // The player controls are embedded in the PlayerView via floating_player_controls.xml
         lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
-        unlockButton = floatingView?.findViewById(R.id.unlock_button)
+        unlockButton = floatingView?.findViewById(R.id.btn_unlock)
         
         val closeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_close)
         val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
         val muteBtn = floatingView?.findViewById<ImageButton>(R.id.btn_mute)
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
-        val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
-        val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
-        val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
+        // Fixed: Use correct IDs from floating_player_controls.xml
+        val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.exo_play_pause)
+        val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.exo_rew)
+        val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.exo_ffwd)
         
         // Setup lock overlay and unlock button
         unlockButton?.setOnClickListener {
@@ -639,7 +570,10 @@ class FloatingPlayerService : Service() {
         var isDragging = false
         var hasMoved = false
         
-        playerView?.setOnTouchListener { view, event ->
+        // Use floating_container instead of playerView to avoid interfering with controller touches
+        val container = floatingView?.findViewById<View>(R.id.floating_container)
+        
+        container?.setOnTouchListener { view, event ->
             // When locked, don't allow dragging or interaction
             if (controlsLocked) {
                 return@setOnTouchListener true
@@ -695,7 +629,8 @@ class FloatingPlayerService : Service() {
         if (controlsLocked) return
         
         controlsContainer?.visibility = View.VISIBLE
-        bottomControlsContainer?.visibility = View.VISIBLE
+        // Show ExoPlayer's controller (bottom controls with seekbar)
+        playerView?.showController()
         controlsVisible = true
         
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
@@ -704,7 +639,8 @@ class FloatingPlayerService : Service() {
     
     private fun hideControls() {
         controlsContainer?.visibility = View.GONE
-        bottomControlsContainer?.visibility = View.GONE
+        // Hide ExoPlayer's controller (bottom controls with seekbar)
+        playerView?.hideController()
         controlsVisible = false
         hideControlsHandler.removeCallbacks(hideControlsRunnable)
     }
