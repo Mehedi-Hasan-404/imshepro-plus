@@ -155,15 +155,18 @@ class FloatingPlayerService : Service() {
             intent?.getParcelableExtra(EXTRA_CHANNEL)
         }
         
-        val streamUrl = intent?.getStringExtra(EXTRA_STREAM_URL) ?: ""
-        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Live Stream"
+        val streamUrl = intent?.getStringExtra(EXTRA_STREAM_URL) ?: currentChannel?.links?.firstOrNull()?.url ?: ""
+        val title = intent?.getStringExtra(EXTRA_TITLE) ?: currentChannel?.name ?: "Live Stream"
         currentPlaybackPosition = intent?.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L) ?: 0L
         
         
         val useTransferredPlayer = intent?.getBooleanExtra("use_transferred_player", false) ?: false
-        android.util.Log.d("FloatingPlayerService", "Starting with position: $currentPlaybackPosition")
         
-        if (streamUrl.isEmpty()) {
+        android.util.Log.d("FloatingPlayerService", "Starting - useTransferredPlayer: $useTransferredPlayer")
+        
+        // FIXED: Don't require streamUrl if using transferred player
+        if (streamUrl.isEmpty() && !useTransferredPlayer) {
+            android.util.Log.e("FloatingPlayerService", "No stream URL and not using transferred player - stopping")
             stopSelf()
             return START_NOT_STICKY
         }
