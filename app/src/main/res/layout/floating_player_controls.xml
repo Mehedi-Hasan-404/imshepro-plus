@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Custom controller layout for floating player -->
-<!-- ExoPlayer will automatically update exo_position, exo_duration, and exo_progress -->
+<!-- ExoPlayer automatically updates: exo_position, exo_duration, exo_progress -->
+<!-- Custom buttons use your IDs: btn_play_pause, btn_seek_back, btn_seek_forward -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/bottom_controls_container"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_gravity="bottom"
@@ -64,8 +66,9 @@
 
     </LinearLayout>
 
-    <!-- Playback Controls - Custom buttons -->
+    <!-- Playback Buttons Container - Your custom buttons -->
     <LinearLayout
+        android:id="@+id/bottom_buttons_container"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
