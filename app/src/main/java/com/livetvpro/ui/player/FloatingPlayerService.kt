@@ -20,13 +20,12 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.ImageButton
 import android.widget.TextView
-import android.widget.ImageView
 import androidx.core.app.NotificationCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import androidx.media3.ui.DefaultTimeBar  // Add this import
+import androidx.media3.ui.DefaultTimeBar
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import kotlin.math.abs
@@ -400,61 +399,103 @@ class FloatingPlayerService : Service() {
         val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
         val resizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_resize)
         
+        // Setup lock overlay and unlock button
+        unlockButton?.setOnClickListener {
+            toggleLock()
+        }
+        
+        lockOverlay?.setOnClickListener {
+            if (unlockButton?.visibility == View.VISIBLE) {
+                hideUnlockButton()
+            } else {
+                showUnlockButton()
+            }
+        }
+        
         closeBtn?.setOnClickListener {
+            // FIXED: Clear saved position when user closes, so it centers next time
+            preferencesManager.setFloatingPlayerX(50)  // Reset to default
+            preferencesManager.setFloatingPlayerY(100) // Reset to default
+            android.util.Log.d("FloatingPlayerService", "Position cleared - will center on next open")
             stopSelf()
         }
+        
+        // ====== FIXED: Proper fullscreen button implementation ======
+        fullscreenBtn?.setOnClickListener {
+            if (currentChannel != null) {
+                val currentPlayer = player
+                val channel = currentChannel  // Local copy to avoid smart cast issues
+                
+                if (currentPlayer != null && channel != null) {
+                    // Transfer player to activity - no recreation!
+                    val streamUrl = channel.links?.firstOrNull()?.url ?: ""
+                    PlayerHolder.transferPlayer(currentPlayer, streamUrl, channel.name)
+                    
+                    android.util.Log.d("FloatingPlayerService", "Player transferred to activity")
+                    
+                    val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
+                        putExtra("extra_channel", channel)
+                        putExtra("use_transferred_player", true)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(intent)
+                    
+                    // Save position before closing
+                    params?.let { p ->
+                        preferencesManager.setFloatingPlayerX(p.x)
+                        preferencesManager.setFloatingPlayerY(p.y)
+                        android.util.Log.d("FloatingPlayerService", "Position saved before fullscreen: x=${p.x}, y=${p.y}")
+                    }
+                    
+                    // Don't release player - it's been transferred!
+                    player = null
+                    
+                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                        stopSelf()
+                    }, 200)
+                }
+            } else {
+                android.widget.Toast.makeText(
+                    this,
+                    "Unable to open fullscreen mode",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+        // ===========================================================
         
         muteBtn?.setOnClickListener {
             isMuted = !isMuted
             player?.volume = if (isMuted) 0f else 1f
             muteBtn.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
-        }
-        
-        fullscreenBtn?.setOnClickListener {
-            // Return to fullscreen player
-            currentChannel?.let { channel ->
-                val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                    putExtra("channel", channel)
-                    putExtra("playback_position", player?.currentPosition ?: 0L)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                startActivity(intent)
-                stopSelf()
-            }
+            showControls()
         }
         
         lockBtn?.setOnClickListener {
             toggleLock()
         }
         
-        unlockButton?.setOnClickListener {
-            toggleLock()
-        }
-        
         playPauseBtn?.setOnClickListener {
-            player?.let {
-                if (it.isPlaying) {
-                    it.pause()
-                } else {
-                    it.play()
-                }
+            if (player?.isPlaying == true) {
+                player?.pause()
+                playPauseBtn.setImageResource(R.drawable.ic_play)
+            } else {
+                player?.play()
+                playPauseBtn.setImageResource(R.drawable.ic_pause)
             }
+            showControls()
         }
         
         seekBackBtn?.setOnClickListener {
-            player?.let {
-                val newPosition = (it.currentPosition - 10000).coerceAtLeast(0)
-                it.seekTo(newPosition)
-            }
-            resetAutoHideTimer()
+            player?.seekBack()
+            showControls()
+            resetAutoHideTimer() // ====== ADDED ======
         }
         
         seekForwardBtn?.setOnClickListener {
-            player?.let {
-                val newPosition = (it.currentPosition + 10000).coerceAtMost(it.duration)
-                it.seekTo(newPosition)
-            }
-            resetAutoHideTimer()
+            player?.seekForward()
+            showControls()
+            resetAutoHideTimer() // ====== ADDED ======
         }
         
         // Resize button with drag functionality
