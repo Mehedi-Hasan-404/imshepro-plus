@@ -204,11 +204,6 @@ class FloatingPlayerService : Service() {
 
     private fun createFloatingView(streamUrl: String, title: String, useTransferredPlayer: Boolean = false) {
         try {
-            android.util.Log.d("FloatingPlayerService", "=== Creating floating view ===")
-            android.util.Log.d("FloatingPlayerService", "Channel: ${currentChannel?.name}")
-            android.util.Log.d("FloatingPlayerService", "Stream URL: $streamUrl")
-            android.util.Log.d("FloatingPlayerService", "Title: $title")
-            
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
             
@@ -263,11 +258,8 @@ class FloatingPlayerService : Service() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                // FIXED: Always start from fixed position (top-right corner with margin)
-                val margin = dpToPx(16)
-                x = screenWidth - defaultWidth - margin
-                y = margin
-                android.util.Log.d("FloatingPlayerService", "Fixed initial position: x=$x, y=$y, size=${defaultWidth}x${defaultHeight}")
+                x = (screenWidth - defaultWidth) / 2
+                y = screenHeight / 3
             }
             
             windowManager?.addView(floatingView, params)
@@ -329,9 +321,9 @@ class FloatingPlayerService : Service() {
             
             showControls()
             
-            // ====== FIXED: Start progress updates with small delay ======
-            updateProgressHandler.postDelayed(updateProgressRunnable, 100)
-            // ===========================================================
+            // ====== ADDED: Start progress updates ======
+            updateProgressHandler.post(updateProgressRunnable)
+            // ===========================================
             
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
@@ -342,11 +334,8 @@ class FloatingPlayerService : Service() {
 
     // ====== ADDED: New method to setup time bar ======
     private fun setupTimeBar() {
-        android.util.Log.d("FloatingPlayerService", "Setting up time bar - timeBar: ${timeBar != null}, positionView: ${positionView != null}, durationView: ${durationView != null}")
-        
         timeBar?.addListener(object : androidx.media3.ui.TimeBar.OnScrubListener {
             override fun onScrubStart(timeBar: androidx.media3.ui.TimeBar, position: Long) {
-                android.util.Log.d("FloatingPlayerService", "Scrub started at: $position")
                 // Stop auto-updates while scrubbing
                 updateProgressHandler.removeCallbacks(updateProgressRunnable)
             }
@@ -357,35 +346,29 @@ class FloatingPlayerService : Service() {
             }
 
             override fun onScrubStop(timeBar: androidx.media3.ui.TimeBar, position: Long, canceled: Boolean) {
-                android.util.Log.d("FloatingPlayerService", "Scrub stopped at: $position, canceled: $canceled")
                 if (!canceled) {
                     // Seek to the selected position
                     player?.seekTo(position)
                 }
                 // Resume auto-updates
-                updateProgressHandler.postDelayed(updateProgressRunnable, 100)
+                updateProgressHandler.post(updateProgressRunnable)
             }
         })
     }
 
-    // ====== FIXED: Updated progress method with buffering ======
+    // ====== ADDED: New method to update progress ======
     private fun updateProgress() {
         player?.let { p ->
             val currentPosition = p.currentPosition
             val duration = p.duration
-            val bufferedPosition = p.bufferedPosition
             
-            // Update seek bar with buffered position
+            // Update seek bar
             timeBar?.setDuration(if (duration > 0) duration else 0)
             timeBar?.setPosition(currentPosition)
-            timeBar?.setBufferedPosition(bufferedPosition)
             
             // Update time displays
             positionView?.text = formatTime(currentPosition)
             durationView?.text = if (duration > 0) formatTime(duration) else "LIVE"
-            
-            // Debug logging (can remove after testing)
-            android.util.Log.d("FloatingPlayer", "Progress: ${formatTime(currentPosition)} / ${formatTime(duration)}")
         }
     }
 
@@ -430,46 +413,51 @@ class FloatingPlayerService : Service() {
         }
         
         closeBtn?.setOnClickListener {
-            android.util.Log.d("FloatingPlayerService", "Close button clicked")
+            // FIXED: Clear saved position when user closes, so it centers next time
+            preferencesManager.setFloatingPlayerX(50)  // Reset to default
+            preferencesManager.setFloatingPlayerY(100) // Reset to default
+            android.util.Log.d("FloatingPlayerService", "Position cleared - will center on next open")
             stopSelf()
         }
         
         // ====== FIXED: Proper fullscreen button implementation ======
         fullscreenBtn?.setOnClickListener {
-            val channel = currentChannel
-            if (channel != null) {
+            if (currentChannel != null) {
                 val currentPlayer = player
+                val channel = currentChannel  // Local copy to avoid smart cast issues
                 
-                if (currentPlayer != null) {
-                    // Transfer player to activity
+                if (currentPlayer != null && channel != null) {
+                    // Transfer player to activity - no recreation!
                     val streamUrl = channel.links?.firstOrNull()?.url ?: ""
                     PlayerHolder.transferPlayer(currentPlayer, streamUrl, channel.name)
                     
-                    android.util.Log.d("FloatingPlayerService", "Opening fullscreen with channel: ${channel.name}")
+                    android.util.Log.d("FloatingPlayerService", "Player transferred to activity")
                     
-                    // Use the companion object method to start activity
-                    FloatingPlayerActivity.startWithChannel(this, channel)
+                    val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
+                        putExtra("extra_channel", channel)
+                        putExtra("use_transferred_player", true)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(intent)
+                    
+                    // Save position before closing
+                    params?.let { p ->
+                        preferencesManager.setFloatingPlayerX(p.x)
+                        preferencesManager.setFloatingPlayerY(p.y)
+                        android.util.Log.d("FloatingPlayerService", "Position saved before fullscreen: x=${p.x}, y=${p.y}")
+                    }
                     
                     // Don't release player - it's been transferred!
                     player = null
                     
-                    // Close service after short delay
                     android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                         stopSelf()
                     }, 200)
-                } else {
-                    android.util.Log.e("FloatingPlayerService", "Player is null!")
-                    android.widget.Toast.makeText(
-                        this,
-                        "Player not ready",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
                 }
             } else {
-                android.util.Log.e("FloatingPlayerService", "Channel is null!")
                 android.widget.Toast.makeText(
                     this,
-                    "Channel data missing",
+                    "Unable to open fullscreen mode",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
             }
