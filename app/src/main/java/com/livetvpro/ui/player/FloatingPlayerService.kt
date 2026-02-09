@@ -93,8 +93,8 @@ class FloatingPlayerService : Service() {
     @javax.inject.Inject
     lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
     // Size limits
-    private fun getMinWidth() = dpToPx(280)  // Increased from 180dp to 280dp for better visibility
-    private fun getMaxWidth() = dpToPx(450)  // Also increased max slightly to 450dp
+    private fun getMinWidth() = dpToPx(250)  // Set to 250dp for optimal minimum visibility
+    private fun getMaxWidth() = dpToPx(450)  // Maximum width 450dp
     private fun getMinHeight() = getMinWidth() * 9 / 16
     private fun getMaxHeight() = getMaxWidth() * 9 / 16
     
@@ -181,14 +181,8 @@ class FloatingPlayerService : Service() {
         val title = intent?.getStringExtra(EXTRA_TITLE) ?: currentChannel?.name ?: "Live Stream"
         currentPlaybackPosition = intent?.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L) ?: 0L
         
-        
-        val useTransferredPlayer = intent?.getBooleanExtra("use_transferred_player", false) ?: false
-        
-        android.util.Log.d("FloatingPlayerService", "Starting - useTransferredPlayer: $useTransferredPlayer")
-        
-        // FIXED: Don't require streamUrl if using transferred player
-        if (streamUrl.isEmpty() && !useTransferredPlayer) {
-            android.util.Log.e("FloatingPlayerService", "No stream URL and not using transferred player - stopping")
+        if (streamUrl.isEmpty()) {
+            android.util.Log.e("FloatingPlayerService", "No stream URL - stopping")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -196,13 +190,13 @@ class FloatingPlayerService : Service() {
         startForeground(NOTIFICATION_ID, createNotification(title))
         
         if (floatingView == null) {
-            createFloatingView(streamUrl, title, useTransferredPlayer)
+            createFloatingView(streamUrl, title)
         }
         
         return START_STICKY
     }
 
-    private fun createFloatingView(streamUrl: String, title: String, useTransferredPlayer: Boolean = false) {
+    private fun createFloatingView(streamUrl: String, title: String) {
         try {
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
@@ -293,11 +287,34 @@ class FloatingPlayerService : Service() {
             val titleView = floatingView?.findViewById<TextView>(R.id.tv_title)
             titleView?.text = title
             
-            // FIXED: Initialize player BEFORE setting up controls
-            if (useTransferredPlayer && PlayerHolder.getInstance()?.player != null) {
-                player = PlayerHolder.getInstance()?.player
-                android.util.Log.d("FloatingPlayerService", "Using transferred player instance")
+            // Create and setup player
+            setupPlayer(streamUrl, title)
+            
+            setupControls()
+            setupGestures()
+            
+            // FIXED: Start updating time displays
+            hideControlsHandler.post(updateTimeRunnable)
+            
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
+            e.printStackTrace()
+            stopSelf()
+        }
+    }
+    
+    private fun setupPlayer(streamUrl: String, title: String) {
+        try {
+            // Check if there's a transferred player from PlayerHolder
+            val (transferredPlayer, transferredUrl, transferredName) = PlayerHolder.retrievePlayer()
+            
+            if (transferredPlayer != null) {
+                // Use the transferred player - no recreation needed!
+                player = transferredPlayer
+                PlayerHolder.clearReferences() // Clear holder since we now own the player
+                android.util.Log.d("FloatingPlayerService", "Using transferred player - seamless transition!")
             } else {
+                // No transferred player, create a new one
                 player = ExoPlayer.Builder(this).build()
                 android.util.Log.d("FloatingPlayerService", "Created new player for URL: $streamUrl")
                 
@@ -314,17 +331,8 @@ class FloatingPlayerService : Service() {
             }
             
             playerView?.player = player
-            
-            setupControls()
-            setupGestures()
-            
-            // FIXED: Start updating time displays
-            hideControlsHandler.post(updateTimeRunnable)
-            
         } catch (e: Exception) {
-            android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
-            e.printStackTrace()
-            stopSelf()
+            android.util.Log.e("FloatingPlayerService", "Error setting up player", e)
         }
     }
 
@@ -396,8 +404,20 @@ class FloatingPlayerService : Service() {
         fullscreenBtn?.setOnClickListener {
             try {
                 currentChannel?.let { channel ->
-                    currentPlaybackPosition = player?.currentPosition ?: 0L
+                    // Transfer the player to PlayerHolder for seamless transition
+                    player?.let { exoPlayer ->
+                        val url = channel.links?.firstOrNull()?.url ?: ""
+                        PlayerHolder.transferPlayer(exoPlayer, url, channel.name)
+                        android.util.Log.d("FloatingPlayerService", "Player transferred to PlayerHolder for fullscreen")
+                    }
+                    
+                    // Don't release the player - it's now owned by PlayerHolder
+                    player = null
+                    
+                    // Open fullscreen activity
                     FloatingPlayerActivity.startWithChannel(this, channel)
+                    
+                    // Stop the service
                     stopSelf()
                 }
             } catch (e: Exception) {
