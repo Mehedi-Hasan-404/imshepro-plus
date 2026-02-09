@@ -246,14 +246,27 @@ class FloatingPlayerService : Service() {
                 PixelFormat.TRANSLUCENT
             )
             
-            // FIXED: Calculate center position using portrait dimensions
+            // FIXED: Restore saved position if available, otherwise center
             params?.apply {
                 gravity = Gravity.TOP or Gravity.START
-                val centerX = (screenWidth - initialWidth) / 2
-                val centerY = (screenHeight - initialHeight) / 2
-                x = centerX
-                y = centerY
-                android.util.Log.d("FloatingPlayerService", "Centering at (portrait): ($centerX, $centerY)")
+                
+                val savedX = preferencesManager.getFloatingPlayerX()
+                val savedY = preferencesManager.getFloatingPlayerY()
+                
+                // Check if we have a real saved position (not defaults)
+                if (savedX != 50 && savedY != 100) {
+                    // Use saved position
+                    x = savedX
+                    y = savedY
+                    android.util.Log.d("FloatingPlayerService", "Restored saved position: ($savedX, $savedY)")
+                } else {
+                    // No saved position, center it
+                    val centerX = (screenWidth - initialWidth) / 2
+                    val centerY = (screenHeight - initialHeight) / 2
+                    x = centerX
+                    y = centerY
+                    android.util.Log.d("FloatingPlayerService", "No saved position, centering at: ($centerX, $centerY)")
+                }
             }
             
             windowManager?.addView(floatingView, params)
