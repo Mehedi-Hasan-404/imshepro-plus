@@ -284,7 +284,8 @@ class FloatingPlayerService : Service() {
             // Check if we should use transferred player or create new one
             if (useTransferredPlayer) {
                 android.util.Log.d("FloatingPlayerService", "Attempting to use transferred player")
-                player = PlayerHolder.getPlayer(this)
+                val (transferredPlayer, _, _) = PlayerHolder.retrievePlayer()
+                player = transferredPlayer
                 
                 if (player == null) {
                     android.util.Log.w("FloatingPlayerService", "No transferred player available, creating new one")
@@ -295,6 +296,8 @@ class FloatingPlayerService : Service() {
                     player?.playWhenReady = true
                 } else {
                     android.util.Log.d("FloatingPlayerService", "Successfully got transferred player")
+                    // Clear references now that we have the player
+                    PlayerHolder.clearReferences()
                 }
             } else {
                 android.util.Log.d("FloatingPlayerService", "Creating new player for URL: $streamUrl")
