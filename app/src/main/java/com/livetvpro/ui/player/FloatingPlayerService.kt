@@ -400,19 +400,18 @@ class FloatingPlayerService : Service() {
 
     private fun setupControls() {
         controlsContainer = floatingView?.findViewById(R.id.top_controls_container)
-        // Note: bottom_controls_container doesn't exist in floating_player_window.xml
-        // The player controls are embedded in the PlayerView via floating_player_controls.xml
+        // Note: bottom_controls_container is now in the custom controller layout
         lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
-        unlockButton = floatingView?.findViewById(R.id.btn_unlock)
+        unlockButton = floatingView?.findViewById(R.id.unlock_button)
         
         val closeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_close)
         val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
         val muteBtn = floatingView?.findViewById<ImageButton>(R.id.btn_mute)
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
-        // Fixed: Use correct IDs from floating_player_controls.xml
-        val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.exo_play_pause)
-        val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.exo_rew)
-        val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.exo_ffwd)
+        // Use your custom button IDs from floating_player_controls.xml
+        val playPauseBtn = floatingView?.findViewById<ImageButton>(R.id.btn_play_pause)
+        val seekBackBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_back)
+        val seekForwardBtn = floatingView?.findViewById<ImageButton>(R.id.btn_seek_forward)
         
         // Setup lock overlay and unlock button
         unlockButton?.setOnClickListener {
