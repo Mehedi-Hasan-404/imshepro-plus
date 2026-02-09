@@ -329,6 +329,9 @@ class FloatingPlayerService : Service() {
             val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
             titleText?.text = title
             
+            // Setup seekbar and time updates
+            setupSeekbarAndTimes()
+            
             val mediaItem = MediaItem.fromUri(streamUrl)
             player?.apply {
                 setMediaItem(mediaItem)
@@ -369,6 +372,9 @@ class FloatingPlayerService : Service() {
                 val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
                 titleText?.text = transferredName ?: title
                 
+                // Setup seekbar and time updates
+                setupSeekbarAndTimes()
+                
                 // Player is already prepared and playing!
                 // No need to load, prepare, or seek - it continues seamlessly!
                 
@@ -387,6 +393,78 @@ class FloatingPlayerService : Service() {
             // Fallback to creating new player
             val url = currentChannel?.links?.firstOrNull()?.url ?: ""
             setupPlayer(url, title)
+        }
+    }
+
+
+    private fun setupSeekbarAndTimes() {
+        val seekBar = floatingView?.findViewById<androidx.media3.ui.DefaultTimeBar>(R.id.exo_progress)
+        val positionView = floatingView?.findViewById<TextView>(R.id.exo_position)
+        val durationView = floatingView?.findViewById<TextView>(R.id.exo_duration)
+        
+        // Update time displays periodically
+        val updateTimeRunnable = object : Runnable {
+            override fun run() {
+                player?.let { p ->
+                    val position = p.currentPosition
+                    val duration = p.duration
+                    
+                    // Update position text
+                    positionView?.text = formatTime(position)
+                    
+                    // Update duration text
+                    if (duration > 0) {
+                        durationView?.text = formatTime(duration)
+                    } else {
+                        durationView?.text = "--:--"
+                    }
+                    
+                    // Update seekbar
+                    seekBar?.setPosition(position)
+                    if (duration > 0) {
+                        seekBar?.setDuration(duration)
+                    }
+                }
+                
+                // Schedule next update
+                hideControlsHandler.postDelayed(this, 500)
+            }
+        }
+        
+        // Start updates
+        hideControlsHandler.post(updateTimeRunnable)
+        
+        // Setup seekbar listener
+        seekBar?.addListener(object : androidx.media3.ui.TimeBar.OnScrubListener {
+            override fun onScrubStart(timeBar: androidx.media3.ui.TimeBar, position: Long) {
+                // User started scrubbing
+            }
+            
+            override fun onScrubMove(timeBar: androidx.media3.ui.TimeBar, position: Long) {
+                // Update position text while scrubbing
+                positionView?.text = formatTime(position)
+            }
+            
+            override fun onScrubStop(timeBar: androidx.media3.ui.TimeBar, position: Long, canceled: Boolean) {
+                if (!canceled) {
+                    player?.seekTo(position)
+                }
+            }
+        })
+    }
+    
+    private fun formatTime(timeMs: Long): String {
+        if (timeMs < 0) return "00:00"
+        
+        val totalSeconds = timeMs / 1000
+        val hours = totalSeconds / 3600
+        val minutes = (totalSeconds % 3600) / 60
+        val seconds = totalSeconds % 60
+        
+        return if (hours > 0) {
+            String.format("%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
         }
     }
 
