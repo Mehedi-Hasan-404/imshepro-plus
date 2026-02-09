@@ -18,7 +18,9 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:show_buffering="when_playing"
-            app:use_controller="false"
+            app:use_controller="true"
+            app:controller_layout_id="@layout/floating_player_controls"
+            app:show_timeout="0"
             app:resize_mode="fill"
             app:surface_type="texture_view" />
 
@@ -116,146 +118,6 @@
                 android:tint="@android:color/white"
                 android:contentDescription="Lock"
                 android:padding="4dp" />
-
-        </LinearLayout>
-
-        <!-- Bottom Controls Container -->
-        <LinearLayout
-            android:id="@+id/bottom_controls_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_gravity="bottom"
-            android:orientation="vertical"
-            android:background="@drawable/gradient_overlay_bottom"
-            android:paddingTop="24dp"
-            android:paddingBottom="8dp"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp">
-
-            <!-- Seekbar with Times -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:layout_marginBottom="8dp">
-
-                <!-- Current Time -->
-                <TextView
-                    android:id="@+id/exo_position"
-                    style="@android:style/TextAppearance.StatusBar.EventContent.Title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="00:00"
-                    android:textColor="@android:color/white"
-                    android:textSize="10sp"
-                    android:fontFamily="@font/bergen_sans"
-                    android:includeFontPadding="false"
-                    android:layout_marginEnd="6dp" />
-
-                <!-- Seekbar -->
-                <androidx.media3.ui.DefaultTimeBar
-                    android:id="@+id/exo_progress"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    app:played_color="#FF0000"
-                    app:scrubber_color="#FFFFFF"
-                    app:buffered_color="#80FFFFFF"
-                    app:unplayed_color="#40FFFFFF"
-                    app:bar_height="2dp"
-                    app:touch_target_height="20dp"
-                    app:scrubber_enabled_size="10dp"
-                    app:scrubber_disabled_size="0dp" />
-
-                <!-- Duration/Total Time -->
-                <TextView
-                    android:id="@+id/exo_duration"
-                    style="@android:style/TextAppearance.StatusBar.EventContent.Title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="00:00"
-                    android:textColor="@android:color/white"
-                    android:textSize="10sp"
-                    android:fontFamily="@font/bergen_sans"
-                    android:includeFontPadding="false"
-                    android:layout_marginStart="6dp" />
-
-            </LinearLayout>
-
-            <!-- Playback Controls - Properly Centered Layout -->
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <!-- Centered Play Controls Group -->
-                <Space
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" />
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center">
-
-                    <ImageButton
-                        android:id="@+id/btn_seek_back"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:src="@drawable/ic_skip_backward"
-                        android:background="@drawable/ripple_square_white"
-                        android:tint="@android:color/white"
-                        android:scaleType="fitCenter"
-                        android:contentDescription="Rewind"
-                        android:padding="6dp" />
-
-                    <ImageButton
-                        android:id="@+id/btn_play_pause"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:src="@drawable/ic_pause"
-                        android:background="@drawable/ripple_square_white"
-                        android:tint="@android:color/white"
-                        android:scaleType="fitCenter"
-                        android:layout_marginStart="16dp"
-                        android:layout_marginEnd="16dp"
-                        android:contentDescription="Play/Pause"
-                        android:padding="8dp" />
-
-                    <ImageButton
-                        android:id="@+id/btn_seek_forward"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
-                        android:src="@drawable/ic_skip_forward"
-                        android:background="@drawable/ripple_square_white"
-                        android:tint="@android:color/white"
-                        android:scaleType="fitCenter"
-                        android:contentDescription="Forward"
-                        android:padding="6dp" />
-
-                </LinearLayout>
-
-                <Space
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" />
-
-                <ImageButton
-                    android:id="@+id/btn_resize"
-                    android:layout_width="32dp"
-                    android:layout_height="32dp"
-                    android:src="@drawable/ic_resize"
-                    android:background="@drawable/ripple_square_white"
-                    android:tint="@android:color/white"
-                    android:scaleType="fitCenter"
-                    android:contentDescription="Resize"
-                    android:padding="6dp" />
-
-            </LinearLayout>
 
         </LinearLayout>
 
