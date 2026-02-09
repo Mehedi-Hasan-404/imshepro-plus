@@ -290,7 +290,8 @@ class FloatingPlayerService : Service() {
             
             // Setup player
             if (useTransferredPlayer) {
-                player = PlayerHolder.getPlayer()
+                val (transferredPlayer, _, _) = PlayerHolder.retrievePlayer()
+                player = transferredPlayer
                 if (player == null) {
                     android.util.Log.e("FloatingPlayerService", "No transferred player available")
                     stopSelf()
