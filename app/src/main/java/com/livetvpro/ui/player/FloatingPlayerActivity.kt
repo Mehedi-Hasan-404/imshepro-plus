@@ -232,7 +232,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         // Enable controller
         binding.playerView.useController = true
-        binding.playerView.controllerAutoShow = false
+        binding.playerView.controllerAutoShow = true  // Show controls on start
         
         // Show initial loading state for related channels
         if (!isLandscape) {
@@ -485,7 +485,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             binding.playerContainer.layoutParams = params
             
             // Player view settings
-            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerAutoShow = true  // Show controls on start
             binding.playerView.controllerShowTimeoutMs = 3000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
@@ -495,7 +495,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             exitFullscreen()
             
             // Player view settings
-            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerAutoShow = true  // Show controls on start
             binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
