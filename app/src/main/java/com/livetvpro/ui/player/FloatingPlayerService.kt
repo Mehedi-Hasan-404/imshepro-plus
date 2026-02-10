@@ -205,328 +205,194 @@ class FloatingPlayerService : Service() {
                     screenWidth = width
                     screenHeight = height
                 } else {
-                    // Currently in landscape, swap for portrait calculation
+                    // Currently landscape - swap to get portrait dimensions
                     screenWidth = height
                     screenHeight = width
                 }
             } else {
-                // Android 10 and below
+                // Android 10 and below (API 29-)
+                val display = windowManager?.defaultDisplay
                 val size = Point()
-                @Suppress("DEPRECATION")
-                windowManager?.defaultDisplay?.getRealSize(size)
+                display?.getRealSize(size)
+                val width = size.x
+                val height = size.y
                 
                 // CRITICAL FIX: Ensure we always use portrait dimensions
-                if (size.x < size.y) {
-                    // Already in portrait
-                    screenWidth = size.x
-                    screenHeight = size.y
+                if (width < height) {
+                    screenWidth = width
+                    screenHeight = height
                 } else {
-                    // Currently in landscape, swap for portrait calculation
-                    screenWidth = size.y
-                    screenHeight = size.x
+                    screenWidth = height
+                    screenHeight = width
                 }
             }
             
-            val initialWidth = dpToPx(320)
-            val initialHeight = (initialWidth * 9 / 16)
+            android.util.Log.d("FloatingPlayerService", "Portrait screen dimensions: $screenWidth x $screenHeight")
             
-            android.util.Log.d("FloatingPlayerService", "Screen (portrait): ${screenWidth}x${screenHeight}, Window: ${initialWidth}x${initialHeight}")
+            // Calculate position (center of screen in portrait mode)
+            val defaultWidth = dpToPx(300)
+            val defaultHeight = defaultWidth * 9 / 16
+            
+            // FIXED: Restore saved position, or use default centered position
+            val savedX = preferencesManager.getFloatingPlayerX()
+            val savedY = preferencesManager.getFloatingPlayerY()
+            
+            // Check if saved position is valid (not default -1)
+            val hasValidSavedPosition = savedX != -1 && savedY != -1
+            
+            val windowX: Int
+            val windowY: Int
+            
+            if (hasValidSavedPosition) {
+                // Use saved position
+                windowX = savedX
+                windowY = savedY
+                android.util.Log.d("FloatingPlayerService", "Using saved position: ($windowX, $windowY)")
+            } else {
+                // Use centered position (in portrait mode)
+                windowX = (screenWidth - defaultWidth) / 2
+                windowY = (screenHeight - defaultHeight) / 2
+                android.util.Log.d("FloatingPlayerService", "Using centered position: ($windowX, $windowY)")
+            }
             
             val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
+                @Suppress("DEPRECATION")
                 WindowManager.LayoutParams.TYPE_PHONE
             }
             
-            // ============================================
-            // CRITICAL FIX #1: Window Flags for Draggability
-            // ============================================
             params = WindowManager.LayoutParams(
-                initialWidth,
-                initialHeight,
+                defaultWidth,
+                defaultHeight,
                 layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
-            )
-            
-            // FIXED: Restore saved position if available, otherwise center
-            params?.apply {
+            ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                
-                val savedX = preferencesManager.getFloatingPlayerX()
-                val savedY = preferencesManager.getFloatingPlayerY()
-                
-                // Check if we have a real saved position (not defaults)
-                if (savedX != 50 && savedY != 100) {
-                    // Use saved position
-                    x = savedX
-                    y = savedY
-                    android.util.Log.d("FloatingPlayerService", "Restored saved position: ($savedX, $savedY)")
-                } else {
-                    // No saved position, center it
-                    val centerX = (screenWidth - initialWidth) / 2
-                    val centerY = (screenHeight - initialHeight) / 2
-                    x = centerX
-                    y = centerY
-                    android.util.Log.d("FloatingPlayerService", "No saved position, centering at: ($centerX, $centerY)")
-                }
+                x = windowX
+                y = windowY
             }
             
             windowManager?.addView(floatingView, params)
             
-            if (useTransferredPlayer) {
-                setupTransferredPlayer(title)
-            } else {
-                setupPlayer(streamUrl, title)
-            }
+            playerView = floatingView?.findViewById(R.id.floating_player_view)
+            lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
+            unlockButton = floatingView?.findViewById(R.id.btn_unlock)
             
+            // Setup UI
+            setupPlayer(streamUrl, useTransferredPlayer)
             setupControls()
             setupGestures()
             
-            // ExoPlayer's controller will auto-show and auto-hide - no manual control needed
+            // Set title
+            floatingView?.findViewById<TextView>(R.id.tv_channel_name)?.text = title
+            
+            // Setup unlock button
+            unlockButton?.setOnClickListener {
+                toggleLock()
+            }
+            
+            // Add ExoPlayer controller visibility listener to sync top controls
+            playerView?.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
+                // Top controls (channel name, close, fullscreen) follow ExoPlayer controller visibility
+                val topControls = floatingView?.findViewById<View>(R.id.top_controls)
+                topControls?.visibility = visibility
+            })
             
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
             e.printStackTrace()
-            android.widget.Toast.makeText(
-                this,
-                "Failed to create floating player: ${e.message}",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
             stopSelf()
         }
     }
 
-    private fun setupPlayer(streamUrl: String, title: String) {
+    private fun setupPlayer(streamUrl: String, useTransferredPlayer: Boolean) {
         try {
-            player = ExoPlayer.Builder(this).build()
-            
-            playerView = floatingView?.findViewById(R.id.player_view)
-            playerView?.apply {
-                player = this@FloatingPlayerService.player
-                // Enable controller - ExoPlayer manages BOTH top and bottom controls automatically
-                useController = true
-                controllerAutoShow = true  // Show controls on start
-                controllerShowTimeoutMs = 3000 // Hide after 3 seconds
+            if (useTransferredPlayer) {
+                // Use the transferred player from PlayerHolder
+                player = PlayerHolder.getPlayer()
+                android.util.Log.d("FloatingPlayerService", "Using transferred player from PlayerHolder")
+            } else {
+                // Create new player
+                player = ExoPlayer.Builder(this).build().apply {
+                    setMediaItem(MediaItem.fromUri(streamUrl))
+                    prepare()
+                    playWhenReady = true
+                    if (currentPlaybackPosition > 0) {
+                        seekTo(currentPlaybackPosition)
+                    }
+                }
+                android.util.Log.d("FloatingPlayerService", "Created new player with URL: $streamUrl")
             }
             
-            val titleText = playerView?.findViewById<TextView>(R.id.tv_title)
-            titleText?.text = title
-            
-            val mediaItem = MediaItem.fromUri(streamUrl)
-            player?.setMediaItem(mediaItem)
-            player?.prepare()
-            
-            if (currentPlaybackPosition > 0) {
-                player?.seekTo(currentPlaybackPosition)
-            }
-            
-            player?.playWhenReady = true
+            playerView?.player = player
             
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayerService", "Error setting up player", e)
             e.printStackTrace()
-            android.widget.Toast.makeText(
-                this,
-                "Failed to setup player: ${e.message}",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
-            stopSelf()
         }
     }
-
-    private fun setupTransferredPlayer(title: String) {
-        try {
-            // FIXED: Retrieve the transferred player (no loading!)
-            val (transferredPlayer, transferredUrl, transferredName) = PlayerHolder.retrievePlayer()
-            
-            if (transferredPlayer != null) {
-                android.util.Log.d("FloatingPlayerService", "Using transferred player - NO LOADING!")
-                
-                // Use the existing player instance
-                player = transferredPlayer
-                
-                playerView = floatingView?.findViewById(R.id.player_view)
-                playerView?.apply {
-                    player = this@FloatingPlayerService.player
-                    // Enable controller - ExoPlayer manages BOTH top and bottom controls automatically
-                    useController = true
-                    controllerAutoShow = true  // Show controls on start
-                    controllerShowTimeoutMs = 3000 // Hide after 3 seconds
-                }
-                
-                val titleText = playerView?.findViewById<TextView>(R.id.tv_title)
-                titleText?.text = transferredName ?: title
-                
-                // Player is already prepared and playing!
-                // No need to load, prepare, or seek - it continues seamlessly!
-                
-                // Clear the holder now that service has taken ownership
-                PlayerHolder.clearReferences()
-                
-            } else {
-                // Fallback to normal setup if transfer failed
-                android.util.Log.w("FloatingPlayerService", "No transferred player, creating new one")
-                val url = currentChannel?.links?.firstOrNull()?.url ?: ""
-                setupPlayer(url, title)
-            }
-            
-        } catch (e: Exception) {
-            android.util.Log.e("FloatingPlayerService", "Error using transferred player", e)
-            // Fallback to creating new player
-            val url = currentChannel?.links?.firstOrNull()?.url ?: ""
-            setupPlayer(url, title)
-        }
-    }
-
 
     private fun setupControls() {
-        // Note: All controls (top and bottom) are now inside the ExoPlayer controller
-        lockOverlay = floatingView?.findViewById(R.id.lock_overlay)
-        unlockButton = floatingView?.findViewById(R.id.unlock_button)
-        
-        // Find controls inside the ExoPlayer controller view
-        val closeBtn = playerView?.findViewById<ImageButton>(R.id.btn_close)
-        val fullscreenBtn = playerView?.findViewById<ImageButton>(R.id.btn_fullscreen)
-        val muteBtn = playerView?.findViewById<ImageButton>(R.id.btn_mute)
+        val closeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_close)
+        val fullscreenBtn = floatingView?.findViewById<ImageButton>(R.id.btn_fullscreen)
         val lockBtn = playerView?.findViewById<ImageButton>(R.id.btn_lock)
-        val playPauseBtn = playerView?.findViewById<ImageButton>(R.id.btn_play_pause)
-        val seekBackBtn = playerView?.findViewById<ImageButton>(R.id.btn_seek_back)
-        val seekForwardBtn = playerView?.findViewById<ImageButton>(R.id.btn_seek_forward)
+        val pipBtn = playerView?.findViewById<ImageButton>(R.id.btn_pip)
         
-        // Setup lock overlay and unlock button
-        unlockButton?.setOnClickListener {
-            toggleLock()
-        }
-        
-        lockOverlay?.setOnClickListener {
-            if (unlockButton?.visibility == View.VISIBLE) {
-                hideUnlockButton()
-            } else {
-                showUnlockButton()
-            }
-        }
-        
+        // Close button
         closeBtn?.setOnClickListener {
-            // FIXED: Clear saved position when user closes, so it centers next time
-            preferencesManager.setFloatingPlayerX(50)  // Reset to default
-            preferencesManager.setFloatingPlayerY(100) // Reset to default
-            android.util.Log.d("FloatingPlayerService", "Position cleared - will center on next open")
+            // Save position before closing
+            params?.let { p ->
+                preferencesManager.setFloatingPlayerX(p.x)
+                preferencesManager.setFloatingPlayerY(p.y)
+            }
             stopSelf()
         }
         
+        // Fullscreen button - launch FloatingPlayerActivity
         fullscreenBtn?.setOnClickListener {
-            if (currentChannel != null) {
-                val currentPlayer = player
-                val channel = currentChannel  // Local copy to avoid smart cast issues
+            try {
+                // Get current playback position
+                val position = player?.currentPosition ?: 0L
                 
-                if (currentPlayer != null && channel != null) {
-                    // FIXED: Transfer player to activity - no recreation!
-                    val streamUrl = channel.links?.firstOrNull()?.url ?: ""
-                    PlayerHolder.transferPlayer(currentPlayer, streamUrl, channel.name)
-                    
-                    android.util.Log.d("FloatingPlayerService", "Player transferred to activity")
-                    
-                    val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                        putExtra("extra_channel", channel)
-                        putExtra("use_transferred_player", true)
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    startActivity(intent)
-                    
-                    // Release local reference (activity now owns it)
-                    player = null
-                    stopSelf()
+                // Save window position
+                params?.let { p ->
+                    preferencesManager.setFloatingPlayerX(p.x)
+                    preferencesManager.setFloatingPlayerY(p.y)
+                    preferencesManager.setFloatingPlayerWidth(p.width)
+                    preferencesManager.setFloatingPlayerHeight(p.height)
                 }
+                
+                // Transfer player to PlayerHolder for FloatingPlayerActivity
+                PlayerHolder.setPlayer(player)
+                
+                val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    putExtra(FloatingPlayerActivity.EXTRA_CHANNEL, currentChannel)
+                    putExtra(FloatingPlayerActivity.EXTRA_PLAYBACK_POSITION, position)
+                    putExtra("from_floating_service", true)
+                }
+                
+                startActivity(intent)
+                
+                // Stop the service (FloatingPlayerActivity will take over)
+                stopSelf()
+                
+            } catch (e: Exception) {
+                android.util.Log.e("FloatingPlayerService", "Error launching fullscreen", e)
+                e.printStackTrace()
             }
         }
         
-        muteBtn?.setOnClickListener {
-            val currentPlayer = player
-            if (currentPlayer != null) {
-                isMuted = !isMuted
-                currentPlayer.volume = if (isMuted) 0f else 1f
-                muteBtn.setImageResource(
-                    if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
-                )
-            }
-        }
-        
+        // Lock button
         lockBtn?.setOnClickListener {
             toggleLock()
         }
         
-        playPauseBtn?.setOnClickListener {
-            val currentPlayer = player
-            if (currentPlayer != null) {
-                if (currentPlayer.isPlaying) {
-                    currentPlayer.pause()
-                } else {
-                    currentPlayer.play()
-                }
-            }
-        }
-        
-        seekBackBtn?.setOnClickListener {
-            player?.seekBack()
-        }
-        
-        seekForwardBtn?.setOnClickListener {
-            player?.seekForward()
-        }
-        
-        // Resize button
-        val resizeBtn = playerView?.findViewById<ImageButton>(R.id.btn_resize)
-        var resizeInitialWidth = 0
-        var resizeInitialHeight = 0
-        var resizeInitialTouchX = 0f
-        var resizeInitialTouchY = 0f
-        
-        resizeBtn?.setOnTouchListener { v, event ->
-            params?.let { p ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        resizeInitialWidth = p.width
-                        resizeInitialHeight = p.height
-                        resizeInitialTouchX = event.rawX
-                        resizeInitialTouchY = event.rawY
-                        true
-                    }
-                    
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = event.rawX - resizeInitialTouchX
-                        val dy = event.rawY - resizeInitialTouchY
-                        val delta = ((dx + dy) / 2).toInt()
-                        var newWidth = resizeInitialWidth + delta
-                        newWidth = newWidth.coerceIn(getMinWidth(), getMaxWidth())
-                        val newHeight = newWidth * 9 / 16
-                        
-                        if (newWidth != p.width || newHeight != p.height) {
-                            p.width = newWidth
-                            p.height = newHeight
-                            windowManager?.updateViewLayout(floatingView, p)
-                        }
-                        true
-                    }
-                    
-                    MotionEvent.ACTION_UP -> {
-                        true
-                    }
-                    
-                    else -> false
-                }
-            } ?: false
-        }
-        
-        player?.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                playPauseBtn?.setImageResource(
-                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-                )
-            }
-        })
+        // PIP button - hidden in floating mode
+        pipBtn?.visibility = View.GONE
     }
 
     // ============================================
@@ -538,129 +404,141 @@ class FloatingPlayerService : Service() {
         var isDragging = false
         var hasMoved = false
         
-        // CRITICAL FIX: Attach to container, NOT floatingView (CardView)
-        // Container intercepts touches before PlayerView gets them
-        val container = floatingView?.findViewById<FrameLayout>(R.id.floating_container)
-        
-        container?.setOnTouchListener { view, event ->
-            params?.let { p ->
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = p.x
-                        initialY = p.y
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isDragging = false
-                        hasMoved = false
-                        
-                        // Show unlock button if controls are locked
-                        if (controlsLocked) {
+        // CRITICAL: Attach to PlayerView to always intercept touches
+        // Window should ALWAYS be draggable, even when controls are locked
+        playerView?.setOnTouchListener { view, event ->
+            // When locked, only handle dragging, ignore all other interactions
+            if (controlsLocked) {
+                params?.let { p ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            initialX = p.x
+                            initialY = p.y
+                            initialTouchX = event.rawX
+                            initialTouchY = event.rawY
+                            isDragging = false
+                            hasMoved = false
                             showUnlockButton()
+                            true  // Consume to start tracking
                         }
                         
-                        // Return false to allow PlayerView to handle controls when unlocked
-                        false
-                    }
-                    
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (event.rawX - initialTouchX).toInt()
-                        val dy = (event.rawY - initialTouchY).toInt()
-                        
-                        // Start dragging after threshold
-                        if (abs(dx) > 10 || abs(dy) > 10) {
-                            isDragging = true
-                            hasMoved = true
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = (event.rawX - initialTouchX).toInt()
+                            val dy = (event.rawY - initialTouchY).toInt()
                             
-                            // Move the window
-                            p.x = initialX + dx
-                            p.y = initialY + dy
-                            
-                            // Save position in real-time
-                            preferencesManager.setFloatingPlayerX(p.x)
-                            preferencesManager.setFloatingPlayerY(p.y)
-                            
-                            windowManager?.updateViewLayout(floatingView, p)
-                            
-                            // Consume event during drag
-                            return@setOnTouchListener true
+                            // Start dragging after threshold
+                            if (abs(dx) > 10 || abs(dy) > 10) {
+                                isDragging = true
+                                hasMoved = true
+                                
+                                // Move the window
+                                p.x = initialX + dx
+                                p.y = initialY + dy
+                                
+                                // Save position in real-time
+                                preferencesManager.setFloatingPlayerX(p.x)
+                                preferencesManager.setFloatingPlayerY(p.y)
+                                
+                                windowManager?.updateViewLayout(floatingView, p)
+                            }
+                            true  // Consume all move events when locked
                         }
                         
-                        false
-                    }
-                    
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (!hasMoved) {
-                            // This was a tap, not a drag
-                            if (controlsLocked) {
-                                // When locked, show unlock button
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            if (!hasMoved) {
+                                // Tap when locked - just show unlock button
                                 showUnlockButton()
                             } else {
-                                // When unlocked, toggle player controls
+                                // Save final position after drag
+                                preferencesManager.setFloatingPlayerX(p.x)
+                                preferencesManager.setFloatingPlayerY(p.y)
+                                android.util.Log.d("FloatingPlayerService", "Dragged while locked - saved position: (${p.x}, ${p.y})")
+                            }
+                            
+                            isDragging = false
+                            hasMoved = false
+                            true  // Consume when locked
+                        }
+                        
+                        else -> true  // Consume all events when locked
+                    }
+                } ?: true
+            } else {
+                // When unlocked, allow dragging AND control interaction
+                params?.let { p ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            initialX = p.x
+                            initialY = p.y
+                            initialTouchX = event.rawX
+                            initialTouchY = event.rawY
+                            isDragging = false
+                            hasMoved = false
+                            true  // Start tracking
+                        }
+                        
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = (event.rawX - initialTouchX).toInt()
+                            val dy = (event.rawY - initialTouchY).toInt()
+                            
+                            // Start dragging after threshold
+                            if (abs(dx) > 10 || abs(dy) > 10) {
+                                isDragging = true
+                                hasMoved = true
+                                
+                                // Move the window
+                                p.x = initialX + dx
+                                p.y = initialY + dy
+                                
+                                // Save position in real-time
+                                preferencesManager.setFloatingPlayerX(p.x)
+                                preferencesManager.setFloatingPlayerY(p.y)
+                                
+                                windowManager?.updateViewLayout(floatingView, p)
+                            }
+                            
+                            // If dragging, consume. Otherwise let controls handle
+                            isDragging
+                        }
+                        
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            if (!hasMoved) {
+                                // This was a tap - toggle controls
                                 if (playerView?.isControllerFullyVisible == true) {
                                     playerView?.hideController()
                                 } else {
                                     playerView?.showController()
                                 }
+                            } else {
+                                // Save final position after drag
+                                preferencesManager.setFloatingPlayerX(p.x)
+                                preferencesManager.setFloatingPlayerY(p.y)
+                                android.util.Log.d("FloatingPlayerService", "Dragged while unlocked - saved position: (${p.x}, ${p.y})")
                             }
-                        } else {
-                            // Save final position after drag
-                            preferencesManager.setFloatingPlayerX(p.x)
-                            preferencesManager.setFloatingPlayerY(p.y)
-                            android.util.Log.d("FloatingPlayerService", "Saved position: (${p.x}, ${p.y})")
+                            
+                            val wasMoving = hasMoved
+                            isDragging = false
+                            hasMoved = false
+                            
+                            // Consume only if we were dragging
+                            wasMoving
                         }
                         
-                        val wasMoving = hasMoved
-                        isDragging = false
-                        hasMoved = false
-                        
-                        // Consume if we were dragging
-                        wasMoving
+                        else -> false
                     }
-                    
-                    else -> false
-                }
-            } ?: false
-        }
-        
-        // Setup lock overlay to not interfere
-        lockOverlay?.setOnTouchListener { _, event ->
-            when (event.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    showUnlockButton()
-                    false // Don't consume - let parent handle
-                }
-                else -> false
-            }
-        }
-    }
-
-
-    private fun findTargetView(parent: View?, rawX: Int, rawY: Int): View? {
-        if (parent == null) return null
-        
-        if (parent is ViewGroup) {
-            // Check children in reverse order (topmost first)
-            for (i in parent.childCount - 1 downTo 0) {
-                val child = parent.getChildAt(i)
-                val location = IntArray(2)
-                child.getLocationOnScreen(location)
-                
-                val left = location[0]
-                val top = location[1]
-                val right = left + child.width
-                val bottom = top + child.height
-                
-                if (rawX in left..right && rawY in top..bottom) {
-                    // Recursively check if a child of this child was touched
-                    val deeperTarget = findTargetView(child, rawX, rawY)
-                    return deeperTarget ?: child
-                }
+                } ?: false
             }
         }
         
-        return parent
+        // Setup lock overlay to pass through touches (it should not interfere)
+        lockOverlay?.apply {
+            isClickable = false
+            isFocusable = false
+        }
     }
+
     
+
     private fun showControls() {
         if (controlsLocked) return
         
@@ -694,14 +572,14 @@ class FloatingPlayerService : Service() {
             // Hide ExoPlayer controller
             playerView?.hideController()
             
-            // Show lock overlay - CRITICAL: Set clickable/focusable to FALSE
+            // Show lock overlay - CRITICAL: Make it non-interactive
             lockOverlay?.apply {
                 visibility = View.VISIBLE
-                isClickable = false   // Allow touches to pass through for dragging
-                isFocusable = false   // Allow touches to pass through for dragging
+                isClickable = false   // Doesn't consume touches
+                isFocusable = false   // Doesn't consume touches
             }
             showUnlockButton()
-            android.util.Log.d("FloatingPlayerService", "Controls locked - window still draggable")
+            android.util.Log.d("FloatingPlayerService", "Controls locked - window is still draggable")
         }
     }
 
