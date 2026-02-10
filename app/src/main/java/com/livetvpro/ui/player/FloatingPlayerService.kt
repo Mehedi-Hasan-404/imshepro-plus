@@ -139,11 +139,20 @@ class FloatingPlayerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        android.util.Log.d("FloatingPlayerService", "✅ onCreate() called")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        android.util.Log.d("FloatingPlayerService", "   WindowManager initialized: ${windowManager != null}")
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        android.util.Log.d("FloatingPlayerService", "========================================")
+        android.util.Log.d("FloatingPlayerService", "📱 onStartCommand() called")
+        android.util.Log.d("FloatingPlayerService", "   Intent exists: ${intent != null}")
+        android.util.Log.d("FloatingPlayerService", "   Action: ${intent?.action}")
+        android.util.Log.d("FloatingPlayerService", "   FloatingView already exists: ${floatingView != null}")
+        android.util.Log.d("FloatingPlayerService", "========================================")
+        
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
@@ -182,9 +191,19 @@ class FloatingPlayerService : Service() {
     }
 
     private fun createFloatingView(streamUrl: String, title: String, useTransferredPlayer: Boolean = false) {
+        // DEBUG: Log that we're starting to create the floating view
+        android.util.Log.d("FloatingPlayerService", "========================================")
+        android.util.Log.d("FloatingPlayerService", "🔍 CREATING FLOATING VIEW")
+        android.util.Log.d("FloatingPlayerService", "   streamUrl: $streamUrl")
+        android.util.Log.d("FloatingPlayerService", "   title: $title")
+        android.util.Log.d("FloatingPlayerService", "   useTransferredPlayer: $useTransferredPlayer")
+        android.util.Log.d("FloatingPlayerService", "   windowManager exists: ${windowManager != null}")
+        android.util.Log.d("FloatingPlayerService", "========================================")
+        
         try {
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
+            android.util.Log.d("FloatingPlayerService", "✅ View inflated successfully: ${floatingView != null}")
             
             // FIXED: Get screen dimensions correctly for PORTRAIT mode
             // Always center based on portrait dimensions even if launched from landscape
@@ -290,7 +309,73 @@ class FloatingPlayerService : Service() {
                 }
             }
             
-            windowManager?.addView(floatingView, params)
+            // CRITICAL FIX: Explicit null checks instead of silent safe call
+            if (windowManager == null) {
+                android.util.Log.e("FloatingPlayerService", "ERROR: WindowManager is null!")
+                android.widget.Toast.makeText(
+                    this,
+                    "Failed to create floating player: WindowManager not available",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                stopSelf()
+                return
+            }
+
+            if (floatingView == null) {
+                android.util.Log.e("FloatingPlayerService", "ERROR: FloatingView is null!")
+                android.widget.Toast.makeText(
+                    this,
+                    "Failed to create floating player: View inflation failed",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                stopSelf()
+                return
+            }
+
+            if (params == null) {
+                android.util.Log.e("FloatingPlayerService", "ERROR: Window params are null!")
+                android.widget.Toast.makeText(
+                    this,
+                    "Failed to create floating player: Window parameters not created",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                stopSelf()
+                return
+            }
+
+            try {
+                windowManager!!.addView(floatingView, params)
+                android.util.Log.d("FloatingPlayerService", "✅ Floating view successfully added to window manager")
+                android.util.Log.d("FloatingPlayerService", "   Position: (${params.x}, ${params.y})")
+                android.util.Log.d("FloatingPlayerService", "   Size: ${params.width}x${params.height}")
+            } catch (e: WindowManager.BadTokenException) {
+                android.util.Log.e("FloatingPlayerService", "ERROR: Bad window token - overlay permission may have been revoked", e)
+                android.widget.Toast.makeText(
+                    this,
+                    "Overlay permission required. Please enable 'Display over other apps' in settings.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                stopSelf()
+                return
+            } catch (e: SecurityException) {
+                android.util.Log.e("FloatingPlayerService", "ERROR: Security exception - overlay permission denied", e)
+                android.widget.Toast.makeText(
+                    this,
+                    "Overlay permission denied. Please enable in settings.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                stopSelf()
+                return
+            } catch (e: Exception) {
+                android.util.Log.e("FloatingPlayerService", "ERROR: Failed to add view to window manager", e)
+                android.widget.Toast.makeText(
+                    this,
+                    "Failed to create floating player: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                stopSelf()
+                return
+            }
             
             if (useTransferredPlayer) {
                 setupTransferredPlayer(title)
