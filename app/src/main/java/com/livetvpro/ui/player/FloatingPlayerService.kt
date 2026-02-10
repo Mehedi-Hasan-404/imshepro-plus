@@ -533,28 +533,15 @@ class FloatingPlayerService : Service() {
     // ============================================
     @SuppressLint("ClickableViewAccessibility")
     private fun setupGestures() {
+        // Track drag state
         var isDragging = false
         var hasMoved = false
         
-        // CRITICAL FIX: Attach touch listener to the ROOT view (floatingView)
-        // This intercepts ALL touches before they reach PlayerView
-        // PlayerView was consuming touches, preventing the container's listener from firing
-        floatingView?.setOnTouchListener { view, event ->
-            // When locked, don't allow dragging or interaction with THIS listener
-            // (But allow touches to pass through to PlayerView for video controls)
-            if (controlsLocked) {
-                // Return false to let touches pass through to PlayerView
-                return@setOnTouchListener false
-            }
-            
-            // Check if touch is on a button/control - if so, don't drag
-            // Let the control handle it
-            val target = findTargetView(floatingView, event.rawX.toInt(), event.rawY.toInt())
-            if (target is ImageButton || target is TextView) {
-                // Touch is on a control, let it handle the event
-                return@setOnTouchListener false
-            }
-            
+        // CRITICAL FIX: Attach to container, NOT floatingView (CardView)
+        // Container intercepts touches before PlayerView gets them
+        val container = floatingView?.findViewById<FrameLayout>(R.id.floating_container)
+        
+        container?.setOnTouchListener { view, event ->
             params?.let { p ->
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
@@ -564,58 +551,89 @@ class FloatingPlayerService : Service() {
                         initialTouchY = event.rawY
                         isDragging = false
                         hasMoved = false
-                        true
+                        
+                        // Show unlock button if controls are locked
+                        if (controlsLocked) {
+                            showUnlockButton()
+                        }
+                        
+                        // Return false to allow PlayerView to handle controls when unlocked
+                        false
                     }
                     
                     MotionEvent.ACTION_MOVE -> {
                         val dx = (event.rawX - initialTouchX).toInt()
                         val dy = (event.rawY - initialTouchY).toInt()
                         
-                        // Start dragging after a small movement threshold
+                        // Start dragging after threshold
                         if (abs(dx) > 10 || abs(dy) > 10) {
                             isDragging = true
                             hasMoved = true
+                            
+                            // Move the window
                             p.x = initialX + dx
                             p.y = initialY + dy
                             
-                            // Save position in real-time for persistence
+                            // Save position in real-time
                             preferencesManager.setFloatingPlayerX(p.x)
                             preferencesManager.setFloatingPlayerY(p.y)
                             
                             windowManager?.updateViewLayout(floatingView, p)
+                            
+                            // Consume event during drag
+                            return@setOnTouchListener true
                         }
-                        true
+                        
+                        false
                     }
                     
-                    MotionEvent.ACTION_UP -> {
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                         if (!hasMoved) {
                             // This was a tap, not a drag
-                            // Toggle controls visibility
-                            if (!controlsLocked) {
+                            if (controlsLocked) {
+                                // When locked, show unlock button
+                                showUnlockButton()
+                            } else {
+                                // When unlocked, toggle player controls
                                 if (playerView?.isControllerFullyVisible == true) {
-                                    hideControls()
+                                    playerView?.hideController()
                                 } else {
-                                    showControls()
+                                    playerView?.showController()
                                 }
                             }
                         } else {
-                            // Save final position
+                            // Save final position after drag
                             preferencesManager.setFloatingPlayerX(p.x)
                             preferencesManager.setFloatingPlayerY(p.y)
                             android.util.Log.d("FloatingPlayerService", "Saved position: (${p.x}, ${p.y})")
                         }
+                        
+                        val wasMoving = hasMoved
                         isDragging = false
                         hasMoved = false
-                        true
+                        
+                        // Consume if we were dragging
+                        wasMoving
                     }
                     
                     else -> false
                 }
             } ?: false
         }
+        
+        // Setup lock overlay to not interfere
+        lockOverlay?.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    showUnlockButton()
+                    false // Don't consume - let parent handle
+                }
+                else -> false
+            }
+        }
     }
-    
-    // Helper function to find which view was actually touched
+
+
     private fun findTargetView(parent: View?, rawX: Int, rawY: Int): View? {
         if (parent == null) return null
         
@@ -660,30 +678,33 @@ class FloatingPlayerService : Service() {
         val lockBtn = playerView?.findViewById<ImageButton>(R.id.btn_lock)
         
         if (controlsLocked) {
-            // Currently locked, so unlock
+            // Currently locked → UNLOCK
             controlsLocked = false
             lockOverlay?.visibility = View.GONE
             hideUnlockButton()
             lockBtn?.setImageResource(R.drawable.ic_lock_open)
-            showControls()  // Show ExoPlayer controller (includes all controls)
+            showControls()
+            android.util.Log.d("FloatingPlayerService", "Controls unlocked")
         } else {
-            // Currently unlocked, so lock
+            // Currently unlocked → LOCK
             controlsLocked = true
             lockBtn?.setImageResource(R.drawable.ic_lock_closed)
             
-            // Hide ExoPlayer controller (hides all controls - top and bottom)
+            // Hide ExoPlayer controller
             playerView?.hideController()
             
-            // Show overlay and unlock button
+            // Show lock overlay - CRITICAL: Set clickable/focusable to FALSE
             lockOverlay?.apply {
                 visibility = View.VISIBLE
-                isClickable = true
-                isFocusable = true
+                isClickable = false   // Allow touches to pass through for dragging
+                isFocusable = false   // Allow touches to pass through for dragging
             }
             showUnlockButton()
+            android.util.Log.d("FloatingPlayerService", "Controls locked - window still draggable")
         }
     }
-    
+
+
     private fun showUnlockButton() {
         unlockButton?.visibility = View.VISIBLE
         hideControlsHandler.removeCallbacks(hideUnlockButtonRunnable)
