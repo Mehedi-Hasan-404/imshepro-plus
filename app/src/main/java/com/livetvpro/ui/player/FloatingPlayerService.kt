@@ -602,8 +602,7 @@ class FloatingPlayerService : Service() {
                         
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             if (!hasMoved) {
-                                // Tap when locked - just show unlock button
-                                 - toggle unlock button via lock overlay click
+                                // Tap when locked - toggle unlock button via lock overlay click
                             lockOverlay?.performClick()
                             } else {
                                 // Save final position after drag
