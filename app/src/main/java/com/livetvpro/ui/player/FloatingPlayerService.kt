@@ -343,11 +343,14 @@ class FloatingPlayerService : Service() {
                 return
             }
 
+            // Create local variable to satisfy Kotlin smart cast requirements
+            val windowParams = params
+            
             try {
-                windowManager!!.addView(floatingView, params)
+                windowManager!!.addView(floatingView, windowParams)
                 android.util.Log.d("FloatingPlayerService", "✅ Floating view successfully added to window manager")
-                android.util.Log.d("FloatingPlayerService", "   Position: (${params.x}, ${params.y})")
-                android.util.Log.d("FloatingPlayerService", "   Size: ${params.width}x${params.height}")
+                android.util.Log.d("FloatingPlayerService", "   Position: (${windowParams.x}, ${windowParams.y})")
+                android.util.Log.d("FloatingPlayerService", "   Size: ${windowParams.width}x${windowParams.height}")
             } catch (e: WindowManager.BadTokenException) {
                 android.util.Log.e("FloatingPlayerService", "ERROR: Bad window token - overlay permission may have been revoked", e)
                 android.widget.Toast.makeText(
