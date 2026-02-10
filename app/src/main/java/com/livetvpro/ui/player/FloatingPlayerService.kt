@@ -286,6 +286,14 @@ class FloatingPlayerService : Service() {
             
             }
             setupControls()
+            
+            // For transferred player, force show controls after setup
+            if (useTransferredPlayer) {
+                playerView?.post {
+                    playerView?.showController()
+                }
+            }
+            
             setupGestures()
             
             // ExoPlayer's controller will auto-hide after timeout - no manual delay needed
@@ -398,11 +406,6 @@ class FloatingPlayerService : Service() {
                             }
                         }
                     })
-                    
-                    // Force show controller initially (transferred player may have it hidden)
-                    post {
-                        showController()
-                    }
                 }
                 
                 val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
@@ -673,18 +676,23 @@ class FloatingPlayerService : Service() {
     }
     
     private fun toggleLock() {
-        controlsLocked = !controlsLocked
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
         
         if (controlsLocked) {
-            // Lock: Update icon first, THEN hide ALL controls immediately
+            // Currently locked, so unlock
+            controlsLocked = false
+            lockOverlay?.visibility = View.GONE
+            hideUnlockButton()
+            lockBtn?.setImageResource(R.drawable.ic_lock_open)
+            showControls()
+        } else {
+            // Currently unlocked, so lock
+            controlsLocked = true
             lockBtn?.setImageResource(R.drawable.ic_lock_closed)
             
-            // Hide controls with small delay to ensure lock button state is updated
-            playerView?.post {
-                controlsContainer?.visibility = View.GONE
-                playerView?.hideController()
-            }
+            // Hide ALL controls immediately
+            controlsContainer?.visibility = View.GONE
+            playerView?.hideController()
             
             // Show overlay and unlock button
             lockOverlay?.apply {
@@ -693,12 +701,6 @@ class FloatingPlayerService : Service() {
                 isFocusable = true
             }
             showUnlockButton()
-        } else {
-            // Unlock: show controls, hide overlay and unlock button
-            lockOverlay?.visibility = View.GONE
-            hideUnlockButton()
-            lockBtn?.setImageResource(R.drawable.ic_lock_open)
-            showControls()
         }
     }
     
