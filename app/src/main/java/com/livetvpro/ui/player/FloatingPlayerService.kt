@@ -581,11 +581,13 @@ class FloatingPlayerService : Service() {
                     
                     MotionEvent.ACTION_UP -> {
                         if (!hasMoved) {
-                            // Tap to toggle controls
-                            if (controlsVisible) {
-                                hideControls()
-                            } else {
-                                showControls()
+                            // Tap to toggle controls (if not locked)
+                            if (!controlsLocked) {
+                                if (playerView?.isControllerFullyVisible == true) {
+                                    hideControls()
+                                } else {
+                                    showControls()
+                                }
                             }
                         }
                         isDragging = false
