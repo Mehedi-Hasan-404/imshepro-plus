@@ -343,8 +343,8 @@ class FloatingPlayerService : Service() {
                 return
             }
 
-            // Create local variable to satisfy Kotlin smart cast requirements
-            val windowParams = params
+            // Create local non-nullable variable after null check
+            val windowParams = params!!
             
             try {
                 windowManager!!.addView(floatingView, windowParams)
