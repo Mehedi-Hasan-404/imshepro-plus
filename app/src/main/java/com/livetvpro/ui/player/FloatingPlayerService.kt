@@ -199,79 +199,79 @@ class FloatingPlayerService : Service() {
                 val height = bounds?.height() ?: 1920
                 
                 // CRITICAL FIX: Ensure we always use portrait dimensions
-                // (smaller value = width, larger value = height)
-                if (width < height) {
-                    // Already in portrait
-                    screenWidth = width
-                    screenHeight = height
-                } else {
-                    // Currently in landscape, swap for portrait calculation
-                    screenWidth = height
-                    screenHeight = width
-                }
+                // If width > height, we're in landscape, swap them to get portrait dimensions
+                screenWidth = if (width < height) width else height
+                screenHeight = if (width < height) height else width
             } else {
                 // Android 10 and below
+                val display = windowManager?.defaultDisplay
                 val size = Point()
-                @Suppress("DEPRECATION")
-                windowManager?.defaultDisplay?.getRealSize(size)
+                display?.getSize(size)
                 
                 // CRITICAL FIX: Ensure we always use portrait dimensions
-                if (size.x < size.y) {
-                    // Already in portrait
-                    screenWidth = size.x
-                    screenHeight = size.y
-                } else {
-                    // Currently in landscape, swap for portrait calculation
-                    screenWidth = size.y
-                    screenHeight = size.x
-                }
+                screenWidth = if (size.x < size.y) size.x else size.y
+                screenHeight = if (size.x < size.y) size.y else size.x
             }
             
-            val initialWidth = dpToPx(320)
-            val initialHeight = (initialWidth * 9 / 16)
+            android.util.Log.d("FloatingPlayerService", "Screen dimensions (portrait): ${screenWidth}x${screenHeight}")
             
-            android.util.Log.d("FloatingPlayerService", "Screen (portrait): ${screenWidth}x${screenHeight}, Window: ${initialWidth}x${initialHeight}")
+            // ============================================
+            // FIX #1: Restore saved size when opening
+            // ============================================
+            // Get saved size, or use default
+            val savedWidth = preferencesManager.getFloatingPlayerWidth()
+            val savedHeight = preferencesManager.getFloatingPlayerHeight()
             
-            val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+            val initialWidth: Int
+            val initialHeight: Int
+            
+            if (savedWidth > 0 && savedHeight > 0) {
+                // Use saved size
+                initialWidth = savedWidth.coerceIn(getMinWidth(), getMaxWidth())
+                initialHeight = savedHeight.coerceIn(getMinHeight(), getMaxHeight())
+                android.util.Log.d("FloatingPlayerService", "Using saved size: ${initialWidth}x${initialHeight}")
             } else {
-                WindowManager.LayoutParams.TYPE_PHONE
+                // Use default size (60% of screen width)
+                initialWidth = (screenWidth * 0.6f).toInt().coerceIn(getMinWidth(), getMaxWidth())
+                initialHeight = initialWidth * 9 / 16
+                android.util.Log.d("FloatingPlayerService", "Using default size: ${initialWidth}x${initialHeight}")
             }
             
             // ============================================
-            // CRITICAL FIX #1: Window Flags for Draggability
+            // Restore saved position or center
             // ============================================
+            val savedX = preferencesManager.getFloatingPlayerX()
+            val savedY = preferencesManager.getFloatingPlayerY()
+            
+            val initialX: Int
+            val initialY: Int
+            
+            // Check if saved position is valid (not default/cleared values)
+            if (savedX != 50 && savedY != 100) {
+                // Use saved position
+                initialX = savedX
+                initialY = savedY
+                android.util.Log.d("FloatingPlayerService", "Using saved position: ($initialX, $initialY)")
+            } else {
+                // Center the window (in portrait orientation)
+                initialX = (screenWidth - initialWidth) / 2
+                initialY = (screenHeight - initialHeight) / 2
+                android.util.Log.d("FloatingPlayerService", "Centering window at: ($initialX, $initialY)")
+            }
+            
             params = WindowManager.LayoutParams(
                 initialWidth,
                 initialHeight,
-                layoutFlag,
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                        WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else
+                    WindowManager.LayoutParams.TYPE_PHONE,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
                 PixelFormat.TRANSLUCENT
-            )
-            
-            // FIXED: Restore saved position if available, otherwise center
-            params?.apply {
+            ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                
-                val savedX = preferencesManager.getFloatingPlayerX()
-                val savedY = preferencesManager.getFloatingPlayerY()
-                
-                // Check if we have a real saved position (not defaults)
-                if (savedX != 50 && savedY != 100) {
-                    // Use saved position
-                    x = savedX
-                    y = savedY
-                    android.util.Log.d("FloatingPlayerService", "Restored saved position: ($savedX, $savedY)")
-                } else {
-                    // No saved position, center it
-                    val centerX = (screenWidth - initialWidth) / 2
-                    val centerY = (screenHeight - initialHeight) / 2
-                    x = centerX
-                    y = centerY
-                    android.util.Log.d("FloatingPlayerService", "No saved position, centering at: ($centerX, $centerY)")
-                }
+                x = initialX
+                y = initialY
             }
             
             windowManager?.addView(floatingView, params)
@@ -285,16 +285,9 @@ class FloatingPlayerService : Service() {
             setupControls()
             setupGestures()
             
-            // ExoPlayer's controller will auto-show and auto-hide - no manual control needed
-            
         } catch (e: Exception) {
             android.util.Log.e("FloatingPlayerService", "Error creating floating view", e)
             e.printStackTrace()
-            android.widget.Toast.makeText(
-                this,
-                "Failed to create floating player: ${e.message}",
-                android.widget.Toast.LENGTH_LONG
-            ).show()
             stopSelf()
         }
     }
@@ -423,6 +416,15 @@ class FloatingPlayerService : Service() {
                 val channel = currentChannel  // Local copy to avoid smart cast issues
                 
                 if (currentPlayer != null && channel != null) {
+                    // ============================================
+                    // FIX #2: Save current size before going fullscreen
+                    // ============================================
+                    params?.let { p ->
+                        preferencesManager.setFloatingPlayerWidth(p.width)
+                        preferencesManager.setFloatingPlayerHeight(p.height)
+                        android.util.Log.d("FloatingPlayerService", "Saved size before fullscreen: ${p.width}x${p.height}")
+                    }
+                    
                     // FIXED: Transfer player to activity - no recreation!
                     val streamUrl = channel.links?.firstOrNull()?.url ?: ""
                     PlayerHolder.transferPlayer(currentPlayer, streamUrl, channel.name)
@@ -512,6 +514,12 @@ class FloatingPlayerService : Service() {
                     }
                     
                     MotionEvent.ACTION_UP -> {
+                        // ============================================
+                        // FIX #3: Save size after resizing
+                        // ============================================
+                        preferencesManager.setFloatingPlayerWidth(p.width)
+                        preferencesManager.setFloatingPlayerHeight(p.height)
+                        android.util.Log.d("FloatingPlayerService", "Saved size after resize: ${p.width}x${p.height}")
                         true
                     }
                     
@@ -552,7 +560,11 @@ class FloatingPlayerService : Service() {
                             initialTouchY = event.rawY
                             isDragging = false
                             hasMoved = false
-                            showUnlockButton()
+                            
+                            // ============================================
+                            // FIX #4: Only show unlock button on DOWN, not always
+                            // ============================================
+                            // Don't call showUnlockButton() here to avoid always showing
                             true  // Consume to start tracking
                         }
                         
@@ -580,8 +592,15 @@ class FloatingPlayerService : Service() {
                         
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             if (!hasMoved) {
-                                // Tap when locked - just show unlock button
-                                showUnlockButton()
+                                // ============================================
+                                // FIX #5: Only show unlock on tap, not always
+                                // ============================================
+                                // Tap when locked - toggle unlock button visibility
+                                if (unlockButton?.visibility == View.VISIBLE) {
+                                    hideUnlockButton()
+                                } else {
+                                    showUnlockButton()
+                                }
                             } else {
                                 // Save final position after drag
                                 preferencesManager.setFloatingPlayerX(p.x)
@@ -637,8 +656,13 @@ class FloatingPlayerService : Service() {
                         
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             if (!hasMoved) {
-                                // This was a tap - toggle controls
-                                if (playerView?.isControllerFullyVisible == true) {
+                                // ============================================
+                                // FIX #6: Toggle controls visibility properly
+                                // ============================================
+                                // This was a tap - toggle controls visibility
+                                val currentlyVisible = playerView?.isControllerFullyVisible == true
+                                
+                                if (currentlyVisible) {
                                     playerView?.hideController()
                                 } else {
                                     playerView?.showController()
@@ -712,7 +736,12 @@ class FloatingPlayerService : Service() {
                 isClickable = false   // Doesn't consume touches
                 isFocusable = false   // Doesn't consume touches
             }
-            showUnlockButton()
+            
+            // ============================================
+            // FIX #7: Don't auto-show unlock button when locking
+            // ============================================
+            // DON'T show unlock button automatically - let user tap to show it
+            // showUnlockButton()  // REMOVED THIS LINE
             android.util.Log.d("FloatingPlayerService", "Controls locked - window is still draggable")
         }
     }
