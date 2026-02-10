@@ -139,20 +139,11 @@ class FloatingPlayerService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        android.util.Log.d("FloatingPlayerService", "✅ onCreate() called")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        android.util.Log.d("FloatingPlayerService", "   WindowManager initialized: ${windowManager != null}")
         createNotificationChannel()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        android.util.Log.d("FloatingPlayerService", "========================================")
-        android.util.Log.d("FloatingPlayerService", "📱 onStartCommand() called")
-        android.util.Log.d("FloatingPlayerService", "   Intent exists: ${intent != null}")
-        android.util.Log.d("FloatingPlayerService", "   Action: ${intent?.action}")
-        android.util.Log.d("FloatingPlayerService", "   FloatingView already exists: ${floatingView != null}")
-        android.util.Log.d("FloatingPlayerService", "========================================")
-        
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
@@ -191,19 +182,9 @@ class FloatingPlayerService : Service() {
     }
 
     private fun createFloatingView(streamUrl: String, title: String, useTransferredPlayer: Boolean = false) {
-        // DEBUG: Log that we're starting to create the floating view
-        android.util.Log.d("FloatingPlayerService", "========================================")
-        android.util.Log.d("FloatingPlayerService", "🔍 CREATING FLOATING VIEW")
-        android.util.Log.d("FloatingPlayerService", "   streamUrl: $streamUrl")
-        android.util.Log.d("FloatingPlayerService", "   title: $title")
-        android.util.Log.d("FloatingPlayerService", "   useTransferredPlayer: $useTransferredPlayer")
-        android.util.Log.d("FloatingPlayerService", "   windowManager exists: ${windowManager != null}")
-        android.util.Log.d("FloatingPlayerService", "========================================")
-        
         try {
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
-            android.util.Log.d("FloatingPlayerService", "✅ View inflated successfully: ${floatingView != null}")
             
             // FIXED: Get screen dimensions correctly for PORTRAIT mode
             // Always center based on portrait dimensions even if launched from landscape
@@ -246,24 +227,8 @@ class FloatingPlayerService : Service() {
                 }
             }
             
-            // Restore saved size if available
-            val savedWidth = preferencesManager.getFloatingPlayerWidth()
-            val savedHeight = preferencesManager.getFloatingPlayerHeight()
-            
-            val initialWidth: Int
-            val initialHeight: Int
-            
-            if (savedWidth != -1 && savedHeight != -1) {
-                // Use saved size
-                initialWidth = savedWidth
-                initialHeight = savedHeight
-                android.util.Log.d("FloatingPlayerService", "Using saved size: ${initialWidth}x${initialHeight}")
-            } else {
-                // Use default size
-                initialWidth = dpToPx(320)
-                initialHeight = (initialWidth * 9 / 16)
-                android.util.Log.d("FloatingPlayerService", "Using default size: ${initialWidth}x${initialHeight}")
-            }
+            val initialWidth = dpToPx(320)
+            val initialHeight = (initialWidth * 9 / 16)
             
             android.util.Log.d("FloatingPlayerService", "Screen (portrait): ${screenWidth}x${screenHeight}, Window: ${initialWidth}x${initialHeight}")
             
@@ -293,8 +258,8 @@ class FloatingPlayerService : Service() {
                 val savedX = preferencesManager.getFloatingPlayerX()
                 val savedY = preferencesManager.getFloatingPlayerY()
                 
-                // Check if we have a real saved position (not -1 which means unset)
-                if (savedX != -1 && savedY != -1) {
+                // Check if we have a real saved position (not defaults)
+                if (savedX != 50 && savedY != 100) {
                     // Use saved position
                     x = savedX
                     y = savedY
@@ -309,76 +274,7 @@ class FloatingPlayerService : Service() {
                 }
             }
             
-            // CRITICAL FIX: Explicit null checks instead of silent safe call
-            if (windowManager == null) {
-                android.util.Log.e("FloatingPlayerService", "ERROR: WindowManager is null!")
-                android.widget.Toast.makeText(
-                    this,
-                    "Failed to create floating player: WindowManager not available",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-                stopSelf()
-                return
-            }
-
-            if (floatingView == null) {
-                android.util.Log.e("FloatingPlayerService", "ERROR: FloatingView is null!")
-                android.widget.Toast.makeText(
-                    this,
-                    "Failed to create floating player: View inflation failed",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-                stopSelf()
-                return
-            }
-
-            if (params == null) {
-                android.util.Log.e("FloatingPlayerService", "ERROR: Window params are null!")
-                android.widget.Toast.makeText(
-                    this,
-                    "Failed to create floating player: Window parameters not created",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-                stopSelf()
-                return
-            }
-
-            // Create local non-nullable variable after null check
-            val windowParams = params!!
-            
-            try {
-                windowManager!!.addView(floatingView, windowParams)
-                android.util.Log.d("FloatingPlayerService", "✅ Floating view successfully added to window manager")
-                android.util.Log.d("FloatingPlayerService", "   Position: (${windowParams.x}, ${windowParams.y})")
-                android.util.Log.d("FloatingPlayerService", "   Size: ${windowParams.width}x${windowParams.height}")
-            } catch (e: WindowManager.BadTokenException) {
-                android.util.Log.e("FloatingPlayerService", "ERROR: Bad window token - overlay permission may have been revoked", e)
-                android.widget.Toast.makeText(
-                    this,
-                    "Overlay permission required. Please enable 'Display over other apps' in settings.",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-                stopSelf()
-                return
-            } catch (e: SecurityException) {
-                android.util.Log.e("FloatingPlayerService", "ERROR: Security exception - overlay permission denied", e)
-                android.widget.Toast.makeText(
-                    this,
-                    "Overlay permission denied. Please enable in settings.",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-                stopSelf()
-                return
-            } catch (e: Exception) {
-                android.util.Log.e("FloatingPlayerService", "ERROR: Failed to add view to window manager", e)
-                android.widget.Toast.makeText(
-                    this,
-                    "Failed to create floating player: ${e.message}",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-                stopSelf()
-                return
-            }
+            windowManager?.addView(floatingView, params)
             
             if (useTransferredPlayer) {
                 setupTransferredPlayer(title)
@@ -514,12 +410,10 @@ class FloatingPlayerService : Service() {
         }
         
         closeBtn?.setOnClickListener {
-            // Clear saved position AND size when closing
-            preferencesManager.setFloatingPlayerX(-1)
-            preferencesManager.setFloatingPlayerY(-1)
-            preferencesManager.setFloatingPlayerWidth(-1)
-            preferencesManager.setFloatingPlayerHeight(-1)
-            android.util.Log.d("FloatingPlayerService", "Position/size cleared - will reset on next open")
+            // FIXED: Clear saved position when user closes, so it centers next time
+            preferencesManager.setFloatingPlayerX(50)  // Reset to default
+            preferencesManager.setFloatingPlayerY(100) // Reset to default
+            android.util.Log.d("FloatingPlayerService", "Position cleared - will center on next open")
             stopSelf()
         }
         
@@ -618,10 +512,6 @@ class FloatingPlayerService : Service() {
                     }
                     
                     MotionEvent.ACTION_UP -> {
-                        // Save size when resize ends
-                        preferencesManager.setFloatingPlayerWidth(p.width)
-                        preferencesManager.setFloatingPlayerHeight(p.height)
-                        android.util.Log.d("FloatingPlayerService", "Saved size: ${p.width}x${p.height}")
                         true
                     }
                     
@@ -662,8 +552,8 @@ class FloatingPlayerService : Service() {
                             initialTouchY = event.rawY
                             isDragging = false
                             hasMoved = false
-                            // DON\'T show unlock button here - let lock overlay handle it
-                        true  // Consume to start tracking
+                            showUnlockButton()
+                            true  // Consume to start tracking
                         }
                         
                         MotionEvent.ACTION_MOVE -> {
@@ -690,8 +580,8 @@ class FloatingPlayerService : Service() {
                         
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             if (!hasMoved) {
-                                // Tap when locked - toggle unlock button via lock overlay click
-                            lockOverlay?.performClick()
+                                // Tap when locked - just show unlock button
+                                showUnlockButton()
                             } else {
                                 // Save final position after drag
                                 preferencesManager.setFloatingPlayerX(p.x)
@@ -774,9 +664,9 @@ class FloatingPlayerService : Service() {
             }
         }
         
-        // Setup lock overlay to handle unlock button toggle
+        // Setup lock overlay to pass through touches (it should not interfere)
         lockOverlay?.apply {
-            isClickable = true  // Make it clickable to handle unlock button toggle
+            isClickable = false
             isFocusable = false
         }
     }
