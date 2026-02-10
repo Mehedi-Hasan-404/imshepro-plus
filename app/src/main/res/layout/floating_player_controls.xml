@@ -117,7 +117,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                app:played_color="#FF0000"
+                app:played_color="#FFFFFF"
                 app:scrubber_color="#FFFFFF"
                 app:buffered_color="#80FFFFFF"
                 app:unplayed_color="#40FFFFFF"
