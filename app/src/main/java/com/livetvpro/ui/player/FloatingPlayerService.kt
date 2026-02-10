@@ -227,8 +227,24 @@ class FloatingPlayerService : Service() {
                 }
             }
             
-            val initialWidth = dpToPx(320)
-            val initialHeight = (initialWidth * 9 / 16)
+            // Restore saved size if available
+            val savedWidth = preferencesManager.getFloatingPlayerWidth()
+            val savedHeight = preferencesManager.getFloatingPlayerHeight()
+            
+            val initialWidth: Int
+            val initialHeight: Int
+            
+            if (savedWidth != -1 && savedHeight != -1) {
+                // Use saved size
+                initialWidth = savedWidth
+                initialHeight = savedHeight
+                android.util.Log.d("FloatingPlayerService", "Using saved size: ${initialWidth}x${initialHeight}")
+            } else {
+                // Use default size
+                initialWidth = dpToPx(320)
+                initialHeight = (initialWidth * 9 / 16)
+                android.util.Log.d("FloatingPlayerService", "Using default size: ${initialWidth}x${initialHeight}")
+            }
             
             android.util.Log.d("FloatingPlayerService", "Screen (portrait): ${screenWidth}x${screenHeight}, Window: ${initialWidth}x${initialHeight}")
             
@@ -258,8 +274,8 @@ class FloatingPlayerService : Service() {
                 val savedX = preferencesManager.getFloatingPlayerX()
                 val savedY = preferencesManager.getFloatingPlayerY()
                 
-                // Check if we have a real saved position (not defaults)
-                if (savedX != 50 && savedY != 100) {
+                // Check if we have a real saved position (not -1 which means unset)
+                if (savedX != -1 && savedY != -1) {
                     // Use saved position
                     x = savedX
                     y = savedY
@@ -410,10 +426,12 @@ class FloatingPlayerService : Service() {
         }
         
         closeBtn?.setOnClickListener {
-            // FIXED: Clear saved position when user closes, so it centers next time
-            preferencesManager.setFloatingPlayerX(50)  // Reset to default
-            preferencesManager.setFloatingPlayerY(100) // Reset to default
-            android.util.Log.d("FloatingPlayerService", "Position cleared - will center on next open")
+            // Clear saved position AND size when closing
+            preferencesManager.setFloatingPlayerX(-1)
+            preferencesManager.setFloatingPlayerY(-1)
+            preferencesManager.setFloatingPlayerWidth(-1)
+            preferencesManager.setFloatingPlayerHeight(-1)
+            android.util.Log.d("FloatingPlayerService", "Position/size cleared - will reset on next open")
             stopSelf()
         }
         
@@ -512,6 +530,10 @@ class FloatingPlayerService : Service() {
                     }
                     
                     MotionEvent.ACTION_UP -> {
+                        // Save size when resize ends
+                        preferencesManager.setFloatingPlayerWidth(p.width)
+                        preferencesManager.setFloatingPlayerHeight(p.height)
+                        android.util.Log.d("FloatingPlayerService", "Saved size: ${p.width}x${p.height}")
                         true
                     }
                     
@@ -552,8 +574,8 @@ class FloatingPlayerService : Service() {
                             initialTouchY = event.rawY
                             isDragging = false
                             hasMoved = false
-                            showUnlockButton()
-                            true  // Consume to start tracking
+                            // DON\'T show unlock button here - let lock overlay handle it
+                        true  // Consume to start tracking
                         }
                         
                         MotionEvent.ACTION_MOVE -> {
@@ -581,7 +603,8 @@ class FloatingPlayerService : Service() {
                         MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                             if (!hasMoved) {
                                 // Tap when locked - just show unlock button
-                                showUnlockButton()
+                                 - toggle unlock button via lock overlay click
+                            lockOverlay?.performClick()
                             } else {
                                 // Save final position after drag
                                 preferencesManager.setFloatingPlayerX(p.x)
@@ -664,9 +687,9 @@ class FloatingPlayerService : Service() {
             }
         }
         
-        // Setup lock overlay to pass through touches (it should not interfere)
+        // Setup lock overlay to handle unlock button toggle
         lockOverlay?.apply {
-            isClickable = false
+            isClickable = true  // Make it clickable to handle unlock button toggle
             isFocusable = false
         }
     }
