@@ -668,8 +668,9 @@ class FloatingPlayerService : Service() {
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
         
         if (controlsLocked) {
-            // Lock: hide controls, show overlay and unlock button
-            hideControls()
+            // Lock: hide ALL controls immediately, show overlay and unlock button
+            controlsContainer?.visibility = View.GONE
+            playerView?.hideController()
             lockOverlay?.apply {
                 visibility = View.VISIBLE
                 isClickable = true
