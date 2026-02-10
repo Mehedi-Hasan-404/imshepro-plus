@@ -338,11 +338,11 @@ class FloatingPlayerService : Service() {
 
     private fun setupTransferredPlayer(title: String) {
         try {
-            val transferredPlayer = PlayerHolder.getPlayer()
-            val transferredName = PlayerHolder.getChannelName()
+            // FIXED: Retrieve the transferred player (no loading!)
+            val (transferredPlayer, transferredUrl, transferredName) = PlayerHolder.retrievePlayer()
             
             if (transferredPlayer != null) {
-                android.util.Log.d("FloatingPlayerService", "Using transferred player")
+                android.util.Log.d("FloatingPlayerService", "Using transferred player - NO LOADING!")
                 
                 // Use the existing player instance
                 player = transferredPlayer
