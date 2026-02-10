@@ -226,15 +226,15 @@ class FloatingPlayerService : Service() {
             val initialHeight: Int
             
             if (savedWidth > 0 && savedHeight > 0) {
-                // Use saved size
+                // Use saved size (only if user resized during this session)
                 initialWidth = savedWidth.coerceIn(getMinWidth(), getMaxWidth())
                 initialHeight = savedHeight.coerceIn(getMinHeight(), getMaxHeight())
                 android.util.Log.d("FloatingPlayerService", "Using saved size: ${initialWidth}x${initialHeight}")
             } else {
-                // Use default size (60% of screen width)
+                // Use default size - 60% of screen width (adapts to different screen sizes)
                 initialWidth = (screenWidth * 0.6f).toInt().coerceIn(getMinWidth(), getMaxWidth())
                 initialHeight = initialWidth * 9 / 16
-                android.util.Log.d("FloatingPlayerService", "Using default size: ${initialWidth}x${initialHeight}")
+                android.util.Log.d("FloatingPlayerService", "Using default size (60% screen): ${initialWidth}x${initialHeight}")
             }
             
             // ============================================
@@ -403,10 +403,12 @@ class FloatingPlayerService : Service() {
         }
         
         closeBtn?.setOnClickListener {
-            // FIXED: Clear saved position when user closes, so it centers next time
+            // FIXED: Clear saved position AND size when user closes, so it resets to defaults
             preferencesManager.setFloatingPlayerX(50)  // Reset to default
             preferencesManager.setFloatingPlayerY(100) // Reset to default
-            android.util.Log.d("FloatingPlayerService", "Position cleared - will center on next open")
+            preferencesManager.setFloatingPlayerWidth(0)  // Reset to 60% screen width
+            preferencesManager.setFloatingPlayerHeight(0) // Reset to 60% screen width
+            android.util.Log.d("FloatingPlayerService", "Position and size cleared - will reset to 60% screen on next open")
             stopSelf()
         }
         
