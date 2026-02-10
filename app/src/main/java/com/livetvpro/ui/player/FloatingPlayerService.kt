@@ -312,7 +312,7 @@ class FloatingPlayerService : Service() {
                 player = this@FloatingPlayerService.player
                 // Enable controller - ExoPlayer will automatically update seekbar and times
                 useController = true
-                controllerAutoShow = false
+                controllerAutoShow = true  // Changed from false to true - show controls on start
                 controllerShowTimeoutMs = 3000 // Match with HIDE_CONTROLS_DELAY
                 
                 // Sync ExoPlayer controller visibility with top controls
@@ -374,7 +374,7 @@ class FloatingPlayerService : Service() {
                     player = this@FloatingPlayerService.player
                     // Enable controller - ExoPlayer will automatically update seekbar and times
                     useController = true
-                    controllerAutoShow = false
+                    controllerAutoShow = true  // Changed from false to true - show controls on start
                     controllerShowTimeoutMs = 3000 // Match with HIDE_CONTROLS_DELAY
                     
                     // Sync ExoPlayer controller visibility with top controls
