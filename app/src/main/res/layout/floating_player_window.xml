@@ -24,32 +24,6 @@
             app:resize_mode="fill"
             app:surface_type="texture_view" />
 
-        <!-- Lock Overlay (shown when controls are locked) -->
-        <FrameLayout
-            android:id="@+id/lock_overlay"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@android:color/transparent"
-            android:visibility="gone"
-            android:clickable="true"
-            android:focusable="true">
-
-            <!-- Unlock Button (appears in top-left when locked) -->
-            <ImageButton
-                android:id="@+id/unlock_button"
-                android:layout_width="32dp"
-                android:layout_height="32dp"
-                android:layout_gravity="top|start"
-                android:layout_marginStart="8dp"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/ripple_square_white"
-                android:src="@drawable/ic_lock_closed"
-                android:tint="@android:color/white"
-                android:contentDescription="Unlock controls"
-                android:padding="6dp"
-                android:visibility="gone" />
-        </FrameLayout>
-
         <!-- Top Controls Container -->
         <LinearLayout
             android:id="@+id/top_controls_container"
@@ -120,6 +94,34 @@
                 android:padding="4dp" />
 
         </LinearLayout>
+
+        <!-- Lock Overlay (MUST be AFTER top controls to appear on top) -->
+        <FrameLayout
+            android:id="@+id/lock_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="#80000000"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+            android:elevation="10dp">
+
+            <!-- Unlock Button (appears in top-left when locked) -->
+            <ImageButton
+                android:id="@+id/unlock_button"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_gravity="top|start"
+                android:layout_marginStart="8dp"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/ripple_square_white"
+                android:src="@drawable/ic_lock_closed"
+                android:tint="@android:color/white"
+                android:contentDescription="Unlock controls"
+                android:padding="6dp"
+                android:visibility="gone" />
+        </FrameLayout>
 
     </FrameLayout>
 
