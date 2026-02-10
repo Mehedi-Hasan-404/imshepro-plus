@@ -320,8 +320,10 @@ class FloatingPlayerService : Service() {
                     when (visibility) {
                         View.VISIBLE -> {
                             // ExoPlayer controller is showing, show top controls too
-                            controlsContainer?.visibility = View.VISIBLE
-                            controlsVisible = true
+                            if (!controlsLocked) {
+                                controlsContainer?.visibility = View.VISIBLE
+                                controlsVisible = true
+                            }
                         }
                         View.GONE -> {
                             // ExoPlayer controller is hiding, hide top controls too
@@ -382,8 +384,10 @@ class FloatingPlayerService : Service() {
                         when (visibility) {
                             View.VISIBLE -> {
                                 // ExoPlayer controller is showing, show top controls too
-                                controlsContainer?.visibility = View.VISIBLE
-                                controlsVisible = true
+                                if (!controlsLocked) {
+                                    controlsContainer?.visibility = View.VISIBLE
+                                    controlsVisible = true
+                                }
                             }
                             View.GONE -> {
                                 // ExoPlayer controller is hiding, hide top controls too
@@ -394,6 +398,11 @@ class FloatingPlayerService : Service() {
                             }
                         }
                     })
+                    
+                    // Force show controller initially (transferred player may have it hidden)
+                    post {
+                        showController()
+                    }
                 }
                 
                 val titleText = floatingView?.findViewById<TextView>(R.id.tv_title)
@@ -668,16 +677,22 @@ class FloatingPlayerService : Service() {
         val lockBtn = floatingView?.findViewById<ImageButton>(R.id.btn_lock)
         
         if (controlsLocked) {
-            // Lock: hide ALL controls immediately, show overlay and unlock button
-            controlsContainer?.visibility = View.GONE
-            playerView?.hideController()
+            // Lock: Update icon first, THEN hide ALL controls immediately
+            lockBtn?.setImageResource(R.drawable.ic_lock_closed)
+            
+            // Hide controls with small delay to ensure lock button state is updated
+            playerView?.post {
+                controlsContainer?.visibility = View.GONE
+                playerView?.hideController()
+            }
+            
+            // Show overlay and unlock button
             lockOverlay?.apply {
                 visibility = View.VISIBLE
                 isClickable = true
                 isFocusable = true
             }
             showUnlockButton()
-            lockBtn?.setImageResource(R.drawable.ic_lock_closed)
         } else {
             // Unlock: show controls, hide overlay and unlock button
             lockOverlay?.visibility = View.GONE
