@@ -3,6 +3,7 @@ package com.livetvpro.ui.adapters
 import android.content.Intent
 import android.view.LayoutInflater
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -38,6 +39,19 @@ class FavoriteAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(favorite: FavoriteChannel) {
+            // 🔥 DEBUG: Log favorite data to help diagnose issues
+            android.util.Log.e("FAVORITE_DEBUG", "=================================")
+            android.util.Log.e("FAVORITE_DEBUG", "Favorite: ${favorite.name}")
+            android.util.Log.e("FAVORITE_DEBUG", "ID: ${favorite.id}")
+            android.util.Log.e("FAVORITE_DEBUG", "Stream URL: ${favorite.streamUrl}")
+            android.util.Log.e("FAVORITE_DEBUG", "Links: ${favorite.links}")
+            android.util.Log.e("FAVORITE_DEBUG", "Links count: ${favorite.links?.size ?: 0}")
+            
+            favorite.links?.forEachIndexed { index, link ->
+                android.util.Log.e("FAVORITE_DEBUG", "Link $index: ${link.quality} -> ${link.url}")
+            }
+            android.util.Log.e("FAVORITE_DEBUG", "=================================")
+            
             binding.apply {
                 // Set channel name
                 tvName.text = favorite.name
@@ -49,9 +63,32 @@ class FavoriteAdapter(
                     .error(R.drawable.ic_channel_placeholder)
                     .into(imgLogo)
 
-                // Handle channel click - launch player based on setting
+                // Handle channel click - check for multiple links first
                 root.setOnClickListener {
-                    launchPlayer(favorite)
+                    val links = favorite.links
+                    
+                    // 🔥 FIX: Check if favorite has links
+                    if (links.isNullOrEmpty()) {
+                        android.util.Log.e("FAVORITE_DEBUG", "ERROR: No links available for ${favorite.name}")
+                        android.widget.Toast.makeText(
+                            binding.root.context,
+                            "No stream URL available for ${favorite.name}",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                        return@setOnClickListener
+                    }
+                    
+                    android.util.Log.e("FAVORITE_DEBUG", "Links available: ${links.size}")
+                    
+                    // 🔥 FIX: Show dialog if multiple links exist
+                    if (links.size > 1) {
+                        android.util.Log.e("FAVORITE_DEBUG", "Multiple links - showing dialog")
+                        showLinkSelectionDialog(favorite, links)
+                    } else {
+                        // Single link - launch directly
+                        android.util.Log.e("FAVORITE_DEBUG", "Single link - launching directly")
+                        launchPlayer(favorite, 0)
+                    }
                 }
 
                 // Handle remove button click
@@ -61,8 +98,38 @@ class FavoriteAdapter(
             }
         }
 
-        private fun launchPlayer(favorite: FavoriteChannel) {
+        // 🔥 NEW: Show dialog for multiple links
+        private fun showLinkSelectionDialog(
+            favorite: FavoriteChannel, 
+            links: List<com.livetvpro.data.models.ChannelLink>
+        ) {
             val context = binding.root.context
+            val linkLabels = links.map { it.quality }.toTypedArray()
+            
+            android.util.Log.e("FAVORITE_DEBUG", "Showing dialog with ${linkLabels.size} options")
+            linkLabels.forEachIndexed { index, label ->
+                android.util.Log.e("FAVORITE_DEBUG", "Option $index: $label")
+            }
+            
+            AlertDialog.Builder(context)
+                .setTitle("Select Stream Quality")
+                .setItems(linkLabels) { dialog, which ->
+                    android.util.Log.e("FAVORITE_DEBUG", "User selected index: $which (${linkLabels[which]})")
+                    launchPlayer(favorite, which)
+                    dialog.dismiss()
+                }
+                .setNegativeButton("Cancel") { dialog, _ ->
+                    android.util.Log.e("FAVORITE_DEBUG", "User cancelled dialog")
+                    dialog.dismiss()
+                }
+                .show()
+        }
+
+        // 🔥 UPDATED: Now accepts linkIndex parameter
+        private fun launchPlayer(favorite: FavoriteChannel, linkIndex: Int) {
+            val context = binding.root.context
+            
+            android.util.Log.e("FAVORITE_DEBUG", "launchPlayer called with index: $linkIndex")
             
             // Convert FavoriteChannel to Channel
             val channel = Channel(
@@ -73,26 +140,23 @@ class FavoriteAdapter(
                 links = favorite.links
             )
             
+            android.util.Log.e("FAVORITE_DEBUG", "Channel created with ${channel.links?.size ?: 0} links")
+            
             // Check if floating player is enabled
-            if (preferencesManager.isFloatingPlayerEnabled() && 
-                FloatingPlayerHelper.hasOverlayPermission(context)) {
-                
-                // Floating player is ON - use floating player
-                FloatingPlayerHelper.launchFloatingPlayer(context, channel)
+            val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
+            val hasPermission = FloatingPlayerHelper.hasOverlayPermission(context)
+            
+            android.util.Log.e("FAVORITE_DEBUG", "Floating enabled: $floatingEnabled, has permission: $hasPermission")
+            
+            if (floatingEnabled && hasPermission) {
+                // Floating player is ON - use floating player with selected link
+                android.util.Log.e("FAVORITE_DEBUG", "Launching floating player with link index: $linkIndex")
+                FloatingPlayerHelper.launchFloatingPlayer(context, channel, linkIndex)
             } else {
-                // Floating player is OFF - use regular PlayerActivity
-                openFullscreenPlayer(favorite)
+                // Floating player is OFF - use regular PlayerActivity with selected link
+                android.util.Log.e("FAVORITE_DEBUG", "Launching normal player with link index: $linkIndex")
+                PlayerActivity.startWithChannel(context, channel, linkIndex)
             }
-        }
-
-        private fun openFullscreenPlayer(favorite: FavoriteChannel) {
-            val context = binding.root.context
-            val intent = Intent(context, PlayerActivity::class.java).apply {
-                putExtra("stream_url", favorite.links?.firstOrNull()?.url ?: "")
-                putExtra("title", favorite.name)
-                putExtra("channel_logo", favorite.logoUrl)
-            }
-            context.startActivity(intent)
         }
     }
 
