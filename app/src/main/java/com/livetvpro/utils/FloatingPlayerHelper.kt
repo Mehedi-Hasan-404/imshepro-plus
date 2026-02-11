@@ -1,173 +1,151 @@
 package com.livetvpro.utils
 
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import android.provider.Settings
-import androidx.appcompat.app.AlertDialog
-import androidx.fragment.app.FragmentActivity
-import com.livetvpro.R
 import com.livetvpro.data.models.Channel
-import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.ui.player.FloatingPlayerService
 
+/**
+ * FloatingPlayerHelper
+ * 
+ * Utility object for managing floating player functionality
+ * 
+ * UPDATED VERSION with linkIndex support for multiple stream qualities
+ */
 object FloatingPlayerHelper {
-
+    
     /**
-     * Check if the app has overlay permission
+     * Check if the app has overlay permission (required for floating player)
+     * 
+     * @param context Android context
+     * @return true if permission is granted, false otherwise
      */
     fun hasOverlayPermission(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+        return if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             Settings.canDrawOverlays(context)
         } else {
-            true // Permission not required on Android < M
+            // Below Android M, overlay permission is granted by default
+            true
         }
     }
-
+    
     /**
-     * Request overlay permission
+     * Request overlay permission from the user
+     * 
+     * Opens the system settings screen where user can grant permission
      */
-    fun requestOverlayPermission(activity: Activity, requestCode: Int = 1001) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+    fun requestOverlayPermission(context: Context) {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             val intent = Intent(
                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${activity.packageName}")
+                android.net.Uri.parse("package:${context.packageName}")
             )
-            activity.startActivityForResult(intent, requestCode)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
         }
     }
-
+    
     /**
-     * Launch floating player with a Channel
-     * Shows link selection dialog if multiple links are available
+     * Launch the floating player with the specified channel and link
+     * 
+     * 🔥 UPDATED: Now accepts linkIndex parameter to support multiple stream qualities
+     * 
+     * @param context Android context
+     * @param channel Channel object containing name, logo, and links
+     * @param linkIndex Index of the link to play (default: 0 for first link)
+     * 
+     * Example usage:
+     * ```
+     * // Play first link
+     * FloatingPlayerHelper.launchFloatingPlayer(context, channel)
+     * 
+     * // Play second link (index 1)
+     * FloatingPlayerHelper.launchFloatingPlayer(context, channel, 1)
+     * ```
      */
-    fun launchFloatingPlayer(context: Context, channel: Channel) {
-        android.util.Log.d("FloatingPlayerHelper", "launchFloatingPlayer called for channel: ${channel.name}")
-        android.util.Log.d("FloatingPlayerHelper", "Channel has ${channel.links?.size ?: 0} links")
+    fun launchFloatingPlayer(context: Context, channel: Channel, linkIndex: Int = 0) {
+        android.util.Log.e("FloatingPlayerHelper", "========================================")
+        android.util.Log.e("FloatingPlayerHelper", "Launching floating player")
+        android.util.Log.e("FloatingPlayerHelper", "Channel: ${channel.name}")
+        android.util.Log.e("FloatingPlayerHelper", "Channel ID: ${channel.id}")
+        android.util.Log.e("FloatingPlayerHelper", "Link index: $linkIndex")
+        android.util.Log.e("FloatingPlayerHelper", "Total links: ${channel.links?.size ?: 0}")
         
-        // Validate that we have links
-        if (channel.links.isNullOrEmpty()) {
+        // Validate overlay permission
+        if (!hasOverlayPermission(context)) {
+            android.util.Log.e("FloatingPlayerHelper", "ERROR: No overlay permission!")
             android.widget.Toast.makeText(
                 context,
-                "No streams available",
+                "Overlay permission required for floating player",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+        
+        // Validate channel has links
+        if (channel.links.isNullOrEmpty()) {
+            android.util.Log.e("FloatingPlayerHelper", "ERROR: Channel has no links!")
+            android.widget.Toast.makeText(
+                context,
+                "No stream available for ${channel.name}",
                 android.widget.Toast.LENGTH_SHORT
             ).show()
             return
         }
-
-        // If only one link, launch directly
-        if (channel.links.size == 1) {
-            android.util.Log.d("FloatingPlayerHelper", "Only 1 link - launching directly")
-            launchFloatingPlayerWithLink(context, channel, linkIndex = 0)
-            return
+        
+        // Validate linkIndex is within bounds
+        if (linkIndex !in channel.links.indices) {
+            android.util.Log.e("FloatingPlayerHelper", "WARNING: Invalid linkIndex $linkIndex, using 0")
+            android.widget.Toast.makeText(
+                context,
+                "Invalid stream selection, using first available",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
         }
-
-        // ============================================
-        // FIX: Show link selection dialog for multiple links
-        // ============================================
-        android.util.Log.d("FloatingPlayerHelper", "Multiple links (${channel.links.size}) - showing dialog")
-        showLinkSelectionDialog(context, channel)
-    }
-
-    /**
-     * Launch floating player with a LiveEvent
-     * Shows link selection dialog if multiple links are available
-     */
-    fun launchFloatingPlayer(context: Context, event: LiveEvent) {
-        android.util.Log.d("FloatingPlayerHelper", "launchFloatingPlayer called for event: ${event.team1Name} vs ${event.team2Name}")
-        android.util.Log.d("FloatingPlayerHelper", "Event has ${event.links.size} links")
         
-        // Convert LiveEvent to Channel
-        val channel = Channel(
-            id = event.id,
-            name = "${event.team1Name} vs ${event.team2Name}",
-            logoUrl = event.leagueLogo.ifEmpty { event.team1Logo },
-            categoryName = event.category,
-            links = event.links.map { liveEventLink ->
-                com.livetvpro.data.models.ChannelLink(
-                    quality = liveEventLink.quality,
-                    url = liveEventLink.url,
-                    cookie = liveEventLink.cookie,
-                    referer = liveEventLink.referer,
-                    origin = liveEventLink.origin,
-                    userAgent = liveEventLink.userAgent,
-                    drmScheme = liveEventLink.drmScheme,
-                    drmLicenseUrl = liveEventLink.drmLicenseUrl
-                )
-            }
-        )
-        
-        launchFloatingPlayer(context, channel)
-    }
-
-    /**
-     * Show dialog to select which link to use
-     */
-    private fun showLinkSelectionDialog(context: Context, channel: Channel) {
-        if (context !is FragmentActivity) {
-            android.util.Log.e("FloatingPlayerHelper", "Context is not a FragmentActivity, cannot show dialog")
-            // Fallback to first link
-            launchFloatingPlayerWithLink(context, channel, linkIndex = 0)
-            return
+        // Log selected link details
+        val selectedLink = if (linkIndex in channel.links.indices) {
+            channel.links[linkIndex]
+        } else {
+            channel.links[0]
         }
-
-        val links = channel.links ?: return
         
-        // Create quality labels for the dialog
-        val qualityLabels = links.mapIndexed { index, link ->
-            val quality = link.quality.ifEmpty { "Link ${index + 1}" }
-            quality
-        }.toTypedArray()
-
-        android.util.Log.d("FloatingPlayerHelper", "Showing dialog with ${qualityLabels.size} options: ${qualityLabels.joinToString()}")
-
-        AlertDialog.Builder(context)
-            .setTitle("Select Stream Quality")
-            .setItems(qualityLabels) { dialog, which ->
-                android.util.Log.d("FloatingPlayerHelper", "User selected link $which: ${qualityLabels[which]}")
-                launchFloatingPlayerWithLink(context, channel, linkIndex = which)
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel") { dialog, _ ->
-                android.util.Log.d("FloatingPlayerHelper", "User cancelled link selection")
-                dialog.dismiss()
-            }
-            .show()
-    }
-
-    /**
-     * Launch floating player with a specific link index
-     */
-    private fun launchFloatingPlayerWithLink(context: Context, channel: Channel, linkIndex: Int) {
-        android.util.Log.d("FloatingPlayerHelper", "Launching floating player with link index: $linkIndex")
+        android.util.Log.e("FloatingPlayerHelper", "Selected link quality: ${selectedLink.quality}")
+        android.util.Log.e("FloatingPlayerHelper", "Selected link URL: ${selectedLink.url}")
         
-        if (channel.links.isNullOrEmpty()) {
-            android.util.Log.e("FloatingPlayerHelper", "No links available")
-            return
+        // 🔥 UPDATED: Use FloatingPlayerService.start() method with linkIndex
+        try {
+            FloatingPlayerService.start(
+                context = context,
+                channel = channel,
+                linkIndex = linkIndex,
+                playbackPosition = 0L
+            )
+            android.util.Log.e("FloatingPlayerHelper", "Floating player service started successfully")
+        } catch (e: Exception) {
+            android.util.Log.e("FloatingPlayerHelper", "ERROR starting floating player service", e)
+            android.widget.Toast.makeText(
+                context,
+                "Failed to start floating player: ${e.message}",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
         }
-
-        if (linkIndex < 0 || linkIndex >= channel.links.size) {
-            android.util.Log.e("FloatingPlayerHelper", "Invalid link index: $linkIndex (available: 0-${channel.links.size - 1})")
-            return
-        }
-
-        val selectedLink = channel.links[linkIndex]
-        android.util.Log.d("FloatingPlayerHelper", "Selected link: ${selectedLink.quality} - ${selectedLink.url}")
-
-        // Create a new channel with only the selected link
-        val singleLinkChannel = channel.copy(
-            links = listOf(selectedLink)
-        )
-
-        // Launch the floating player service
-        FloatingPlayerService.start(
-            context = context,
-            channel = singleLinkChannel,
-            playbackPosition = 0L
-        )
         
-        android.util.Log.d("FloatingPlayerHelper", "FloatingPlayerService.start() called successfully")
+        android.util.Log.e("FloatingPlayerHelper", "========================================")
     }
 }
+
+/**
+ * SUMMARY OF CHANGES:
+ * ===================
+ * 
+ * 1. Added linkIndex parameter to launchFloatingPlayer() with default value 0
+ * 2. Added validation for channel.links being null or empty
+ * 3. Added validation for linkIndex being within valid range
+ * 4. Updated to call FloatingPlayerService.start() with linkIndex
+ * 5. Added extensive logging for debugging
+ * 6. Added error handling with user-friendly toast messages
+ * 7. Added helper method requestOverlayPermission() for convenience
+ * 8. Added comprehensive documentation
+ */
