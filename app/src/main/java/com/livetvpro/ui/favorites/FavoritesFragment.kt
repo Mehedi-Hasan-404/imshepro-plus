@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
@@ -32,9 +33,6 @@ class FavoritesFragment : Fragment() {
     @Inject
     lateinit var listenerManager: NativeListenerManager
     
-    @Inject
-    lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
-    
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
         return binding.root
@@ -49,7 +47,39 @@ class FavoritesFragment : Fragment() {
 
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
-            preferencesManager = preferencesManager,
+            onChannelClick = { favChannel ->
+                val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
+                
+                if (shouldBlock) {
+                    return@FavoriteAdapter
+                }
+                
+                // Try to get the live/fresh channel first
+                val liveChannel = viewModel.getLiveChannel(favChannel.id)
+                
+                // Use live channel if available, otherwise convert favorite
+                val finalChannel = liveChannel ?: convertToChannel(favChannel)
+                
+                // Check if channel has multiple links
+                val channelLinks = finalChannel.links
+                
+                if (channelLinks != null && channelLinks.size > 1) {
+                    // Show dialog for multiple links
+                    showLinkSelectionDialog(finalChannel)
+                } else if (channelLinks != null && channelLinks.size == 1) {
+                    // Single link - use it directly
+                    val modifiedChannel = finalChannel.copy(
+                        streamUrl = channelLinks[0].url
+                    )
+                    PlayerActivity.startWithChannel(requireContext(), modifiedChannel)
+                } else if (finalChannel.streamUrl.isNotEmpty()) {
+                    // No links array, but has streamUrl
+                    PlayerActivity.startWithChannel(requireContext(), finalChannel)
+                } else {
+                    // No valid stream URL found
+                    Toast.makeText(requireContext(), "No stream URL available", Toast.LENGTH_SHORT).show()
+                }
+            },
             onFavoriteToggle = { favChannel -> 
                 showRemoveConfirmation(favChannel) 
             }
