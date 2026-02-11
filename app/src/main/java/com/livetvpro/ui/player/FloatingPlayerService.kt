@@ -32,6 +32,8 @@ import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.utils.FloatingPlayerManager
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
 @dagger.hilt.android.AndroidEntryPoint
 class FloatingPlayerService : Service() {
@@ -159,6 +161,7 @@ class FloatingPlayerService : Service() {
         var params: WindowManager.LayoutParams?,
         var lockOverlay: View?,
         var unlockButton: ImageButton?,
+        var resizeHandle: ImageView?,
         var controlsLocked: Boolean = false,
         var isMuted: Boolean = false,
         var currentChannel: Channel? = null,
@@ -166,7 +169,9 @@ class FloatingPlayerService : Service() {
         var initialX: Int = 0,
         var initialY: Int = 0,
         var initialTouchX: Float = 0f,
-        var initialTouchY: Float = 0f
+        var initialTouchY: Float = 0f,
+        var initialWidth: Int = 0,
+        var initialHeight: Int = 0
     )
     
     private val instances = mutableMapOf<String, FloatingPlayerInstance>()
@@ -213,36 +218,40 @@ class FloatingPlayerService : Service() {
                 val streamUrl = intent.getStringExtra(EXTRA_STREAM_URL) ?: ""
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "Live Stream"
                 val playbackPosition = intent.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L)
-                val useTransferredPlayer = intent.getBooleanExtra("use_transferred_player", false)
                 
-                if (streamUrl.isEmpty() && !useTransferredPlayer) {
+                if (streamUrl.isEmpty()) {
+                    stopSelf()
                     return START_NOT_STICKY
                 }
                 
-                createFloatingInstance(instanceId, channel, streamUrl, title, playbackPosition, useTransferredPlayer)
+                createFloatingView(instanceId, streamUrl, title, playbackPosition, channel)
                 
-                // Start foreground with first instance or update notification
-                updateForegroundNotification()
+                // Start foreground for first instance
+                if (instances.size == 1) {
+                    startForeground(NOTIFICATION_ID_BASE, createNotification())
+                } else {
+                    updateForegroundNotification()
+                }
             }
         }
         
         return START_STICKY
     }
-    
-    private fun createFloatingInstance(
+
+    @SuppressLint("ClickableViewAccessibility", "InflateParams")
+    private fun createFloatingView(
         instanceId: String,
-        channel: Channel?,
-        streamUrl: String,
-        title: String,
+        streamUrl: String, 
+        title: String, 
         playbackPosition: Long,
-        useTransferredPlayer: Boolean
+        channel: Channel?
     ) {
         try {
-            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
             val themeContext = android.view.ContextThemeWrapper(this, R.style.Theme_LiveTVPro)
             val floatingView = LayoutInflater.from(themeContext).inflate(R.layout.floating_player_window, null)
             
-            // Calculate window size
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            
             val screenWidth: Int
             val screenHeight: Int
             
@@ -263,11 +272,47 @@ class FloatingPlayerService : Service() {
                 screenHeight = if (size.x < size.y) size.y else size.x
             }
             
-            val windowWidth = (screenWidth * 0.8).toInt().coerceIn(getMinWidth(), getMaxWidth())
-            val windowHeight = (windowWidth * 9) / 16
+            // Get saved dimensions or use defaults
+            val savedWidth = preferencesManager.getFloatingPlayerWidth()
+            val savedHeight = preferencesManager.getFloatingPlayerHeight()
             
-            // Create window params
-            val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val defaultWidth = dpToPx(300)
+            val defaultHeight = dpToPx(169) // 16:9 aspect ratio
+            
+            val width = if (savedWidth > 0) {
+                savedWidth.coerceIn(getMinWidth(), getMaxWidth())
+            } else {
+                defaultWidth
+            }
+            
+            val height = if (savedHeight > 0) {
+                savedHeight.coerceIn(getMinHeight(), getMaxHeight())
+            } else {
+                defaultHeight
+            }
+            
+            // Get saved position or center it
+            val savedX = preferencesManager.getFloatingPlayerX()
+            val savedY = preferencesManager.getFloatingPlayerY()
+            
+            val initialX: Int
+            val initialY: Int
+            
+            if (savedX != 50 || savedY != 100) {
+                // Use saved position
+                initialX = savedX
+                initialY = savedY
+            } else {
+                // Center the window on first launch
+                initialX = (screenWidth - width) / 2
+                initialY = (screenHeight - height) / 2
+                
+                // Save the centered position
+                preferencesManager.setFloatingPlayerX(initialX)
+                preferencesManager.setFloatingPlayerY(initialY)
+            }
+            
+            val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             } else {
                 @Suppress("DEPRECATION")
@@ -275,46 +320,37 @@ class FloatingPlayerService : Service() {
             }
             
             val params = WindowManager.LayoutParams(
-                windowWidth,
-                windowHeight,
-                layoutType,
+                width,
+                height,
+                layoutFlag,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
+                x = initialX
+                y = initialY
             }
-            
-            // Calculate initial position (stagger multiple windows)
-            val instanceCount = instances.size
-            val baseX = preferencesManager.getFloatingPlayerX()
-            val baseY = preferencesManager.getFloatingPlayerY()
-            
-            params.x = baseX + (instanceCount * 50)  // Offset each window
-            params.y = baseY + (instanceCount * 50)
             
             // Setup player
+            val player = ExoPlayer.Builder(this).build()
             val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
-            val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
-            val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
+            playerView.player = player
             
-            val player: ExoPlayer? = if (useTransferredPlayer) {
-                val (transferredPlayer, _, _) = PlayerHolder.retrievePlayer()
-                transferredPlayer?.also {
-                    PlayerHolder.clearReferences()
-                }
-            } else {
-                ExoPlayer.Builder(this).build().apply {
-                    val mediaItem = MediaItem.fromUri(streamUrl)
-                    setMediaItem(mediaItem)
-                    prepare()
-                    seekTo(playbackPosition)
-                    playWhenReady = true
-                }
+            val mediaItem = MediaItem.fromUri(streamUrl)
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            
+            if (playbackPosition > 0) {
+                player.seekTo(playbackPosition)
             }
             
-            playerView?.player = player
+            player.playWhenReady = true
+            
+            // Setup lock overlay and unlock button
+            val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
+            val unlockButton = floatingView.findViewById<ImageButton>(R.id.btn_unlock)
+            val resizeHandle = floatingView.findViewById<ImageView>(R.id.resize_handle)
             
             // Create instance object
             val instance = FloatingPlayerInstance(
@@ -326,46 +362,105 @@ class FloatingPlayerService : Service() {
                 params = params,
                 lockOverlay = lockOverlay,
                 unlockButton = unlockButton,
+                resizeHandle = resizeHandle,
                 currentChannel = channel,
                 currentPlaybackPosition = playbackPosition
             )
             
-            instances[instanceId] = instance
+            // Create hide unlock button runnable for this instance
+            hideUnlockButtonRunnables[instanceId] = Runnable {
+                instance.unlockButton?.visibility = View.GONE
+            }
             
-            // Add to FloatingPlayerManager
-            FloatingPlayerManager.addPlayer(instanceId, title, "channel")
+            // Setup controls and touch handlers
+            setupControlButtons(instance)
+            setupTouchHandlers(instance)
+            setupResizeHandle(instance)
             
-            // Add view to window manager
+            // Add to window manager
             windowManager.addView(floatingView, params)
             
-            // Setup touch listeners
-            setupTouchListeners(instance)
+            // Register with manager
+            FloatingPlayerManager.addPlayer(instanceId, instance.player!!)
             
-            // Setup control buttons
-            setupControlButtons(instance)
+            // Store instance
+            instances[instanceId] = instance
             
         } catch (e: Exception) {
-            android.util.Log.e("FloatingPlayerService", "Error creating instance: ${e.message}", e)
+            android.util.Log.e("FloatingPlayerService", "Error creating floating view: ${e.message}", e)
         }
     }
     
     @SuppressLint("ClickableViewAccessibility")
-    private fun setupTouchListeners(instance: FloatingPlayerInstance) {
+    private fun setupResizeHandle(instance: FloatingPlayerInstance) {
+        val resizeHandle = instance.resizeHandle ?: return
+        val floatingView = instance.floatingView ?: return
+        val params = instance.params ?: return
+        
+        var isResizing = false
+        var initialWidth = 0
+        var initialHeight = 0
+        var initialTouchX = 0f
+        var initialTouchY = 0f
+        
+        resizeHandle.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    isResizing = true
+                    initialWidth = params.width
+                    initialHeight = params.height
+                    initialTouchX = event.rawX
+                    initialTouchY = event.rawY
+                    true
+                }
+                
+                MotionEvent.ACTION_MOVE -> {
+                    if (isResizing) {
+                        val dx = (event.rawX - initialTouchX).toInt()
+                        val dy = (event.rawY - initialTouchY).toInt()
+                        
+                        // Calculate new dimensions maintaining 16:9 aspect ratio
+                        val newWidth = (initialWidth + dx).coerceIn(getMinWidth(), getMaxWidth())
+                        val newHeight = newWidth * 9 / 16
+                        
+                        params.width = newWidth
+                        params.height = newHeight
+                        
+                        // Save dimensions
+                        preferencesManager.setFloatingPlayerWidth(newWidth)
+                        preferencesManager.setFloatingPlayerHeight(newHeight)
+                        
+                        instance.windowManager?.updateViewLayout(floatingView, params)
+                    }
+                    true
+                }
+                
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    isResizing = false
+                    
+                    // Save final dimensions
+                    preferencesManager.setFloatingPlayerWidth(params.width)
+                    preferencesManager.setFloatingPlayerHeight(params.height)
+                    
+                    true
+                }
+                
+                else -> false
+            }
+        }
+    }
+    
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupTouchHandlers(instance: FloatingPlayerInstance) {
         val floatingView = instance.floatingView ?: return
         val params = instance.params ?: return
         
         var isDragging = false
         var hasMoved = false
         
-        // Create hide unlock button runnable for this instance
-        val hideRunnable = Runnable {
-            instance.unlockButton?.visibility = View.GONE
-        }
-        hideUnlockButtonRunnables[instance.instanceId] = hideRunnable
-        
         floatingView.setOnTouchListener { _, event ->
             if (instance.controlsLocked) {
-                // Locked mode - only unlock button and drag
+                // Locked mode - only drag
                 when (event.action) {
                     MotionEvent.ACTION_DOWN -> {
                         instance.initialX = params.x
@@ -388,6 +483,10 @@ class FloatingPlayerService : Service() {
                             params.x = instance.initialX + dx
                             params.y = instance.initialY + dy
                             
+                            // Save position during drag
+                            preferencesManager.setFloatingPlayerX(params.x)
+                            preferencesManager.setFloatingPlayerY(params.y)
+                            
                             instance.windowManager?.updateViewLayout(floatingView, params)
                         }
                         true
@@ -400,6 +499,10 @@ class FloatingPlayerService : Service() {
                             } else {
                                 showUnlockButton(instance.instanceId)
                             }
+                        } else {
+                            // Save final position
+                            preferencesManager.setFloatingPlayerX(params.x)
+                            preferencesManager.setFloatingPlayerY(params.y)
                         }
                         
                         isDragging = false
@@ -433,6 +536,10 @@ class FloatingPlayerService : Service() {
                             params.x = instance.initialX + dx
                             params.y = instance.initialY + dy
                             
+                            // Save position during drag
+                            preferencesManager.setFloatingPlayerX(params.x)
+                            preferencesManager.setFloatingPlayerY(params.y)
+                            
                             instance.windowManager?.updateViewLayout(floatingView, params)
                         }
                         
@@ -448,6 +555,10 @@ class FloatingPlayerService : Service() {
                             } else {
                                 instance.playerView?.showController()
                             }
+                        } else {
+                            // Save final position
+                            preferencesManager.setFloatingPlayerX(params.x)
+                            preferencesManager.setFloatingPlayerY(params.y)
                         }
                         
                         val wasMoving = hasMoved
@@ -537,6 +648,14 @@ class FloatingPlayerService : Service() {
         // Save playback position
         instance.player?.let { player ->
             instance.currentPlaybackPosition = player.currentPosition
+        }
+        
+        // Save final position and size
+        instance.params?.let { params ->
+            preferencesManager.setFloatingPlayerX(params.x)
+            preferencesManager.setFloatingPlayerY(params.y)
+            preferencesManager.setFloatingPlayerWidth(params.width)
+            preferencesManager.setFloatingPlayerHeight(params.height)
         }
         
         // Cleanup
