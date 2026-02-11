@@ -45,6 +45,9 @@ class FavoritesFragment : Fragment() {
             preferencesManager = preferencesManager,
             onFavoriteToggle = { favChannel -> 
                 showRemoveConfirmation(favChannel) 
+            },
+            getLiveChannel = { channelId ->
+                viewModel.getLiveChannel(channelId)
             }
         )
 
