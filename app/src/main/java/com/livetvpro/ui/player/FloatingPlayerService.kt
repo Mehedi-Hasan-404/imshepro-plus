@@ -370,7 +370,7 @@ class FloatingPlayerService : Service() {
             titleText.text = channel.name
             
             val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
-            val unlockButton = floatingView.findViewById<ImageButton>(R.id.btn_unlock)
+            val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
             
             // Setup controls
             setupFloatingControls(floatingView, playerView, params, instanceId, player, lockOverlay, unlockButton, channel)
