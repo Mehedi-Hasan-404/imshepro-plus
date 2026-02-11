@@ -1,6 +1,5 @@
 package com.livetvpro.ui.adapters
 
-import android.content.Intent
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
@@ -18,7 +17,8 @@ import com.livetvpro.utils.FloatingPlayerHelper
 
 class FavoriteAdapter(
     private val preferencesManager: PreferencesManager,
-    private val onFavoriteToggle: (FavoriteChannel) -> Unit
+    private val onFavoriteToggle: (FavoriteChannel) -> Unit,
+    private val getLiveChannel: ((String) -> Channel?)? = null
 ) : ListAdapter<FavoriteChannel, FavoriteAdapter.FavoriteViewHolder>(FavoriteDiffCallback()) {
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FavoriteViewHolder {
@@ -49,11 +49,27 @@ class FavoriteAdapter(
                     .into(imgLogo)
 
                 root.setOnClickListener {
-                    val links = favorite.links
+                    val liveChannel = getLiveChannel?.invoke(favorite.id)
+                    
+                    val channelToUse = if (liveChannel != null) {
+                        liveChannel
+                    } else {
+                        Channel(
+                            id = favorite.id,
+                            name = favorite.name,
+                            logoUrl = favorite.logoUrl,
+                            streamUrl = favorite.streamUrl,
+                            categoryId = favorite.categoryId,
+                            categoryName = favorite.categoryName,
+                            links = favorite.links
+                        )
+                    }
+                    
+                    val links = channelToUse.links
                     
                     if (links.isNullOrEmpty()) {
-                        if (favorite.streamUrl.isNotEmpty()) {
-                            launchPlayerWithUrl(favorite, favorite.streamUrl)
+                        if (channelToUse.streamUrl.isNotEmpty()) {
+                            launchPlayerWithUrl(channelToUse, channelToUse.streamUrl)
                         } else {
                             android.widget.Toast.makeText(
                                 binding.root.context,
@@ -65,9 +81,9 @@ class FavoriteAdapter(
                     }
                     
                     if (links.size > 1) {
-                        showLinkSelectionDialog(favorite, links)
+                        showLinkSelectionDialog(channelToUse, links)
                     } else {
-                        launchPlayer(favorite, 0)
+                        launchPlayer(channelToUse, 0)
                     }
                 }
 
@@ -78,7 +94,7 @@ class FavoriteAdapter(
         }
 
         private fun showLinkSelectionDialog(
-            favorite: FavoriteChannel, 
+            channel: Channel, 
             links: List<com.livetvpro.data.models.ChannelLink>
         ) {
             val context = binding.root.context
@@ -87,7 +103,7 @@ class FavoriteAdapter(
             MaterialAlertDialogBuilder(context)
                 .setTitle("Select Stream")
                 .setItems(linkLabels) { dialog, which ->
-                    launchPlayer(favorite, which)
+                    launchPlayer(channel, which)
                     dialog.dismiss()
                 }
                 .setNegativeButton("Cancel") { dialog, _ ->
@@ -96,33 +112,33 @@ class FavoriteAdapter(
                 .show()
         }
 
-        private fun launchPlayer(favorite: FavoriteChannel, linkIndex: Int) {
+        private fun launchPlayer(channel: Channel, linkIndex: Int) {
             val context = binding.root.context
             
-            val selectedLink = favorite.links?.getOrNull(linkIndex)
+            val selectedLink = channel.links?.getOrNull(linkIndex)
             val streamUrl = if (selectedLink != null) {
                 buildStreamUrlFromLink(selectedLink)
             } else {
-                favorite.streamUrl
+                channel.streamUrl
             }
             
-            val channel = Channel(
-                id = favorite.id,
-                name = favorite.name,
-                logoUrl = favorite.logoUrl,
+            val channelWithUrl = Channel(
+                id = channel.id,
+                name = channel.name,
+                logoUrl = channel.logoUrl,
                 streamUrl = streamUrl,
-                categoryId = favorite.categoryId,
-                categoryName = favorite.categoryName,
-                links = favorite.links
+                categoryId = channel.categoryId,
+                categoryName = channel.categoryName,
+                links = channel.links
             )
             
             val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
             val hasPermission = FloatingPlayerHelper.hasOverlayPermission(context)
             
             if (floatingEnabled && hasPermission) {
-                FloatingPlayerHelper.launchFloatingPlayer(context, channel, linkIndex)
+                FloatingPlayerHelper.launchFloatingPlayer(context, channelWithUrl, linkIndex)
             } else {
-                PlayerActivity.startWithChannel(context, channel, linkIndex)
+                PlayerActivity.startWithChannel(context, channelWithUrl, linkIndex)
             }
         }
         
@@ -144,18 +160,8 @@ class FavoriteAdapter(
             }
         }
         
-        private fun launchPlayerWithUrl(favorite: FavoriteChannel, url: String) {
+        private fun launchPlayerWithUrl(channel: Channel, url: String) {
             val context = binding.root.context
-            
-            val channel = Channel(
-                id = favorite.id,
-                name = favorite.name,
-                logoUrl = favorite.logoUrl,
-                streamUrl = url,
-                categoryId = favorite.categoryId,
-                categoryName = favorite.categoryName,
-                links = null
-            )
             
             val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
             val hasPermission = FloatingPlayerHelper.hasOverlayPermission(context)
