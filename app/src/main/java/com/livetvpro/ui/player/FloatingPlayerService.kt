@@ -277,8 +277,9 @@ class FloatingPlayerService : Service() {
             val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
             
             val player: ExoPlayer? = if (useTransferredPlayer) {
-                com.livetvpro.utils.PlayerHolder.getTransferredPlayer()?.also {
-                    com.livetvpro.utils.PlayerHolder.clearTransferredPlayer()
+                val (transferredPlayer, _, _) = PlayerHolder.retrievePlayer()
+                transferredPlayer?.also {
+                    PlayerHolder.clearReferences()
                 }
             } else {
                 ExoPlayer.Builder(this).build().apply {
