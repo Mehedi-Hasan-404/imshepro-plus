@@ -29,7 +29,7 @@ class FloatingPlayerService : Service() {
         private const val ACTION_START = "com.livetvpro.START_FLOATING"
         private const val ACTION_STOP = "com.livetvpro.STOP_FLOATING"
         private const val EXTRA_INSTANCE_ID = "extra_instance_id"
-        private const val EXTRA_CHANNEL = "extra_channel"
+        internal const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_WINDOW_INDEX = "extra_window_index"
         private const val NOTIFICATION_CHANNEL_ID = "floating_player_channel"
