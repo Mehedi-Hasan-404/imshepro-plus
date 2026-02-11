@@ -105,21 +105,17 @@ class CategoryChannelsViewModel @Inject constructor(
             }
         }
         
-        val groupList = if (groups.isNotEmpty()) {
-            mutableListOf("All").apply {
-                addAll(groups.sorted())
-            }
-        } else {
-            emptyList()
-        }
-        
-        _categoryGroups.value = groupList
+        val sortedGroups = groups.sorted()
+        _categoryGroups.value = sortedGroups
     }
     
     private fun extractGroupFromChannel(channel: Channel): String {
-        return channel.groupTitle
+        return when {
+            channel.groupTitle.isNotEmpty() -> channel.groupTitle
+            else -> ""
+        }
     }
-    
+
     fun selectGroup(group: String) {
         _selectedGroup.value = group
         _currentGroup.value = group
@@ -134,15 +130,27 @@ class CategoryChannelsViewModel @Inject constructor(
             val favoriteLinks = channel.links?.map { channelLink ->
                 ChannelLink(
                     quality = channelLink.quality,
-                    url = channelLink.url
+                    url = channelLink.url,
+                    cookie = channelLink.cookie,
+                    referer = channelLink.referer,
+                    origin = channelLink.origin,
+                    userAgent = channelLink.userAgent,
+                    drmScheme = channelLink.drmScheme,
+                    drmLicenseUrl = channelLink.drmLicenseUrl
                 )
+            }
+            
+            val streamUrlToSave = if (channel.streamUrl.isEmpty() && !favoriteLinks.isNullOrEmpty()) {
+                favoriteLinks.first().url
+            } else {
+                channel.streamUrl
             }
             
             val favoriteChannel = FavoriteChannel(
                 id = channel.id,
                 name = channel.name,
                 logoUrl = channel.logoUrl,
-                streamUrl = channel.streamUrl,
+                streamUrl = streamUrlToSave,
                 categoryId = channel.categoryId,
                 categoryName = channel.categoryName,
                 links = favoriteLinks
