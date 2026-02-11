@@ -8,9 +8,9 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.databinding.ItemLiveEventBinding
@@ -261,12 +261,12 @@ class LiveEventAdapter(
         proceedWithPlayer(event, 0)
     }
 
-    // 🔥 NEW: Show dialog for multiple links
+    // 🔥 UPDATED: Use MaterialAlertDialogBuilder for consistency with Channels/Sports
     private fun showLinkSelectionDialog(event: LiveEvent) {
         val linkLabels = event.links.map { it.quality }.toTypedArray()
         
-        AlertDialog.Builder(context)
-            .setTitle("Select Stream Quality")
+        MaterialAlertDialogBuilder(context)
+            .setTitle("Select Stream")
             .setItems(linkLabels) { dialog, which ->
                 proceedWithPlayer(event, which)
                 dialog.dismiss()
