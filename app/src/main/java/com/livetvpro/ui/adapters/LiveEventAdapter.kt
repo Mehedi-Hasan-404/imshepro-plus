@@ -33,20 +33,18 @@ class LiveEventAdapter(
         timeZone = TimeZone.getTimeZone("UTC")
     }
 
-    // Local time formats (user's timezone)
     private val timeFormat = SimpleDateFormat("hh:mm a", Locale.getDefault()).apply {
         val symbols = dateFormatSymbols
         symbols.amPmStrings = arrayOf("AM", "PM")
         dateFormatSymbols = symbols
     }
-    private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault()) // Full date with year
+    private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault())
     
-    // Handler for countdown updates
     private val handler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
         override fun run() {
             notifyDataSetChanged()
-            handler.postDelayed(this, 1000) // Update every second
+            handler.postDelayed(this, 1000)
         }
     }
 
@@ -65,15 +63,12 @@ class LiveEventAdapter(
         val event = events[position]
         val binding = holder.binding
 
-        // 1. Set League Name with bold font
         binding.leagueName.text = event.league ?: "Unknown League"
         
-        // 2. Set Category Tag (use eventCategoryName if category is empty)
         binding.categoryTag.text = event.category.ifEmpty { 
             event.eventCategoryName.ifEmpty { "Sports" }
         }
         
-        // 3. Set Wrapper Badge if present
         if (event.wrapper.isNotEmpty()) {
             binding.wrapperBadge.text = event.wrapper
             binding.wrapperBadge.visibility = View.VISIBLE
@@ -81,7 +76,6 @@ class LiveEventAdapter(
             binding.wrapperBadge.visibility = View.GONE
         }
         
-        // 4. Load League Logo (from leagueLogo URL) with SVG support
         GlideExtensions.loadImage(
             binding.leagueLogo,
             event.leagueLogo,
@@ -90,11 +84,9 @@ class LiveEventAdapter(
             isCircular = false
         )
 
-        // 5. Set Team Names with bold font
         binding.team1Name.text = event.team1Name
         binding.team2Name.text = event.team2Name
 
-        // 6. Load Team Logos with CIRCULAR CROP (SVG support)
         GlideExtensions.loadImage(
             binding.team1Logo,
             event.team1Logo,
@@ -111,13 +103,11 @@ class LiveEventAdapter(
             isCircular = true
         )
 
-        // 7. Logic: LIVE vs UPCOMING vs ENDED
         try {
             val startDate = apiDateFormat.parse(event.startTime)
             val startTimeMillis = startDate?.time ?: 0L
             val currentTime = System.currentTimeMillis()
             
-            // Parse end time if available
             val endTimeMillis = if (!event.endTime.isNullOrEmpty()) {
                 try {
                     apiDateFormat.parse(event.endTime)?.time ?: Long.MAX_VALUE
@@ -129,17 +119,13 @@ class LiveEventAdapter(
             }
             
             when {
-                // ===== LIVE EVENT =====
                 (currentTime >= startTimeMillis && currentTime <= endTimeMillis) || event.isLive -> {
-                    // Show LARGER Lottie animation
                     binding.liveAnimation.visibility = View.VISIBLE
                     binding.liveAnimation.playAnimation()
                     
-                    // Hide time and date
                     binding.matchTime.visibility = View.GONE
                     binding.matchDate.visibility = View.GONE
                     
-                    // Show elapsed time (hh:mm:ss)
                     val elapsedMillis = currentTime - startTimeMillis
                     val hours = (elapsedMillis / 1000 / 3600).toInt()
                     val minutes = ((elapsedMillis / 1000 / 60) % 60).toInt()
@@ -150,23 +136,18 @@ class LiveEventAdapter(
                     binding.statusText.visibility = View.VISIBLE
                 }
                 
-                // ===== UPCOMING EVENT =====
                 currentTime < startTimeMillis -> {
-                    // Hide Lottie
                     binding.liveAnimation.visibility = View.GONE
                     binding.liveAnimation.pauseAnimation()
                     
-                    // Show START TIME in local timezone (12:30 PM format)
                     if (startDate != null) {
                         binding.matchTime.text = timeFormat.format(startDate)
                         binding.matchTime.setTextColor(Color.parseColor("#10B981"))
                         binding.matchTime.visibility = View.VISIBLE
                         
-                        // Show DATE (Wed, 15 Jan)
                         binding.matchDate.text = dateFormat.format(startDate)
                         binding.matchDate.visibility = View.VISIBLE
                         
-                        // Show LIVE countdown timer (updates every second)
                         val diff = startTimeMillis - currentTime
                         val days = (diff / (1000 * 60 * 60 * 24)).toInt()
                         val hours = ((diff / (1000 * 60 * 60)) % 24).toInt()
@@ -184,13 +165,10 @@ class LiveEventAdapter(
                     }
                 }
                 
-                // ===== ENDED EVENT =====
                 else -> {
-                    // Hide Lottie
                     binding.liveAnimation.visibility = View.GONE
                     binding.liveAnimation.pauseAnimation()
                     
-                    // Show END TIME
                     val endDate = if (endTimeMillis != Long.MAX_VALUE) {
                         apiDateFormat.parse(event.endTime)
                     } else {
@@ -202,12 +180,10 @@ class LiveEventAdapter(
                         binding.matchTime.setTextColor(Color.GRAY)
                         binding.matchTime.visibility = View.VISIBLE
                         
-                        // Show END DATE
                         binding.matchDate.text = dateFormat.format(endDate)
                         binding.matchDate.visibility = View.VISIBLE
                     }
                     
-                    // Show "Ended"
                     binding.statusText.text = "Ended"
                     binding.statusText.setTextColor(Color.GRAY)
                     binding.statusText.visibility = View.VISIBLE
@@ -215,7 +191,6 @@ class LiveEventAdapter(
             }
             
         } catch (e: Exception) {
-            // Fallback if date parsing fails
             binding.liveAnimation.visibility = View.GONE
             binding.liveAnimation.pauseAnimation()
             binding.matchTime.visibility = View.GONE
@@ -225,22 +200,13 @@ class LiveEventAdapter(
             binding.statusText.visibility = View.VISIBLE
         }
 
-        // Click Listener - Launch player based on floating player setting
         holder.itemView.setOnClickListener {
             launchPlayer(event)
         }
     }
 
     private fun launchPlayer(event: LiveEvent) {
-        android.util.Log.e("DEBUG_LIVE_EVENT", "========================================")
-        android.util.Log.e("DEBUG_LIVE_EVENT", "LAUNCH PLAYER CLICKED!")
-        android.util.Log.e("DEBUG_LIVE_EVENT", "Event: ${event.team1Name} vs ${event.team2Name}")
-        android.util.Log.e("DEBUG_LIVE_EVENT", "Event ID: ${event.id}")
-        android.util.Log.e("DEBUG_LIVE_EVENT", "Event links count: ${event.links.size}")
-        
-        // Validate event has links
         if (event.links.isEmpty()) {
-            android.util.Log.e("DEBUG_LIVE_EVENT", "ERROR: Event has NO LINKS!")
             android.widget.Toast.makeText(
                 context,
                 "No streams available for this event",
@@ -249,19 +215,14 @@ class LiveEventAdapter(
             return
         }
         
-        // 🔥 FIX: Check if there are multiple links - show dialog
         if (event.links.size > 1) {
-            android.util.Log.e("DEBUG_LIVE_EVENT", "Multiple links found - showing dialog")
             showLinkSelectionDialog(event)
             return
         }
         
-        // Single link - proceed directly
-        android.util.Log.e("DEBUG_LIVE_EVENT", "Single link - launching directly")
         proceedWithPlayer(event, 0)
     }
 
-    // 🔥 UPDATED: Use MaterialAlertDialogBuilder for consistency with Channels/Sports
     private fun showLinkSelectionDialog(event: LiveEvent) {
         val linkLabels = event.links.map { it.quality }.toTypedArray()
         
@@ -275,18 +236,11 @@ class LiveEventAdapter(
             .show()
     }
 
-    // 🔥 NEW: Separated logic to proceed with player
     private fun proceedWithPlayer(event: LiveEvent, linkIndex: Int) {
         val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
         val hasPermission = FloatingPlayerHelper.hasOverlayPermission(context)
         
-        android.util.Log.e("DEBUG_LIVE_EVENT", "Floating enabled: $floatingEnabled")
-        android.util.Log.e("DEBUG_LIVE_EVENT", "Has overlay permission: $hasPermission")
-        android.util.Log.e("DEBUG_LIVE_EVENT", "Selected link index: $linkIndex")
-        
         if (floatingEnabled) {
-            android.util.Log.e("DEBUG_LIVE_EVENT", "==> FLOATING PLAYER PATH SELECTED")
-            
             if (!hasPermission) {
                 android.widget.Toast.makeText(
                     context,
@@ -321,15 +275,11 @@ class LiveEventAdapter(
                 FloatingPlayerHelper.launchFloatingPlayer(context, channel, linkIndex)
                 
             } catch (e: Exception) {
-                android.util.Log.e("DEBUG_LIVE_EVENT", "EXCEPTION in floating player launch!", e)
                 PlayerActivity.startWithEvent(context, event, linkIndex)
             }
         } else {
-            android.util.Log.e("DEBUG_LIVE_EVENT", "==> NORMAL PLAYER PATH SELECTED")
             PlayerActivity.startWithEvent(context, event, linkIndex)
         }
-        
-        android.util.Log.e("DEBUG_LIVE_EVENT", "========================================")
     }
 
     override fun getItemCount(): Int = events.size
@@ -339,7 +289,6 @@ class LiveEventAdapter(
         notifyDataSetChanged()
     }
     
-    // Clean up handler when adapter is destroyed
     fun stopCountdown() {
         handler.removeCallbacks(updateRunnable)
     }
