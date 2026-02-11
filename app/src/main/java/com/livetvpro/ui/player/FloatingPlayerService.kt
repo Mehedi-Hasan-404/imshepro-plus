@@ -81,7 +81,8 @@ class FloatingPlayerService : Service() {
         
         fun start(context: Context, channel: Channel, linkIndex: Int = 0, playbackPosition: Long = 0L) {
             try {
-                if (channel.links == null || channel.links.isEmpty()) {
+                // FIX: Use safe call operator for isEmpty() check
+                if (channel.links == null || channel.links?.isEmpty() == true) {
                     android.widget.Toast.makeText(
                         context,
                         "No stream available",
@@ -90,8 +91,9 @@ class FloatingPlayerService : Service() {
                     return
                 }
                 
-                val selectedLink = if (channel.links != null && linkIndex in channel.links.indices) {
-                    channel.links[linkIndex]
+                // FIX: Use non-null assertion after null check for indices access
+                val selectedLink = if (channel.links != null && linkIndex in channel.links!!.indices) {
+                    channel.links!![linkIndex]
                 } else {
                     channel.links?.firstOrNull()
                 }
@@ -158,8 +160,8 @@ class FloatingPlayerService : Service() {
         
         val selectedLink = if (currentChannel != null && 
                               currentChannel!!.links != null && 
-                              linkIndex in currentChannel!!.links.indices) {
-            currentChannel!!.links[linkIndex]
+                              linkIndex in currentChannel!!.links!!.indices) {
+            currentChannel!!.links!![linkIndex]
         } else {
             currentChannel?.links?.firstOrNull()
         }
