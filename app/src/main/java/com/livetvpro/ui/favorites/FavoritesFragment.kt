@@ -54,29 +54,20 @@ class FavoritesFragment : Fragment() {
                     return@FavoriteAdapter
                 }
                 
-                // Try to get the live/fresh channel first
                 val liveChannel = viewModel.getLiveChannel(favChannel.id)
-                
-                // Use live channel if available, otherwise convert favorite
                 val finalChannel = liveChannel ?: convertToChannel(favChannel)
-                
-                // Check if channel has multiple links
                 val channelLinks = finalChannel.links
                 
                 if (channelLinks != null && channelLinks.size > 1) {
-                    // Show dialog for multiple links
                     showLinkSelectionDialog(finalChannel)
                 } else if (channelLinks != null && channelLinks.size == 1) {
-                    // Single link - use it directly
                     val modifiedChannel = finalChannel.copy(
                         streamUrl = channelLinks[0].url
                     )
                     PlayerActivity.startWithChannel(requireContext(), modifiedChannel)
                 } else if (finalChannel.streamUrl.isNotEmpty()) {
-                    // No links array, but has streamUrl
                     PlayerActivity.startWithChannel(requireContext(), finalChannel)
                 } else {
-                    // No valid stream URL found
                     Toast.makeText(requireContext(), "No stream URL available", Toast.LENGTH_SHORT).show()
                 }
             },
@@ -85,7 +76,6 @@ class FavoritesFragment : Fragment() {
             }
         )
 
-        // Get responsive column count from resources
         val columnCount = resources.getInteger(R.integer.grid_column_count)
 
         binding.recyclerViewFavorites.apply {
