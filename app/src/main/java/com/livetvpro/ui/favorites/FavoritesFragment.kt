@@ -4,20 +4,15 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
-import com.livetvpro.data.models.Channel
-import com.livetvpro.data.models.ChannelLink
+import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.models.FavoriteChannel
-import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentFavoritesBinding
 import com.livetvpro.ui.adapters.FavoriteAdapter
-import com.livetvpro.ui.player.PlayerActivity
-import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -31,7 +26,7 @@ class FavoritesFragment : Fragment() {
     private lateinit var favoriteAdapter: FavoriteAdapter
     
     @Inject
-    lateinit var listenerManager: NativeListenerManager
+    lateinit var preferencesManager: PreferencesManager
     
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentFavoritesBinding.inflate(inflater, container, false)
@@ -47,30 +42,7 @@ class FavoritesFragment : Fragment() {
 
     private fun setupRecyclerView() {
         favoriteAdapter = FavoriteAdapter(
-            onChannelClick = { favChannel ->
-                val shouldBlock = listenerManager.onPageInteraction(ListenerConfig.PAGE_FAVORITES)
-                
-                if (shouldBlock) {
-                    return@FavoriteAdapter
-                }
-                
-                val liveChannel = viewModel.getLiveChannel(favChannel.id)
-                val finalChannel = liveChannel ?: convertToChannel(favChannel)
-                val channelLinks = finalChannel.links
-                
-                if (channelLinks != null && channelLinks.size > 1) {
-                    showLinkSelectionDialog(finalChannel)
-                } else if (channelLinks != null && channelLinks.size == 1) {
-                    val modifiedChannel = finalChannel.copy(
-                        streamUrl = channelLinks[0].url
-                    )
-                    PlayerActivity.startWithChannel(requireContext(), modifiedChannel)
-                } else if (finalChannel.streamUrl.isNotEmpty()) {
-                    PlayerActivity.startWithChannel(requireContext(), finalChannel)
-                } else {
-                    Toast.makeText(requireContext(), "No stream URL available", Toast.LENGTH_SHORT).show()
-                }
-            },
+            preferencesManager = preferencesManager,
             onFavoriteToggle = { favChannel -> 
                 showRemoveConfirmation(favChannel) 
             }
@@ -83,45 +55,6 @@ class FavoritesFragment : Fragment() {
             adapter = favoriteAdapter
             itemAnimator = null 
         }
-    }
-
-    private fun convertToChannel(favorite: FavoriteChannel): Channel {
-        val channelLinks = favorite.links?.map { favoriteLink ->
-            ChannelLink(
-                quality = favoriteLink.quality,
-                url = favoriteLink.url
-            )
-        }
-        
-        return Channel(
-            id = favorite.id,
-            name = favorite.name,
-            logoUrl = favorite.logoUrl,
-            streamUrl = favorite.streamUrl,
-            categoryId = favorite.categoryId,
-            categoryName = favorite.categoryName,
-            links = channelLinks
-        )
-    }
-
-    private fun showLinkSelectionDialog(channel: Channel) {
-        val links = channel.links ?: return
-        val linkLabels = links.map { it.quality }.toTypedArray()
-        
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select Stream")
-            .setItems(linkLabels) { dialog, which ->
-                val selectedLink = links[which]
-                
-                val modifiedChannel = channel.copy(
-                    streamUrl = selectedLink.url
-                )
-                
-                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
     }
 
     private fun setupButtons() {
