@@ -100,7 +100,11 @@ class FavoriteAdapter(
             val context = binding.root.context
             
             val selectedLink = favorite.links?.getOrNull(linkIndex)
-            val streamUrl = selectedLink?.url ?: favorite.streamUrl
+            val streamUrl = if (selectedLink != null) {
+                buildStreamUrlFromLink(selectedLink)
+            } else {
+                favorite.streamUrl
+            }
             
             val channel = Channel(
                 id = favorite.id,
@@ -119,6 +123,24 @@ class FavoriteAdapter(
                 FloatingPlayerHelper.launchFloatingPlayer(context, channel, linkIndex)
             } else {
                 PlayerActivity.startWithChannel(context, channel, linkIndex)
+            }
+        }
+        
+        private fun buildStreamUrlFromLink(link: com.livetvpro.data.models.ChannelLink): String {
+            val parts = mutableListOf<String>()
+            parts.add(link.url)
+            
+            link.referer?.let { if (it.isNotEmpty()) parts.add("referer=$it") }
+            link.cookie?.let { if (it.isNotEmpty()) parts.add("cookie=$it") }
+            link.origin?.let { if (it.isNotEmpty()) parts.add("origin=$it") }
+            link.userAgent?.let { if (it.isNotEmpty()) parts.add("User-Agent=$it") }
+            link.drmScheme?.let { if (it.isNotEmpty()) parts.add("drmScheme=$it") }
+            link.drmLicenseUrl?.let { if (it.isNotEmpty()) parts.add("drmLicense=$it") }
+            
+            return if (parts.size > 1) {
+                parts.joinToString("|")
+            } else {
+                parts[0]
             }
         }
         
