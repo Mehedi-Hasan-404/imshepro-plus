@@ -15,6 +15,44 @@ object FloatingPlayerHelper {
     
     private val createdInstances = mutableListOf<String>()
     
+    fun hasOverlayPermission(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+    }
+    
+    fun requestOverlayPermission(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}")
+            )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Please enable overlay permission in settings", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+    
+    fun launchFloatingPlayer(context: Context, channel: Channel, linkIndex: Int = 0) {
+        if (!hasOverlayPermission(context)) {
+            Toast.makeText(context, "Overlay permission required for floating player", Toast.LENGTH_LONG).show()
+            return
+        }
+        
+        if (channel.links.isNullOrEmpty()) {
+            Toast.makeText(context, "No stream available for ${channel.name}", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        createNewFloatingPlayer(context, channel = channel)
+    }
+    
     fun createNewFloatingPlayer(
         context: Context,
         channel: Channel? = null,
@@ -101,29 +139,5 @@ object FloatingPlayerHelper {
     
     fun getActivePlayers(): List<FloatingPlayerManager.PlayerMetadata> {
         return FloatingPlayerManager.getAllPlayerMetadata()
-    }
-    
-    fun hasOverlayPermission(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            Settings.canDrawOverlays(context)
-        } else {
-            true
-        }
-    }
-    
-    fun requestOverlayPermission(context: Context) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val intent = Intent(
-                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                Uri.parse("package:${context.packageName}")
-            )
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            
-            try {
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                Toast.makeText(context, "Please enable overlay permission in settings", Toast.LENGTH_LONG).show()
-            }
-        }
     }
 }
