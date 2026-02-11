@@ -86,6 +86,7 @@ class FloatingPlayerService : Service() {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_PLAYBACK_POSITION = "extra_playback_position"
         const val EXTRA_LINK_INDEX = "extra_link_index"
+        const val EXTRA_INSTANCE_ID = "extra_instance_id"
         const val ACTION_STOP = "action_stop"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "floating_player_channel"
@@ -143,6 +144,77 @@ class FloatingPlayerService : Service() {
         
         fun stop(context: Context) {
             context.stopService(Intent(context, FloatingPlayerService::class.java))
+        }
+        
+        /**
+         * Start a floating player with instance ID (for multiple floating players support)
+         * Required by FloatingPlayerHelper.kt
+         */
+        fun startFloatingPlayer(
+            context: Context,
+            instanceId: String,
+            channel: Channel? = null,
+            event: com.livetvpro.data.models.LiveEvent? = null
+        ): Boolean {
+            try {
+                val actualChannel = channel ?: return false
+                
+                if (actualChannel.links == null || actualChannel.links?.isEmpty() == true) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "No stream available",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return false
+                }
+                
+                val selectedLink = actualChannel.links?.firstOrNull()
+                val streamUrl = selectedLink?.url ?: ""
+                
+                if (streamUrl.isEmpty()) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Invalid stream URL",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return false
+                }
+                
+                val intent = Intent(context, FloatingPlayerService::class.java).apply {
+                    putExtra(EXTRA_INSTANCE_ID, instanceId)
+                    putExtra(EXTRA_CHANNEL, actualChannel)
+                    putExtra(EXTRA_STREAM_URL, streamUrl)
+                    putExtra(EXTRA_TITLE, actualChannel.name)
+                    putExtra(EXTRA_PLAYBACK_POSITION, 0L)
+                    putExtra(EXTRA_LINK_INDEX, 0)
+                }
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                
+                return true
+                
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Failed to start floating player: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                return false
+            }
+        }
+        
+        /**
+         * Stop a specific floating player instance
+         * Required by FloatingPlayerHelper.kt
+         */
+        fun stopFloatingPlayer(context: Context, instanceId: String) {
+            // For now, just stop the service (single instance)
+            // TODO: Support multiple instances if needed
+            stop(context)
         }
     }
 
