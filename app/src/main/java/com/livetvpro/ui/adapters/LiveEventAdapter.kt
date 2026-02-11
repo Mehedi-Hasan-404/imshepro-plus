@@ -215,19 +215,30 @@ class LiveEventAdapter(
             return
         }
         
+        // Always show link selection dialog if event has multiple links
         if (event.links.size > 1) {
             showLinkSelectionDialog(event)
             return
         }
         
+        // Single link - proceed directly
         proceedWithPlayer(event, 0)
     }
 
     private fun showLinkSelectionDialog(event: LiveEvent) {
         val linkLabels = event.links.map { it.quality }.toTypedArray()
         
+        // Check if this event already has a floating player
+        val hasExistingPlayer = FloatingPlayerHelper.hasFloatingPlayerForEvent(event.id)
+        
+        val title = if (hasExistingPlayer) {
+            "Switch Stream (Update Existing Player)"
+        } else {
+            "Select Stream"
+        }
+        
         MaterialAlertDialogBuilder(context)
-            .setTitle("Select Stream")
+            .setTitle(title)
             .setItems(linkLabels) { dialog, which ->
                 proceedWithPlayer(event, which)
                 dialog.dismiss()
@@ -253,6 +264,7 @@ class LiveEventAdapter(
             }
             
             try {
+                // Create a channel object with ALL links from the event
                 val channel = Channel(
                     id = event.id,
                     name = "${event.team1Name} vs ${event.team2Name}",
@@ -272,7 +284,8 @@ class LiveEventAdapter(
                     }
                 )
                 
-                FloatingPlayerHelper.launchFloatingPlayer(context, channel, linkIndex)
+                // This will either create a new player or update existing one for this event
+                FloatingPlayerHelper.launchFloatingPlayer(context, channel, linkIndex, event.id)
                 
             } catch (e: Exception) {
                 PlayerActivity.startWithEvent(context, event, linkIndex)
