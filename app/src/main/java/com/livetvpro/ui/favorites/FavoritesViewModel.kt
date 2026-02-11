@@ -32,17 +32,44 @@ class FavoritesViewModel @Inject constructor(
             if (favoritesRepository.isFavorite(channel.id)) {
                 favoritesRepository.removeFavorite(channel.id)
             } else {
+                val streamUrlToSave = when {
+                    channel.streamUrl.isNotEmpty() -> channel.streamUrl
+                    !channel.links.isNullOrEmpty() -> {
+                        val firstLink = channel.links.first()
+                        buildStreamUrlFromLink(firstLink)
+                    }
+                    else -> ""
+                }
+                
                 val fav = FavoriteChannel(
                     id = channel.id,
                     name = channel.name,
                     logoUrl = channel.logoUrl,
-                    streamUrl = channel.streamUrl,
+                    streamUrl = streamUrlToSave,
                     categoryId = channel.categoryId,
                     categoryName = channel.categoryName,
                     links = channel.links
                 )
                 favoritesRepository.addFavorite(fav)
             }
+        }
+    }
+    
+    private fun buildStreamUrlFromLink(link: com.livetvpro.data.models.ChannelLink): String {
+        val parts = mutableListOf<String>()
+        parts.add(link.url)
+        
+        link.referer?.let { if (it.isNotEmpty()) parts.add("referer=$it") }
+        link.cookie?.let { if (it.isNotEmpty()) parts.add("cookie=$it") }
+        link.origin?.let { if (it.isNotEmpty()) parts.add("origin=$it") }
+        link.userAgent?.let { if (it.isNotEmpty()) parts.add("User-Agent=$it") }
+        link.drmScheme?.let { if (it.isNotEmpty()) parts.add("drmScheme=$it") }
+        link.drmLicenseUrl?.let { if (it.isNotEmpty()) parts.add("drmLicense=$it") }
+        
+        return if (parts.size > 1) {
+            parts.joinToString("|")
+        } else {
+            parts[0]
         }
     }
 
