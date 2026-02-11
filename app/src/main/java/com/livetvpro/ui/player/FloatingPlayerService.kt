@@ -385,8 +385,8 @@ class FloatingPlayerService : Service() {
             // Add to window manager
             windowManager.addView(floatingView, params)
             
-            // Register with manager
-            FloatingPlayerManager.addPlayer(instanceId, instance.player!!)
+            // Register with manager - use content name and type instead of player object
+            FloatingPlayerManager.addPlayer(instanceId, title, "channel")
             
             // Store instance
             instances[instanceId] = instance
