@@ -14,16 +14,11 @@ import javax.inject.Inject
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
-    private val nativeDataRepository: NativeDataRepository // ✅ Added Injection
+    private val nativeDataRepository: NativeDataRepository
 ) : ViewModel() {
 
-    // Observe favorites as LiveData
     val favorites = favoritesRepository.getFavoritesFlow().asLiveData()
 
-    /**
-     * ✅ NEW: Get the fresh/live version of a channel by ID.
-     * This ensures we have the latest links even if the favorite snapshot is old.
-     */
     fun getLiveChannel(channelId: String): Channel? {
         return try {
             nativeDataRepository.getChannels().find { it.id == channelId }
@@ -43,7 +38,8 @@ class FavoritesViewModel @Inject constructor(
                     logoUrl = channel.logoUrl,
                     streamUrl = channel.streamUrl,
                     categoryId = channel.categoryId,
-                    categoryName = channel.categoryName
+                    categoryName = channel.categoryName,
+                    links = channel.links
                 )
                 favoritesRepository.addFavorite(fav)
             }
