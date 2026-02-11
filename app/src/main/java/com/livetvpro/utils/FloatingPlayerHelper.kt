@@ -15,6 +15,9 @@ object FloatingPlayerHelper {
     
     private val createdInstances = mutableListOf<String>()
     
+    // Map to track which event has which floating player instance
+    private val eventToInstanceMap = mutableMapOf<String, String>()
+    
     fun hasOverlayPermission(context: Context): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             Settings.canDrawOverlays(context)
@@ -39,7 +42,11 @@ object FloatingPlayerHelper {
         }
     }
     
-    fun launchFloatingPlayer(context: Context, channel: Channel, linkIndex: Int = 0) {
+    /**
+     * Launch floating player for a channel/event with specific link
+     * If the event already has a floating player, update it with the new link instead of creating new one
+     */
+    fun launchFloatingPlayer(context: Context, channel: Channel, linkIndex: Int = 0, eventId: String? = null) {
         if (!hasOverlayPermission(context)) {
             Toast.makeText(context, "Overlay permission required for floating player", Toast.LENGTH_LONG).show()
             return
@@ -50,13 +57,38 @@ object FloatingPlayerHelper {
             return
         }
         
-        createNewFloatingPlayer(context, channel = channel)
+        val actualEventId = eventId ?: channel.id
+        
+        // Check if this event already has a floating player
+        val existingInstanceId = eventToInstanceMap[actualEventId]
+        
+        if (existingInstanceId != null && FloatingPlayerManager.hasPlayer(existingInstanceId)) {
+            // Update the existing floating player with the new link
+            updateFloatingPlayer(context, existingInstanceId, channel, linkIndex)
+            Toast.makeText(context, "Updated floating player with new stream", Toast.LENGTH_SHORT).show()
+        } else {
+            // Create new floating player
+            createNewFloatingPlayer(context, channel = channel, linkIndex = linkIndex, eventId = actualEventId)
+        }
+    }
+    
+    /**
+     * Update an existing floating player with a new stream/link
+     */
+    private fun updateFloatingPlayer(context: Context, instanceId: String, channel: Channel, linkIndex: Int) {
+        try {
+            FloatingPlayerService.updateFloatingPlayer(context, instanceId, channel, linkIndex)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Failed to update player: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
     }
     
     fun createNewFloatingPlayer(
         context: Context,
         channel: Channel? = null,
-        event: LiveEvent? = null
+        event: LiveEvent? = null,
+        linkIndex: Int = 0,
+        eventId: String? = null
     ): String? {
         if (!FloatingPlayerManager.canAddNewPlayer()) {
             val message = "Maximum ${FloatingPlayerManager.getMaxPlayerCount()} floating players active"
@@ -78,11 +110,17 @@ object FloatingPlayerHelper {
         val instanceId = UUID.randomUUID().toString()
         val contentName = channel?.name ?: event?.title ?: "Unknown"
         val contentType = if (channel != null) "channel" else "event"
+        val actualEventId = eventId ?: channel?.id ?: event?.id ?: ""
         
         FloatingPlayerManager.addPlayer(instanceId, contentName, contentType)
         
+        // Map this event to this instance
+        if (actualEventId.isNotEmpty()) {
+            eventToInstanceMap[actualEventId] = instanceId
+        }
+        
         return try {
-            val started = FloatingPlayerService.startFloatingPlayer(context, instanceId, channel, event)
+            val started = FloatingPlayerService.startFloatingPlayer(context, instanceId, channel, event, linkIndex)
             
             if (started) {
                 createdInstances.add(instanceId)
@@ -92,11 +130,13 @@ object FloatingPlayerHelper {
                 instanceId
             } else {
                 FloatingPlayerManager.removePlayer(instanceId)
+                eventToInstanceMap.remove(actualEventId)
                 Toast.makeText(context, "Failed to start floating player", Toast.LENGTH_SHORT).show()
                 null
             }
         } catch (e: Exception) {
             FloatingPlayerManager.removePlayer(instanceId)
+            eventToInstanceMap.remove(actualEventId)
             Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
             null
         }
@@ -104,6 +144,12 @@ object FloatingPlayerHelper {
     
     fun closeFloatingPlayer(context: Context, instanceId: String) {
         if (!FloatingPlayerManager.hasPlayer(instanceId)) return
+        
+        // Remove from event mapping
+        val eventId = eventToInstanceMap.entries.find { it.value == instanceId }?.key
+        if (eventId != null) {
+            eventToInstanceMap.remove(eventId)
+        }
         
         FloatingPlayerService.stopFloatingPlayer(context, instanceId)
         FloatingPlayerManager.removePlayer(instanceId)
@@ -121,6 +167,7 @@ object FloatingPlayerHelper {
         
         FloatingPlayerManager.clearAll()
         createdInstances.clear()
+        eventToInstanceMap.clear()
         
         Toast.makeText(context, "Closed $count floating player(s)", Toast.LENGTH_SHORT).show()
     }
@@ -139,5 +186,20 @@ object FloatingPlayerHelper {
     
     fun getActivePlayers(): List<FloatingPlayerManager.PlayerMetadata> {
         return FloatingPlayerManager.getAllPlayerMetadata()
+    }
+    
+    /**
+     * Check if a specific event already has a floating player
+     */
+    fun hasFloatingPlayerForEvent(eventId: String): Boolean {
+        val instanceId = eventToInstanceMap[eventId]
+        return instanceId != null && FloatingPlayerManager.hasPlayer(instanceId)
+    }
+    
+    /**
+     * Get the instance ID for a specific event's floating player
+     */
+    fun getInstanceIdForEvent(eventId: String): String? {
+        return eventToInstanceMap[eventId]
     }
 }
