@@ -105,7 +105,8 @@ class CategoryChannelsViewModel @Inject constructor(
             }
         }
         
-        val sortedGroups = groups.sorted()
+        val sortedGroups = groups.sorted().toMutableList()
+        sortedGroups.add(0, "All")
         _categoryGroups.value = sortedGroups
     }
     
