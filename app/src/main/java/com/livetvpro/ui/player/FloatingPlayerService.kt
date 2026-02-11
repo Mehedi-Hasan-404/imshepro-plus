@@ -47,6 +47,29 @@ class FloatingPlayerService : Service() {
         private const val NOTIFICATION_ID_BASE = 2000
         private const val CHANNEL_ID = "floating_player_channel"
         
+        // Alias methods for compatibility with FloatingPlayerHelper
+        fun startFloatingPlayer(
+            context: Context,
+            instanceId: String,
+            channel: Channel?,
+            event: com.livetvpro.data.models.LiveEvent?
+        ): Boolean {
+            return try {
+                if (channel != null) {
+                    start(context, channel) != null
+                } else {
+                    // Handle event case if needed
+                    false
+                }
+            } catch (e: Exception) {
+                false
+            }
+        }
+        
+        fun stopFloatingPlayer(context: Context, instanceId: String) {
+            stop(context, instanceId)
+        }
+        
         fun start(context: Context, channel: Channel, linkIndex: Int = 0, playbackPosition: Long = 0L): String? {
             try {
                 // Check if we can add more players
