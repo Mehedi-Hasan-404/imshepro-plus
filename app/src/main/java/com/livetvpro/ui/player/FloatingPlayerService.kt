@@ -336,6 +336,13 @@ class FloatingPlayerService : Service() {
             val player = ExoPlayer.Builder(this).build()
             val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
             playerView.player = player
+            playerView.useController = true
+            playerView.controllerAutoShow = true
+            playerView.controllerShowTimeoutMs = 3000
+            
+            // Set the title
+            val titleText = playerView.findViewById<TextView>(R.id.tv_title)
+            titleText?.text = title
             
             val mediaItem = MediaItem.fromUri(streamUrl)
             player.setMediaItem(mediaItem)
@@ -347,10 +354,9 @@ class FloatingPlayerService : Service() {
             
             player.playWhenReady = true
             
-            // Setup lock overlay and unlock button
+            // Setup lock overlay and unlock button - using correct ID from your layout
             val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
-            val unlockButton = floatingView.findViewById<ImageButton>(R.id.btn_unlock)
-            val resizeHandle = floatingView.findViewById<ImageView>(R.id.resize_handle)
+            val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
             
             // Create instance object
             val instance = FloatingPlayerInstance(
@@ -362,7 +368,7 @@ class FloatingPlayerService : Service() {
                 params = params,
                 lockOverlay = lockOverlay,
                 unlockButton = unlockButton,
-                resizeHandle = resizeHandle,
+                resizeHandle = null, // Will be set in setupAllControls
                 currentChannel = channel,
                 currentPlaybackPosition = playbackPosition
             )
@@ -372,10 +378,9 @@ class FloatingPlayerService : Service() {
                 instance.unlockButton?.visibility = View.GONE
             }
             
-            // Setup controls and touch handlers
-            setupControlButtons(instance)
+            // Setup ALL controls and touch handlers
+            setupAllControls(instance)
             setupTouchHandlers(instance)
-            setupResizeHandle(instance)
             
             // Add to window manager
             windowManager.addView(floatingView, params)
@@ -392,62 +397,161 @@ class FloatingPlayerService : Service() {
     }
     
     @SuppressLint("ClickableViewAccessibility")
-    private fun setupResizeHandle(instance: FloatingPlayerInstance) {
-        val resizeHandle = instance.resizeHandle ?: return
+    private fun setupAllControls(instance: FloatingPlayerInstance) {
+        val playerView = instance.playerView ?: return
         val floatingView = instance.floatingView ?: return
         val params = instance.params ?: return
         
-        var isResizing = false
-        var initialWidth = 0
-        var initialHeight = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
+        // Find all controls
+        val closeBtn = playerView.findViewById<ImageButton>(R.id.btn_close)
+        val fullscreenBtn = playerView.findViewById<ImageButton>(R.id.btn_fullscreen)
+        val muteBtn = playerView.findViewById<ImageButton>(R.id.btn_mute)
+        val lockBtn = playerView.findViewById<ImageButton>(R.id.btn_lock)
+        val playPauseBtn = playerView.findViewById<ImageButton>(R.id.btn_play_pause)
+        val seekBackBtn = playerView.findViewById<ImageButton>(R.id.btn_seek_back)
+        val seekForwardBtn = playerView.findViewById<ImageButton>(R.id.btn_seek_forward)
+        val resizeBtn = playerView.findViewById<ImageButton>(R.id.btn_resize)
         
-        resizeHandle.setOnTouchListener { _, event ->
+        // Setup unlock button
+        instance.unlockButton?.setOnClickListener {
+            toggleLock(instance.instanceId)
+        }
+        
+        // Setup lock overlay tap
+        instance.lockOverlay?.setOnClickListener {
+            if (instance.unlockButton?.visibility == View.VISIBLE) {
+                hideUnlockButton(instance.instanceId)
+            } else {
+                showUnlockButton(instance.instanceId)
+            }
+        }
+        
+        // Close button
+        closeBtn?.setOnClickListener {
+            stopInstance(instance.instanceId)
+        }
+        
+        // Fullscreen button - return to full player activity
+        fullscreenBtn?.setOnClickListener {
+            if (instance.currentChannel != null) {
+                val currentPlayer = instance.player
+                val channel = instance.currentChannel
+                
+                if (currentPlayer != null && channel != null) {
+                    // Save position and size before transitioning
+                    preferencesManager.setFloatingPlayerX(params.x)
+                    preferencesManager.setFloatingPlayerY(params.y)
+                    preferencesManager.setFloatingPlayerWidth(params.width)
+                    preferencesManager.setFloatingPlayerHeight(params.height)
+                    
+                    val streamUrl = channel.links?.firstOrNull()?.url ?: ""
+                    val currentPosition = currentPlayer.currentPosition
+                    
+                    // Create intent to open PlayerActivity
+                    val intent = Intent(this, PlayerActivity::class.java).apply {
+                        putExtra("EXTRA_CHANNEL", channel)
+                        putExtra("EXTRA_PLAYBACK_POSITION", currentPosition)
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    startActivity(intent)
+                    
+                    // Stop this floating instance
+                    stopInstance(instance.instanceId)
+                }
+            }
+        }
+        
+        // Mute button
+        muteBtn?.setOnClickListener {
+            val currentPlayer = instance.player
+            if (currentPlayer != null) {
+                instance.isMuted = !instance.isMuted
+                currentPlayer.volume = if (instance.isMuted) 0f else 1f
+                muteBtn.setImageResource(
+                    if (instance.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+                )
+            }
+        }
+        
+        // Lock button
+        lockBtn?.setOnClickListener {
+            toggleLock(instance.instanceId)
+        }
+        
+        // Play/Pause button
+        playPauseBtn?.setOnClickListener {
+            val currentPlayer = instance.player
+            if (currentPlayer != null) {
+                if (currentPlayer.isPlaying) {
+                    currentPlayer.pause()
+                } else {
+                    currentPlayer.play()
+                }
+            }
+        }
+        
+        // Seek back button
+        seekBackBtn?.setOnClickListener {
+            instance.player?.seekBack()
+        }
+        
+        // Seek forward button
+        seekForwardBtn?.setOnClickListener {
+            instance.player?.seekForward()
+        }
+        
+        // Resize button - touch and drag to resize
+        var resizeInitialWidth = 0
+        var resizeInitialHeight = 0
+        var resizeInitialTouchX = 0f
+        var resizeInitialTouchY = 0f
+        
+        resizeBtn?.setOnTouchListener { v, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    isResizing = true
-                    initialWidth = params.width
-                    initialHeight = params.height
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
+                    resizeInitialWidth = params.width
+                    resizeInitialHeight = params.height
+                    resizeInitialTouchX = event.rawX
+                    resizeInitialTouchY = event.rawY
                     true
                 }
                 
                 MotionEvent.ACTION_MOVE -> {
-                    if (isResizing) {
-                        val dx = (event.rawX - initialTouchX).toInt()
-                        val dy = (event.rawY - initialTouchY).toInt()
-                        
-                        // Calculate new dimensions maintaining 16:9 aspect ratio
-                        val newWidth = (initialWidth + dx).coerceIn(getMinWidth(), getMaxWidth())
-                        val newHeight = newWidth * 9 / 16
-                        
+                    val dx = event.rawX - resizeInitialTouchX
+                    val dy = event.rawY - resizeInitialTouchY
+                    // Average both deltas for smooth diagonal resize
+                    val delta = ((dx + dy) / 2).toInt()
+                    var newWidth = resizeInitialWidth + delta
+                    newWidth = newWidth.coerceIn(getMinWidth(), getMaxWidth())
+                    val newHeight = newWidth * 9 / 16
+                    
+                    if (newWidth != params.width || newHeight != params.height) {
                         params.width = newWidth
                         params.height = newHeight
-                        
-                        // Save dimensions
-                        preferencesManager.setFloatingPlayerWidth(newWidth)
-                        preferencesManager.setFloatingPlayerHeight(newHeight)
-                        
                         instance.windowManager?.updateViewLayout(floatingView, params)
                     }
                     true
                 }
                 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    isResizing = false
-                    
-                    // Save final dimensions
+                    // Save final size
                     preferencesManager.setFloatingPlayerWidth(params.width)
                     preferencesManager.setFloatingPlayerHeight(params.height)
-                    
                     true
                 }
                 
                 else -> false
             }
         }
+        
+        // Add player listener for play/pause button icon updates
+        instance.player?.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                playPauseBtn?.setImageResource(
+                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                )
+            }
+        })
     }
     
     @SuppressLint("ClickableViewAccessibility")
@@ -578,27 +682,8 @@ class FloatingPlayerService : Service() {
             isFocusable = false
         }
     }
-    
-    private fun setupControlButtons(instance: FloatingPlayerInstance) {
-        val playerView = instance.playerView ?: return
-        
-        // Setup lock button
-        val lockBtn = playerView.findViewById<ImageButton>(R.id.btn_lock)
-        lockBtn?.setOnClickListener {
-            toggleLock(instance.instanceId)
-        }
-        
-        // Setup unlock button
-        instance.unlockButton?.setOnClickListener {
-            toggleLock(instance.instanceId)
-        }
-        
-        // Setup close button  
-        val closeBtn = playerView.findViewById<ImageButton>(R.id.btn_close)
-        closeBtn?.setOnClickListener {
-            stopInstance(instance.instanceId)
-        }
-    }
+
+
     
     private fun toggleLock(instanceId: String) {
         val instance = instances[instanceId] ?: return
