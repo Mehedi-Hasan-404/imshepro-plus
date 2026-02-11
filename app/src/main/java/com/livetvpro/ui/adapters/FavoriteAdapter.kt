@@ -3,11 +3,11 @@ package com.livetvpro.ui.adapters
 import android.content.Intent
 import android.view.LayoutInflater
 import android.view.ViewGroup
-import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.models.Channel
@@ -98,7 +98,7 @@ class FavoriteAdapter(
             }
         }
 
-        // 🔥 NEW: Show dialog for multiple links
+        // 🔥 UPDATED: Use MaterialAlertDialogBuilder for consistency with Channels/Sports
         private fun showLinkSelectionDialog(
             favorite: FavoriteChannel, 
             links: List<com.livetvpro.data.models.ChannelLink>
@@ -111,8 +111,8 @@ class FavoriteAdapter(
                 android.util.Log.e("FAVORITE_DEBUG", "Option $index: $label")
             }
             
-            AlertDialog.Builder(context)
-                .setTitle("Select Stream Quality")
+            MaterialAlertDialogBuilder(context)
+                .setTitle("Select Stream")
                 .setItems(linkLabels) { dialog, which ->
                     android.util.Log.e("FAVORITE_DEBUG", "User selected index: $which (${linkLabels[which]})")
                     launchPlayer(favorite, which)
@@ -125,22 +125,28 @@ class FavoriteAdapter(
                 .show()
         }
 
-        // 🔥 UPDATED: Now accepts linkIndex parameter
+        // 🔥 FIXED: Now properly sets streamUrl and accepts linkIndex parameter
         private fun launchPlayer(favorite: FavoriteChannel, linkIndex: Int) {
             val context = binding.root.context
             
             android.util.Log.e("FAVORITE_DEBUG", "launchPlayer called with index: $linkIndex")
+            android.util.Log.e("FAVORITE_DEBUG", "Favorite streamUrl: ${favorite.streamUrl}")
+            android.util.Log.e("FAVORITE_DEBUG", "Favorite links: ${favorite.links}")
             
-            // Convert FavoriteChannel to Channel
+            // Convert FavoriteChannel to Channel with proper streamUrl
             val channel = Channel(
                 id = favorite.id,
                 name = favorite.name,
                 logoUrl = favorite.logoUrl,
+                streamUrl = favorite.streamUrl,  // 🔥 FIX: Include streamUrl from favorite
+                categoryId = favorite.categoryId,
                 categoryName = favorite.categoryName,
                 links = favorite.links
             )
             
-            android.util.Log.e("FAVORITE_DEBUG", "Channel created with ${channel.links?.size ?: 0} links")
+            android.util.Log.e("FAVORITE_DEBUG", "Channel created:")
+            android.util.Log.e("FAVORITE_DEBUG", "  - streamUrl: ${channel.streamUrl}")
+            android.util.Log.e("FAVORITE_DEBUG", "  - links count: ${channel.links?.size ?: 0}")
             
             // Check if floating player is enabled
             val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
