@@ -105,18 +105,21 @@ class CategoryChannelsViewModel @Inject constructor(
             }
         }
         
-        val sortedGroups = groups.sorted().toMutableList()
-        sortedGroups.add(0, "All")
-        _categoryGroups.value = sortedGroups
+        val groupList = if (groups.isNotEmpty()) {
+            mutableListOf("All").apply {
+                addAll(groups.sorted())
+            }
+        } else {
+            emptyList()
+        }
+        
+        _categoryGroups.value = groupList
     }
     
     private fun extractGroupFromChannel(channel: Channel): String {
-        return when {
-            channel.groupTitle.isNotEmpty() -> channel.groupTitle
-            else -> ""
-        }
+        return channel.groupTitle
     }
-
+    
     fun selectGroup(group: String) {
         _selectedGroup.value = group
         _currentGroup.value = group
@@ -131,30 +134,15 @@ class CategoryChannelsViewModel @Inject constructor(
             val favoriteLinks = channel.links?.map { channelLink ->
                 ChannelLink(
                     quality = channelLink.quality,
-                    url = channelLink.url,
-                    cookie = channelLink.cookie,
-                    referer = channelLink.referer,
-                    origin = channelLink.origin,
-                    userAgent = channelLink.userAgent,
-                    drmScheme = channelLink.drmScheme,
-                    drmLicenseUrl = channelLink.drmLicenseUrl
+                    url = channelLink.url
                 )
-            }
-            
-            val streamUrlToSave = when {
-                channel.streamUrl.isNotEmpty() -> channel.streamUrl
-                !favoriteLinks.isNullOrEmpty() -> {
-                    val firstLink = favoriteLinks.first()
-                    buildStreamUrlFromLink(firstLink)
-                }
-                else -> ""
             }
             
             val favoriteChannel = FavoriteChannel(
                 id = channel.id,
                 name = channel.name,
                 logoUrl = channel.logoUrl,
-                streamUrl = streamUrlToSave,
+                streamUrl = channel.streamUrl,
                 categoryId = channel.categoryId,
                 categoryName = channel.categoryName,
                 links = favoriteLinks
@@ -165,24 +153,6 @@ class CategoryChannelsViewModel @Inject constructor(
             } else {
                 favoritesRepository.addFavorite(favoriteChannel)
             }
-        }
-    }
-    
-    private fun buildStreamUrlFromLink(link: ChannelLink): String {
-        val parts = mutableListOf<String>()
-        parts.add(link.url)
-        
-        link.referer?.let { if (it.isNotEmpty()) parts.add("referer=$it") }
-        link.cookie?.let { if (it.isNotEmpty()) parts.add("cookie=$it") }
-        link.origin?.let { if (it.isNotEmpty()) parts.add("origin=$it") }
-        link.userAgent?.let { if (it.isNotEmpty()) parts.add("User-Agent=$it") }
-        link.drmScheme?.let { if (it.isNotEmpty()) parts.add("drmScheme=$it") }
-        link.drmLicenseUrl?.let { if (it.isNotEmpty()) parts.add("drmLicense=$it") }
-        
-        return if (parts.size > 1) {
-            parts.joinToString("|")
-        } else {
-            parts[0]
         }
     }
 
