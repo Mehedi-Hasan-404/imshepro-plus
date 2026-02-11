@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.livetvpro.R
@@ -231,23 +232,15 @@ class LiveEventAdapter(
     }
 
     private fun launchPlayer(event: LiveEvent) {
-        android.util.Log.e("DEBUG_FLOATING", "========================================")
-        android.util.Log.e("DEBUG_FLOATING", "LAUNCH PLAYER CLICKED!")
-        android.util.Log.e("DEBUG_FLOATING", "========================================")
-        android.util.Log.e("DEBUG_FLOATING", "Event: ${event.team1Name} vs ${event.team2Name}")
-        android.util.Log.e("DEBUG_FLOATING", "Event ID: ${event.id}")
-        android.util.Log.e("DEBUG_FLOATING", "Event links count: ${event.links.size}")
-        
-        // Show a toast immediately to confirm click is working
-        android.widget.Toast.makeText(
-            context,
-            "CLICKED: ${event.team1Name} vs ${event.team2Name}",
-            android.widget.Toast.LENGTH_LONG
-        ).show()
+        android.util.Log.e("DEBUG_LIVE_EVENT", "========================================")
+        android.util.Log.e("DEBUG_LIVE_EVENT", "LAUNCH PLAYER CLICKED!")
+        android.util.Log.e("DEBUG_LIVE_EVENT", "Event: ${event.team1Name} vs ${event.team2Name}")
+        android.util.Log.e("DEBUG_LIVE_EVENT", "Event ID: ${event.id}")
+        android.util.Log.e("DEBUG_LIVE_EVENT", "Event links count: ${event.links.size}")
         
         // Validate event has links
         if (event.links.isEmpty()) {
-            android.util.Log.e("DEBUG_FLOATING", "ERROR: Event has NO LINKS!")
+            android.util.Log.e("DEBUG_LIVE_EVENT", "ERROR: Event has NO LINKS!")
             android.widget.Toast.makeText(
                 context,
                 "No streams available for this event",
@@ -256,34 +249,54 @@ class LiveEventAdapter(
             return
         }
         
-        android.util.Log.e("DEBUG_FLOATING", "Links validated - ${event.links.size} links found")
-        for ((index, link) in event.links.withIndex()) {
-            android.util.Log.e("DEBUG_FLOATING", "Link $index: ${link.quality} - ${link.url}")
+        // 🔥 FIX: Check if there are multiple links - show dialog
+        if (event.links.size > 1) {
+            android.util.Log.e("DEBUG_LIVE_EVENT", "Multiple links found - showing dialog")
+            showLinkSelectionDialog(event)
+            return
         }
         
-        // Check if floating player is enabled
+        // Single link - proceed directly
+        android.util.Log.e("DEBUG_LIVE_EVENT", "Single link - launching directly")
+        proceedWithPlayer(event, 0)
+    }
+
+    // 🔥 NEW: Show dialog for multiple links
+    private fun showLinkSelectionDialog(event: LiveEvent) {
+        val linkLabels = event.links.map { it.quality }.toTypedArray()
+        
+        AlertDialog.Builder(context)
+            .setTitle("Select Stream Quality")
+            .setItems(linkLabels) { dialog, which ->
+                proceedWithPlayer(event, which)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    // 🔥 NEW: Separated logic to proceed with player
+    private fun proceedWithPlayer(event: LiveEvent, linkIndex: Int) {
         val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
         val hasPermission = FloatingPlayerHelper.hasOverlayPermission(context)
         
-        android.util.Log.e("DEBUG_FLOATING", "Floating enabled: $floatingEnabled")
-        android.util.Log.e("DEBUG_FLOATING", "Has overlay permission: $hasPermission")
+        android.util.Log.e("DEBUG_LIVE_EVENT", "Floating enabled: $floatingEnabled")
+        android.util.Log.e("DEBUG_LIVE_EVENT", "Has overlay permission: $hasPermission")
+        android.util.Log.e("DEBUG_LIVE_EVENT", "Selected link index: $linkIndex")
         
         if (floatingEnabled) {
-            android.util.Log.e("DEBUG_FLOATING", "==> FLOATING PLAYER PATH SELECTED")
+            android.util.Log.e("DEBUG_LIVE_EVENT", "==> FLOATING PLAYER PATH SELECTED")
             
             if (!hasPermission) {
-                android.util.Log.e("DEBUG_FLOATING", "ERROR: No overlay permission!")
                 android.widget.Toast.makeText(
                     context,
                     "Overlay permission required for floating player. Opening normally instead.",
                     android.widget.Toast.LENGTH_LONG
                 ).show()
                 
-                PlayerActivity.startWithEvent(context, event)
+                PlayerActivity.startWithEvent(context, event, linkIndex)
                 return
             }
-            
-            android.util.Log.e("DEBUG_FLOATING", "Permission OK - Creating channel object...")
             
             try {
                 val channel = Channel(
@@ -292,7 +305,6 @@ class LiveEventAdapter(
                     logoUrl = event.leagueLogo.ifEmpty { event.team1Logo },
                     categoryName = event.category,
                     links = event.links.map { liveEventLink ->
-                        android.util.Log.e("DEBUG_FLOATING", "Mapping link: ${liveEventLink.quality} - ${liveEventLink.url}")
                         com.livetvpro.data.models.ChannelLink(
                             quality = liveEventLink.quality,
                             url = liveEventLink.url,
@@ -306,47 +318,18 @@ class LiveEventAdapter(
                     }
                 )
                 
-                android.util.Log.e("DEBUG_FLOATING", "Channel created successfully")
-                android.util.Log.e("DEBUG_FLOATING", "Channel name: ${channel.name}")
-                android.util.Log.e("DEBUG_FLOATING", "Channel ID: ${channel.id}")
-                android.util.Log.e("DEBUG_FLOATING", "Channel links: ${channel.links?.size ?: 0}")
-                
-                android.widget.Toast.makeText(
-                    context,
-                    "Launching floating player...",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-                
-                android.util.Log.e("DEBUG_FLOATING", "Calling FloatingPlayerHelper.launchFloatingPlayer()...")
-                FloatingPlayerHelper.launchFloatingPlayer(context, channel)
-                android.util.Log.e("DEBUG_FLOATING", "FloatingPlayerHelper.launchFloatingPlayer() returned")
+                FloatingPlayerHelper.launchFloatingPlayer(context, channel, linkIndex)
                 
             } catch (e: Exception) {
-                android.util.Log.e("DEBUG_FLOATING", "EXCEPTION in floating player launch!", e)
-                android.util.Log.e("DEBUG_FLOATING", "Exception message: ${e.message}")
-                android.util.Log.e("DEBUG_FLOATING", "Stack trace:", e)
-                
-                android.widget.Toast.makeText(
-                    context,
-                    "ERROR: ${e.message}",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-                
-                PlayerActivity.startWithEvent(context, event)
+                android.util.Log.e("DEBUG_LIVE_EVENT", "EXCEPTION in floating player launch!", e)
+                PlayerActivity.startWithEvent(context, event, linkIndex)
             }
         } else {
-            android.util.Log.e("DEBUG_FLOATING", "==> NORMAL PLAYER PATH SELECTED")
-            android.widget.Toast.makeText(
-                context,
-                "Opening normal player...",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
-            PlayerActivity.startWithEvent(context, event)
+            android.util.Log.e("DEBUG_LIVE_EVENT", "==> NORMAL PLAYER PATH SELECTED")
+            PlayerActivity.startWithEvent(context, event, linkIndex)
         }
         
-        android.util.Log.e("DEBUG_FLOATING", "========================================")
-        android.util.Log.e("DEBUG_FLOATING", "LAUNCH PLAYER METHOD COMPLETED")
-        android.util.Log.e("DEBUG_FLOATING", "========================================")
+        android.util.Log.e("DEBUG_LIVE_EVENT", "========================================")
     }
 
     override fun getItemCount(): Int = events.size
