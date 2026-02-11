@@ -90,10 +90,10 @@ class FloatingPlayerService : Service() {
                     return
                 }
                 
-                val selectedLink = if (linkIndex in channel.links.indices) {
+                val selectedLink = if (channel.links != null && linkIndex in channel.links.indices) {
                     channel.links[linkIndex]
                 } else {
-                    channel.links.firstOrNull()
+                    channel.links?.firstOrNull()
                 }
                 
                 val streamUrl = selectedLink?.url ?: ""
