@@ -89,7 +89,7 @@ class PreferencesManager @Inject constructor(
     }
 
     fun getFloatingPlayerX(): Int {
-        return prefs.getInt(KEY_FLOATING_PLAYER_X, 50)
+        return prefs.getInt(KEY_FLOATING_PLAYER_X, Int.MIN_VALUE)
     }
 
     fun setFloatingPlayerX(x: Int) {
@@ -97,7 +97,7 @@ class PreferencesManager @Inject constructor(
     }
 
     fun getFloatingPlayerY(): Int {
-        return prefs.getInt(KEY_FLOATING_PLAYER_Y, 100)
+        return prefs.getInt(KEY_FLOATING_PLAYER_Y, Int.MIN_VALUE)
     }
 
     fun setFloatingPlayerY(y: Int) {
