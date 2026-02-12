@@ -490,9 +490,14 @@ class FloatingPlayerService : Service() {
         unlockButton: ImageButton?,
         channel: Channel
     ) {
+        // Get all control buttons
         val btnClose = playerView.findViewById<ImageButton>(R.id.btn_close)
         val btnFullscreen = playerView.findViewById<ImageButton>(R.id.btn_fullscreen)
+        val btnMute = playerView.findViewById<ImageButton>(R.id.btn_mute)
         val btnLock = playerView.findViewById<ImageButton>(R.id.btn_lock)
+        val btnPlayPause = playerView.findViewById<ImageButton>(R.id.btn_play_pause)
+        val btnSeekBack = playerView.findViewById<ImageButton>(R.id.btn_seek_back)
+        val btnSeekForward = playerView.findViewById<ImageButton>(R.id.btn_seek_forward)
         val btnResize = floatingView.findViewById<ImageButton>(R.id.btn_resize)
         
         // Close button
@@ -522,6 +527,16 @@ class FloatingPlayerService : Service() {
             startActivity(intent)
         }
         
+        // Mute button
+        btnMute?.setOnClickListener {
+            val instance = activeInstances[instanceId] ?: return@setOnClickListener
+            instance.isMuted = !instance.isMuted
+            player.volume = if (instance.isMuted) 0f else 1f
+            btnMute.setImageResource(
+                if (instance.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+            )
+        }
+        
         // Lock button
         btnLock?.setOnClickListener {
             toggleLock(instanceId)
@@ -531,6 +546,36 @@ class FloatingPlayerService : Service() {
         unlockButton?.setOnClickListener {
             toggleLock(instanceId)
         }
+        
+        // Play/Pause button
+        btnPlayPause?.setOnClickListener {
+            if (player.isPlaying) {
+                player.pause()
+                btnPlayPause.setImageResource(R.drawable.ic_play)
+            } else {
+                player.play()
+                btnPlayPause.setImageResource(R.drawable.ic_pause)
+            }
+        }
+        
+        // Seek back button
+        btnSeekBack?.setOnClickListener {
+            player.seekBack()
+        }
+        
+        // Seek forward button
+        btnSeekForward?.setOnClickListener {
+            player.seekForward()
+        }
+        
+        // Add player listener to update play/pause button icon
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                btnPlayPause?.setImageResource(
+                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                )
+            }
+        })
         
         // Setup resize and drag
         setupResizeFunctionality(floatingView, btnResize, params, instanceId)
@@ -602,93 +647,124 @@ class FloatingPlayerService : Service() {
         var isDragging = false
         var hasMoved = false
         
+        // CRITICAL: Set touch listener on floatingView (root), NOT container
         floatingView.setOnTouchListener { _, event ->
             val instance = activeInstances[instanceId] ?: return@setOnTouchListener false
             
+            // Locked mode - always handle touches for dragging
             if (instance.controlsLocked) {
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = params.x
-                        initialY = params.y
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isDragging = false
-                        hasMoved = false
-                        true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (event.rawX - initialTouchX).toInt()
-                        val dy = (event.rawY - initialTouchY).toInt()
-                        if (abs(dx) > 10 || abs(dy) > 10) {
-                            isDragging = true
-                            hasMoved = true
-                            params.x = initialX + dx
-                            params.y = initialY + dy
+                params?.let { p ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            initialX = p.x
+                            initialY = p.y
+                            initialTouchX = event.rawX
+                            initialTouchY = event.rawY
+                            isDragging = false
+                            hasMoved = false
+                            true
+                        }
+                        
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = (event.rawX - initialTouchX).toInt()
+                            val dy = (event.rawY - initialTouchY).toInt()
                             
-                            windowManager?.updateViewLayout(floatingView, params)
-                        }
-                        true
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (!hasMoved) {
-                            if (unlockButton?.visibility == View.VISIBLE) {
-                                hideUnlockButton(instanceId)
-                            } else {
-                                showUnlockButton(instanceId)
+                            if (abs(dx) > 10 || abs(dy) > 10) {
+                                isDragging = true
+                                hasMoved = true
+                                
+                                p.x = initialX + dx
+                                p.y = initialY + dy
+                                
+                                preferencesManager.setFloatingPlayerX(p.x)
+                                preferencesManager.setFloatingPlayerY(p.y)
+                                
+                                windowManager?.updateViewLayout(floatingView, p)
                             }
+                            true
                         }
-                        isDragging = false
-                        hasMoved = false
-                        true
+                        
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            if (!hasMoved) {
+                                if (unlockButton?.visibility == View.VISIBLE) {
+                                    hideUnlockButton(instanceId)
+                                } else {
+                                    showUnlockButton(instanceId)
+                                }
+                            } else {
+                                preferencesManager.setFloatingPlayerX(p.x)
+                                preferencesManager.setFloatingPlayerY(p.y)
+                            }
+                            
+                            isDragging = false
+                            hasMoved = false
+                            true
+                        }
+                        
+                        else -> true
                     }
-                    else -> true
-                }
+                } ?: true
             } else {
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialX = params.x
-                        initialY = params.y
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        isDragging = false
-                        hasMoved = false
-                        true
-                    }
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (event.rawX - initialTouchX).toInt()
-                        val dy = (event.rawY - initialTouchY).toInt()
-                        if (abs(dx) > 10 || abs(dy) > 10) {
-                            isDragging = true
-                            hasMoved = true
-                            params.x = initialX + dx
-                            params.y = initialY + dy
-                            
-                            // Save position while dragging
-                            preferencesManager.setFloatingPlayerX(params.x)
-                            preferencesManager.setFloatingPlayerY(params.y)
-                            
-                            windowManager?.updateViewLayout(floatingView, params)
+                // Unlocked mode - only intercept when actually dragging
+                params?.let { p ->
+                    when (event.action) {
+                        MotionEvent.ACTION_DOWN -> {
+                            initialX = p.x
+                            initialY = p.y
+                            initialTouchX = event.rawX
+                            initialTouchY = event.rawY
+                            isDragging = false
+                            hasMoved = false
+                            true
                         }
-                        isDragging
-                    }
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (!hasMoved) {
-                            if (playerView.isControllerFullyVisible) {
-                                playerView.hideController()
-                            } else {
-                                playerView.showController()
+                        
+                        MotionEvent.ACTION_MOVE -> {
+                            val dx = (event.rawX - initialTouchX).toInt()
+                            val dy = (event.rawY - initialTouchY).toInt()
+                            
+                            if (abs(dx) > 10 || abs(dy) > 10) {
+                                isDragging = true
+                                hasMoved = true
+                                
+                                p.x = initialX + dx
+                                p.y = initialY + dy
+                                
+                                preferencesManager.setFloatingPlayerX(p.x)
+                                preferencesManager.setFloatingPlayerY(p.y)
+                                
+                                windowManager?.updateViewLayout(floatingView, p)
                             }
-                        } else {
-                            // Save final position after drag
-                            preferencesManager.setFloatingPlayerX(params.x)
-                            preferencesManager.setFloatingPlayerY(params.y)
+                            
+                            // Return isDragging - only consume event if we're actually dragging
+                            isDragging
                         }
-                        isDragging = false
-                        hasMoved = false
-                        hasMoved
+                        
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            if (!hasMoved) {
+                                // Short tap - toggle controls
+                                val currentlyVisible = playerView.isControllerFullyVisible == true
+                                
+                                if (currentlyVisible) {
+                                    playerView.hideController()
+                                } else {
+                                    playerView.showController()
+                                }
+                            } else {
+                                preferencesManager.setFloatingPlayerX(p.x)
+                                preferencesManager.setFloatingPlayerY(p.y)
+                            }
+                            
+                            val wasMoving = hasMoved
+                            isDragging = false
+                            hasMoved = false
+                            
+                            // Return wasMoving - only consume if we were dragging
+                            wasMoving
+                        }
+                        
+                        else -> false
                     }
-                    else -> false
-                }
+                } ?: false
             }
         }
         
