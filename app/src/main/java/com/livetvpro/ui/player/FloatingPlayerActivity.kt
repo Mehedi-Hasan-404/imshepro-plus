@@ -1457,6 +1457,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     // Start service - it will use the transferred player
                     val intent = Intent(this, FloatingPlayerService::class.java).apply {
                         putExtra(FloatingPlayerService.EXTRA_CHANNEL, currentChannel)
+                        putExtra(FloatingPlayerService.EXTRA_RESTORE_POSITION, true)  // Restore saved position/size
                         putExtra("use_transferred_player", true)
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
