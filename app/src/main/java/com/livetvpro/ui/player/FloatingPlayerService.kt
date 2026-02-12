@@ -78,6 +78,7 @@ class FloatingPlayerService : Service() {
         const val EXTRA_PLAYBACK_POSITION = "extra_playback_position"
         const val EXTRA_LINK_INDEX = "extra_link_index"
         const val EXTRA_INSTANCE_ID = "extra_instance_id"
+        const val EXTRA_RESTORE_POSITION = "extra_restore_position"
         const val ACTION_STOP = "action_stop"
         const val ACTION_STOP_INSTANCE = "action_stop_instance"
         const val ACTION_UPDATE_STREAM = "action_update_stream"
@@ -290,9 +291,10 @@ class FloatingPlayerService : Service() {
         
         val linkIndex = intent?.getIntExtra(EXTRA_LINK_INDEX, 0) ?: 0
         val playbackPosition = intent?.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L) ?: 0L
+        val restorePosition = intent?.getBooleanExtra(EXTRA_RESTORE_POSITION, false) ?: false
         
         if (channel != null) {
-            createFloatingPlayerInstance(instanceId, channel, linkIndex, playbackPosition)
+            createFloatingPlayerInstance(instanceId, channel, linkIndex, playbackPosition, restorePosition)
             updateNotification()
         }
         
@@ -303,7 +305,8 @@ class FloatingPlayerService : Service() {
         instanceId: String,
         channel: Channel,
         linkIndex: Int,
-        playbackPosition: Long
+        playbackPosition: Long,
+        restorePosition: Boolean = false
     ) {
         try {
             val selectedLink = if (channel.links != null && linkIndex in channel.links!!.indices) {
@@ -316,21 +319,43 @@ class FloatingPlayerService : Service() {
             // Create floating view
             val floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
             
-            // Calculate position with offset for multiple instances
-            val instanceCount = activeInstances.size
-            val baseOffsetX = dpToPx(20)
-            val baseOffsetY = dpToPx(60)
-            val offsetX = baseOffsetX * instanceCount
-            val offsetY = baseOffsetY * instanceCount
+            // Calculate screen dimensions
+            val screenWidth = getScreenWidth()
+            val screenHeight = getScreenHeight()
             
+            // Get saved dimensions or use defaults
             val savedWidth = preferencesManager.getFloatingPlayerWidth()
             val savedHeight = preferencesManager.getFloatingPlayerHeight()
-            val width = savedWidth.takeIf { it > 0 } ?: (getScreenWidth() * 0.6).toInt()
-            val height = savedHeight.takeIf { it > 0 } ?: (width * 9 / 16)
+            val width = savedWidth.takeIf { it > 0 && restorePosition } ?: (screenWidth * 0.6).toInt()
+            val height = savedHeight.takeIf { it > 0 && restorePosition } ?: (width * 9 / 16)
+            
+            val finalWidth = width.coerceIn(getMinWidth(), getMaxWidth())
+            val finalHeight = height.coerceIn(getMinHeight(), getMaxHeight())
+            
+            // Calculate center position (default for new windows)
+            val centerX = (screenWidth - finalWidth) / 2
+            val centerY = (screenHeight - finalHeight) / 2
+            
+            // Determine position based on context
+            val posX: Int
+            val posY: Int
+            
+            if (restorePosition) {
+                // Restoring from fullscreen PiP - use saved position if available
+                val savedX = preferencesManager.getFloatingPlayerX()
+                val savedY = preferencesManager.getFloatingPlayerY()
+                
+                posX = if (savedX != Int.MIN_VALUE) savedX else centerX
+                posY = if (savedY != Int.MIN_VALUE) savedY else centerY
+            } else {
+                // New window - always center
+                posX = centerX
+                posY = centerY
+            }
             
             val params = WindowManager.LayoutParams(
-                width.coerceIn(getMinWidth(), getMaxWidth()),
-                height.coerceIn(getMinHeight(), getMaxHeight()),
+                finalWidth,
+                finalHeight,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 } else {
@@ -343,8 +368,8 @@ class FloatingPlayerService : Service() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                x = offsetX
-                y = offsetY
+                x = posX
+                y = posY
             }
             
             // Create player
@@ -479,7 +504,15 @@ class FloatingPlayerService : Service() {
         btnFullscreen?.setOnClickListener {
             val currentPosition = player.currentPosition
             
-            stopInstance(instanceId)
+            // Save current position and size for PiP restoration
+            preferencesManager.setFloatingPlayerX(params.x)
+            preferencesManager.setFloatingPlayerY(params.y)
+            preferencesManager.setFloatingPlayerWidth(params.width)
+            preferencesManager.setFloatingPlayerHeight(params.height)
+            
+            // Stop instance but DON'T reset memory (resetMemory = false)
+            // This preserves position/size for when user clicks PiP from fullscreen
+            stopInstance(instanceId, resetMemory = false)
             
             val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
                 putExtra("channel", channel)
@@ -591,6 +624,7 @@ class FloatingPlayerService : Service() {
                             hasMoved = true
                             params.x = initialX + dx
                             params.y = initialY + dy
+                            
                             windowManager?.updateViewLayout(floatingView, params)
                         }
                         true
@@ -628,6 +662,11 @@ class FloatingPlayerService : Service() {
                             hasMoved = true
                             params.x = initialX + dx
                             params.y = initialY + dy
+                            
+                            // Save position while dragging
+                            preferencesManager.setFloatingPlayerX(params.x)
+                            preferencesManager.setFloatingPlayerY(params.y)
+                            
                             windowManager?.updateViewLayout(floatingView, params)
                         }
                         isDragging
@@ -639,6 +678,10 @@ class FloatingPlayerService : Service() {
                             } else {
                                 playerView.showController()
                             }
+                        } else {
+                            // Save final position after drag
+                            preferencesManager.setFloatingPlayerX(params.x)
+                            preferencesManager.setFloatingPlayerY(params.y)
                         }
                         isDragging = false
                         hasMoved = false
@@ -696,7 +739,7 @@ class FloatingPlayerService : Service() {
         instance.unlockButton?.visibility = View.GONE
     }
 
-    private fun stopInstance(instanceId: String) {
+    private fun stopInstance(instanceId: String, resetMemory: Boolean = true) {
         val instance = activeInstances[instanceId] ?: return
         
         hideControlsHandlers[instanceId]?.removeCallbacksAndMessages(null)
@@ -712,6 +755,15 @@ class FloatingPlayerService : Service() {
         
         activeInstances.remove(instanceId)
         com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
+        
+        // Reset position and size memory only if closing permanently
+        // Don't reset if transitioning to fullscreen (to preserve for PiP return)
+        if (resetMemory) {
+            preferencesManager.setFloatingPlayerX(Int.MIN_VALUE)
+            preferencesManager.setFloatingPlayerY(Int.MIN_VALUE)
+            preferencesManager.setFloatingPlayerWidth(0)
+            preferencesManager.setFloatingPlayerHeight(0)
+        }
         
         updateNotification()
         
@@ -786,6 +838,17 @@ class FloatingPlayerService : Service() {
             val size = Point()
             display?.getSize(size)
             size.x
+        }
+    }
+    
+    private fun getScreenHeight(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            windowManager?.currentWindowMetrics?.bounds?.height() ?: 1920
+        } else {
+            val display = windowManager?.defaultDisplay
+            val size = Point()
+            display?.getSize(size)
+            size.y
         }
     }
 
