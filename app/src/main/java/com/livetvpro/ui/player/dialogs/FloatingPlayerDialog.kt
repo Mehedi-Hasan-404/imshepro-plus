@@ -1,15 +1,14 @@
 package com.livetvpro.ui.player.dialogs
 
+import android.app.AlertDialog
 import android.app.Dialog
-import android.graphics.Color
-import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import androidx.fragment.app.DialogFragment
+import com.livetvpro.R
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.databinding.DialogFloatingPlayerSettingsBinding
 import dagger.hilt.android.AndroidEntryPoint
@@ -24,37 +23,27 @@ class FloatingPlayerDialog : DialogFragment() {
     private var _binding: DialogFloatingPlayerSettingsBinding? = null
     private val binding get() = _binding!!
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        _binding = DialogFloatingPlayerSettingsBinding.inflate(inflater, container, false)
-        return binding.root
-    }
-
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        super.onViewCreated(view, savedInstanceState)
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        _binding = DialogFloatingPlayerSettingsBinding.inflate(LayoutInflater.from(requireContext()))
         
         setupViews()
         loadSettings()
-    }
-
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        return super.onCreateDialog(savedInstanceState).apply {
-            window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        }
+        
+        // Create standard Android AlertDialog
+        return AlertDialog.Builder(requireContext())
+            .setView(binding.root)
+            .create()
     }
 
     private fun setupViews() {
-        // Setup dropdown for max floating windows
-        val maxWindowsOptions = listOf("Disable", "TWO", "Three", "FOUR", "FIVE (MAX)")
+        // Setup dropdown for max floating windows with proper options
+        val maxWindowsOptions = listOf("Disable", "2", "3", "4", "5")
         val adapter = ArrayAdapter(
             requireContext(), 
             android.R.layout.simple_dropdown_item_1line, 
             maxWindowsOptions
         )
-        (binding.maxFloatingWindowsDropdown as? AutoCompleteTextView)?.setAdapter(adapter)
+        binding.maxFloatingWindowsDropdown.setAdapter(adapter)
 
         // Floating player switch listener
         binding.floatingPlayerSwitch.setOnCheckedChangeListener { _, isChecked ->
@@ -63,14 +52,14 @@ class FloatingPlayerDialog : DialogFragment() {
         }
 
         // Max windows dropdown listener
-        (binding.maxFloatingWindowsDropdown as? AutoCompleteTextView)?.setOnItemClickListener { _, _, position, _ ->
+        binding.maxFloatingWindowsDropdown.setOnItemClickListener { _, _, position, _ ->
             val maxWindows = when (position) {
-                0 -> 0 // Disable
-                1 -> 2 // TWO
-                2 -> 3 // Three
-                3 -> 4 // FOUR
-                4 -> 5 // FIVE (MAX)
-                else -> 1
+                0 -> 0  // Disable
+                1 -> 2  // 2
+                2 -> 3  // 3
+                3 -> 4  // 4
+                4 -> 5  // 5
+                else -> 0
             }
             preferencesManager.setMaxFloatingWindows(maxWindows)
         }
@@ -89,17 +78,15 @@ class FloatingPlayerDialog : DialogFragment() {
         binding.maxFloatingWindowsContainer.visibility = if (isEnabled) View.VISIBLE else View.GONE
 
         // Set dropdown selection
-        (binding.maxFloatingWindowsDropdown as? AutoCompleteTextView)?.setText(
-            when (maxWindows) {
-                0 -> "Disable"
-                2 -> "TWO"
-                3 -> "Three"
-                4 -> "FOUR"
-                5 -> "FIVE (MAX)"
-                else -> "Disable"
-            },
-            false
-        )
+        val selectedText = when (maxWindows) {
+            0 -> "Disable"
+            2 -> "2"
+            3 -> "3"
+            4 -> "4"
+            5 -> "5"
+            else -> "Disable"
+        }
+        binding.maxFloatingWindowsDropdown.setText(selectedText, false)
     }
 
     override fun onDestroyView() {
