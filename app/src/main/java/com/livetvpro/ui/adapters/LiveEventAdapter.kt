@@ -222,21 +222,23 @@ class LiveEventAdapter(
             if (event.links.size == 1) {
                 onEventClick.invoke(event, 0)
             } else {
-                // Multiple links - show dialog
+                // Multiple links - show dialog and let user choose
                 showLinkSelectionDialogForSwitching(event)
             }
             return
         }
         
-        // Default behavior for floating player/new activity
+        // Default behavior: launch new PlayerActivity or floating player
+        // Always show link selection dialog if event has multiple links
         if (event.links.size > 1) {
             showLinkSelectionDialog(event)
             return
         }
         
+        // Single link - proceed directly
         proceedWithPlayer(event, 0)
     }
-    
+
     private fun showLinkSelectionDialogForSwitching(event: LiveEvent) {
         val linkLabels = event.links.map { it.quality }.toTypedArray()
         
@@ -295,7 +297,6 @@ class LiveEventAdapter(
                     name = "${event.team1Name} vs ${event.team2Name}",
                     logoUrl = event.leagueLogo.ifEmpty { event.team1Logo },
                     categoryName = event.category,
-                    groupTitle = "__EVENT__",  // Mark as event for FloatingPlayerActivity
                     links = event.links.map { liveEventLink ->
                         com.livetvpro.data.models.ChannelLink(
                             quality = liveEventLink.quality,
