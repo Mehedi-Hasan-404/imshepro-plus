@@ -73,6 +73,34 @@ object FloatingPlayerHelper {
     }
     
     /**
+     * Launch floating player for an event (keeps original event data)
+     * This version passes both the converted channel AND the original event to preserve event context
+     */
+    fun launchFloatingPlayerWithEvent(context: Context, channel: Channel, event: LiveEvent, linkIndex: Int = 0) {
+        if (!hasOverlayPermission(context)) {
+            Toast.makeText(context, "Overlay permission required for floating player", Toast.LENGTH_LONG).show()
+            return
+        }
+        
+        if (channel.links.isNullOrEmpty()) {
+            Toast.makeText(context, "No stream available for ${channel.name}", Toast.LENGTH_SHORT).show()
+            return
+        }
+        
+        // Check if this event already has a floating player
+        val existingInstanceId = eventToInstanceMap[event.id]
+        
+        if (existingInstanceId != null && FloatingPlayerManager.hasPlayer(existingInstanceId)) {
+            // Update the existing floating player with the new link
+            updateFloatingPlayer(context, existingInstanceId, channel, linkIndex)
+            Toast.makeText(context, "Updated floating player with new stream", Toast.LENGTH_SHORT).show()
+        } else {
+            // Create new floating player with both channel and event
+            createNewFloatingPlayer(context, channel = channel, event = event, linkIndex = linkIndex, eventId = event.id)
+        }
+    }
+    
+    /**
      * Update an existing floating player with a new stream/link
      */
     private fun updateFloatingPlayer(context: Context, instanceId: String, channel: Channel, linkIndex: Int) {
