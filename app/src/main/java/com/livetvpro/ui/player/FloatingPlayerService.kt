@@ -1,4 +1,4 @@
-package com.livetvpro.ui.player
+>package com.livetvpro.ui.player
 
 import android.widget.FrameLayout
 import android.annotation.SuppressLint
@@ -323,39 +323,41 @@ class FloatingPlayerService : Service() {
             val screenWidth = getScreenWidth()
             val screenHeight = getScreenHeight()
             
-            // Get saved dimensions or use defaults
+            // Get saved dimensions
             val savedWidth = preferencesManager.getFloatingPlayerWidth()
             val savedHeight = preferencesManager.getFloatingPlayerHeight()
-            val width = savedWidth.takeIf { it > 0 && restorePosition } ?: (screenWidth * 0.6).toInt()
-            val height = savedHeight.takeIf { it > 0 && restorePosition } ?: (width * 9 / 16)
             
-            val finalWidth = width.coerceIn(getMinWidth(), getMaxWidth())
-            val finalHeight = height.coerceIn(getMinHeight(), getMaxHeight())
+            val initialWidth: Int
+            val initialHeight: Int
             
-            // Calculate center position (default for new windows)
-            val centerX = (screenWidth - finalWidth) / 2
-            val centerY = (screenHeight - finalHeight) / 2
-            
-            // Determine position based on context
-            val posX: Int
-            val posY: Int
-            
-            if (restorePosition) {
-                // Restoring from fullscreen PiP - use saved position if available
-                val savedX = preferencesManager.getFloatingPlayerX()
-                val savedY = preferencesManager.getFloatingPlayerY()
-                
-                posX = if (savedX != Int.MIN_VALUE) savedX else centerX
-                posY = if (savedY != Int.MIN_VALUE) savedY else centerY
+            if (savedWidth > 0 && savedHeight > 0) {
+                initialWidth = savedWidth.coerceIn(getMinWidth(), getMaxWidth())
+                initialHeight = savedHeight.coerceIn(getMinHeight(), getMaxHeight())
             } else {
-                // New window - always center
-                posX = centerX
-                posY = centerY
+                initialWidth = (screenWidth * 0.6f).toInt().coerceIn(getMinWidth(), getMaxWidth())
+                initialHeight = initialWidth * 9 / 16
+            }
+            
+            // Get saved position
+            val savedX = preferencesManager.getFloatingPlayerX()
+            val savedY = preferencesManager.getFloatingPlayerY()
+            
+            val initialX: Int
+            val initialY: Int
+            
+            // If saved position is not the default (Int.MIN_VALUE), restore it
+            // Otherwise, center the window
+            if (savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE) {
+                initialX = savedX
+                initialY = savedY
+            } else {
+                initialX = (screenWidth - initialWidth) / 2
+                initialY = (screenHeight - initialHeight) / 2
             }
             
             val params = WindowManager.LayoutParams(
-                finalWidth,
-                finalHeight,
+                initialWidth,
+                initialHeight,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
                 } else {
@@ -368,8 +370,8 @@ class FloatingPlayerService : Service() {
                 PixelFormat.TRANSLUCENT
             ).apply {
                 gravity = Gravity.TOP or Gravity.START
-                x = posX
-                y = posY
+                x = initialX
+                y = initialY
             }
             
             // Create player
@@ -507,24 +509,49 @@ class FloatingPlayerService : Service() {
         
         // Fullscreen button
         btnFullscreen?.setOnClickListener {
-            val currentPosition = player.currentPosition
+            val currentPlayer = player
+            val currentChannel = channel
             
-            // Save current position and size for PiP restoration
-            preferencesManager.setFloatingPlayerX(params.x)
-            preferencesManager.setFloatingPlayerY(params.y)
-            preferencesManager.setFloatingPlayerWidth(params.width)
-            preferencesManager.setFloatingPlayerHeight(params.height)
-            
-            // Stop instance but DON'T reset memory (resetMemory = false)
-            // This preserves position/size for when user clicks PiP from fullscreen
-            stopInstance(instanceId, resetMemory = false)
-            
-            val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                putExtra("channel", channel)
-                putExtra("playback_position", currentPosition)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (currentPlayer != null && currentChannel != null) {
+                // Save only width and height (NOT position)
+                preferencesManager.setFloatingPlayerWidth(params.width)
+                preferencesManager.setFloatingPlayerHeight(params.height)
+                
+                // Transfer player using PlayerHolder to avoid recreation
+                val streamUrl = currentChannel.links?.firstOrNull()?.url ?: ""
+                PlayerHolder.transferPlayer(currentPlayer, streamUrl, currentChannel.name)
+                
+                // Launch fullscreen activity
+                val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
+                    putExtra("channel", currentChannel)
+                    putExtra("use_transferred_player", true)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                startActivity(intent)
+                
+                // Clear our reference (PlayerHolder now owns it)
+                activeInstances[instanceId]?.player?.let {
+                    // Don't release - PlayerHolder has it
+                }
+                
+                // Remove from active instances and stop service
+                hideControlsHandlers[instanceId]?.removeCallbacksAndMessages(null)
+                hideControlsHandlers.remove(instanceId)
+                
+                try {
+                    windowManager?.removeView(activeInstances[instanceId]?.floatingView)
+                } catch (e: Exception) {
+                    // View already removed
+                }
+                
+                activeInstances.remove(instanceId)
+                com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
+                
+                // Don't reset position/size - let user resume with same size and position they set
+                
+                // Stop service completely
+                stopSelf()
             }
-            startActivity(intent)
         }
         
         // Mute button
@@ -588,48 +615,46 @@ class FloatingPlayerService : Service() {
         params: WindowManager.LayoutParams,
         instanceId: String
     ) {
-        btnResize?.setOnTouchListener(object : View.OnTouchListener {
-            private var initialWidth = 0
-            private var initialHeight = 0
-            private var initialTouchX = 0f
-            private var initialTouchY = 0f
-            
-            @SuppressLint("ClickableViewAccessibility")
-            override fun onTouch(v: View, event: MotionEvent): Boolean {
-                when (event.action) {
-                    MotionEvent.ACTION_DOWN -> {
-                        initialWidth = params.width
-                        initialHeight = params.height
-                        initialTouchX = event.rawX
-                        initialTouchY = event.rawY
-                        return true
-                    }
+        var resizeInitialWidth = 0
+        var resizeInitialHeight = 0
+        var resizeInitialTouchX = 0f
+        var resizeInitialTouchY = 0f
+        
+        btnResize?.setOnTouchListener { v, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    resizeInitialWidth = params.width
+                    resizeInitialHeight = params.height
+                    resizeInitialTouchX = event.rawX
+                    resizeInitialTouchY = event.rawY
+                    true
+                }
+                
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - resizeInitialTouchX
+                    val dy = event.rawY - resizeInitialTouchY
+                    val delta = ((dx + dy) / 2).toInt()
+                    var newWidth = resizeInitialWidth + delta
+                    newWidth = newWidth.coerceIn(getMinWidth(), getMaxWidth())
+                    val newHeight = newWidth * 9 / 16
                     
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = (event.rawX - initialTouchX).toInt()
-                        val newWidth = (initialWidth + dx).coerceIn(getMinWidth(), getMaxWidth())
-                        val newHeight = newWidth * 9 / 16
-                        
+                    if (newWidth != params.width || newHeight != params.height) {
                         params.width = newWidth
                         params.height = newHeight
-                        
-                        preferencesManager.setFloatingPlayerWidth(newWidth)
-                        preferencesManager.setFloatingPlayerHeight(newHeight)
-                        
                         windowManager?.updateViewLayout(floatingView, params)
-                        return true
                     }
-                    
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        preferencesManager.setFloatingPlayerWidth(params.width)
-                        preferencesManager.setFloatingPlayerHeight(params.height)
-                        v.performClick()
-                        return true
-                    }
+                    true
                 }
-                return false
+                
+                MotionEvent.ACTION_UP -> {
+                    preferencesManager.setFloatingPlayerWidth(params.width)
+                    preferencesManager.setFloatingPlayerHeight(params.height)
+                    true
+                }
+                
+                else -> false
             }
-        })
+        }
     }
 
     private fun setupDragFunctionality(
@@ -647,8 +672,8 @@ class FloatingPlayerService : Service() {
         var isDragging = false
         var hasMoved = false
         
-        // CRITICAL: Set touch listener on floatingView (root), NOT container
-        floatingView.setOnTouchListener { _, event ->
+        // CRITICAL: Set touch listener on playerView, NOT floatingView
+        playerView.setOnTouchListener { _, event ->
             val instance = activeInstances[instanceId] ?: return@setOnTouchListener false
             
             // Locked mode - always handle touches for dragging
@@ -815,7 +840,7 @@ class FloatingPlayerService : Service() {
         instance.unlockButton?.visibility = View.GONE
     }
 
-    private fun stopInstance(instanceId: String, resetMemory: Boolean = true) {
+    private fun stopInstance(instanceId: String) {
         val instance = activeInstances[instanceId] ?: return
         
         hideControlsHandlers[instanceId]?.removeCallbacksAndMessages(null)
@@ -832,14 +857,11 @@ class FloatingPlayerService : Service() {
         activeInstances.remove(instanceId)
         com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
         
-        // Reset position and size memory only if closing permanently
-        // Don't reset if transitioning to fullscreen (to preserve for PiP return)
-        if (resetMemory) {
-            preferencesManager.setFloatingPlayerX(Int.MIN_VALUE)
-            preferencesManager.setFloatingPlayerY(Int.MIN_VALUE)
-            preferencesManager.setFloatingPlayerWidth(0)
-            preferencesManager.setFloatingPlayerHeight(0)
-        }
+        // Reset position and size to defaults on close
+        preferencesManager.setFloatingPlayerX(Int.MIN_VALUE)
+        preferencesManager.setFloatingPlayerY(Int.MIN_VALUE)
+        preferencesManager.setFloatingPlayerWidth(0)
+        preferencesManager.setFloatingPlayerHeight(0)
         
         updateNotification()
         
