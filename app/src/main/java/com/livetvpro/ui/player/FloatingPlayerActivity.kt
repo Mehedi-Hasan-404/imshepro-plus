@@ -232,7 +232,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         // Enable controller
         binding.playerView.useController = true
-        binding.playerView.controllerAutoShow = false
+        binding.playerView.controllerAutoShow = true  // Show controls on start
         
         // Show initial loading state for related channels
         if (!isLandscape) {
@@ -493,7 +493,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             binding.playerContainer.layoutParams = params
             
             // Player view settings
-            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerAutoShow = true  // Show controls on start
             binding.playerView.controllerShowTimeoutMs = 3000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
@@ -503,7 +503,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             exitFullscreen()
             
             // Player view settings
-            binding.playerView.controllerAutoShow = false
+            binding.playerView.controllerAutoShow = true  // Show controls on start
             binding.playerView.controllerShowTimeoutMs = 5000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -612,15 +612,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
             if (allEventLinks.size > 1) {
                 binding.linksSection.visibility = View.VISIBLE
             }
-            // Restore related section for both channels AND events.
-            // Previously only relatedChannels was checked, so EVENT content
-            // always came back blank after exiting PiP.
-            val hasRelated = relatedChannels.isNotEmpty() ||
-                (contentType == ContentType.EVENT && ::relatedEventsAdapter.isInitialized)
-            if (hasRelated) {
+            if (relatedChannels.isNotEmpty()) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
-                binding.relatedChannelsRecycler.visibility = View.VISIBLE
-                binding.relatedLoadingProgress.visibility = View.GONE
             }
         }
         
@@ -1069,93 +1062,28 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         if (useTransferredPlayer) {
             val (transferredPlayer, transferredUrl, transferredName) = PlayerHolder.retrievePlayer()
-
+            
             if (transferredPlayer != null) {
                 android.util.Log.d("FloatingPlayerActivity", "Using transferred player - NO LOADING!")
-
+                
+                // FIXED: Hide loading indicator since we're not loading!
                 binding.progressBar.visibility = View.GONE
                 binding.errorView.visibility = View.GONE
-
+                
+                // Use the existing player
                 player = transferredPlayer
                 binding.playerView.player = player
-
+                
+                // Clear holder
                 PlayerHolder.clearReferences()
-
+                
+                // Setup UI but don't recreate player
                 bindControllerViews()
                 configurePlayerInteractions()
                 setupLockOverlay()
-
-                // Attach listener so errors/state changes work exactly like a fresh player.
-                // Without this, onPlayerError never fires and errors are silently swallowed.
-                val exo = transferredPlayer
-                playerListener = object : Player.Listener {
-                    override fun onPlaybackStateChanged(playbackState: Int) {
-                        when (playbackState) {
-                            Player.STATE_READY -> {
-                                updatePlayPauseIcon(exo.playWhenReady)
-                                binding.progressBar.visibility = View.GONE
-                                binding.errorView.visibility = View.GONE
-                                updatePipParams()
-                            }
-                            Player.STATE_BUFFERING -> {
-                                binding.progressBar.visibility = View.VISIBLE
-                                binding.errorView.visibility = View.GONE
-                                // Do NOT hideController — seeking triggers STATE_BUFFERING
-                                // briefly and would hide controls mid-seek.
-                            }
-                            Player.STATE_ENDED -> {
-                                binding.progressBar.visibility = View.GONE
-                                binding.playerView.showController()
-                            }
-                            Player.STATE_IDLE -> {}
-                        }
-                    }
-
-                    override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        updatePlayPauseIcon(isPlaying)
-                        if (isInPipMode) updatePipParams()
-                    }
-
-                    override fun onVideoSizeChanged(videoSize: VideoSize) {
-                        super.onVideoSizeChanged(videoSize)
-                        updatePipParams()
-                    }
-
-                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                        super.onPlayerError(error)
-                        binding.progressBar.visibility = View.GONE
-                        val errorMessage = when {
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
-                                "Connection Failed"
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
-                                when {
-                                    error.message?.contains("403") == true -> "Access Denied"
-                                    error.message?.contains("404") == true -> "Stream Not Found"
-                                    else -> "Playback Error"
-                                }
-                            }
-                            error.message?.contains("drm", ignoreCase = true) == true ||
-                            error.message?.contains("widevine", ignoreCase = true) == true ||
-                            error.message?.contains("clearkey", ignoreCase = true) == true ||
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
-                                "Stream Error"
-                            error.message?.contains("geo", ignoreCase = true) == true ||
-                            error.message?.contains("region", ignoreCase = true) == true ->
-                                "Not Available"
-                            else -> "Playback Error"
-                        }
-                        showError(errorMessage)
-                    }
-                }
-                exo.addListener(playerListener!!)
-
-                return
+                
+                // Player is already playing - just continue!
+                return  // Exit early - no need to create new player
             }
         }
         
@@ -1264,8 +1192,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
                                     binding.errorView.visibility = View.GONE
-                                    // Do NOT hideController — seeking triggers STATE_BUFFERING
-                                    // briefly and would hide controls mid-seek.
+                                    
+                                    // FIX 4: Explicitly hide controls during buffering
+                                    binding.playerView.hideController()
                                 }
                                 Player.STATE_ENDED -> {
                                     binding.progressBar.visibility = View.GONE
@@ -1538,25 +1467,26 @@ class FloatingPlayerActivity : AppCompatActivity() {
         btnPip?.setOnClickListener {
             if (!isLocked) {
                 val currentChannel = channelData
+                val currentEvent = eventData
                 val currentPlayer = player
                 val currentStreamUrl = streamUrl
                 val currentName = contentName
-                
-                if (currentPlayer != null && currentChannel != null) {
-                    // FIXED: Transfer player instead of destroying it - NO LOADING!
+
+                // Accept either channel OR event — previously only channel was checked
+                // so the entire block was skipped for event content
+                if (currentPlayer != null && (currentChannel != null || currentEvent != null)) {
                     PlayerHolder.transferPlayer(currentPlayer, currentStreamUrl, currentName)
-                    
-                    android.util.Log.d("FloatingPlayerActivity", "Player transferred to service")
-                    
-                    // FIX Bug 2: Reuse the same instance slot that launched this fullscreen.
-                    // If we have a source_instance_id the floating window gave us, send it
-                    // back so the service restores into the *same* FloatingPlayerManager slot
-                    // instead of creating a brand-new UUID (which would spawn a second window).
+
                     val sourceInstanceId = intent.getStringExtra("source_instance_id")
 
-                    // Start service - it will use the transferred player
                     val intent = Intent(this, FloatingPlayerService::class.java).apply {
-                        putExtra(FloatingPlayerService.EXTRA_CHANNEL, currentChannel)
+                        // Pass whichever content type we have
+                        if (currentChannel != null) {
+                            putExtra(FloatingPlayerService.EXTRA_CHANNEL, currentChannel)
+                        }
+                        if (currentEvent != null) {
+                            putExtra(FloatingPlayerService.EXTRA_EVENT, currentEvent)
+                        }
                         putExtra(FloatingPlayerService.EXTRA_RESTORE_POSITION, true)
                         putExtra("use_transferred_player", true)
                         if (sourceInstanceId != null) {
@@ -1568,9 +1498,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     } else {
                         startService(intent)
                     }
-                    
-                    // Don't release player - it's been transferred!
-                    player = null  // Remove reference so finish() won't release it
+
+                    player = null
                     finish()
                 }
             }
