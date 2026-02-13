@@ -928,6 +928,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Safety net: ensure windows are restored even if finish() wasn't the exit path
+        FloatingPlayerService.showAll(this)
         mainHandler.removeCallbacksAndMessages(null)
         unregisterPipReceiver()
         releasePlayer()
@@ -1454,11 +1456,20 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     
                     android.util.Log.d("FloatingPlayerActivity", "Player transferred to service")
                     
+                    // FIX Bug 2: Reuse the same instance slot that launched this fullscreen.
+                    // If we have a source_instance_id the floating window gave us, send it
+                    // back so the service restores into the *same* FloatingPlayerManager slot
+                    // instead of creating a brand-new UUID (which would spawn a second window).
+                    val sourceInstanceId = intent.getStringExtra("source_instance_id")
+
                     // Start service - it will use the transferred player
                     val intent = Intent(this, FloatingPlayerService::class.java).apply {
                         putExtra(FloatingPlayerService.EXTRA_CHANNEL, currentChannel)
-                        putExtra(FloatingPlayerService.EXTRA_RESTORE_POSITION, true)  // Restore saved position/size
+                        putExtra(FloatingPlayerService.EXTRA_RESTORE_POSITION, true)
                         putExtra("use_transferred_player", true)
+                        if (sourceInstanceId != null) {
+                            putExtra(FloatingPlayerService.EXTRA_INSTANCE_ID, sourceInstanceId)
+                        }
                     }
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         startForegroundService(intent)
@@ -1901,6 +1912,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     override fun finish() {
         try {
+            // Restore any floating windows that were hidden when this activity launched.
+            // They are TYPE_APPLICATION_OVERLAY and were hidden so they wouldn't cover this UI.
+            FloatingPlayerService.showAll(this)
+
             // FIXED: Only release player if it wasn't transferred
             if (player != null) {
                 releasePlayer()
