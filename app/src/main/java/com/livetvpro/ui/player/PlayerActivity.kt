@@ -588,8 +588,15 @@ class PlayerActivity : AppCompatActivity() {
             if (allEventLinks.size > 1) {
                 binding.linksSection.visibility = View.VISIBLE
             }
-            if (relatedChannels.isNotEmpty()) {
+            // Restore related section for both channels AND events.
+            // Previously only relatedChannels was checked, so EVENT content
+            // always came back blank after exiting PiP.
+            val hasRelated = relatedChannels.isNotEmpty() ||
+                (contentType == ContentType.EVENT && ::relatedEventsAdapter.isInitialized)
+            if (hasRelated) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
+                binding.relatedChannelsRecycler.visibility = View.VISIBLE
+                binding.relatedLoadingProgress.visibility = View.GONE
             }
         }
         
@@ -1118,9 +1125,9 @@ class PlayerActivity : AppCompatActivity() {
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
                                     binding.errorView.visibility = View.GONE
-                                    
-                                    // FIX 4: Explicitly hide controls during buffering
-                                    binding.playerView.hideController()
+                                    // Do NOT hideController here — seeking also triggers
+                                    // STATE_BUFFERING briefly, which would hide controls
+                                    // mid-seek. The spinner is enough visual feedback.
                                 }
                                 Player.STATE_ENDED -> {
                                     binding.progressBar.visibility = View.GONE
