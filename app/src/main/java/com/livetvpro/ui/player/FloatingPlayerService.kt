@@ -1,4 +1,4 @@
->package com.livetvpro.ui.player
+package com.livetvpro.ui.player
 
 import android.widget.FrameLayout
 import android.annotation.SuppressLint
