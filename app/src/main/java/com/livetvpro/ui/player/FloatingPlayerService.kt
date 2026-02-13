@@ -561,7 +561,7 @@ class FloatingPlayerService : Service() {
             
             // Start foreground for first instance
             if (activeInstances.size == 1) {
-                val notification = createNotification(channel.name)
+                val notification = createNotification(title)
                 startForeground(NOTIFICATION_ID, notification)
             }
             
@@ -686,7 +686,7 @@ class FloatingPlayerService : Service() {
             )
 
             if (activeInstances.size == 1) {
-                val notification = createNotification(channel.name)
+                val notification = createNotification(contentName)
                 startForeground(NOTIFICATION_ID, notification)
             }
 
@@ -786,8 +786,12 @@ class FloatingPlayerService : Service() {
 
                 // Transfer the live player – no new ExoPlayer, no buffering
                 val currentUri = currentPlayer.currentMediaItem?.localConfiguration?.uri?.toString()
-                val links = currentChannel?.links ?: currentEvent?.links
-                val streamUrl = currentUri ?: links?.firstOrNull()?.url ?: ""
+                val streamUrl = when {
+                    currentUri != null -> currentUri
+                    currentChannel != null -> currentChannel.links?.firstOrNull()?.url ?: ""
+                    currentEvent != null -> currentEvent.links.firstOrNull()?.url ?: ""
+                    else -> ""
+                }
                 val contentName = currentChannel?.name ?: currentEvent?.title ?: "Unknown"
                 PlayerHolder.transferPlayer(currentPlayer, streamUrl, contentName)
 
@@ -1143,7 +1147,8 @@ class FloatingPlayerService : Service() {
         
         val count = activeInstances.size
         val title = if (count == 1) {
-            activeInstances.values.first().currentChannel.name
+            val instance = activeInstances.values.first()
+            instance.currentChannel?.name ?: instance.currentEvent?.title ?: "Unknown"
         } else {
             "$count Floating Players Active"
         }
