@@ -319,9 +319,19 @@ class FloatingPlayerService : Service() {
             // Create floating view
             val floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
             
-            // Calculate screen dimensions
+            // ── True center calculation ─────────────────────────────────────────
+            // WindowManager.LayoutParams with Gravity.TOP|START uses raw screen
+            // coordinates, so we must subtract the status-bar height so the
+            // window appears centred in the *visible* (non-occluded) area.
             val screenWidth = getScreenWidth()
             val screenHeight = getScreenHeight()
+
+            // Status-bar height (top inset only; nav bar is often transparent
+            // or gesture-based and overlaps the window anyway)
+            val statusBarHeight: Int = run {
+                val resId = resources.getIdentifier("status_bar_height", "dimen", "android")
+                if (resId > 0) resources.getDimensionPixelSize(resId) else 0
+            }
             
             // Get saved dimensions
             val savedWidth = preferencesManager.getFloatingPlayerWidth()
@@ -345,21 +355,16 @@ class FloatingPlayerService : Service() {
             val initialX: Int
             val initialY: Int
             
-            // Only restore saved position if this is the FIRST instance being created
-            // For multiple instances, cascade them with offsets
+            // All instances start from true center of the visible area.
+            // Only the very first instance may restore a previously saved position.
             if (activeInstances.isEmpty() && savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE) {
-                // First instance - restore saved position
+                // First instance - restore last saved position
                 initialX = savedX
                 initialY = savedY
-            } else if (activeInstances.isEmpty()) {
-                // First instance - no saved position - center it
-                initialX = (screenWidth - initialWidth) / 2
-                initialY = (screenHeight - initialHeight) / 2
             } else {
-                // Subsequent instances - cascade with offset
-                val offset = activeInstances.size * dpToPx(40)
-                initialX = ((screenWidth - initialWidth) / 2) + offset
-                initialY = ((screenHeight - initialHeight) / 2) + offset
+                // Every new instance (first with no saved pos, or any subsequent) -> true center
+                initialX = (screenWidth - initialWidth) / 2
+                initialY = statusBarHeight + (screenHeight - statusBarHeight - initialHeight) / 2
             }
             
             val params = WindowManager.LayoutParams(
@@ -530,7 +535,7 @@ class FloatingPlayerService : Service() {
                 
                 // Launch fullscreen activity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                    putExtra("channel", currentChannel)
+                    putExtra("extra_channel", currentChannel)
                     putExtra("use_transferred_player", true)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
