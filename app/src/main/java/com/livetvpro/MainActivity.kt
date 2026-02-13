@@ -119,6 +119,12 @@ class MainActivity : AppCompatActivity() {
                     binding.drawerLayout.closeDrawer(GravityCompat.START)
                     true
                 }
+                R.id.contactFragment, R.id.networkStreamFragment -> {
+                    // Navigate to non-top-level fragments
+                    navController.navigate(menuItem.itemId)
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
                 else -> {
                     if (menuItem.itemId in topLevelDestinations) {
                         navigateTopLevel(menuItem.itemId)
@@ -152,6 +158,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.favoritesFragment -> "Favorites"
                 R.id.sportsFragment -> "Sports"
                 R.id.contactFragment -> "Contact"
+                R.id.networkStreamFragment -> "Network Stream"
                 else -> "Live TV Pro"
             }
             
