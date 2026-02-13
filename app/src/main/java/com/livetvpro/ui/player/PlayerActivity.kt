@@ -481,8 +481,14 @@ class PlayerActivity : AppCompatActivity() {
             // Player view settings
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 5000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            
+            // For network streams, allow aspect ratio changes in portrait
+            // For regular channels/events, lock to FIT in portrait (because of RecyclerView below)
+            if (contentType != ContentType.NETWORK_STREAM) {
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
+            // If it's NETWORK_STREAM, keep current resize mode (don't reset to FIT)
             
             // Setup constraints for links section
             val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
