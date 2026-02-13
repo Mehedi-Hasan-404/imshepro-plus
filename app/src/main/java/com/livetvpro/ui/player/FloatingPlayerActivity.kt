@@ -612,8 +612,15 @@ class FloatingPlayerActivity : AppCompatActivity() {
             if (allEventLinks.size > 1) {
                 binding.linksSection.visibility = View.VISIBLE
             }
-            if (relatedChannels.isNotEmpty()) {
+            // Restore related section for both channels AND events.
+            // Previously only relatedChannels was checked, so EVENT content
+            // always came back blank after exiting PiP.
+            val hasRelated = relatedChannels.isNotEmpty() ||
+                (contentType == ContentType.EVENT && ::relatedEventsAdapter.isInitialized)
+            if (hasRelated) {
                 binding.relatedChannelsSection.visibility = View.VISIBLE
+                binding.relatedChannelsRecycler.visibility = View.VISIBLE
+                binding.relatedLoadingProgress.visibility = View.GONE
             }
         }
         
@@ -1093,7 +1100,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
                             Player.STATE_BUFFERING -> {
                                 binding.progressBar.visibility = View.VISIBLE
                                 binding.errorView.visibility = View.GONE
-                                binding.playerView.hideController()
+                                // Do NOT hideController — seeking triggers STATE_BUFFERING
+                                // briefly and would hide controls mid-seek.
                             }
                             Player.STATE_ENDED -> {
                                 binding.progressBar.visibility = View.GONE
@@ -1256,9 +1264,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
                                     binding.errorView.visibility = View.GONE
-                                    
-                                    // FIX 4: Explicitly hide controls during buffering
-                                    binding.playerView.hideController()
+                                    // Do NOT hideController — seeking triggers STATE_BUFFERING
+                                    // briefly and would hide controls mid-seek.
                                 }
                                 Player.STATE_ENDED -> {
                                     binding.progressBar.visibility = View.GONE
