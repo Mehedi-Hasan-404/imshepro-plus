@@ -1273,7 +1273,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             textSize = 15f
             setPadding(48, 20, 48, 20)
             setBackgroundResource(R.drawable.error_message_background)
-            elevation = 8f
+            elevation = 0f
         }
         
         val layoutParams = binding.errorView.layoutParams
@@ -1282,11 +1282,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             binding.errorView.layoutParams = layoutParams
         }
         
-        binding.errorView.apply {
-            visibility = View.VISIBLE
-            bringToFront()
-            elevation = 16f
-        }
+        binding.errorView.visibility = View.VISIBLE
     }
 
     private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
