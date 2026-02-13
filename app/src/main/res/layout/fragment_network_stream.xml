@@ -4,12 +4,12 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
-    android:padding="16dp">
+    android:background="?attr/colorSurface">
 
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
+        android:padding="16dp"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -29,8 +29,9 @@
                 android:layout_marginTop="8dp"
                 android:hint="@string/media_stream_url"
                 app:boxBackgroundMode="outline"
-                app:boxStrokeColor="?attr/colorPrimary"
-                app:hintTextColor="?attr/colorOnSurface">
+                app:boxBackgroundColor="@color/input_background"
+                app:boxStrokeColor="@color/input_stroke"
+                app:hintTextColor="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etStreamUrl"
@@ -38,6 +39,7 @@
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
                     android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -49,8 +51,9 @@
                 android:layout_marginTop="16dp"
                 android:hint="@string/cookie_value"
                 app:boxBackgroundMode="outline"
-                app:boxStrokeColor="?attr/colorPrimary"
-                app:hintTextColor="?attr/colorOnSurface">
+                app:boxBackgroundColor="@color/input_background"
+                app:boxStrokeColor="@color/input_stroke"
+                app:hintTextColor="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etCookie"
@@ -58,6 +61,7 @@
                     android:layout_height="wrap_content"
                     android:inputType="text"
                     android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -69,8 +73,9 @@
                 android:layout_marginTop="16dp"
                 android:hint="@string/referer_value"
                 app:boxBackgroundMode="outline"
-                app:boxStrokeColor="?attr/colorPrimary"
-                app:hintTextColor="?attr/colorOnSurface">
+                app:boxBackgroundColor="@color/input_background"
+                app:boxStrokeColor="@color/input_stroke"
+                app:hintTextColor="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etReferer"
@@ -78,6 +83,7 @@
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
                     android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -89,8 +95,9 @@
                 android:layout_marginTop="16dp"
                 android:hint="@string/origin_value"
                 app:boxBackgroundMode="outline"
-                app:boxStrokeColor="?attr/colorPrimary"
-                app:hintTextColor="?attr/colorOnSurface">
+                app:boxBackgroundColor="@color/input_background"
+                app:boxStrokeColor="@color/input_stroke"
+                app:hintTextColor="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etOrigin"
@@ -98,6 +105,7 @@
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
                     android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -109,8 +117,9 @@
                 android:layout_marginTop="16dp"
                 android:hint="@string/drm_license_url"
                 app:boxBackgroundMode="outline"
-                app:boxStrokeColor="?attr/colorPrimary"
-                app:hintTextColor="?attr/colorOnSurface">
+                app:boxBackgroundColor="@color/input_background"
+                app:boxStrokeColor="@color/input_stroke"
+                app:hintTextColor="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etDrmLicense"
@@ -118,6 +127,7 @@
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
                     android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
@@ -138,8 +148,9 @@
                     android:layout_marginEnd="8dp"
                     android:layout_weight="1"
                     android:hint="@string/user_agent"
-                    app:boxStrokeColor="?attr/colorPrimary"
-                    app:hintTextColor="?attr/colorOnSurface">
+                    app:boxBackgroundColor="@color/input_background"
+                    app:boxStrokeColor="@color/input_stroke"
+                    app:hintTextColor="@color/input_hint">
 
                     <AutoCompleteTextView
                         android:id="@+id/actvUserAgent"
@@ -159,8 +170,9 @@
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:hint="@string/drm_scheme"
-                    app:boxStrokeColor="?attr/colorPrimary"
-                    app:hintTextColor="?attr/colorOnSurface">
+                    app:boxBackgroundColor="@color/input_background"
+                    app:boxStrokeColor="@color/input_stroke"
+                    app:hintTextColor="@color/input_hint">
 
                     <AutoCompleteTextView
                         android:id="@+id/actvDrmScheme"
@@ -172,18 +184,43 @@
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
 
+            <!-- Custom User Agent Field (Hidden by default) -->
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/tilCustomUserAgent"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:hint="@string/custom_user_agent"
+                android:visibility="gone"
+                app:boxBackgroundMode="outline"
+                app:boxBackgroundColor="@color/input_background"
+                app:boxStrokeColor="@color/input_stroke"
+                app:hintTextColor="@color/input_hint">
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/etCustomUserAgent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="@color/input_hint"
+                    android:textSize="14sp" />
+            </com.google.android.material.textfield.TextInputLayout>
+
         </LinearLayout>
     </ScrollView>
 
-    <!-- Play Button -->
+    <!-- Floating Play Button -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fabPlay"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="24dp"
         android:contentDescription="@string/play"
         android:src="@drawable/ic_play_custom"
+        app:fabSize="normal"
+        app:elevation="6dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:tint="@android:color/white" />
