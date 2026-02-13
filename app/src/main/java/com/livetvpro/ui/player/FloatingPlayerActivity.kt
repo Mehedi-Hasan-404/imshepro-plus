@@ -673,6 +673,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
 
         if (channelData != null) {
+            contentType = ContentType.CHANNEL
             val channel = channelData!!
             contentId = channel.id
             contentName = channel.name
@@ -702,26 +703,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
             } else {
                 streamUrl = channel.streamUrl
                 allEventLinks = emptyList()
-            }
-            
-            // Check if this channel is actually an event (marked with __EVENT__)
-            if (channel.groupTitle == "__EVENT__") {
-                contentType = ContentType.EVENT
-                // Fetch actual event data for related events
-                lifecycleScope.launch {
-                    try {
-                        val allEvents = viewModel.getAllEvents()
-                        val matchingEvent = allEvents.find { it.id == channel.id }
-                        if (matchingEvent != null) {
-                            eventData = matchingEvent
-                            channelData = null
-                        }
-                    } catch (e: Exception) {
-                        // Keep as channel if fetch fails
-                    }
-                }
-            } else {
-                contentType = ContentType.CHANNEL
             }
 
         } else if (eventData != null) {
@@ -759,6 +740,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 events = emptyList(),
                 preferencesManager = preferencesManager,
                 onEventClick = { event, linkIndex ->
+                    // Switch to the selected event in the same activity
                     switchToEventFromLiveEvent(event)
                 }
             )
