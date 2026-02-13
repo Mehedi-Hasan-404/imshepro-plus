@@ -26,7 +26,8 @@ import java.util.TimeZone
 class LiveEventAdapter(
     private val context: Context,
     private var events: List<LiveEvent>,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    private val onEventClick: ((LiveEvent, Int) -> Unit)? = null
 ) : RecyclerView.Adapter<LiveEventAdapter.EventViewHolder>() {
 
     private val apiDateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.getDefault()).apply {
@@ -215,6 +216,19 @@ class LiveEventAdapter(
             return
         }
         
+        // If a custom onClick listener is provided (from PlayerActivity), use it
+        if (onEventClick != null) {
+            // For single link, call with index 0
+            if (event.links.size == 1) {
+                onEventClick.invoke(event, 0)
+            } else {
+                // Multiple links - show dialog and let user choose
+                showLinkSelectionDialogForSwitching(event)
+            }
+            return
+        }
+        
+        // Default behavior: launch new PlayerActivity or floating player
         // Always show link selection dialog if event has multiple links
         if (event.links.size > 1) {
             showLinkSelectionDialog(event)
@@ -223,6 +237,19 @@ class LiveEventAdapter(
         
         // Single link - proceed directly
         proceedWithPlayer(event, 0)
+    }
+
+    private fun showLinkSelectionDialogForSwitching(event: LiveEvent) {
+        val linkLabels = event.links.map { it.quality }.toTypedArray()
+        
+        MaterialAlertDialogBuilder(context)
+            .setTitle("Select Stream")
+            .setItems(linkLabels) { dialog, which ->
+                onEventClick?.invoke(event, which)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun showLinkSelectionDialog(event: LiveEvent) {
