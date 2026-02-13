@@ -110,4 +110,15 @@
             app:destination="@id/liveEventsFragment" />
     </fragment>
 
+    <fragment
+        android:id="@+id/networkStreamFragment"
+        android:name="com.livetvpro.ui.networkstream.NetworkStreamFragment"
+        android:label="Network Stream">
+        <action
+            android:id="@+id/action_network_stream_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="false" />
+    </fragment>
+
 </navigation>
