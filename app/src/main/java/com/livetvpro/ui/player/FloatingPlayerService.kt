@@ -167,24 +167,51 @@ class FloatingPlayerService : Service() {
                     return false
                 }
                 
-                // Get links from either channel or event
-                val links = channel?.links ?: event?.links
-                
-                if (links == null || links.isEmpty()) {
-                    android.widget.Toast.makeText(
-                        context,
-                        "No stream available",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                    return false
+                // Get stream URL from either channel or event
+                val streamUrl = when {
+                    channel != null -> {
+                        val links = channel.links
+                        if (links == null || links.isEmpty()) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "No stream available",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            return false
+                        }
+                        val selectedLink = if (linkIndex in links.indices) {
+                            links[linkIndex]
+                        } else {
+                            links.firstOrNull()
+                        }
+                        selectedLink?.url ?: ""
+                    }
+                    event != null -> {
+                        val links = event.links
+                        if (links.isEmpty()) {
+                            android.widget.Toast.makeText(
+                                context,
+                                "No stream available",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                            return false
+                        }
+                        val selectedLink = if (linkIndex in links.indices) {
+                            links[linkIndex]
+                        } else {
+                            links.firstOrNull()
+                        }
+                        selectedLink?.url ?: ""
+                    }
+                    else -> {
+                        android.widget.Toast.makeText(
+                            context,
+                            "No content provided",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                        return false
+                    }
                 }
-                
-                val selectedLink = if (linkIndex in links.indices) {
-                    links[linkIndex]
-                } else {
-                    links.firstOrNull()
-                }
-                val streamUrl = selectedLink?.url ?: ""
                 
                 if (streamUrl.isEmpty()) {
                     android.widget.Toast.makeText(
@@ -394,18 +421,34 @@ class FloatingPlayerService : Service() {
         restorePosition: Boolean = false
     ) {
         try {
-            // Get links from either channel or event
-            val links = channel?.links ?: event?.links
-            if (links == null || links.isEmpty()) {
-                return
+            // Get stream URL from either channel or event
+            val streamUrl = when {
+                channel != null -> {
+                    val links = channel.links
+                    if (links == null || links.isEmpty()) {
+                        return
+                    }
+                    val selectedLink = if (linkIndex in links.indices) {
+                        links[linkIndex]
+                    } else {
+                        links.firstOrNull()
+                    }
+                    selectedLink?.url ?: return
+                }
+                event != null -> {
+                    val links = event.links
+                    if (links.isEmpty()) {
+                        return
+                    }
+                    val selectedLink = if (linkIndex in links.indices) {
+                        links[linkIndex]
+                    } else {
+                        links.firstOrNull()
+                    }
+                    selectedLink?.url ?: return
+                }
+                else -> return
             }
-            
-            val selectedLink = if (linkIndex in links.indices) {
-                links[linkIndex]
-            } else {
-                links.firstOrNull()
-            }
-            val streamUrl = selectedLink?.url ?: return
             
             // Get title from either channel or event
             val title = channel?.name ?: event?.title ?: "Unknown"
