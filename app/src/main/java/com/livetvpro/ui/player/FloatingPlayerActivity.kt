@@ -285,11 +285,12 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                     updateLinksForOrientation(isLandscape)
                 }
-                
-                // FIX: Load related content with fresh channel data that has categoryId
-                // The channel from intent might not have categoryId, but refreshed data will
-                if (contentType == ContentType.CHANNEL && freshChannel.categoryId.isNotEmpty()) {
-                    channelData = freshChannel  // Update with fresh complete data
+            }
+            
+            // Load related content with fresh channel data that includes categoryId
+            if (freshChannel != null && contentType == ContentType.CHANNEL) {
+                channelData = freshChannel
+                if (freshChannel.categoryId.isNotEmpty()) {
                     viewModel.loadRelatedChannels(freshChannel.categoryId, freshChannel.id)
                 }
             }
@@ -726,7 +727,15 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     private fun setupRelatedChannels() {
         if (contentType == ContentType.EVENT) {
-            relatedEventsAdapter = LiveEventAdapter(this, emptyList(), preferencesManager)
+            relatedEventsAdapter = LiveEventAdapter(
+                context = this,
+                events = emptyList(),
+                preferencesManager = preferencesManager,
+                onEventClick = { event, linkIndex ->
+                    // Switch to the selected event in the same activity
+                    switchToEventFromLiveEvent(event)
+                }
+            )
             
             binding.relatedChannelsRecycler.layoutManager = LinearLayoutManager(this)
             binding.relatedChannelsRecycler.adapter = relatedEventsAdapter
@@ -808,11 +817,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    // Only load if categoryId is available
-                    // If not available now, it will be loaded when refreshedChannel observer fires
-                    if (channel.categoryId.isNotEmpty()) {
-                        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
-                    }
+                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
                 }
             }
             ContentType.EVENT -> {
