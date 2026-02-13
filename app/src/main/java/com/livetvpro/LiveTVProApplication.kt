@@ -19,6 +19,9 @@ class LiveTVProApplication : Application() {
     @Inject
     lateinit var themeManager: ThemeManager
     
+    @Inject
+    lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
+    
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     companion object {
@@ -33,6 +36,8 @@ class LiveTVProApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        
+        com.livetvpro.utils.FloatingPlayerManager.initialize(preferencesManager)
         
         themeManager.applyTheme()
         
