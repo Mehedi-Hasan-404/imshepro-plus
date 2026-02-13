@@ -311,8 +311,8 @@ class LiveEventAdapter(
                     }
                 )
                 
-                // This will either create a new player or update existing one for this event
-                FloatingPlayerHelper.launchFloatingPlayer(context, channel, linkIndex, event.id)
+                // Use the new function that preserves the original event data
+                FloatingPlayerHelper.launchFloatingPlayerWithEvent(context, channel, event, linkIndex)
                 
             } catch (e: Exception) {
                 PlayerActivity.startWithEvent(context, event, linkIndex)
