@@ -7,6 +7,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import com.livetvpro.R
 import com.livetvpro.databinding.FragmentNetworkStreamBinding
@@ -47,6 +48,7 @@ class NetworkStreamFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         
         setupDropdowns()
+        setupCustomUserAgentVisibility()
         setupPlayButton()
     }
 
@@ -70,6 +72,17 @@ class NetworkStreamFragment : Fragment() {
         binding.actvDrmScheme.setText(drmSchemeOptions[0], false)
     }
 
+    private fun setupCustomUserAgentVisibility() {
+        // Show/hide custom user agent field based on selection
+        binding.actvUserAgent.doOnTextChanged { text, _, _, _ ->
+            if (text.toString() == "Custom") {
+                binding.tilCustomUserAgent.visibility = View.VISIBLE
+            } else {
+                binding.tilCustomUserAgent.visibility = View.GONE
+            }
+        }
+    }
+
     private fun setupPlayButton() {
         binding.fabPlay.setOnClickListener {
             val streamUrl = binding.etStreamUrl.text?.toString()?.trim()
@@ -88,8 +101,15 @@ class NetworkStreamFragment : Fragment() {
             val referer = binding.etReferer.text?.toString()?.trim() ?: ""
             val origin = binding.etOrigin.text?.toString()?.trim() ?: ""
             val drmLicense = binding.etDrmLicense.text?.toString()?.trim() ?: ""
-            val userAgent = binding.actvUserAgent.text?.toString() ?: "Default"
+            val userAgentSelection = binding.actvUserAgent.text?.toString() ?: "Default"
             val drmScheme = binding.actvDrmScheme.text?.toString() ?: "clearkey"
+            
+            // Get actual user agent value
+            val userAgent = if (userAgentSelection == "Custom") {
+                binding.etCustomUserAgent.text?.toString()?.trim() ?: "Default"
+            } else {
+                userAgentSelection
+            }
 
             // Launch PlayerActivity with network stream data
             launchPlayer(
