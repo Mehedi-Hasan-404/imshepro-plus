@@ -664,7 +664,26 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
         val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
 
-        if (channelData != null) {
+        // CRITICAL FIX: Check eventData FIRST, because when an event is played through
+        // FloatingPlayerService, BOTH channelData and eventData are present
+        // (channel is the converted version for stream data, event is the original for context)
+        if (eventData != null) {
+            contentType = ContentType.EVENT
+            val event = eventData!!
+            contentId = event.id
+            contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
+            
+            allEventLinks = event.links
+            
+            if (allEventLinks.isNotEmpty()) {
+                currentLinkIndex = if (passedLinkIndex in allEventLinks.indices) passedLinkIndex else 0
+                streamUrl = buildStreamUrl(allEventLinks[currentLinkIndex])
+            } else {
+                currentLinkIndex = 0
+                streamUrl = ""
+            }
+            
+        } else if (channelData != null) {
             contentType = ContentType.CHANNEL
             val channel = channelData!!
             contentId = channel.id
@@ -697,21 +716,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 allEventLinks = emptyList()
             }
 
-        } else if (eventData != null) {
-            contentType = ContentType.EVENT
-            val event = eventData!!
-            contentId = event.id
-            contentName = event.title.ifEmpty { "${event.team1Name} vs ${event.team2Name}" }
-            
-            allEventLinks = event.links
-            
-            if (allEventLinks.isNotEmpty()) {
-                currentLinkIndex = if (passedLinkIndex in allEventLinks.indices) passedLinkIndex else 0
-                streamUrl = buildStreamUrl(allEventLinks[currentLinkIndex])
-            } else {
-                currentLinkIndex = 0
-                streamUrl = ""
-            }
         } else {
             finish()
             return
