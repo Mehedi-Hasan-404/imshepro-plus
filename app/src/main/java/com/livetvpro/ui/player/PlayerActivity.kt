@@ -570,13 +570,9 @@ class PlayerActivity : AppCompatActivity() {
 
         if (isFinishing) return
 
-        // Re-attach player from PlayerHolder back to PlayerView
-        val returned = PlayerHolder.player
-        if (returned != null) {
-            player = returned
-            binding.playerView.player = returned
-            PlayerHolder.clearReferences()
-        }
+        // Player was never detached from PlayerView (only a reference was stored in PlayerHolder).
+        // Just clear the holder reference — binding.playerView.player is still correct.
+        PlayerHolder.clearReferences()
 
         setSubtitleTextSize()
         
@@ -1619,11 +1615,14 @@ class PlayerActivity : AppCompatActivity() {
         val currentPlayer = player ?: return
         if (!currentPlayer.isPlaying) currentPlayer.play()
 
-        // Detach player from PlayerView and hand it to PlayerHolder.
-        // PlayerHolder has no ExoPlayer controls attached, so there is nothing
-        // to hide or fight — no useController, no hideController, no content hiding.
-        binding.playerView.player = null
+        // Store a reference in PlayerHolder (does NOT detach from PlayerView —
+        // the player must stay attached so the video surface keeps rendering in PiP).
+        // PlayerHolder has no ExoPlayer controls, so no control/content hiding is needed here.
         PlayerHolder.transferPlayer(currentPlayer, streamUrl, contentName)
+
+        // Only disable the controller UI overlay — the video surface itself stays intact
+        binding.playerView.useController = false
+        binding.playerView.hideController()
 
         updatePipParams(enter = true)
     }
