@@ -572,6 +572,14 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         
+        // Reclaim player ownership from PlayerHolder back to PlayerActivity
+        val holderPlayer = PlayerHolder.player
+        if (holderPlayer != null) {
+            player = holderPlayer
+            binding.playerView.player = holderPlayer
+            PlayerHolder.clearReferences()
+        }
+        
         setSubtitleTextSize()
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -1610,11 +1618,14 @@ class PlayerActivity : AppCompatActivity() {
         
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
 
-        player?.let {
-            if (!it.isPlaying) {
-                it.play()
-            }
+        val currentPlayer = player ?: return
+        if (!currentPlayer.isPlaying) {
+            currentPlayer.play()
         }
+
+        // Transfer player to PlayerHolder so PiP window has a clean player reference
+        // (PlayerHolder has no ExoPlayer controls — no control hiding needed in PiP)
+        PlayerHolder.transferPlayer(currentPlayer, streamUrl, contentName)
 
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
@@ -1629,7 +1640,9 @@ class PlayerActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         
         try {
-            val format = player?.videoFormat
+            // Use PlayerHolder player if available (PiP owns the reference), otherwise fall back to local player
+            val pipPlayer = PlayerHolder.player ?: player
+            val format = pipPlayer?.videoFormat
             val width = format?.width ?: 16
             val height = format?.height ?: 9
             
@@ -1693,7 +1706,7 @@ class PlayerActivity : AppCompatActivity() {
             rewindIntent
         ))
         
-        val isPlaying = player?.isPlaying == true
+        val isPlaying = (PlayerHolder.player ?: player)?.isPlaying == true
         if (isPlaying) {
             val pauseIntent = PendingIntent.getBroadcast(
                 this,
@@ -1751,7 +1764,8 @@ class PlayerActivity : AppCompatActivity() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action != ACTION_MEDIA_CONTROL) return
                 
-                val currentPlayer = player ?: return
+                // PlayerHolder owns the player reference during PiP — no control hiding needed
+                val currentPlayer = PlayerHolder.player ?: player ?: return
                 val hasError = binding.errorView.visibility == View.VISIBLE
                 val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
                 
@@ -1826,6 +1840,7 @@ class PlayerActivity : AppCompatActivity() {
         try {
             releasePlayer()
             unregisterPipReceiver()
+            PlayerHolder.clearReferences()
             isInPipMode = false
             userRequestedPip = false
             wasLockedBeforePip = false
