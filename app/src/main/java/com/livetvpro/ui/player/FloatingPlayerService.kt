@@ -82,6 +82,10 @@ class FloatingPlayerService : Service() {
         const val ACTION_STOP = "action_stop"
         const val ACTION_STOP_INSTANCE = "action_stop_instance"
         const val ACTION_UPDATE_STREAM = "action_update_stream"
+        // Hide all floating windows except the one going fullscreen (they overlay the activity)
+        const val ACTION_HIDE_OTHERS = "action_hide_others"
+        // Restore all floating windows that were hidden
+        const val ACTION_SHOW_ALL = "action_show_all"
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "floating_player_channel"
         
@@ -233,6 +237,29 @@ class FloatingPlayerService : Service() {
             }
             context.startService(intent)
         }
+
+        /**
+         * Hide all floating windows except the one going fullscreen.
+         * Call this before launching FloatingPlayerActivity.
+         */
+        fun hideOthers(context: Context, exceptInstanceId: String) {
+            val intent = Intent(context, FloatingPlayerService::class.java).apply {
+                action = ACTION_HIDE_OTHERS
+                putExtra(EXTRA_INSTANCE_ID, exceptInstanceId)
+            }
+            context.startService(intent)
+        }
+
+        /**
+         * Restore all floating windows that were hidden.
+         * Call this when FloatingPlayerActivity finishes.
+         */
+        fun showAll(context: Context) {
+            val intent = Intent(context, FloatingPlayerService::class.java).apply {
+                action = ACTION_SHOW_ALL
+            }
+            context.startService(intent)
+        }
     }
 
     override fun onCreate() {
@@ -273,12 +300,34 @@ class FloatingPlayerService : Service() {
                 }
                 return START_STICKY
             }
+            ACTION_HIDE_OTHERS -> {
+                // Hide every floating window except the one going fullscreen.
+                // They are TYPE_APPLICATION_OVERLAY so they'd sit on top of the activity.
+                val exceptId = intent.getStringExtra(EXTRA_INSTANCE_ID)
+                activeInstances.forEach { (id, instance) ->
+                    if (id != exceptId) {
+                        instance.floatingView.visibility = View.INVISIBLE
+                    }
+                }
+                return START_STICKY
+            }
+            ACTION_SHOW_ALL -> {
+                // FloatingPlayerActivity has finished — make all windows visible again.
+                activeInstances.values.forEach { instance ->
+                    instance.floatingView.visibility = View.VISIBLE
+                }
+                return START_STICKY
+            }
         }
         
         val instanceId = intent?.getStringExtra(EXTRA_INSTANCE_ID) ?: java.util.UUID.randomUUID().toString()
+        val isRestoredFromFullscreen = intent?.getBooleanExtra("use_transferred_player", false) == true
         
-        // Don't create duplicate instances
-        if (activeInstances.containsKey(instanceId)) {
+        // FIX Bug 2: Don't block restoration of the same instance ID.
+        // When a floating window launches fullscreen it removes itself from activeInstances.
+        // The PiP button in FloatingPlayerActivity sends the same instanceId back,
+        // so we must NOT treat it as a duplicate—we need to re-add the window.
+        if (activeInstances.containsKey(instanceId) && !isRestoredFromFullscreen) {
             return START_STICKY
         }
         
@@ -544,6 +593,13 @@ class FloatingPlayerService : Service() {
             )
             activeInstances[instanceId] = instance
 
+            // FIX Bug 1: Re-register into FloatingPlayerManager so the active count
+            // stays accurate after the fullscreen→PiP round-trip.
+            // (The manager entry was removed when the floating window launched fullscreen.)
+            com.livetvpro.utils.FloatingPlayerManager.addPlayer(
+                instanceId, channel.name, "channel"
+            )
+
             if (activeInstances.size == 1) {
                 val notification = createNotification(channel.name)
                 startForeground(NOTIFICATION_ID, notification)
@@ -641,25 +697,29 @@ class FloatingPlayerService : Service() {
                 preferencesManager.setFloatingPlayerY(params.y)
 
                 // Transfer the live player – no new ExoPlayer, no buffering
-                // Use the URL that is actually playing right now (currentMediaItem),
-                // falling back to the first link if unavailable.
                 val currentUri = currentPlayer.currentMediaItem?.localConfiguration?.uri?.toString()
                 val streamUrl = currentUri ?: currentChannel.links?.firstOrNull()?.url ?: ""
                 PlayerHolder.transferPlayer(currentPlayer, streamUrl, currentChannel.name)
+
+                // Hide every OTHER floating window before the activity appears.
+                // TYPE_APPLICATION_OVERLAY windows draw above all activities, so
+                // without this they would be visible on top of FloatingPlayerActivity.
+                activeInstances.forEach { (id, instance) ->
+                    if (id != instanceId) {
+                        instance.floatingView.visibility = View.INVISIBLE
+                    }
+                }
 
                 // Launch fullscreen activity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
                     putExtra("extra_channel", currentChannel)
                     putExtra("use_transferred_player", true)
+                    putExtra("source_instance_id", instanceId)  // FIX Bug 2: pass back so PiP button reuses same slot
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 startActivity(intent)
 
-                // Remove only THIS instance – leave other floating windows alive.
-                // The service must stay running so:
-                //   1. Other instances keep playing.
-                //   2. The PiP button in FloatingPlayerActivity can call back into
-                //      this same service instance to add a new floating window.
+                // Remove only THIS instance's window – other windows are hidden (not removed).
                 hideControlsHandlers[instanceId]?.removeCallbacksAndMessages(null)
                 hideControlsHandlers.remove(instanceId)
                 try {
@@ -668,8 +728,6 @@ class FloatingPlayerService : Service() {
                 activeInstances.remove(instanceId)
                 com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
 
-                // Only stop the service if no other instances remain.
-                // If instances still exist, just update the notification.
                 if (activeInstances.isEmpty()) {
                     stopSelf()
                 } else {
