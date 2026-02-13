@@ -351,7 +351,7 @@ class FloatingPlayerService : Service() {
             return START_STICKY
         }
         
-        val channel = if (Build.VERSION.SDK_INT >= Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val channel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
             @Suppress("DEPRECATION")
@@ -375,9 +375,9 @@ class FloatingPlayerService : Service() {
                 // ── Seamless transition from FloatingPlayerActivity ──────────────
                 // The activity already transferred the live ExoPlayer into PlayerHolder.
                 // We just need to wrap it in a floating window – no new player needed.
-                createFloatingPlayerInstanceFromTransfer(instanceId, channel, restorePosition)
+                createFloatingPlayerInstanceFromTransfer(instanceId, channel, event, restorePosition)
             } else {
-                createFloatingPlayerInstance(instanceId, channel, linkIndex, playbackPosition, restorePosition)
+                createFloatingPlayerInstance(instanceId, channel, event, linkIndex, playbackPosition, restorePosition)
             }
             updateNotification()
         }
