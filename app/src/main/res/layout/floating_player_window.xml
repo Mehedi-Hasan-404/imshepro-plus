@@ -18,7 +18,6 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:show_buffering="when_playing"
-            app:buffering_color="#EF4444"
             app:use_controller="true"
             app:controller_layout_id="@layout/floating_player_controls"
             app:show_timeout="3000"
