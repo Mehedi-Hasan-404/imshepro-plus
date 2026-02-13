@@ -258,9 +258,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         // Start player and load content
         setupPlayer()
+        loadRelatedContent()
         
-        // CRITICAL FIX: Set up observers BEFORE calling loadRelatedContent()
-        // Otherwise the data will be posted before we're listening!
+        // Observe refreshed channel data
         viewModel.refreshedChannel.observe(this) { freshChannel ->
             if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
                 if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
@@ -320,9 +320,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 binding.relatedChannelsRecycler.visibility = View.VISIBLE
             }
         }
-        
-        // NOW load the related content - observers are ready to receive data
-        loadRelatedContent()
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerPipReceiver()
@@ -1261,6 +1258,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
     
     private fun showError(message: String) {
         binding.progressBar.visibility = View.GONE
+        binding.playerView.visibility = View.VISIBLE
         
         // Controls are already visible, just show the error message
         
@@ -1275,7 +1273,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             textSize = 15f
             setPadding(48, 20, 48, 20)
             setBackgroundResource(R.drawable.error_message_background)
-            elevation = 0f
+            elevation = 8f
         }
         
         val layoutParams = binding.errorView.layoutParams
@@ -1284,7 +1282,11 @@ class FloatingPlayerActivity : AppCompatActivity() {
             binding.errorView.layoutParams = layoutParams
         }
         
-        binding.errorView.visibility = View.VISIBLE
+        binding.errorView.apply {
+            visibility = View.VISIBLE
+            bringToFront()
+            elevation = 16f
+        }
     }
 
     private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
