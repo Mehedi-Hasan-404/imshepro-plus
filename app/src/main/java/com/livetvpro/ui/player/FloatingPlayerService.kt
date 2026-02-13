@@ -13,7 +13,9 @@ import android.content.res.Configuration
 import android.graphics.PixelFormat
 import android.graphics.Point
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -32,18 +34,9 @@ import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import kotlin.math.abs
 
-/**
- * FloatingPlayerService - Enhanced with update support
- * 
- * Key Features:
- * - Support for multiple floating player instances
- * - Can update existing player with new stream/link
- * - Event-based player management (one player per event)
- */
 @dagger.hilt.android.AndroidEntryPoint
 class FloatingPlayerService : Service() {
 
-    // Data class to hold player instance information
     data class FloatingPlayerInstance(
         val instanceId: String,
         val floatingView: View,
@@ -59,7 +52,6 @@ class FloatingPlayerService : Service() {
     
     private var windowManager: WindowManager? = null
     
-    // Map to store multiple instances
     private val activeInstances = mutableMapOf<String, FloatingPlayerInstance>()
     private val hideControlsHandlers = mutableMapOf<String, android.os.Handler>()
     
@@ -140,9 +132,6 @@ class FloatingPlayerService : Service() {
             context.stopService(Intent(context, FloatingPlayerService::class.java))
         }
         
-        /**
-         * Start a floating player with instance ID
-         */
         fun startFloatingPlayer(
             context: Context,
             instanceId: String,
@@ -205,27 +194,28 @@ class FloatingPlayerService : Service() {
             }
         }
         
-        /**
-         * Update an existing floating player with a new stream
-         */
         fun updateFloatingPlayer(
             context: Context,
             instanceId: String,
             channel: Channel,
-            linkIndex: Int
-        ) {
+            linkIndex: Int = 0
+        ): Boolean {
             val intent = Intent(context, FloatingPlayerService::class.java).apply {
                 action = ACTION_UPDATE_STREAM
                 putExtra(EXTRA_INSTANCE_ID, instanceId)
                 putExtra(EXTRA_CHANNEL, channel)
                 putExtra(EXTRA_LINK_INDEX, linkIndex)
             }
-            context.startService(intent)
+            
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else {
+                context.startService(intent)
+            }
+            
+            return true
         }
         
-        /**
-         * Stop a specific floating player instance
-         */
         fun stopFloatingPlayer(context: Context, instanceId: String) {
             val intent = Intent(context, FloatingPlayerService::class.java).apply {
                 action = ACTION_STOP_INSTANCE
@@ -277,7 +267,6 @@ class FloatingPlayerService : Service() {
         
         val instanceId = intent?.getStringExtra(EXTRA_INSTANCE_ID) ?: java.util.UUID.randomUUID().toString()
         
-        // Don't create duplicate instances
         if (activeInstances.containsKey(instanceId)) {
             return START_STICKY
         }
@@ -316,14 +305,11 @@ class FloatingPlayerService : Service() {
             }
             val streamUrl = selectedLink?.url ?: return
             
-            // Create floating view
             val floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
             
-            // Calculate screen dimensions
             val screenWidth = getScreenWidth()
             val screenHeight = getScreenHeight()
             
-            // Get saved dimensions
             val savedWidth = preferencesManager.getFloatingPlayerWidth()
             val savedHeight = preferencesManager.getFloatingPlayerHeight()
             
@@ -338,29 +324,11 @@ class FloatingPlayerService : Service() {
                 initialHeight = initialWidth * 9 / 16
             }
             
-            // Get saved position
-            val savedX = preferencesManager.getFloatingPlayerX()
-            val savedY = preferencesManager.getFloatingPlayerY()
-            
             val initialX: Int
             val initialY: Int
             
-            // Only restore saved position if this is the FIRST instance being created
-            // For multiple instances, cascade them with offsets
-            if (activeInstances.isEmpty() && savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE) {
-                // First instance - restore saved position
-                initialX = savedX
-                initialY = savedY
-            } else if (activeInstances.isEmpty()) {
-                // First instance - no saved position - center it
-                initialX = (screenWidth - initialWidth) / 2
-                initialY = (screenHeight - initialHeight) / 2
-            } else {
-                // Subsequent instances - cascade with offset
-                val offset = activeInstances.size * dpToPx(40)
-                initialX = ((screenWidth - initialWidth) / 2) + offset
-                initialY = ((screenHeight - initialHeight) / 2) + offset
-            }
+            initialX = (screenWidth - initialWidth) / 2
+            initialY = (screenHeight - initialHeight) / 2
             
             val params = WindowManager.LayoutParams(
                 initialWidth,
@@ -381,12 +349,10 @@ class FloatingPlayerService : Service() {
                 y = initialY
             }
             
-            // Create player
             val player = ExoPlayer.Builder(this).build()
             val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
             playerView.player = player
             
-            // Setup player
             val mediaItem = MediaItem.Builder()
                 .setUri(streamUrl)
                 .build()
@@ -399,23 +365,12 @@ class FloatingPlayerService : Service() {
                 player.seekTo(playbackPosition)
             }
             
-            // Setup UI elements
             val titleText = floatingView.findViewById<TextView>(R.id.tv_title)
             titleText.text = channel.name
             
             val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
             val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
             
-            // Setup controls
-            setupFloatingControls(floatingView, playerView, params, instanceId, player, lockOverlay, unlockButton, channel)
-            
-            // Add view to window manager
-            windowManager?.addView(floatingView, params)
-            
-            // Create handler for this instance
-            hideControlsHandlers[instanceId] = android.os.Handler(android.os.Looper.getMainLooper())
-            
-            // Store instance
             val instance = FloatingPlayerInstance(
                 instanceId = instanceId,
                 floatingView = floatingView,
@@ -428,14 +383,14 @@ class FloatingPlayerService : Service() {
             )
             
             activeInstances[instanceId] = instance
+            hideControlsHandlers[instanceId] = Handler(Looper.getMainLooper())
             
-            // Start foreground for first instance
-            if (activeInstances.size == 1) {
-                val notification = createNotification(channel.name)
-                startForeground(NOTIFICATION_ID, notification)
-            }
+            windowManager?.addView(floatingView, params)
+            
+            setupFloatingControls(floatingView, playerView, params, instanceId, player, lockOverlay, unlockButton, channel)
             
         } catch (e: Exception) {
+            android.util.Log.e("FloatingPlayerService", "Error creating instance", e)
             android.widget.Toast.makeText(
                 this,
                 "Failed to create floating player: ${e.message}",
@@ -444,49 +399,34 @@ class FloatingPlayerService : Service() {
         }
     }
 
-    /**
-     * Update an existing floating player instance with a new stream
-     */
     private fun updateInstanceStream(instanceId: String, channel: Channel, linkIndex: Int) {
         val instance = activeInstances[instanceId] ?: return
         
-        try {
-            val selectedLink = if (channel.links != null && linkIndex in channel.links!!.indices) {
-                channel.links!![linkIndex]
-            } else {
-                channel.links?.firstOrNull()
-            }
-            val streamUrl = selectedLink?.url ?: return
-            
-            // Save current position (optional - if you want to continue from same position)
-            // val currentPosition = instance.player.currentPosition
-            
-            // Update channel info
-            instance.currentChannel = channel
-            
-            // Update title
-            val titleText = instance.floatingView.findViewById<TextView>(R.id.tv_title)
-            titleText.text = channel.name
-            
-            // Update player with new stream
-            val mediaItem = MediaItem.Builder()
-                .setUri(streamUrl)
-                .build()
-            
-            instance.player.setMediaItem(mediaItem)
-            instance.player.prepare()
-            instance.player.playWhenReady = true
-            
-            // Update notification
-            updateNotification()
-            
-        } catch (e: Exception) {
-            android.widget.Toast.makeText(
-                this,
-                "Failed to update stream: ${e.message}",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+        val selectedLink = if (channel.links != null && linkIndex in channel.links!!.indices) {
+            channel.links!![linkIndex]
+        } else {
+            channel.links?.firstOrNull()
         }
+        val streamUrl = selectedLink?.url ?: return
+        
+        instance.currentChannel = channel
+        
+        val mediaItem = MediaItem.Builder()
+            .setUri(streamUrl)
+            .build()
+        
+        instance.player.setMediaItem(mediaItem)
+        instance.player.prepare()
+        instance.player.playWhenReady = true
+        
+        val titleText = instance.floatingView.findViewById<TextView>(R.id.tv_title)
+        titleText.text = channel.name
+        
+        android.widget.Toast.makeText(
+            this,
+            "Updated to ${channel.name}",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
     }
 
     private fun setupFloatingControls(
@@ -499,7 +439,6 @@ class FloatingPlayerService : Service() {
         unlockButton: ImageButton?,
         channel: Channel
     ) {
-        // Get all control buttons
         val btnClose = playerView.findViewById<ImageButton>(R.id.btn_close)
         val btnFullscreen = playerView.findViewById<ImageButton>(R.id.btn_fullscreen)
         val btnMute = playerView.findViewById<ImageButton>(R.id.btn_mute)
@@ -509,59 +448,57 @@ class FloatingPlayerService : Service() {
         val btnSeekForward = playerView.findViewById<ImageButton>(R.id.btn_seek_forward)
         val btnResize = floatingView.findViewById<ImageButton>(R.id.btn_resize)
         
-        // Close button
         btnClose?.setOnClickListener {
             stopInstance(instanceId)
         }
         
-        // Fullscreen button
         btnFullscreen?.setOnClickListener {
-            val currentPlayer = player
-            val currentChannel = channel
-            
-            if (currentPlayer != null && currentChannel != null) {
-                // Save only width and height (NOT position)
+            try {
+                android.util.Log.d("FloatingPlayerService", "Fullscreen clicked")
+                
                 preferencesManager.setFloatingPlayerWidth(params.width)
                 preferencesManager.setFloatingPlayerHeight(params.height)
                 
-                // Transfer player using PlayerHolder to avoid recreation
-                val streamUrl = currentChannel.links?.firstOrNull()?.url ?: ""
-                PlayerHolder.transferPlayer(currentPlayer, streamUrl, currentChannel.name)
+                val streamUrl = channel.links?.firstOrNull()?.url ?: ""
+                PlayerHolder.transferPlayer(player, streamUrl, channel.name)
                 
-                // Launch fullscreen activity
-                val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                    putExtra("channel", currentChannel)
+                val intent = Intent(this@FloatingPlayerService, FloatingPlayerActivity::class.java).apply {
+                    putExtra("channel", channel)
                     putExtra("use_transferred_player", true)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
                 }
+                
                 startActivity(intent)
                 
-                // Clear our reference (PlayerHolder now owns it)
-                activeInstances[instanceId]?.player?.let {
-                    // Don't release - PlayerHolder has it
-                }
+                Handler(Looper.getMainLooper()).postDelayed({
+                    hideControlsHandlers[instanceId]?.removeCallbacksAndMessages(null)
+                    hideControlsHandlers.remove(instanceId)
+                    
+                    try {
+                        windowManager?.removeView(floatingView)
+                    } catch (e: Exception) {
+                        android.util.Log.e("FloatingPlayerService", "Error removing view", e)
+                    }
+                    
+                    activeInstances.remove(instanceId)
+                    com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
+                    
+                    if (activeInstances.isEmpty()) {
+                        stopSelf()
+                    }
+                }, 300)
                 
-                // Remove from active instances and stop service
-                hideControlsHandlers[instanceId]?.removeCallbacksAndMessages(null)
-                hideControlsHandlers.remove(instanceId)
-                
-                try {
-                    windowManager?.removeView(activeInstances[instanceId]?.floatingView)
-                } catch (e: Exception) {
-                    // View already removed
-                }
-                
-                activeInstances.remove(instanceId)
-                com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
-                
-                // Don't reset position/size - let user resume with same size and position they set
-                
-                // Stop service completely
-                stopSelf()
+            } catch (e: Exception) {
+                android.util.Log.e("FloatingPlayerService", "Error in fullscreen", e)
+                android.widget.Toast.makeText(
+                    this@FloatingPlayerService,
+                    "Failed to open fullscreen: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
             }
         }
         
-        // Mute button
         btnMute?.setOnClickListener {
             val instance = activeInstances[instanceId] ?: return@setOnClickListener
             instance.isMuted = !instance.isMuted
@@ -571,17 +508,14 @@ class FloatingPlayerService : Service() {
             )
         }
         
-        // Lock button
         btnLock?.setOnClickListener {
             toggleLock(instanceId)
         }
         
-        // Unlock button in overlay
         unlockButton?.setOnClickListener {
             toggleLock(instanceId)
         }
         
-        // Play/Pause button
         btnPlayPause?.setOnClickListener {
             if (player.isPlaying) {
                 player.pause()
@@ -592,17 +526,14 @@ class FloatingPlayerService : Service() {
             }
         }
         
-        // Seek back button
         btnSeekBack?.setOnClickListener {
             player.seekBack()
         }
         
-        // Seek forward button
         btnSeekForward?.setOnClickListener {
             player.seekForward()
         }
         
-        // Add player listener to update play/pause button icon
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 btnPlayPause?.setImageResource(
@@ -611,7 +542,6 @@ class FloatingPlayerService : Service() {
             }
         })
         
-        // Setup resize and drag
         setupResizeFunctionality(floatingView, btnResize, params, instanceId)
         setupDragFunctionality(floatingView, params, playerView, lockOverlay, unlockButton, instanceId)
     }
@@ -664,6 +594,7 @@ class FloatingPlayerService : Service() {
         }
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupDragFunctionality(
         floatingView: View,
         params: WindowManager.LayoutParams,
@@ -679,125 +610,76 @@ class FloatingPlayerService : Service() {
         var isDragging = false
         var hasMoved = false
         
-        // CRITICAL: Set touch listener on playerView, NOT floatingView
         playerView.setOnTouchListener { _, event ->
-            val instance = activeInstances[instanceId] ?: return@setOnTouchListener false
+            val instance = activeInstances[instanceId]
             
-            // Locked mode - always handle touches for dragging
-            if (instance.controlsLocked) {
-                params?.let { p ->
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            initialX = p.x
-                            initialY = p.y
-                            initialTouchX = event.rawX
-                            initialTouchY = event.rawY
-                            isDragging = false
-                            hasMoved = false
-                            true
-                        }
-                        
-                        MotionEvent.ACTION_MOVE -> {
-                            val dx = (event.rawX - initialTouchX).toInt()
-                            val dy = (event.rawY - initialTouchY).toInt()
-                            
-                            if (abs(dx) > 10 || abs(dy) > 10) {
-                                isDragging = true
-                                hasMoved = true
-                                
-                                p.x = initialX + dx
-                                p.y = initialY + dy
-                                
-                                preferencesManager.setFloatingPlayerX(p.x)
-                                preferencesManager.setFloatingPlayerY(p.y)
-                                
-                                windowManager?.updateViewLayout(floatingView, p)
-                            }
-                            true
-                        }
-                        
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            if (!hasMoved) {
-                                if (unlockButton?.visibility == View.VISIBLE) {
-                                    hideUnlockButton(instanceId)
-                                } else {
-                                    showUnlockButton(instanceId)
-                                }
-                            } else {
-                                preferencesManager.setFloatingPlayerX(p.x)
-                                preferencesManager.setFloatingPlayerY(p.y)
-                            }
-                            
-                            isDragging = false
-                            hasMoved = false
-                            true
-                        }
-                        
-                        else -> true
-                    }
-                } ?: true
-            } else {
-                // Unlocked mode - only intercept when actually dragging
-                params?.let { p ->
-                    when (event.action) {
-                        MotionEvent.ACTION_DOWN -> {
-                            initialX = p.x
-                            initialY = p.y
-                            initialTouchX = event.rawX
-                            initialTouchY = event.rawY
-                            isDragging = false
-                            hasMoved = false
-                            true
-                        }
-                        
-                        MotionEvent.ACTION_MOVE -> {
-                            val dx = (event.rawX - initialTouchX).toInt()
-                            val dy = (event.rawY - initialTouchY).toInt()
-                            
-                            if (abs(dx) > 10 || abs(dy) > 10) {
-                                isDragging = true
-                                hasMoved = true
-                                
-                                p.x = initialX + dx
-                                p.y = initialY + dy
-                                
-                                preferencesManager.setFloatingPlayerX(p.x)
-                                preferencesManager.setFloatingPlayerY(p.y)
-                                
-                                windowManager?.updateViewLayout(floatingView, p)
-                            }
-                            
-                            // Return isDragging - only consume event if we're actually dragging
-                            isDragging
-                        }
-                        
-                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                            if (!hasMoved) {
-                                // Short tap - toggle controls
-                                val currentlyVisible = playerView.isControllerFullyVisible == true
-                                
-                                if (currentlyVisible) {
-                                    playerView.hideController()
-                                } else {
-                                    playerView.showController()
-                                }
-                            } else {
-                                preferencesManager.setFloatingPlayerX(p.x)
-                                preferencesManager.setFloatingPlayerY(p.y)
-                            }
-                            
-                            val wasMoving = hasMoved
-                            isDragging = false
-                            hasMoved = false
-                            
-                            // Return wasMoving - only consume if we were dragging
-                            wasMoving
-                        }
-                        
-                        else -> false
-                    }
-                } ?: false
+            if (instance?.controlsLocked == true) {
+                if (event.action == MotionEvent.ACTION_DOWN) {
+                    showUnlockButton(instanceId)
+                }
+                return@setOnTouchListener true
             }
+            
+            instance?.let { p ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        initialX = params.x
+                        initialY = params.y
+                        initialTouchX = event.rawX
+                        initialTouchY = event.rawY
+                        isDragging = false
+                        hasMoved = false
+                        false
+                    }
+                    
+                    MotionEvent.ACTION_MOVE -> {
+                        if (isDragging || hasMoved) {
+                            val dx = (event.rawX - initialTouchX).toInt()
+                            val dy = (event.rawY - initialTouchY).toInt()
+                            
+                            if (abs(dx) > 10 || abs(dy) > 10) {
+                                isDragging = true
+                                hasMoved = true
+                                
+                                params.x = initialX + dx
+                                params.y = initialY + dy
+                                
+                                preferencesManager.setFloatingPlayerX(params.x)
+                                preferencesManager.setFloatingPlayerY(params.y)
+                                
+                                windowManager?.updateViewLayout(floatingView, params)
+                            }
+                            
+                            isDragging
+                        } else {
+                            false
+                        }
+                    }
+                    
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (!hasMoved) {
+                            val currentlyVisible = playerView.isControllerFullyVisible == true
+                            
+                            if (currentlyVisible) {
+                                playerView.hideController()
+                            } else {
+                                playerView.showController()
+                            }
+                        } else {
+                            preferencesManager.setFloatingPlayerX(params.x)
+                            preferencesManager.setFloatingPlayerY(params.y)
+                        }
+                        
+                        val wasMoving = hasMoved
+                        isDragging = false
+                        hasMoved = false
+                        
+                        wasMoving
+                    }
+                    
+                    else -> false
+                }
+            } ?: false
         }
         
         lockOverlay?.apply {
@@ -858,13 +740,11 @@ class FloatingPlayerService : Service() {
         try {
             windowManager?.removeView(instance.floatingView)
         } catch (e: Exception) {
-            // View already removed
         }
         
         activeInstances.remove(instanceId)
         com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
         
-        // Reset position and size to defaults on close
         preferencesManager.setFloatingPlayerX(Int.MIN_VALUE)
         preferencesManager.setFloatingPlayerY(Int.MIN_VALUE)
         preferencesManager.setFloatingPlayerWidth(0)
