@@ -37,7 +37,7 @@ class FloatingPlayerDialog : DialogFragment() {
 
     private fun setupViews() {
         // FIX Bug 3: "Multi Floating Window" - Disable means 1 window (single), not 0 (broken)
-        val maxWindowsOptions = listOf("Disable (1 window)", "2 windows", "3 windows", "4 windows", "5 windows")
+        val maxWindowsOptions = listOf("Disable", "2 windows", "3 windows", "4 windows", "5 windows")
         val adapter = ArrayAdapter(
             requireContext(), 
             android.R.layout.simple_dropdown_item_1line, 
