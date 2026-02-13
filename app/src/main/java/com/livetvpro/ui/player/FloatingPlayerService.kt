@@ -345,14 +345,21 @@ class FloatingPlayerService : Service() {
             val initialX: Int
             val initialY: Int
             
-            // If saved position is not the default (Int.MIN_VALUE), restore it
-            // Otherwise, center the window
-            if (savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE) {
+            // Only restore saved position if this is the FIRST instance being created
+            // For multiple instances, cascade them with offsets
+            if (activeInstances.isEmpty() && savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE) {
+                // First instance - restore saved position
                 initialX = savedX
                 initialY = savedY
-            } else {
+            } else if (activeInstances.isEmpty()) {
+                // First instance - no saved position - center it
                 initialX = (screenWidth - initialWidth) / 2
                 initialY = (screenHeight - initialHeight) / 2
+            } else {
+                // Subsequent instances - cascade with offset
+                val offset = activeInstances.size * dpToPx(40)
+                initialX = ((screenWidth - initialWidth) / 2) + offset
+                initialY = ((screenHeight - initialHeight) / 2) + offset
             }
             
             val params = WindowManager.LayoutParams(
