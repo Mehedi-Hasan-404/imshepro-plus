@@ -696,6 +696,28 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 streamUrl = channel.streamUrl
                 allEventLinks = emptyList()
             }
+            
+            // CRITICAL FIX: Check if this channel is actually an event
+            // When floating player is created from an event, it converts event to channel
+            // We need to detect this and treat it as an event for proper related content
+            if (channel.categoryId.isEmpty() && contentName.contains(" vs ")) {
+                // This looks like an event (has " vs " and no categoryId)
+                // Try to fetch the actual event data
+                lifecycleScope.launch {
+                    try {
+                        val allEvents = viewModel.getAllEvents()
+                        val matchingEvent = allEvents.find { it.id == channel.id }
+                        if (matchingEvent != null) {
+                            // This IS an event! Update contentType and data
+                            contentType = ContentType.EVENT
+                            eventData = matchingEvent
+                            channelData = null
+                        }
+                    } catch (e: Exception) {
+                        // If we can't fetch events, stay as channel
+                    }
+                }
+            }
 
         } else if (eventData != null) {
             contentType = ContentType.EVENT
