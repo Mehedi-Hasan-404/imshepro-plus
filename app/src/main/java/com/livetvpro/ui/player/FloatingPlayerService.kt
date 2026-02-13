@@ -655,7 +655,11 @@ class FloatingPlayerService : Service() {
                 }
                 startActivity(intent)
 
-                // Tear down this floating instance without touching saved prefs
+                // Remove only THIS instance – leave other floating windows alive.
+                // The service must stay running so:
+                //   1. Other instances keep playing.
+                //   2. The PiP button in FloatingPlayerActivity can call back into
+                //      this same service instance to add a new floating window.
                 hideControlsHandlers[instanceId]?.removeCallbacksAndMessages(null)
                 hideControlsHandlers.remove(instanceId)
                 try {
@@ -664,7 +668,13 @@ class FloatingPlayerService : Service() {
                 activeInstances.remove(instanceId)
                 com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
 
-                stopSelf()
+                // Only stop the service if no other instances remain.
+                // If instances still exist, just update the notification.
+                if (activeInstances.isEmpty()) {
+                    stopSelf()
+                } else {
+                    updateNotification()
+                }
             }
         }
         
