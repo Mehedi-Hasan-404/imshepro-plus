@@ -80,5 +80,6 @@
     <string name="drm_license_url">DRM License URL</string>
     <string name="user_agent">UserAgent</string>
     <string name="drm_scheme">DrmScheme</string>
+    <string name="custom_user_agent">Custom User Agent</string>
     <string name="stream_url_required">Stream URL is required</string>
 </resources>
