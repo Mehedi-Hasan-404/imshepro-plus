@@ -36,8 +36,8 @@ class FloatingPlayerDialog : DialogFragment() {
     }
 
     private fun setupViews() {
-        // Setup dropdown for max floating windows with proper options
-        val maxWindowsOptions = listOf("Disable", "2", "3", "4", "5")
+        // FIX Bug 3: "Multi Floating Window" - Disable means 1 window (single), not 0 (broken)
+        val maxWindowsOptions = listOf("Disable (1 window)", "2 windows", "3 windows", "4 windows", "5 windows")
         val adapter = ArrayAdapter(
             requireContext(), 
             android.R.layout.simple_dropdown_item_1line, 
@@ -51,15 +51,15 @@ class FloatingPlayerDialog : DialogFragment() {
             binding.maxFloatingWindowsContainer.visibility = if (isChecked) View.VISIBLE else View.GONE
         }
 
-        // Max windows dropdown listener
+        // Multi window dropdown listener
         binding.maxFloatingWindowsDropdown.setOnItemClickListener { _, _, position, _ ->
             val maxWindows = when (position) {
-                0 -> 0  // Disable
-                1 -> 2  // 2
-                2 -> 3  // 3
-                3 -> 4  // 4
-                4 -> 5  // 5
-                else -> 0
+                0 -> 1  // Disable = single window only
+                1 -> 2
+                2 -> 3
+                3 -> 4
+                4 -> 5
+                else -> 1
             }
             preferencesManager.setMaxFloatingWindows(maxWindows)
         }
@@ -77,14 +77,14 @@ class FloatingPlayerDialog : DialogFragment() {
         binding.floatingPlayerSwitch.isChecked = isEnabled
         binding.maxFloatingWindowsContainer.visibility = if (isEnabled) View.VISIBLE else View.GONE
 
-        // Set dropdown selection
+        // FIX Bug 3: map saved value back to correct dropdown label
         val selectedText = when (maxWindows) {
-            0 -> "Disable"
-            2 -> "2"
-            3 -> "3"
-            4 -> "4"
-            5 -> "5"
-            else -> "Disable"
+            0, 1 -> "Disable (1 window)"
+            2 -> "2 windows"
+            3 -> "3 windows"
+            4 -> "4 windows"
+            5 -> "5 windows"
+            else -> "Disable (1 window)"
         }
         binding.maxFloatingWindowsDropdown.setText(selectedText, false)
     }
