@@ -285,6 +285,13 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                     updateLinksForOrientation(isLandscape)
                 }
+                
+                // FIX: Load related content with fresh channel data that has categoryId
+                // The channel from intent might not have categoryId, but refreshed data will
+                if (contentType == ContentType.CHANNEL && freshChannel.categoryId.isNotEmpty()) {
+                    channelData = freshChannel  // Update with fresh complete data
+                    viewModel.loadRelatedChannels(freshChannel.categoryId, freshChannel.id)
+                }
             }
         }
         
@@ -801,7 +808,11 @@ class FloatingPlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+                    // Only load if categoryId is available
+                    // If not available now, it will be loaded when refreshedChannel observer fires
+                    if (channel.categoryId.isNotEmpty()) {
+                        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+                    }
                 }
             }
             ContentType.EVENT -> {
