@@ -355,14 +355,12 @@ class FloatingPlayerService : Service() {
             val initialX: Int
             val initialY: Int
             
-            // All instances start from true center of the visible area.
-            // Only the very first instance may restore a previously saved position.
-            if (activeInstances.isEmpty() && savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE) {
-                // First instance - restore last saved position
+            if (savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE) {
+                // Restore saved position for every instance
                 initialX = savedX
                 initialY = savedY
             } else {
-                // Every new instance (first with no saved pos, or any subsequent) -> true center
+                // No saved position - true center
                 initialX = (screenWidth - initialWidth) / 2
                 initialY = statusBarHeight + (screenHeight - statusBarHeight - initialHeight) / 2
             }
