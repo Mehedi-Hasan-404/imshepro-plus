@@ -697,7 +697,15 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setupRelatedChannels() {
         if (contentType == ContentType.EVENT) {
-            relatedEventsAdapter = LiveEventAdapter(this, emptyList(), preferencesManager)
+            relatedEventsAdapter = LiveEventAdapter(
+                context = this, 
+                events = emptyList(), 
+                preferencesManager = preferencesManager,
+                onEventClick = { event, linkIndex ->
+                    // Switch to the selected event in the same activity
+                    switchToEventFromLiveEvent(event)
+                }
+            )
             
             binding.relatedChannelsRecycler.layoutManager = LinearLayoutManager(this)
             binding.relatedChannelsRecycler.adapter = relatedEventsAdapter
