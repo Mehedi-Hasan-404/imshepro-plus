@@ -544,16 +544,16 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     /**
-     * Configure UI for entering PiP mode
+     * Configure UI for entering PiP mode.
+     * The player is already detached from PlayerView and lives in PlayerHolder,
+     * so there are no ExoPlayer controls to hide — just collapse the UI shell.
      */
     private fun enterPipUIMode() {
-        binding.playerView.useController = false 
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
-        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        binding.playerView.hideController()
-        
-        // Show system UI in PiP
+        binding.linksSection.visibility = View.GONE
+        binding.relatedChannelsSection.visibility = View.GONE
+
         WindowCompat.setDecorFitsSystemWindows(window, true)
         windowInsetsController.apply {
             show(WindowInsetsCompat.Type.systemBars())
@@ -567,19 +567,17 @@ class PlayerActivity : AppCompatActivity() {
      */
     private fun exitPipUIMode(newConfig: Configuration) {
         userRequestedPip = false
-        
-        if (isFinishing) {
-            return
-        }
-        
-        // Reclaim player ownership from PlayerHolder back to PlayerActivity
-        val holderPlayer = PlayerHolder.player
-        if (holderPlayer != null) {
-            player = holderPlayer
-            binding.playerView.player = holderPlayer
+
+        if (isFinishing) return
+
+        // Re-attach player from PlayerHolder back to PlayerView
+        val returned = PlayerHolder.player
+        if (returned != null) {
+            player = returned
+            binding.playerView.player = returned
             PlayerHolder.clearReferences()
         }
-        
+
         setSubtitleTextSize()
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -1615,32 +1613,27 @@ class PlayerActivity : AppCompatActivity() {
     
     private fun enterPipMode() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        
+
         if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
 
         val currentPlayer = player ?: return
-        if (!currentPlayer.isPlaying) {
-            currentPlayer.play()
-        }
+        if (!currentPlayer.isPlaying) currentPlayer.play()
 
-        // Transfer player to PlayerHolder so PiP window has a clean player reference
-        // (PlayerHolder has no ExoPlayer controls — no control hiding needed in PiP)
+        // Detach player from PlayerView and hand it to PlayerHolder.
+        // PlayerHolder has no ExoPlayer controls attached, so there is nothing
+        // to hide or fight — no useController, no hideController, no content hiding.
+        binding.playerView.player = null
         PlayerHolder.transferPlayer(currentPlayer, streamUrl, contentName)
-
-        binding.playerView.useController = false
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
-
-        setSubtitleTextSizePiP()
 
         updatePipParams(enter = true)
     }
 
     private fun updatePipParams(enter: Boolean = false) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        
+
         try {
-            // Use PlayerHolder player if available (PiP owns the reference), otherwise fall back to local player
+            // During PiP the player lives in PlayerHolder (detached from PlayerView).
+            // Fall back to local player only when called before entering PiP (e.g. onVideoSizeChanged).
             val pipPlayer = PlayerHolder.player ?: player
             val format = pipPlayer?.videoFormat
             val width = format?.width ?: 16
@@ -1764,7 +1757,7 @@ class PlayerActivity : AppCompatActivity() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action != ACTION_MEDIA_CONTROL) return
                 
-                // PlayerHolder owns the player reference during PiP — no control hiding needed
+                // Player lives in PlayerHolder during PiP — no PlayerView controls involved
                 val currentPlayer = PlayerHolder.player ?: player ?: return
                 val hasError = binding.errorView.visibility == View.VISIBLE
                 val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
