@@ -50,7 +50,8 @@ class FloatingPlayerService : Service() {
         val player: ExoPlayer,
         val playerView: PlayerView,
         val params: WindowManager.LayoutParams,
-        var currentChannel: Channel,
+        var currentChannel: Channel?,
+        var currentEvent: com.livetvpro.data.models.LiveEvent? = null,
         var controlsLocked: Boolean = false,
         var isMuted: Boolean = false,
         val lockOverlay: View?,
@@ -73,6 +74,7 @@ class FloatingPlayerService : Service() {
     
     companion object {
         const val EXTRA_CHANNEL = "extra_channel"
+        const val EXTRA_EVENT = "extra_event"
         const val EXTRA_STREAM_URL = "extra_stream_url"
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_PLAYBACK_POSITION = "extra_playback_position"
@@ -155,9 +157,20 @@ class FloatingPlayerService : Service() {
             linkIndex: Int = 0
         ): Boolean {
             try {
-                val actualChannel = channel ?: return false
+                // Accept either channel or event
+                if (channel == null && event == null) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "No content provided",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    return false
+                }
                 
-                if (actualChannel.links == null || actualChannel.links?.isEmpty() == true) {
+                // Get links from either channel or event
+                val links = channel?.links ?: event?.links
+                
+                if (links == null || links.isEmpty()) {
                     android.widget.Toast.makeText(
                         context,
                         "No stream available",
@@ -166,10 +179,10 @@ class FloatingPlayerService : Service() {
                     return false
                 }
                 
-                val selectedLink = if (linkIndex in actualChannel.links!!.indices) {
-                    actualChannel.links!![linkIndex]
+                val selectedLink = if (linkIndex in links.indices) {
+                    links[linkIndex]
                 } else {
-                    actualChannel.links?.firstOrNull()
+                    links.firstOrNull()
                 }
                 val streamUrl = selectedLink?.url ?: ""
                 
@@ -182,11 +195,18 @@ class FloatingPlayerService : Service() {
                     return false
                 }
                 
+                val title = channel?.name ?: event?.title ?: "Unknown"
+                
                 val intent = Intent(context, FloatingPlayerService::class.java).apply {
                     putExtra(EXTRA_INSTANCE_ID, instanceId)
-                    putExtra(EXTRA_CHANNEL, actualChannel)
+                    if (channel != null) {
+                        putExtra(EXTRA_CHANNEL, channel)
+                    }
+                    if (event != null) {
+                        putExtra(EXTRA_EVENT, event)
+                    }
                     putExtra(EXTRA_STREAM_URL, streamUrl)
-                    putExtra(EXTRA_TITLE, actualChannel.name)
+                    putExtra(EXTRA_TITLE, title)
                     putExtra(EXTRA_PLAYBACK_POSITION, 0L)
                     putExtra(EXTRA_LINK_INDEX, linkIndex)
                 }
@@ -331,11 +351,18 @@ class FloatingPlayerService : Service() {
             return START_STICKY
         }
         
-        val channel = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val channel = if (Build.VERSION.SDK_INT >= Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent?.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
             @Suppress("DEPRECATION")
             intent?.getParcelableExtra(EXTRA_CHANNEL)
+        }
+        
+        val event = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent?.getParcelableExtra(EXTRA_EVENT, com.livetvpro.data.models.LiveEvent::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent?.getParcelableExtra(EXTRA_EVENT)
         }
         
         val linkIndex = intent?.getIntExtra(EXTRA_LINK_INDEX, 0) ?: 0
@@ -343,7 +370,7 @@ class FloatingPlayerService : Service() {
         val restorePosition = intent?.getBooleanExtra(EXTRA_RESTORE_POSITION, false) ?: false
         val useTransferredPlayer = intent?.getBooleanExtra("use_transferred_player", false) ?: false
 
-        if (channel != null) {
+        if (channel != null || event != null) {
             if (useTransferredPlayer) {
                 // ── Seamless transition from FloatingPlayerActivity ──────────────
                 // The activity already transferred the live ExoPlayer into PlayerHolder.
@@ -360,18 +387,28 @@ class FloatingPlayerService : Service() {
 
     private fun createFloatingPlayerInstance(
         instanceId: String,
-        channel: Channel,
+        channel: Channel? = null,
+        event: com.livetvpro.data.models.LiveEvent? = null,
         linkIndex: Int,
         playbackPosition: Long,
         restorePosition: Boolean = false
     ) {
         try {
-            val selectedLink = if (channel.links != null && linkIndex in channel.links!!.indices) {
-                channel.links!![linkIndex]
+            // Get links from either channel or event
+            val links = channel?.links ?: event?.links
+            if (links == null || links.isEmpty()) {
+                return
+            }
+            
+            val selectedLink = if (linkIndex in links.indices) {
+                links[linkIndex]
             } else {
-                channel.links?.firstOrNull()
+                links.firstOrNull()
             }
             val streamUrl = selectedLink?.url ?: return
+            
+            // Get title from either channel or event
+            val title = channel?.name ?: event?.title ?: "Unknown"
             
             // Create floating view
             val floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
@@ -450,13 +487,13 @@ class FloatingPlayerService : Service() {
             
             // Setup UI elements
             val titleText = floatingView.findViewById<TextView>(R.id.tv_title)
-            titleText.text = channel.name
+            titleText.text = title
             
             val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
             val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
             
             // Setup controls
-            setupFloatingControls(floatingView, playerView, params, instanceId, player, lockOverlay, unlockButton, channel)
+            setupFloatingControls(floatingView, playerView, params, instanceId, player, lockOverlay, unlockButton, channel, event)
             
             // Add view to window manager
             windowManager?.addView(floatingView, params)
@@ -472,6 +509,7 @@ class FloatingPlayerService : Service() {
                 playerView = playerView,
                 params = params,
                 currentChannel = channel,
+                currentEvent = event,
                 lockOverlay = lockOverlay,
                 unlockButton = unlockButton
             )
@@ -500,14 +538,15 @@ class FloatingPlayerService : Service() {
      */
     private fun createFloatingPlayerInstanceFromTransfer(
         instanceId: String,
-        channel: Channel,
+        channel: Channel? = null,
+        event: com.livetvpro.data.models.LiveEvent? = null,
         restorePosition: Boolean
     ) {
         try {
             val transferredPlayer = PlayerHolder.player
             if (transferredPlayer == null) {
                 // Fallback: PlayerHolder was empty – create normally
-                createFloatingPlayerInstance(instanceId, channel, 0, 0L, restorePosition)
+                createFloatingPlayerInstance(instanceId, channel, event, 0, 0L, restorePosition)
                 return
             }
 
@@ -570,12 +609,12 @@ class FloatingPlayerService : Service() {
 
             // Update title
             val titleText = floatingView.findViewById<TextView>(R.id.tv_title)
-            titleText.text = channel.name
+            titleText.text = channel?.name ?: event?.title ?: "Unknown"
 
             val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
             val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
 
-            setupFloatingControls(floatingView, playerView, params, instanceId, transferredPlayer, lockOverlay, unlockButton, channel)
+            setupFloatingControls(floatingView, playerView, params, instanceId, transferredPlayer, lockOverlay, unlockButton, channel, event)
 
             windowManager?.addView(floatingView, params)
 
@@ -588,6 +627,7 @@ class FloatingPlayerService : Service() {
                 playerView = playerView,
                 params = params,
                 currentChannel = channel,
+                currentEvent = event,
                 lockOverlay = lockOverlay,
                 unlockButton = unlockButton
             )
@@ -596,8 +636,10 @@ class FloatingPlayerService : Service() {
             // FIX Bug 1: Re-register into FloatingPlayerManager so the active count
             // stays accurate after the fullscreen→PiP round-trip.
             // (The manager entry was removed when the floating window launched fullscreen.)
+            val contentName = channel?.name ?: event?.title ?: "Unknown"
+            val contentType = if (channel != null) "channel" else "event"
             com.livetvpro.utils.FloatingPlayerManager.addPlayer(
-                instanceId, channel.name, "channel"
+                instanceId, contentName, contentType
             )
 
             if (activeInstances.size == 1) {
@@ -667,7 +709,8 @@ class FloatingPlayerService : Service() {
         player: ExoPlayer,
         lockOverlay: View?,
         unlockButton: ImageButton?,
-        channel: Channel
+        channel: Channel?,
+        event: com.livetvpro.data.models.LiveEvent? = null
     ) {
         // Get all control buttons
         val btnClose = playerView.findViewById<ImageButton>(R.id.btn_close)
@@ -686,10 +729,12 @@ class FloatingPlayerService : Service() {
         
         // Fullscreen button
         btnFullscreen?.setOnClickListener {
-            val currentPlayer = player
-            val currentChannel = channel
+            val instance = activeInstances[instanceId]
+            val currentPlayer = instance?.player
+            val currentChannel = instance?.currentChannel
+            val currentEvent = instance?.currentEvent
 
-            if (currentPlayer != null && currentChannel != null) {
+            if (currentPlayer != null && (currentChannel != null || currentEvent != null)) {
                 // Save both size AND position so PiP→back restores them exactly
                 preferencesManager.setFloatingPlayerWidth(params.width)
                 preferencesManager.setFloatingPlayerHeight(params.height)
@@ -698,23 +743,30 @@ class FloatingPlayerService : Service() {
 
                 // Transfer the live player – no new ExoPlayer, no buffering
                 val currentUri = currentPlayer.currentMediaItem?.localConfiguration?.uri?.toString()
-                val streamUrl = currentUri ?: currentChannel.links?.firstOrNull()?.url ?: ""
-                PlayerHolder.transferPlayer(currentPlayer, streamUrl, currentChannel.name)
+                val links = currentChannel?.links ?: currentEvent?.links
+                val streamUrl = currentUri ?: links?.firstOrNull()?.url ?: ""
+                val contentName = currentChannel?.name ?: currentEvent?.title ?: "Unknown"
+                PlayerHolder.transferPlayer(currentPlayer, streamUrl, contentName)
 
                 // Hide every OTHER floating window before the activity appears.
                 // TYPE_APPLICATION_OVERLAY windows draw above all activities, so
                 // without this they would be visible on top of FloatingPlayerActivity.
-                activeInstances.forEach { (id, instance) ->
+                activeInstances.forEach { (id, inst) ->
                     if (id != instanceId) {
-                        instance.floatingView.visibility = View.INVISIBLE
+                        inst.floatingView.visibility = View.INVISIBLE
                     }
                 }
 
                 // Launch fullscreen activity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                    putExtra("extra_channel", currentChannel)
+                    if (currentChannel != null) {
+                        putExtra("extra_channel", currentChannel)
+                    }
+                    if (currentEvent != null) {
+                        putExtra("extra_event", currentEvent)
+                    }
                     putExtra("use_transferred_player", true)
-                    putExtra("source_instance_id", instanceId)  // FIX Bug 2: pass back so PiP button reuses same slot
+                    putExtra("source_instance_id", instanceId)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 startActivity(intent)
