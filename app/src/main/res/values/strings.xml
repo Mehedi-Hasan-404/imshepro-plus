@@ -10,6 +10,7 @@
     <string name="nav_sports">Sports</string>
     <string name="nav_favorites">Favorites</string>
     <string name="nav_floating_player">Floating Player</string>
+    <string name="nav_network_stream">Network Stream</string>
     
     <!-- Drawer -->
     <string name="navigation_drawer_open">Open navigation drawer</string>
@@ -70,4 +71,14 @@
     <string name="resize_button">Resize window</string>
     <string name="fullscreen_button">Open in fullscreen</string>
     <string name="drag_handle">Drag to move</string>
+    
+    <!-- Network Stream -->
+    <string name="media_stream_url">Media Stream URL</string>
+    <string name="cookie_value">Cookie Value</string>
+    <string name="referer_value">Referer Value</string>
+    <string name="origin_value">Origin Value</string>
+    <string name="drm_license_url">DRM License URL</string>
+    <string name="user_agent">UserAgent</string>
+    <string name="drm_scheme">DrmScheme</string>
+    <string name="stream_url_required">Stream URL is required</string>
 </resources>
