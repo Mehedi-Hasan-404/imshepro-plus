@@ -24,13 +24,16 @@ object FloatingPlayerManager {
     }
     
     /**
-     * Get the maximum allowed players from user settings
-     * Returns 1 if preferences not initialized (safe default)
+     * Get the maximum allowed players from user settings.
+     * Disable (old value=0, new value=1) both map to 1.
      */
     private fun getMaxAllowedPlayers(): Int {
         val maxPlayers = preferencesManager?.getMaxFloatingWindows() ?: 1
-        android.util.Log.d("FloatingPlayerManager", "Max allowed players: $maxPlayers")
-        return maxPlayers
+        // FIX Bug 3: 0 was old "Disable" value which broke canAddNewPlayer (0 < 0 = never true).
+        // Treat 0 as 1 for backward compatibility.
+        val effective = if (maxPlayers <= 0) 1 else maxPlayers
+        android.util.Log.d("FloatingPlayerManager", "Max allowed players: $effective")
+        return effective
     }
     
     fun canAddNewPlayer(): Boolean {
