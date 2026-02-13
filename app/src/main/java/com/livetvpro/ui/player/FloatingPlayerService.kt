@@ -356,22 +356,11 @@ class FloatingPlayerService : Service() {
                 initialHeight = initialWidth * 9 / 16
             }
             
-            // Get saved position
-            val savedX = preferencesManager.getFloatingPlayerX()
-            val savedY = preferencesManager.getFloatingPlayerY()
-            
-            val initialX: Int
-            val initialY: Int
-            
-            if (savedX != Int.MIN_VALUE && savedY != Int.MIN_VALUE) {
-                // Restore saved position for every instance
-                initialX = savedX
-                initialY = savedY
-            } else {
-                // No saved position - true center
-                initialX = (screenWidth - initialWidth) / 2
-                initialY = statusBarHeight + (screenHeight - statusBarHeight - initialHeight) / 2
-            }
+            // Every new floating instance starts at true center of the visible area.
+            // Position is only restored when coming back from fullscreen via the PiP
+            // button (that path calls createFloatingPlayerInstanceFromTransfer instead).
+            val initialX = (screenWidth - initialWidth) / 2
+            val initialY = statusBarHeight + (screenHeight - statusBarHeight - initialHeight) / 2
             
             val params = WindowManager.LayoutParams(
                 initialWidth,
@@ -826,9 +815,6 @@ class FloatingPlayerService : Service() {
                                 p.x = initialX + dx
                                 p.y = initialY + dy
                                 
-                                preferencesManager.setFloatingPlayerX(p.x)
-                                preferencesManager.setFloatingPlayerY(p.y)
-                                
                                 windowManager?.updateViewLayout(floatingView, p)
                             }
                             true
@@ -841,9 +827,6 @@ class FloatingPlayerService : Service() {
                                 } else {
                                     showUnlockButton(instanceId)
                                 }
-                            } else {
-                                preferencesManager.setFloatingPlayerX(p.x)
-                                preferencesManager.setFloatingPlayerY(p.y)
                             }
                             
                             isDragging = false
@@ -879,9 +862,6 @@ class FloatingPlayerService : Service() {
                                 p.x = initialX + dx
                                 p.y = initialY + dy
                                 
-                                preferencesManager.setFloatingPlayerX(p.x)
-                                preferencesManager.setFloatingPlayerY(p.y)
-                                
                                 windowManager?.updateViewLayout(floatingView, p)
                             }
                             
@@ -899,9 +879,6 @@ class FloatingPlayerService : Service() {
                                 } else {
                                     playerView.showController()
                                 }
-                            } else {
-                                preferencesManager.setFloatingPlayerX(p.x)
-                                preferencesManager.setFloatingPlayerY(p.y)
                             }
                             
                             val wasMoving = hasMoved
