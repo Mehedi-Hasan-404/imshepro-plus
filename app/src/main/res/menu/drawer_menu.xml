@@ -17,6 +17,11 @@
             android:title="@string/nav_contact" />
             
         <item
+            android:id="@+id/networkStreamFragment"
+            android:icon="@drawable/ic_network_stream"
+            android:title="@string/nav_network_stream" />
+            
+        <item
             android:id="@+id/floating_player_settings"
             android:icon="@drawable/ic_pip"
             android:title="Floating Player" />
