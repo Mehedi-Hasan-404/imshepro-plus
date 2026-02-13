@@ -2,7 +2,9 @@ package com.livetvpro.utils
 
 object FloatingPlayerManager {
     
-    private const val MAX_FLOATING_PLAYERS = 5
+    // Store preferences manager reference
+    private var preferencesManager: com.livetvpro.data.local.PreferencesManager? = null
+    
     private val activeFloatingPlayers = mutableMapOf<String, PlayerMetadata>()
     
     data class PlayerMetadata(
@@ -12,8 +14,31 @@ object FloatingPlayerManager {
         val createdAt: Long = System.currentTimeMillis()
     )
     
+    /**
+     * Initialize with PreferencesManager
+     * Call this from Application class or before first use
+     */
+    fun initialize(prefsManager: com.livetvpro.data.local.PreferencesManager) {
+        this.preferencesManager = prefsManager
+        android.util.Log.d("FloatingPlayerManager", "Initialized with max players: ${getMaxPlayerCount()}")
+    }
+    
+    /**
+     * Get the maximum allowed players from user settings
+     * Returns 1 if preferences not initialized (safe default)
+     */
+    private fun getMaxAllowedPlayers(): Int {
+        val maxPlayers = preferencesManager?.getMaxFloatingWindows() ?: 1
+        android.util.Log.d("FloatingPlayerManager", "Max allowed players: $maxPlayers")
+        return maxPlayers
+    }
+    
     fun canAddNewPlayer(): Boolean {
-        return activeFloatingPlayers.size < MAX_FLOATING_PLAYERS
+        val maxAllowed = getMaxAllowedPlayers()
+        val canAdd = activeFloatingPlayers.size < maxAllowed
+        android.util.Log.d("FloatingPlayerManager", 
+            "Can add new player: $canAdd (current: ${activeFloatingPlayers.size}, max: $maxAllowed)")
+        return canAdd
     }
     
     fun getActivePlayerCount(): Int {
@@ -21,18 +46,29 @@ object FloatingPlayerManager {
     }
     
     fun getMaxPlayerCount(): Int {
-        return MAX_FLOATING_PLAYERS
+        return getMaxAllowedPlayers()
     }
     
     fun addPlayer(instanceId: String, contentName: String, contentType: String) {
-        if (activeFloatingPlayers.size >= MAX_FLOATING_PLAYERS) return
+        val maxAllowed = getMaxAllowedPlayers()
+        if (activeFloatingPlayers.size >= maxAllowed) {
+            android.util.Log.w("FloatingPlayerManager", 
+                "Cannot add player '$contentName': limit reached (${activeFloatingPlayers.size}/$maxAllowed)")
+            return
+        }
         
         val metadata = PlayerMetadata(instanceId, contentName, contentType)
         activeFloatingPlayers[instanceId] = metadata
+        android.util.Log.d("FloatingPlayerManager", 
+            "Added player '$contentName': ${activeFloatingPlayers.size}/$maxAllowed active")
     }
     
     fun removePlayer(instanceId: String) {
-        activeFloatingPlayers.remove(instanceId)
+        val removed = activeFloatingPlayers.remove(instanceId)
+        if (removed != null) {
+            android.util.Log.d("FloatingPlayerManager", 
+                "Removed player '${removed.contentName}': ${activeFloatingPlayers.size}/${getMaxAllowedPlayers()} active")
+        }
     }
     
     fun getAllPlayerIds(): List<String> {
@@ -56,6 +92,8 @@ object FloatingPlayerManager {
     }
     
     fun clearAll() {
+        val count = activeFloatingPlayers.size
         activeFloatingPlayers.clear()
+        android.util.Log.d("FloatingPlayerManager", "Cleared all $count players")
     }
 }
