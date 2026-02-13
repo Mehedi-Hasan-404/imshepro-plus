@@ -288,10 +288,18 @@ class FloatingPlayerActivity : AppCompatActivity() {
             }
             
             // Load related content with fresh channel data that includes categoryId
-            if (freshChannel != null && contentType == ContentType.CHANNEL) {
-                channelData = freshChannel
-                if (freshChannel.categoryId.isNotEmpty()) {
-                    viewModel.loadRelatedChannels(freshChannel.categoryId, freshChannel.id)
+            // FIXED: Also handle events here, not just channels
+            if (freshChannel != null) {
+                if (contentType == ContentType.CHANNEL) {
+                    channelData = freshChannel
+                    if (freshChannel.categoryId.isNotEmpty()) {
+                        viewModel.loadRelatedChannels(freshChannel.categoryId, freshChannel.id)
+                    }
+                } else if (contentType == ContentType.EVENT) {
+                    // FIXED: Load related events when content is an event
+                    eventData?.let { event ->
+                        viewModel.loadRelatedEvents(event.id)
+                    }
                 }
             }
         }
