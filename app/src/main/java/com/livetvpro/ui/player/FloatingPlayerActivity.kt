@@ -258,9 +258,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         // Start player and load content
         setupPlayer()
-        loadRelatedContent()
         
-        // Observe refreshed channel data
+        // CRITICAL FIX: Set up observers BEFORE calling loadRelatedContent()
+        // Otherwise the data will be posted before we're listening!
         viewModel.refreshedChannel.observe(this) { freshChannel ->
             if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
                 if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
@@ -288,18 +288,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
             }
             
             // Load related content with fresh channel data that includes categoryId
-            // FIXED: Also handle events here, not just channels
-            if (freshChannel != null) {
-                if (contentType == ContentType.CHANNEL) {
-                    channelData = freshChannel
-                    if (freshChannel.categoryId.isNotEmpty()) {
-                        viewModel.loadRelatedChannels(freshChannel.categoryId, freshChannel.id)
-                    }
-                } else if (contentType == ContentType.EVENT) {
-                    // FIXED: Load related events when content is an event
-                    eventData?.let { event ->
-                        viewModel.loadRelatedEvents(event.id)
-                    }
+            if (freshChannel != null && contentType == ContentType.CHANNEL) {
+                channelData = freshChannel
+                if (freshChannel.categoryId.isNotEmpty()) {
+                    viewModel.loadRelatedChannels(freshChannel.categoryId, freshChannel.id)
                 }
             }
         }
@@ -328,6 +320,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 binding.relatedChannelsRecycler.visibility = View.VISIBLE
             }
         }
+        
+        // NOW load the related content - observers are ready to receive data
+        loadRelatedContent()
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             registerPipReceiver()
