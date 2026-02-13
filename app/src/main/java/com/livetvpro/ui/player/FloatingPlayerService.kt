@@ -292,9 +292,17 @@ class FloatingPlayerService : Service() {
         val linkIndex = intent?.getIntExtra(EXTRA_LINK_INDEX, 0) ?: 0
         val playbackPosition = intent?.getLongExtra(EXTRA_PLAYBACK_POSITION, 0L) ?: 0L
         val restorePosition = intent?.getBooleanExtra(EXTRA_RESTORE_POSITION, false) ?: false
-        
+        val useTransferredPlayer = intent?.getBooleanExtra("use_transferred_player", false) ?: false
+
         if (channel != null) {
-            createFloatingPlayerInstance(instanceId, channel, linkIndex, playbackPosition, restorePosition)
+            if (useTransferredPlayer) {
+                // ── Seamless transition from FloatingPlayerActivity ──────────────
+                // The activity already transferred the live ExoPlayer into PlayerHolder.
+                // We just need to wrap it in a floating window – no new player needed.
+                createFloatingPlayerInstanceFromTransfer(instanceId, channel, restorePosition)
+            } else {
+                createFloatingPlayerInstance(instanceId, channel, linkIndex, playbackPosition, restorePosition)
+            }
             updateNotification()
         }
         
@@ -448,6 +456,120 @@ class FloatingPlayerService : Service() {
     }
 
     /**
+     * Create a floating window reusing the player already in PlayerHolder.
+     * Called when coming back from FloatingPlayerActivity via the PiP button.
+     * No new ExoPlayer is built – zero buffering / black screen.
+     */
+    private fun createFloatingPlayerInstanceFromTransfer(
+        instanceId: String,
+        channel: Channel,
+        restorePosition: Boolean
+    ) {
+        try {
+            val transferredPlayer = PlayerHolder.player
+            if (transferredPlayer == null) {
+                // Fallback: PlayerHolder was empty – create normally
+                createFloatingPlayerInstance(instanceId, channel, 0, 0L, restorePosition)
+                return
+            }
+
+            // Take ownership immediately
+            PlayerHolder.clearReferences()
+
+            val floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
+
+            val screenWidth = getScreenWidth()
+            val screenHeight = getScreenHeight()
+            val statusBarHeight: Int = run {
+                val resId = resources.getIdentifier("status_bar_height", "dimen", "android")
+                if (resId > 0) resources.getDimensionPixelSize(resId) else 0
+            }
+
+            // ── Size: always restore saved size (the user may have resized it) ──
+            val savedWidth = preferencesManager.getFloatingPlayerWidth()
+            val savedHeight = preferencesManager.getFloatingPlayerHeight()
+            val initialWidth = if (savedWidth > 0) {
+                savedWidth.coerceIn(getMinWidth(), getMaxWidth())
+            } else {
+                (screenWidth * 0.6f).toInt().coerceIn(getMinWidth(), getMaxWidth())
+            }
+            val initialHeight = if (savedHeight > 0) {
+                savedHeight.coerceIn(getMinHeight(), getMaxHeight())
+            } else {
+                initialWidth * 9 / 16
+            }
+
+            // ── Position: restore saved position (the user may have moved it) ──
+            val savedX = preferencesManager.getFloatingPlayerX()
+            val savedY = preferencesManager.getFloatingPlayerY()
+            val initialX = if (savedX != Int.MIN_VALUE) savedX
+                           else (screenWidth - initialWidth) / 2
+            val initialY = if (savedY != Int.MIN_VALUE) savedY
+                           else statusBarHeight + (screenHeight - statusBarHeight - initialHeight) / 2
+
+            val params = WindowManager.LayoutParams(
+                initialWidth,
+                initialHeight,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                },
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                x = initialX
+                y = initialY
+            }
+
+            // Attach the transferred player – no new ExoPlayer created
+            val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
+            playerView.player = transferredPlayer
+
+            // Update title
+            val titleText = floatingView.findViewById<TextView>(R.id.tv_title)
+            titleText.text = channel.name
+
+            val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
+            val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
+
+            setupFloatingControls(floatingView, playerView, params, instanceId, transferredPlayer, lockOverlay, unlockButton, channel)
+
+            windowManager?.addView(floatingView, params)
+
+            hideControlsHandlers[instanceId] = android.os.Handler(android.os.Looper.getMainLooper())
+
+            val instance = FloatingPlayerInstance(
+                instanceId = instanceId,
+                floatingView = floatingView,
+                player = transferredPlayer,
+                playerView = playerView,
+                params = params,
+                currentChannel = channel,
+                lockOverlay = lockOverlay,
+                unlockButton = unlockButton
+            )
+            activeInstances[instanceId] = instance
+
+            if (activeInstances.size == 1) {
+                val notification = createNotification(channel.name)
+                startForeground(NOTIFICATION_ID, notification)
+            }
+
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(
+                this,
+                "Failed to restore floating player: ${e.message}",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    /**
      * Update an existing floating player instance with a new stream
      */
     private fun updateInstanceStream(instanceId: String, channel: Channel, linkIndex: Int) {
@@ -521,16 +643,21 @@ class FloatingPlayerService : Service() {
         btnFullscreen?.setOnClickListener {
             val currentPlayer = player
             val currentChannel = channel
-            
+
             if (currentPlayer != null && currentChannel != null) {
-                // Save only width and height (NOT position)
+                // Save both size AND position so PiP→back restores them exactly
                 preferencesManager.setFloatingPlayerWidth(params.width)
                 preferencesManager.setFloatingPlayerHeight(params.height)
-                
-                // Transfer player using PlayerHolder to avoid recreation
-                val streamUrl = currentChannel.links?.firstOrNull()?.url ?: ""
+                preferencesManager.setFloatingPlayerX(params.x)
+                preferencesManager.setFloatingPlayerY(params.y)
+
+                // Transfer the live player – no new ExoPlayer, no buffering
+                // Use the URL that is actually playing right now (currentMediaItem),
+                // falling back to the first link if unavailable.
+                val currentUri = currentPlayer.currentMediaItem?.localConfiguration?.uri?.toString()
+                val streamUrl = currentUri ?: currentChannel.links?.firstOrNull()?.url ?: ""
                 PlayerHolder.transferPlayer(currentPlayer, streamUrl, currentChannel.name)
-                
+
                 // Launch fullscreen activity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
                     putExtra("extra_channel", currentChannel)
@@ -538,28 +665,16 @@ class FloatingPlayerService : Service() {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
                 startActivity(intent)
-                
-                // Clear our reference (PlayerHolder now owns it)
-                activeInstances[instanceId]?.player?.let {
-                    // Don't release - PlayerHolder has it
-                }
-                
-                // Remove from active instances and stop service
+
+                // Tear down this floating instance without touching saved prefs
                 hideControlsHandlers[instanceId]?.removeCallbacksAndMessages(null)
                 hideControlsHandlers.remove(instanceId)
-                
                 try {
                     windowManager?.removeView(activeInstances[instanceId]?.floatingView)
-                } catch (e: Exception) {
-                    // View already removed
-                }
-                
+                } catch (e: Exception) { /* already removed */ }
                 activeInstances.remove(instanceId)
                 com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
-                
-                // Don't reset position/size - let user resume with same size and position they set
-                
-                // Stop service completely
+
                 stopSelf()
             }
         }
@@ -866,13 +981,11 @@ class FloatingPlayerService : Service() {
         
         activeInstances.remove(instanceId)
         com.livetvpro.utils.FloatingPlayerManager.removePlayer(instanceId)
-        
-        // Reset position and size to defaults on close
-        preferencesManager.setFloatingPlayerX(Int.MIN_VALUE)
-        preferencesManager.setFloatingPlayerY(Int.MIN_VALUE)
-        preferencesManager.setFloatingPlayerWidth(0)
-        preferencesManager.setFloatingPlayerHeight(0)
-        
+
+        // NOTE: Do NOT reset position/size here.
+        // They are saved live during drag and resize, so keeping them lets the
+        // next floating window restore exactly where the user left it.
+
         updateNotification()
         
         if (activeInstances.isEmpty()) {
