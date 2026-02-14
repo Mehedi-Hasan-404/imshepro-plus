@@ -183,6 +183,7 @@ class MainActivity : AppCompatActivity() {
                 // Re-enable drawer indicator for top-level
                 drawerToggle?.isDrawerIndicatorEnabled = true
                 supportActionBar?.setDisplayHomeAsUpEnabled(false)
+                drawerToggle?.syncState()  // Critical: sync the state!
                 
                 animateNavigationIcon(0f) 
 
