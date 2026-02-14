@@ -180,6 +180,9 @@ class MainActivity : AppCompatActivity() {
             if (isTopLevel && !isNetworkStream) {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 
+                // Re-enable drawer indicator
+                drawerToggle?.isDrawerIndicatorEnabled = true
+                
                 // Animate to hamburger for top-level
                 animateNavigationIcon(0f)
                 
@@ -200,6 +203,10 @@ class MainActivity : AppCompatActivity() {
                 // Network Stream: Force back arrow immediately (no animation)
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
+                // Disable drawer indicator
+                drawerToggle?.isDrawerIndicatorEnabled = false
+                
+                // Force back arrow
                 drawerToggle?.drawerArrowDrawable?.progress = 1f
                 
                 binding.toolbar.setNavigationOnClickListener {
