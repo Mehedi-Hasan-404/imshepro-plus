@@ -1031,16 +1031,6 @@ class FloatingPlayerService : Service() {
                     }
                 }
 
-
-                // Hide every OTHER floating window before the activity appears.
-                // TYPE_APPLICATION_OVERLAY windows draw above all activities, so
-                // without this they would be visible on top of FloatingPlayerActivity.
-                activeInstances.forEach { (id, inst) ->
-                    if (id != instanceId) {
-                        inst.floatingView.visibility = View.INVISIBLE
-                    }
-                }
-
                 // Launch fullscreen activity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
                     val instance = activeInstances[instanceId]
@@ -1088,7 +1078,6 @@ class FloatingPlayerService : Service() {
                     updateNotification()
                 }
             }
-        }
         }
         
         // Mute button
