@@ -887,7 +887,6 @@ class FloatingPlayerService : Service() {
             
             hideControlsHandlers[instanceId] = android.os.Handler(android.os.Looper.getMainLooper())
             
-            val instance = FloatingPlayerInstance(
             
             // 🔥 FIX #4: Store network stream parameters in instance
             val instance = FloatingPlayerInstance(
@@ -1032,7 +1031,6 @@ class FloatingPlayerService : Service() {
                     }
                 }
 
-                // Launch fullscreen activity
 
                 // Hide every OTHER floating window before the activity appears.
                 // TYPE_APPLICATION_OVERLAY windows draw above all activities, so
@@ -1090,86 +1088,13 @@ class FloatingPlayerService : Service() {
                     updateNotification()
                 }
             }
+        }
+        }
         
-        player.addListener(object : Player.Listener {
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                btnPlayPause?.setImageResource(
-                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
-                )
-            }
-            
-            // 🔥 FIXED: Handle playback state changes
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                when (playbackState) {
-                    Player.STATE_BUFFERING -> {
-                        // Show loading state
-                        android.util.Log.d("FloatingPlayerService", "Instance $instanceId: Buffering...")
-                    }
-                    Player.STATE_READY -> {
-                        // Playback ready
-                        android.util.Log.d("FloatingPlayerService", "Instance $instanceId: Ready to play")
-                    }
-                    Player.STATE_ENDED -> {
-                        // Stream ended
-                        android.util.Log.d("FloatingPlayerService", "Instance $instanceId: Playback ended")
-                    }
-                }
-            }
-            
-            // 🔥 FIXED: Handle player errors - THIS WAS MISSING!
-            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                super.onPlayerError(error)
-                
-                val errorMessage = when {
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
-                        "Connection Failed"
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
-                        when {
-                            error.message?.contains("403") == true -> "Access Denied"
-                            error.message?.contains("404") == true -> "Stream Not Found"
-                            else -> "Playback Error"
-                        }
-                    }
-                    error.message?.contains("drm", ignoreCase = true) == true ||
-                    error.message?.contains("widevine", ignoreCase = true) == true ||
-                    error.message?.contains("clearkey", ignoreCase = true) == true ||
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
-                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
-                        "Stream Error"
-                    error.message?.contains("geo", ignoreCase = true) == true ||
-                    error.message?.contains("region", ignoreCase = true) == true ->
-                        "Not Available"
-                    else -> "Playback Error"
-                }
-                
-                // Log error details
-                android.util.Log.e("FloatingPlayerService", 
-                    "Instance $instanceId - Playback error: $errorMessage (code: ${error.errorCode})", 
-                    error
-                )
-                
-                // Show error to user via Toast (since we can't easily modify floating overlay)
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    val channelName = activeInstances[instanceId]?.currentChannel?.name 
-                        ?: activeInstances[instanceId]?.currentEvent?.title 
-                        ?: "Stream"
-                    
-                    android.widget.Toast.makeText(
-                        this@FloatingPlayerService,
-                        "⚠️ $channelName: $errorMessage",
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
-                
-                // Update play/pause button to show error state
-                btnPlayPause?.setImageResource(R.drawable.ic_error_outline)
-            }
-        })
+        // Mute button
+        btnMute?.setOnClickListener {
+            val instance = activeInstances[instanceId] ?: return@setOnClickListener
+            instance.isMuted = !instance.isMuted
             player.volume = if (instance.isMuted) 0f else 1f
             btnMute.setImageResource(
                 if (instance.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
@@ -1208,11 +1133,68 @@ class FloatingPlayerService : Service() {
         }
         
         // Add player listener to update play/pause button icon
+        
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 btnPlayPause?.setImageResource(
                     if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
                 )
+            }
+            
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                when (playbackState) {
+                    Player.STATE_BUFFERING -> {
+                        android.util.Log.d("FloatingPlayerService", "Instance $instanceId: Buffering...")
+                    }
+                    Player.STATE_READY -> {
+                        android.util.Log.d("FloatingPlayerService", "Instance $instanceId: Ready to play")
+                    }
+                    Player.STATE_ENDED -> {
+                        android.util.Log.d("FloatingPlayerService", "Instance $instanceId: Playback ended")
+                    }
+                }
+            }
+            
+            // Handle player errors - EXACTLY like PlayerActivity/FloatingPlayerActivity
+            override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                super.onPlayerError(error)
+                
+                val errorMessage = when {
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
+                        "Connection Failed"
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> {
+                        when {
+                            error.message?.contains("403") == true -> "Access Denied"
+                            error.message?.contains("404") == true -> "Stream Not Found"
+                            else -> "Playback Error"
+                        }
+                    }
+                    error.message?.contains("drm", ignoreCase = true) == true ||
+                    error.message?.contains("widevine", ignoreCase = true) == true ||
+                    error.message?.contains("clearkey", ignoreCase = true) == true ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                    error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
+                        "Stream Error"
+                    error.message?.contains("geo", ignoreCase = true) == true ||
+                    error.message?.contains("region", ignoreCase = true) == true ->
+                        "Not Available"
+                    else -> "Playback Error"
+                }
+                
+                // ✅ FIXED: Only log the error, NO TOAST
+                // FloatingPlayerActivity will show error overlay when user clicks fullscreen
+                android.util.Log.e("FloatingPlayerService", 
+                    "Instance $instanceId - Playback error: $errorMessage (code: ${error.errorCode})", 
+                    error
+                )
+                
+                // Update button to error icon (visual feedback in floating window)
+                btnPlayPause?.setImageResource(R.drawable.ic_error_outline)
             }
         })
         
