@@ -28,37 +28,148 @@ object M3uParser {
         return try {
             val trimmedUrl = m3uUrl.trim()
             
+            // Handle JSON format directly
             if (trimmedUrl.startsWith("[") || trimmedUrl.startsWith("{")) {
                 return parseJsonPlaylist(trimmedUrl)
             }
             
+            android.util.Log.d("M3uParser", "Fetching playlist from: $trimmedUrl")
+            
             val url = URL(trimmedUrl)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-            connection.setRequestProperty("User-Agent", "LiveTVPro/1.0")
-
-            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+            connection.connectTimeout = 30000  // Increased to 30 seconds for slow servers
+            connection.readTimeout = 30000      // Increased to 30 seconds
+            
+            // Enhanced headers for better Xtream Codes compatibility
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
+            connection.setRequestProperty("Accept", "*/*")
+            connection.setRequestProperty("Connection", "keep-alive")
+            
+            // Follow redirects
+            connection.instanceFollowRedirects = true
+            HttpURLConnection.setFollowRedirects(true)
+            
+            val responseCode = connection.responseCode
+            android.util.Log.d("M3uParser", "Response code: $responseCode")
+            
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                // Get content type for debugging
+                val contentType = connection.contentType
+                android.util.Log.d("M3uParser", "Content-Type: $contentType")
+                
+                // Read response
                 val reader = BufferedReader(InputStreamReader(connection.inputStream))
                 val content = reader.readText()
                 reader.close()
                 connection.disconnect()
-
+                
+                android.util.Log.d("M3uParser", "Content length: ${content.length} bytes")
+                if (content.length > 0) {
+                    android.util.Log.d("M3uParser", "First 200 chars: ${content.take(200)}")
+                }
+                
+                if (content.isBlank()) {
+                    android.util.Log.e("M3uParser", "Empty response from server")
+                    return emptyList()
+                }
+                
                 val trimmedContent = content.trim()
                 
+                // Check if it's JSON format
                 if (trimmedContent.startsWith("[") || trimmedContent.startsWith("{")) {
+                    android.util.Log.d("M3uParser", "Detected JSON format")
                     return parseJsonPlaylist(trimmedContent)
                 }
-
-                parseM3uContent(content)
+                
+                // Check if it's HTML error page (common with auth failures)
+                if (trimmedContent.startsWith("<!DOCTYPE", ignoreCase = true) || 
+                    trimmedContent.startsWith("<html", ignoreCase = true) ||
+                    trimmedContent.startsWith("<?xml", ignoreCase = true)) {
+                    android.util.Log.e("M3uParser", "Server returned HTML/XML instead of M3U playlist")
+                    android.util.Log.e("M3uParser", "Response preview: ${content.take(500)}")
+                    return emptyList()
+                }
+                
+                // Validate M3U format
+                if (!trimmedContent.contains("#EXTM3U", ignoreCase = true) && 
+                    !trimmedContent.contains("#EXTINF", ignoreCase = true) &&
+                    !trimmedContent.startsWith("http", ignoreCase = true)) {
+                    android.util.Log.w("M3uParser", "Content doesn't look like standard M3U format")
+                    android.util.Log.w("M3uParser", "Content preview: ${content.take(300)}")
+                    // Still try to parse it
+                }
+                
+                // Parse M3U content
+                val channels = parseM3uContent(content)
+                android.util.Log.d("M3uParser", "Successfully parsed ${channels.size} channels")
+                
+                if (channels.isEmpty()) {
+                    android.util.Log.w("M3uParser", "No channels found in playlist")
+                }
+                
+                return channels
+                
+            } else if (responseCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                android.util.Log.e("M3uParser", "Authentication failed (401). Check username/password in URL")
+                return emptyList()
+                
+            } else if (responseCode == HttpURLConnection.HTTP_FORBIDDEN) {
+                android.util.Log.e("M3uParser", "Access forbidden (403). Server denied access")
+                return emptyList()
+                
+            } else if (responseCode == HttpURLConnection.HTTP_NOT_FOUND) {
+                android.util.Log.e("M3uParser", "Playlist not found (404). Check URL path")
+                return emptyList()
+                
+            } else if (responseCode >= 500) {
+                android.util.Log.e("M3uParser", "Server error ($responseCode). Server is having issues")
+                return emptyList()
+                
             } else {
-                emptyList()
+                android.util.Log.e("M3uParser", "HTTP error: $responseCode")
+                // Try to read error stream for more details
+                try {
+                    val errorStream = connection.errorStream
+                    if (errorStream != null) {
+                        val errorReader = BufferedReader(InputStreamReader(errorStream))
+                        val errorContent = errorReader.readText()
+                        errorReader.close()
+                        android.util.Log.e("M3uParser", "Error response: ${errorContent.take(500)}")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("M3uParser", "Could not read error stream", e)
+                }
+                return emptyList()
             }
+            
+        } catch (e: java.net.UnknownHostException) {
+            android.util.Log.e("M3uParser", "Cannot resolve host '${e.message}'. Check server address or network", e)
+            return emptyList()
+            
+        } catch (e: java.net.SocketTimeoutException) {
+            android.util.Log.e("M3uParser", "Connection timeout. Server too slow or unreachable", e)
+            return emptyList()
+            
+        } catch (e: java.net.ConnectException) {
+            android.util.Log.e("M3uParser", "Connection refused. Check if server is running and port is correct", e)
+            return emptyList()
+            
+        } catch (e: javax.net.ssl.SSLException) {
+            android.util.Log.e("M3uParser", "SSL/TLS error. Try using http:// instead of https://", e)
+            return emptyList()
+            
+        } catch (e: java.io.IOException) {
+            android.util.Log.e("M3uParser", "Network I/O error: ${e.message}", e)
+            return emptyList()
+            
         } catch (e: Exception) {
-            emptyList()
+            android.util.Log.e("M3uParser", "Unexpected error parsing M3U from URL: ${e.message}", e)
+            e.printStackTrace()
+            return emptyList()
         }
     }
+
 
     fun parseJsonPlaylist(jsonContent: String): List<M3uChannel> {
         val channels = mutableListOf<M3uChannel>()
