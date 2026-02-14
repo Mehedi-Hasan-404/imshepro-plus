@@ -1,22 +1,18 @@
 package com.livetvpro
 
-import android.animation.ArgbEvaluator
-import android.animation.ValueAnimator
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.View
-import android.view.animation.AccelerateDecelerateInterpolator
-import android.view.animation.DecelerateInterpolator
-import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import androidx.core.view.GravityCompat
-import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
+import androidx.navigation.ui.AppBarConfiguration
+import androidx.navigation.ui.navigateUp
+import androidx.navigation.ui.setupActionBarWithNavController
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.local.ThemeManager
 import com.livetvpro.databinding.ActivityMainBinding
@@ -32,18 +28,12 @@ interface SearchableFragment {
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    
-    @Inject
-    lateinit var preferencesManager: PreferencesManager
-    
-    @Inject
-    lateinit var themeManager: ThemeManager
-    
-    private var drawerToggle: ActionBarDrawerToggle? = null
+    private lateinit var appBarConfiguration: AppBarConfiguration
+
+    @Inject lateinit var preferencesManager: PreferencesManager
+    @Inject lateinit var themeManager: ThemeManager
+
     private var isSearchVisible = false
-    private var lastSelectedView: View? = null 
-    
-    private val indicator by lazy { binding.bottomNavIndicator } 
 
     companion object {
         private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
@@ -51,44 +41,26 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         themeManager.applyTheme()
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        
-        setupToolbar()
-        setupDrawer()
+
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+
         setupNavigation()
         setupSearch()
     }
 
-    private fun setupToolbar() {
-        setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayShowTitleEnabled(false)
-    }
-
-    private fun setupDrawer() {
-        drawerToggle = ActionBarDrawerToggle(
-            this,
-            binding.drawerLayout,
-            binding.toolbar,
-            R.string.navigation_drawer_open,
-            R.string.navigation_drawer_close
-        ).apply {
-            isDrawerIndicatorEnabled = true
-            isDrawerSlideAnimationEnabled = true
-            syncState()
-        }
-    
-        drawerToggle?.let {
-            binding.drawerLayout.addDrawerListener(it)
-        }
-    }
+    // --------------------------------------------------
+    // Navigation (FIXED — uses NavigationUI properly)
+    // --------------------------------------------------
 
     private fun setupNavigation() {
-        val navHostFragment = supportFragmentManager
-            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment ?: return
-        
+
+        val navHostFragment =
+            supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         val navController = navHostFragment.navController
 
         val topLevelDestinations = setOf(
@@ -96,62 +68,38 @@ class MainActivity : AppCompatActivity() {
             R.id.liveEventsFragment,
             R.id.sportsFragment
         )
-        
-        val graphStartDestinationId = navController.graph.startDestinationId 
 
-        val navigateTopLevel = { destinationId: Int ->
-            val currentId = navController.currentDestination?.id ?: graphStartDestinationId
-            
-            if (currentId != destinationId) {
-                val navOptions = NavOptions.Builder()
-                    .setPopUpTo(currentId, true) 
-                    .setLaunchSingleTop(true) 
-                    .setRestoreState(true) 
-                    .build()
-                
-                navController.navigate(destinationId, null, navOptions)
-            }
-        }
+        appBarConfiguration = AppBarConfiguration(
+            topLevelDestinations,
+            binding.drawerLayout
+        )
 
-        binding.navigationView.setNavigationItemSelectedListener { menuItem ->
-            when (menuItem.itemId) {
+        setupActionBarWithNavController(navController, appBarConfiguration)
+
+        // Drawer menu clicks
+        binding.navigationView.setNavigationItemSelectedListener { item ->
+            when (item.itemId) {
+
                 R.id.floating_player_settings -> {
                     showFloatingPlayerDialog()
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                    true
                 }
-                R.id.contactFragment, R.id.networkStreamFragment -> {
-                    // Navigate to non-top-level fragments
-                    navController.navigate(menuItem.itemId)
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                    true
-                }
-                else -> {
-                    if (menuItem.itemId in topLevelDestinations) {
-                        navigateTopLevel(menuItem.itemId)
-                    }
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                    true
-                }
+
+                else -> navController.navigate(item.itemId)
             }
+
+            binding.drawerLayout.closeDrawer(GravityCompat.START)
+            true
         }
 
-        binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
-            if (menuItem.itemId in topLevelDestinations) {
-                navigateTopLevel(menuItem.itemId)
-                
-                val selectedItemView = binding.bottomNavigation.findViewById<View>(menuItem.itemId)
-                animateBottomNavItem(selectedItemView)
-                
-                return@setOnItemSelectedListener true
-            }
-            return@setOnItemSelectedListener false
+        // Bottom nav clicks
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            navController.navigate(item.itemId)
+            true
         }
-        
-        binding.bottomNavigation.post { setupIndicator(navController.currentDestination?.id) }
 
+        // Destination changes
         navController.addOnDestinationChangedListener { _, destination, _ ->
-            
+
             binding.toolbarTitle.text = when (destination.id) {
                 R.id.homeFragment -> "Categories"
                 R.id.categoryChannelsFragment -> "Channels"
@@ -162,11 +110,9 @@ class MainActivity : AppCompatActivity() {
                 R.id.networkStreamFragment -> "Network Stream"
                 else -> "Live TV Pro"
             }
-            
-            val isTopLevel = destination.id in topLevelDestinations
+
             val isNetworkStream = destination.id == R.id.networkStreamFragment
-            
-            // Hide bottom navigation and search/favorites for Network Stream
+
             if (isNetworkStream) {
                 binding.bottomNavigation.visibility = View.GONE
                 binding.btnSearch.visibility = View.GONE
@@ -176,179 +122,87 @@ class MainActivity : AppCompatActivity() {
                 binding.btnSearch.visibility = View.VISIBLE
                 binding.btnFavorites.visibility = View.VISIBLE
             }
-            
-            // Use post to ensure this runs AFTER layout changes (fixing the hamburger glitch)
-            binding.toolbar.post {
-                // Network Stream and other non-top-level destinations should show back arrow
-                if (isTopLevel && !isNetworkStream) {
-                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
-                    
-                    animateNavigationIcon(0f) // Hamburger
 
-                    binding.toolbar.setNavigationOnClickListener {
-                        if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                            binding.drawerLayout.closeDrawer(GravityCompat.START)
-                        } else {
-                            binding.drawerLayout.openDrawer(GravityCompat.START)
-                        }
-                    }
-                    
-                    binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
-                    val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
-                    animateBottomNavItem(currentView)
-
-                } else {
-                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
-                    
-                    animateNavigationIcon(1f) // Back Arrow
-                    
-                    binding.toolbar.setNavigationOnClickListener {
-                        onBackPressedDispatcher.onBackPressed()
-                    }
-                    
-                    if (lastSelectedView != null) {
-                        lastSelectedView?.animate()
-                            ?.scaleX(1.0f)
-                            ?.scaleY(1.0f)
-                            ?.translationY(0f)
-                            ?.setDuration(150)
-                            ?.start()
-                        lastSelectedView = null
-                    }
-                    indicator.animate().alpha(0f).setDuration(150).start()
-                }
-            }
-            
-            if (isSearchVisible) {
-                hideSearch()
-            }
+            if (isSearchVisible) hideSearch()
         }
 
         binding.btnFavorites.setOnClickListener {
-            if (navController.currentDestination?.id != R.id.favoritesFragment) {
-                navController.navigate(R.id.favoritesFragment)
-            }
+            navController.navigate(R.id.favoritesFragment)
         }
     }
 
+    // --------------------------------------------------
+    // Floating Player Permission
+    // --------------------------------------------------
+
     private fun showFloatingPlayerDialog() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            // Show permission explanation dialog
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            !Settings.canDrawOverlays(this)
+        ) {
             AlertDialog.Builder(this)
                 .setTitle("Permission Required")
-                .setMessage("Floating Player requires permission to draw over other apps. Please enable it in the next screen.")
+                .setMessage("Floating Player needs overlay permission.")
                 .setPositiveButton("Settings") { _, _ ->
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                        Uri.parse("package:$packageName")
+                    startActivityForResult(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        ),
+                        REQUEST_CODE_OVERLAY_PERMISSION
                     )
-                    startActivityForResult(intent, REQUEST_CODE_OVERLAY_PERMISSION)
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         } else {
-            // Show floating player settings dialog
-            FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
+            FloatingPlayerDialog.newInstance()
+                .show(supportFragmentManager, FloatingPlayerDialog.TAG)
         }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_CODE_OVERLAY_PERMISSION) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-                // Permission granted, show dialog
-                FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
-            }
+        if (requestCode == REQUEST_CODE_OVERLAY_PERMISSION &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            Settings.canDrawOverlays(this)
+        ) {
+            FloatingPlayerDialog.newInstance()
+                .show(supportFragmentManager, FloatingPlayerDialog.TAG)
         }
     }
 
-    private fun setupIndicator(destinationId: Int?) {
-        val initialItemId = destinationId ?: binding.bottomNavigation.menu.getItem(0).itemId 
-        val initialView = binding.bottomNavigation.findViewById<View>(initialItemId)
-
-        if (initialView != null) {
-            val initialX = initialView.x + initialView.width * 0.25f
-            val initialWidth = initialView.width * 0.5f
-            
-            indicator.translationX = initialX
-            indicator.layoutParams.width = initialWidth.toInt()
-            indicator.requestLayout()
-            indicator.alpha = 1f
-        }
-    }
-    
-    private fun animateBottomNavItem(newSelectedView: View?) {
-        if (newSelectedView == null || lastSelectedView == newSelectedView) return
-        
-        val duration = 300L 
-        
-        lastSelectedView?.animate()
-            ?.scaleX(1.0f)
-            ?.scaleY(1.0f)
-            ?.translationY(0f)
-            ?.setDuration(duration)
-            ?.start()
-        
-        newSelectedView.animate()
-            .scaleX(1.1f)
-            .scaleY(1.1f)
-            .translationY(-8f)
-            .setDuration(duration)
-            .setInterpolator(AccelerateDecelerateInterpolator())
-            .start()
-        
-        val startX = indicator.translationX
-        val startWidth = indicator.layoutParams.width
-        val endX = newSelectedView.x + newSelectedView.width * 0.25f
-        val endWidth = newSelectedView.width * 0.5f
-        
-        val xAnimator = ValueAnimator.ofFloat(startX, endX)
-        xAnimator.addUpdateListener { animator ->
-            indicator.translationX = animator.animatedValue as Float
-        }
-        xAnimator.duration = duration
-        xAnimator.interpolator = AccelerateDecelerateInterpolator()
-        
-        val widthAnimator = ValueAnimator.ofInt(startWidth, endWidth.toInt())
-        widthAnimator.addUpdateListener { animator ->
-            val params = indicator.layoutParams
-            params.width = animator.animatedValue as Int
-            indicator.layoutParams = params
-        }
-        widthAnimator.duration = duration
-        widthAnimator.interpolator = AccelerateDecelerateInterpolator()
-        
-        xAnimator.start()
-        widthAnimator.start()
-        
-        lastSelectedView = newSelectedView
-    }
+    // --------------------------------------------------
+    // Search
+    // --------------------------------------------------
 
     private fun setupSearch() {
-        binding.btnSearch.setOnClickListener {
-            showSearch()
-        }
-        
-        binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                return true
-            }
 
-            override fun onQueryTextChange(newText: String?): Boolean {
-                newText?.let { query ->
-                    val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
-                    val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
-                    
-                    if (currentFragment is SearchableFragment) {
-                        currentFragment.onSearchQuery(query)
+        binding.btnSearch.setOnClickListener { showSearch() }
+
+        binding.searchView.setOnQueryTextListener(
+            object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
+
+                override fun onQueryTextSubmit(query: String?) = true
+
+                override fun onQueryTextChange(newText: String?): Boolean {
+
+                    val navHost =
+                        supportFragmentManager.findFragmentById(R.id.nav_host_fragment)
+                                as NavHostFragment
+
+                    val fragment =
+                        navHost.childFragmentManager.fragments.firstOrNull()
+
+                    if (fragment is SearchableFragment) {
+                        fragment.onSearchQuery(newText.orEmpty())
                     }
-                    
-                    binding.btnSearchClear.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
+
+                    binding.btnSearchClear.visibility =
+                        if (newText.isNullOrEmpty()) View.GONE else View.VISIBLE
+
+                    return true
                 }
-                return true
-            }
-        })
-        
+            })
+
         binding.btnSearchClear.setOnClickListener {
             binding.searchView.setQuery("", false)
         }
@@ -356,76 +210,46 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSearch() {
         isSearchVisible = true
-        
+
         binding.toolbarTitle.visibility = View.GONE
         binding.btnSearch.visibility = View.GONE
         binding.btnFavorites.visibility = View.GONE
-        
+
         binding.searchView.visibility = View.VISIBLE
         binding.searchView.isIconified = false
         binding.searchView.requestFocus()
-        
-        animateNavigationIcon(1f)
-        
-        binding.toolbar.setNavigationOnClickListener {
-            hideSearch()
-        }
     }
 
     private fun hideSearch() {
         isSearchVisible = false
-        
+
         binding.toolbarTitle.visibility = View.VISIBLE
         binding.btnSearch.visibility = View.VISIBLE
         binding.btnFavorites.visibility = View.VISIBLE
-        
-        binding.searchView.visibility = View.GONE
-        binding.btnSearchClear.visibility = View.GONE
+
         binding.searchView.setQuery("", false)
         binding.searchView.clearFocus()
-        
-        val navHostFragment = supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
-        val currentId = navHostFragment?.navController?.currentDestination?.id
-        
-        val topLevelDestinations = setOf(R.id.homeFragment, R.id.liveEventsFragment, R.id.sportsFragment)
-        val isTopLevel = currentId in topLevelDestinations
-
-        animateNavigationIcon(if (isTopLevel) 0f else 1f)
-
-        if (isTopLevel) {
-            binding.toolbar.setNavigationOnClickListener {
-                if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                } else {
-                    binding.drawerLayout.openDrawer(GravityCompat.START)
-                }
-            }
-        } else {
-            binding.toolbar.setNavigationOnClickListener {
-                onBackPressedDispatcher.onBackPressed()
-            }
-        }
+        binding.searchView.visibility = View.GONE
+        binding.btnSearchClear.visibility = View.GONE
     }
 
-    private fun animateNavigationIcon(endPosition: Float) {
-        val startPosition = drawerToggle?.drawerArrowDrawable?.progress ?: 0f
-        if (startPosition == endPosition) return
+    // --------------------------------------------------
+    // Proper back handling (NavigationUI)
+    // --------------------------------------------------
 
-        val animator = ValueAnimator.ofFloat(startPosition, endPosition)
-        animator.addUpdateListener { valueAnimator ->
-            val slideOffset = valueAnimator.animatedValue as Float
-            drawerToggle?.drawerArrowDrawable?.progress = slideOffset
-        }
-        animator.interpolator = DecelerateInterpolator()
-        animator.duration = 300
-        animator.start()
+    override fun onSupportNavigateUp(): Boolean {
+        val navHost =
+            supportFragmentManager.findFragmentById(R.id.nav_host_fragment)
+                    as NavHostFragment
+        return navHost.navController.navigateUp(appBarConfiguration)
+                || super.onSupportNavigateUp()
     }
 
-    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         when {
             isSearchVisible -> hideSearch()
-            binding.drawerLayout.isDrawerOpen(GravityCompat.START) -> binding.drawerLayout.closeDrawer(GravityCompat.START)
+            binding.drawerLayout.isDrawerOpen(GravityCompat.START) ->
+                binding.drawerLayout.closeDrawer(GravityCompat.START)
             else -> super.onBackPressed()
         }
     }
