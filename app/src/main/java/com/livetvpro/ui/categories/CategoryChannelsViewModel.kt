@@ -121,7 +121,14 @@ class CategoryChannelsViewModel @Inject constructor(
             }
 
             // Parse M3U content using your existing M3uParser
-            val channels = M3uParser.parseM3uContent(m3uContent)
+            val m3uChannels = M3uParser.parseM3uContent(m3uContent)
+            
+            // Convert M3uChannel to Channel objects
+            val channels = M3uParser.convertToChannels(
+                m3uChannels = m3uChannels,
+                categoryId = playlist.id,
+                categoryName = playlist.title
+            )
             
             _channels.value = channels
             
