@@ -165,22 +165,13 @@ class MainActivity : AppCompatActivity() {
             val isTopLevel = destination.id in topLevelDestinations
             val isNetworkStream = destination.id == R.id.networkStreamFragment
             
-            // Hide bottom navigation and search/favorites for Network Stream
-            if (isNetworkStream) {
-                binding.bottomNavigation.visibility = View.GONE
-                binding.btnSearch.visibility = View.GONE
-                binding.btnFavorites.visibility = View.GONE
-            } else {
-                binding.bottomNavigation.visibility = View.VISIBLE
-                binding.btnSearch.visibility = View.VISIBLE
-                binding.btnFavorites.visibility = View.VISIBLE
-            }
+            // Network Stream now keeps bottom navigation visible
+            // (removed the hiding logic)
             
-            // Network Stream and other non-top-level destinations should show back arrow
-            if (isTopLevel && !isNetworkStream) {
+            if (isTopLevel) {
+                // Home, Live, Sports: Show hamburger
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 
-                // Enable drawer indicator for hamburger
                 drawerToggle?.isDrawerIndicatorEnabled = true
                 drawerToggle?.syncState()
                 
@@ -197,35 +188,11 @@ class MainActivity : AppCompatActivity() {
                 val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
                 animateBottomNavItem(currentView)
 
-            } else if (isNetworkStream) {
-                // Network Stream: Show back arrow
-                binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
-                
-                // Set back arrow manually
-                binding.toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
-                
-                binding.toolbar.setNavigationOnClickListener {
-                    onBackPressedDispatcher.onBackPressed()
-                }
-                
-                if (lastSelectedView != null) {
-                    lastSelectedView?.animate()
-                        ?.scaleX(1.0f)
-                        ?.scaleY(1.0f)
-                        ?.translationY(0f)
-                        ?.setDuration(150)
-                        ?.start()
-                    lastSelectedView = null
-                }
-                indicator.animate().alpha(0f).setDuration(150).start()
-                
             } else {
-                // Other non-top-level (Category, Contact): Animate to back arrow
+                // All child pages (Network Stream, Contact, Category, Favorites): Show back arrow
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
-                // Disable drawer indicator to show animated back arrow
-                drawerToggle?.isDrawerIndicatorEnabled = false
-                supportActionBar?.setDisplayHomeAsUpEnabled(true)
+                binding.toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
                 
                 binding.toolbar.setNavigationOnClickListener {
                     onBackPressedDispatcher.onBackPressed()
