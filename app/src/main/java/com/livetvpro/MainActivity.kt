@@ -198,7 +198,10 @@ class MainActivity : AppCompatActivity() {
             } else {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
-                animateNavigationIcon(1f)
+                // Post animation to ensure it happens after drawer closes
+                binding.toolbar.post {
+                    animateNavigationIcon(1f)
+                }
                 
                 binding.toolbar.setNavigationOnClickListener {
                     onBackPressedDispatcher.onBackPressed()
