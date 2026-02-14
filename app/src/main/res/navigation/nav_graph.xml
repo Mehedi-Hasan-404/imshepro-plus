@@ -23,6 +23,9 @@
         <action
             android:id="@+id/action_home_to_network_stream"
             app:destination="@id/networkStreamFragment" />
+        <action
+            android:id="@+id/action_home_to_contact"
+            app:destination="@id/contactFragment" />
     </fragment>
 
     <fragment
