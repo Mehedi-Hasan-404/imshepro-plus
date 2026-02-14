@@ -183,6 +183,7 @@ class MainActivity : AppCompatActivity() {
                 // Re-enable drawer indicator, disable home/up
                 drawerToggle?.isDrawerIndicatorEnabled = true
                 supportActionBar?.setDisplayHomeAsUpEnabled(false)
+                drawerToggle?.syncState()
                 
                 // Animate to hamburger for top-level
                 animateNavigationIcon(0f)
