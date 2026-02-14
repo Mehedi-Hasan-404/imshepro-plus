@@ -13,16 +13,12 @@ import android.content.res.Configuration
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.os.Parcelable
 import android.util.Rational
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.widget.ImageButton
-import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
 import androidx.appcompat.app.AppCompatActivity
@@ -61,6 +57,14 @@ import com.livetvpro.data.models.LiveEventLink
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
+import android.annotation.SuppressLint
+import android.graphics.Rect
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import com.livetvpro.ui.player.compose.PlayerControls
+import com.livetvpro.ui.player.compose.PlayerControlsState
+import com.livetvpro.ui.theme.AppTheme
+import kotlinx.coroutines.delay
 
 @UnstableApi
 @AndroidEntryPoint
@@ -81,32 +85,27 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var linkChipAdapter: LinkChipAdapter
 
     private lateinit var windowInsetsController: WindowInsetsControllerCompat
+    // Compose controls state
+    private val controlsState = PlayerControlsState()
 
-    private var btnBack: ImageButton? = null
-    private var btnPip: ImageButton? = null
-    private var btnSettings: ImageButton? = null
-    private var btnLock: ImageButton? = null
-    private var btnMute: ImageButton? = null
-    private var btnRewind: ImageButton? = null
-    private var btnPlayPause: ImageButton? = null
-    private var btnForward: ImageButton? = null
-    private var btnFullscreen: ImageButton? = null
-    private var btnAspectRatio: ImageButton? = null
-    private var tvChannelName: TextView? = null
+
 
     private var isInPipMode = false
-    private var isLocked = false
     private var isMuted = false
     private val skipMs = 10_000L
-    private var userRequestedPip = false
     private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val hideUnlockButtonRunnable = Runnable {
-        binding.unlockButton.visibility = View.GONE
-    }
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
+    private var pipRect: Rect? = null
+    val isPipSupported by lazy {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            false
+        } else {
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        }
+    }
+
 
     private var contentType: ContentType = ContentType.CHANNEL
     private var channelData: Channel? = null
@@ -126,12 +125,14 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
         private const val EXTRA_RELATED_CHANNELS = "extra_related_channels"
-        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
-        private const val EXTRA_CONTROL_TYPE = "control_type"
-        private const val CONTROL_TYPE_PLAY = 1
-        private const val CONTROL_TYPE_PAUSE = 2
-        private const val CONTROL_TYPE_REWIND = 3
-        private const val CONTROL_TYPE_FORWARD = 4
+        
+        // PiP constants
+        private const val PIP_INTENTS_FILTER = "com.livetvpro.PIP_CONTROL"
+        private const val PIP_INTENT_ACTION = "pip_action"
+        private const val PIP_PLAY = 1
+        private const val PIP_PAUSE = 2
+        private const val PIP_REWIND = 3
+        private const val PIP_FORWARD = 4
 
         fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1, relatedChannels: ArrayList<Channel>? = null) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
@@ -192,16 +193,13 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
-        bindControllerViews()
+        setupComposeControls()
         setupRelatedChannels()
         setupLinksUI()
-        configurePlayerInteractions()
-        setupLockOverlay()
-        
+        configurePlayerInteractions()        
         applyOrientationSettings(isLandscape)
         
-        binding.playerView.useController = true
-        binding.playerView.controllerAutoShow = false
+        binding.playerView.useController = false
         
         if (!isLandscape) {
             binding.relatedLoadingProgress.visibility = View.VISIBLE
@@ -478,37 +476,82 @@ class PlayerActivity : AppCompatActivity() {
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration
     ) {
-        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (!isInPictureInPictureMode) {
+            pipReceiver?.let {
+                unregisterReceiver(pipReceiver)
+                pipReceiver = null
+            }
+            isInPipMode = false
+            
+            controlsState.show(lifecycleScope)
+            
+            if (wasLockedBeforePip) {
+                controlsState.lock()
+                wasLockedBeforePip = false
+            }
+            
+            super.onPictureInPictureModeChanged(false, newConfig)
+            return
+        }
         
-        isInPipMode = isInPictureInPictureMode
+        isInPipMode = true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            setPictureInPictureParams(createPipParams())
+        }
         
-        if (isInPipMode) {
-            enterPipUIMode()
+        controlsState.hide()
+        
+        pipReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent == null || intent.action != PIP_INTENTS_FILTER) return
+                
+                val currentPlayer = player ?: return
+                
+                when (intent.getIntExtra(PIP_INTENT_ACTION, 0)) {
+                    PIP_PLAY -> {
+                        currentPlayer.play()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            setPictureInPictureParams(createPipParams())
+                        }
+                    }
+                    PIP_PAUSE -> {
+                        currentPlayer.pause()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            setPictureInPictureParams(createPipParams())
+                        }
+                    }
+                    PIP_REWIND -> {
+                        val newPosition = currentPlayer.currentPosition - skipMs
+                        currentPlayer.seekTo(if (newPosition < 0) 0 else newPosition)
+                    }
+                    PIP_FORWARD -> {
+                        val newPosition = currentPlayer.currentPosition + skipMs
+                        if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
+                            currentPlayer.seekTo(currentPlayer.duration)
+                        } else {
+                            currentPlayer.seekTo(newPosition)
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(pipReceiver, IntentFilter(PIP_INTENTS_FILTER), Context.RECEIVER_NOT_EXPORTED)
         } else {
+            registerReceiver(pipReceiver, IntentFilter(PIP_INTENTS_FILTER))
+        }
+        
+        super.onPictureInPictureModeChanged(true, newConfig)
+    } else {
             exitPipUIMode(newConfig)
         }
     }
 
-    private fun enterPipUIMode() {
-        binding.playerView.useController = false 
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
-        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        binding.playerView.hideController()
-        
-        WindowCompat.setDecorFitsSystemWindows(window, true)
-        windowInsetsController.apply {
-            show(WindowInsetsCompat.Type.systemBars())
-            show(WindowInsetsCompat.Type.navigationBars())
-        }
+
     }
 
-    private fun exitPipUIMode(newConfig: Configuration) {
-        userRequestedPip = false
-        
-        if (isFinishing) {
-            return
-        }
+
         
         setSubtitleTextSize()
         
@@ -532,24 +575,19 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        // Restore controller state BEFORE rebinding controls
+        // Rebind controls after exiting PiP to ensure they work properly
+        setupComposeControls()
+        
         if (wasLockedBeforePip) {
             isLocked = true
             binding.playerView.useController = false
             binding.lockOverlay.visibility = View.VISIBLE
+            showUnlockButton()
             wasLockedBeforePip = false
         } else {
             isLocked = false
             binding.playerView.useController = true
-        }
-        
-        // Rebind controls after controller is enabled
-        bindControllerViews()
-        
-        // Show controller and unlock button if needed
-        if (wasLockedBeforePip || isLocked) {
-            showUnlockButton()
-        } else {
+            
             binding.playerView.postDelayed({
                 if (!isInPipMode && !isLocked) {
                     binding.playerView.showController()
@@ -558,14 +596,127 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
+    @SuppressLint("NewApi")
     override fun onUserLeaveHint() {
-        super.onUserLeaveHint()
-        if (!isInPipMode && player?.isPlaying == true) {
-            userRequestedPip = true
-            wasLockedBeforePip = isLocked
-            enterPipMode()
+        if (isPipSupported && player?.isPlaying == true) {
+            wasLockedBeforePip = controlsState.isLocked
+            enterPictureInPictureMode(createPipParams())
         }
+    private fun setupComposeControls() {
+        binding.playerControlsCompose.apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                AppTheme {
+                    val isPlaying by remember { 
+                        derivedStateOf { player?.isPlaying == true }
+                    }
+                    
+                    val currentPosition by produceState(initialValue = 0L) {
+                        while (true) {
+                            value = player?.currentPosition ?: 0L
+                            delay(100)
+                        }
+                    }
+                    
+                    val duration = player?.duration ?: 0L
+                    val bufferedPosition = player?.bufferedPosition ?: 0L
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    
+                    // Track pipRect for smooth PiP transitions
+                    DisposableEffect(Unit) {
+                        val listener = ViewTreeObserver.OnGlobalLayoutListener {
+                            val rect = Rect()
+                            binding.playerView.getGlobalVisibleRect(rect)
+                            if (!rect.isEmpty) {
+                                pipRect = rect
+                            }
+                        }
+                        binding.playerView.viewTreeObserver.addOnGlobalLayoutListener(listener)
+                        
+                        onDispose {
+                            binding.playerView.viewTreeObserver.removeOnGlobalLayoutListener(listener)
+                        }
+                    }
+                    
+                    PlayerControls(
+                        state = controlsState,
+                        isPlaying = isPlaying,
+                        isMuted = isMuted,
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        bufferedPosition = bufferedPosition,
+                        channelName = contentName,
+                        showPipButton = isPipSupported,
+                        showAspectRatioButton = true,
+                        isLandscape = isLandscape,
+                        onBackClick = { finish() },
+                        onPipClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                wasLockedBeforePip = controlsState.isLocked
+                                enterPictureInPictureMode(createPipParams())
+                            }
+                        },
+                        onSettingsClick = { showSettingsDialog() },
+                        onMuteClick = { toggleMute() },
+                        onLockClick = { locked -> },
+                        onPlayPauseClick = {
+                            player?.let {
+                                if (it.isPlaying) it.pause() else it.play()
+                            }
+                        },
+                        onSeek = { position ->
+                            player?.seekTo(position)
+                        },
+                        onRewindClick = {
+                            player?.let {
+                                val newPosition = it.currentPosition - skipMs
+                                it.seekTo(if (newPosition < 0) 0 else newPosition)
+                            }
+                        },
+                        onForwardClick = {
+                            player?.let {
+                                val newPosition = it.currentPosition + skipMs
+                                if (it.isCurrentWindowLive && it.duration != C.TIME_UNSET && newPosition >= it.duration) {
+                                    it.seekTo(it.duration)
+                                } else {
+                                    it.seekTo(newPosition)
+                                }
+                            }
+                        },
+                        onAspectRatioClick = { cycleAspectRatio() },
+                        onFullscreenClick = { toggleFullscreen() }
+                    )
+                }
+            }
+        }
+    }
+
+    private fun toggleMute() {
+        player?.let {
+            isMuted = !isMuted
+            it.volume = if (isMuted) 0f else 1f
+        }
+    }
+
+    private fun cycleAspectRatio() {
+        currentResizeMode = when (currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        binding.playerView.resizeMode = currentResizeMode
+    }
+
+    private fun showSettingsDialog() {
+        val exoPlayer = player ?: return
+        try {
+            val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(this, exoPlayer)
+            dialog.show()
+        } catch (e: Exception) {
+        }
+    }
+
+        super.onUserLeaveHint()
     }
 
     
@@ -1340,11 +1491,9 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun updatePlayPauseIcon(isPlaying: Boolean) {
-        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
-    }
 
-    private fun bindControllerViews() {
+
+    private fun setupComposeControls() {
         // Use postDelayed to ensure PlayerView controller is fully inflated
         binding.playerView.postDelayed({
             try {
@@ -1416,15 +1565,13 @@ class PlayerActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 // If binding fails, retry once after a longer delay
                 binding.playerView.postDelayed({
-                    bindControllerViews()
+                    setupComposeControls()
                 }, 100)
             }
         }, 50)
     }
 
-    private fun setupControlListeners() {
-        btnBack?.apply {
-            setOnClickListener { if (!isLocked) finish() }
+
         }
         
         btnPip?.apply {
@@ -1497,13 +1644,7 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun handlePlayPauseClick() {
-        val hasError = binding.errorView.visibility == View.VISIBLE
-        val hasEnded = player?.playbackState == Player.STATE_ENDED
-        
-        if (hasError || hasEnded) {
-            retryPlayback()
-        } else {
+ else {
             if (!isLocked) {
                 player?.let { p ->
                     if (p.isPlaying) p.pause() else p.play()
@@ -1520,39 +1661,22 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateMuteIcon() {
-        btnMute?.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
-    }
 
-    private fun toggleAspectRatio() {
-        currentResizeMode = when (currentResizeMode) {
-            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-            else -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-        }
+
+
         binding.playerView.resizeMode = currentResizeMode
     }
 
-    private fun showPlayerSettingsDialog() {
-        val exoPlayer = player ?: return
-        try {
-            val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(this, exoPlayer)
-            dialog.show()
-        } catch (e: Exception) {
+ catch (e: Exception) {
         }
     }
 
     private fun configurePlayerInteractions() {
-        binding.playerView.apply {
-            setControllerHideDuringAds(false)
-            controllerShowTimeoutMs = 5000
-            controllerHideOnTouch = true
-        }
+        // Player interactions now handled by Compose controls
+    }
     }
 
-    private fun setupLockOverlay() {
-        binding.unlockButton.background = resources.getDrawable(R.drawable.ripple_square_white, null)
-        binding.unlockButton.setOnClickListener { toggleLock() }
+
         binding.lockOverlay.setOnClickListener {
             if (binding.unlockButton.visibility == View.VISIBLE) hideUnlockButton() else showUnlockButton()
         }
@@ -1560,28 +1684,11 @@ class PlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
 
-    private fun showUnlockButton() {
-        binding.unlockButton.visibility = View.VISIBLE
-        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
-        mainHandler.postDelayed(hideUnlockButtonRunnable, 3000)
-    }
 
-    private fun hideUnlockButton() {
-        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
-        binding.unlockButton.visibility = View.GONE
-    }
 
-    private fun toggleLock() {
-        isLocked = !isLocked
-        if (isLocked) {
-            binding.playerView.useController = false
-            binding.playerView.hideController()
-            binding.lockOverlay.apply {
-                visibility = View.VISIBLE
-                isClickable = true
-                isFocusable = true
-                setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            }
+
+
+
             showUnlockButton()
             btnLock?.setImageResource(R.drawable.ic_lock_closed)
         } else {
@@ -1649,15 +1756,7 @@ class PlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
     
-    private fun enterPipMode() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        
-        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) return
 
-        player?.let {
-            if (!it.isPlaying) {
-                it.play()
-            }
         }
 
         binding.playerView.useController = false
@@ -1669,17 +1768,7 @@ class PlayerActivity : AppCompatActivity() {
         updatePipParams(enter = true)
     }
 
-    private fun updatePipParams(enter: Boolean = false) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        
-        try {
-            val format = player?.videoFormat
-            val width = format?.width ?: 16
-            val height = format?.height ?: 9
-            
-            var ratio = if (width > 0 && height > 0) {
-                Rational(width, height)
-            } else {
+ else {
                 Rational(16, 9)
             }
             
@@ -1721,42 +1810,7 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun buildPipActions(): List<RemoteAction> {
-        val actions = mutableListOf<RemoteAction>()
-        
-        val rewindIntent = PendingIntent.getBroadcast(
-            this,
-            CONTROL_TYPE_REWIND,
-            Intent(ACTION_MEDIA_CONTROL)
-                .setPackage(packageName)
-                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_REWIND),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        actions.add(RemoteAction(
-            Icon.createWithResource(this, R.drawable.ic_skip_backward),
-            "Rewind",
-            "Rewind 10s",
-            rewindIntent
-        ))
-        
-        val isPlaying = player?.isPlaying == true
-        if (isPlaying) {
-            val pauseIntent = PendingIntent.getBroadcast(
-                this,
-                CONTROL_TYPE_PAUSE,
-                Intent(ACTION_MEDIA_CONTROL)
-                    .setPackage(packageName)
-                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
-                PendingIntent.FLAG_IMMUTABLE
-            )
-            actions.add(RemoteAction(
-                Icon.createWithResource(this, R.drawable.ic_pause),
-                getString(R.string.pause),
-                getString(R.string.pause),
-                pauseIntent
-            ))
-        } else {
+ else {
             val playIntent = PendingIntent.getBroadcast(
                 this,
                 CONTROL_TYPE_PLAY,
@@ -1791,22 +1845,7 @@ class PlayerActivity : AppCompatActivity() {
         return actions
     }
 
-    private fun registerPipReceiver() {
-        if (pipReceiver != null) return
-        
-        pipReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action != ACTION_MEDIA_CONTROL) return
-                
-                val currentPlayer = player ?: return
-                val hasError = binding.errorView.visibility == View.VISIBLE
-                val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
-                
-                when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
-                    CONTROL_TYPE_PLAY -> {
-                        if (hasError || hasEnded) {
-                            retryPlayback()
-                        } else {
+ else {
                             currentPlayer.play()
                         }
                         // Update PiP params to reflect new play state
@@ -1852,17 +1891,88 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun unregisterPipReceiver() {
-        try {
-            pipReceiver?.let {
-                unregisterReceiver(it)
-                pipReceiver = null
-            }
+
         } catch (e: Exception) {
         }
     }
 
-        private fun retryPlayback() {
+    
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun createPipParams(): PictureInPictureParams {
+        val builder = PictureInPictureParams.Builder()
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            builder.setTitle(contentName)
+        }
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            builder.setAutoEnterEnabled(false)
+            builder.setSeamlessResizeEnabled(true)
+        }
+        
+        val isPaused = player?.isPlaying != true
+        builder.setActions(createPipActions(this, isPaused))
+        builder.setSourceRectHint(pipRect)
+        
+        player?.videoFormat?.let { format ->
+            val height = format.height
+            val width = format.width
+            if (height > 0 && width > 0) {
+                val rational = Rational(width, height).toFloat()
+                if (rational in 0.42..2.38) {
+                    builder.setAspectRatio(Rational(width, height))
+                }
+            }
+        }
+        
+        return builder.build()
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createPipActions(context: Context, isPaused: Boolean): List<RemoteAction> {
+        val actions = mutableListOf<RemoteAction>()
+        
+        actions.add(RemoteAction(
+            Icon.createWithResource(context, R.drawable.ic_skip_backward),
+            "Rewind", "Rewind 10s",
+            PendingIntent.getBroadcast(context, PIP_REWIND,
+                Intent(PIP_INTENTS_FILTER).setPackage(context.packageName)
+                    .putExtra(PIP_INTENT_ACTION, PIP_REWIND),
+                PendingIntent.FLAG_IMMUTABLE)
+        ))
+        
+        if (isPaused) {
+            actions.add(RemoteAction(
+                Icon.createWithResource(context, R.drawable.ic_play),
+                context.getString(R.string.play), context.getString(R.string.play),
+                PendingIntent.getBroadcast(context, PIP_PLAY,
+                    Intent(PIP_INTENTS_FILTER).setPackage(context.packageName)
+                        .putExtra(PIP_INTENT_ACTION, PIP_PLAY),
+                    PendingIntent.FLAG_IMMUTABLE)
+            ))
+        } else {
+            actions.add(RemoteAction(
+                Icon.createWithResource(context, R.drawable.ic_pause),
+                context.getString(R.string.pause), context.getString(R.string.pause),
+                PendingIntent.getBroadcast(context, PIP_PAUSE,
+                    Intent(PIP_INTENTS_FILTER).setPackage(context.packageName)
+                        .putExtra(PIP_INTENT_ACTION, PIP_PAUSE),
+                    PendingIntent.FLAG_IMMUTABLE)
+            ))
+        }
+        
+        actions.add(RemoteAction(
+            Icon.createWithResource(context, R.drawable.ic_skip_forward),
+            "Forward", "Forward 10s",
+            PendingIntent.getBroadcast(context, PIP_FORWARD,
+                Intent(PIP_INTENTS_FILTER).setPackage(context.packageName)
+                    .putExtra(PIP_INTENT_ACTION, PIP_FORWARD),
+                PendingIntent.FLAG_IMMUTABLE)
+        ))
+        
+        return actions
+    }
+    private fun retryPlayback() {
         binding.errorView.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
         
@@ -1876,9 +1986,11 @@ class PlayerActivity : AppCompatActivity() {
     override fun finish() {
         try {
             releasePlayer()
-            unregisterPipReceiver()
+            pipReceiver?.let {
+                unregisterReceiver(it)
+                pipReceiver = null
+            }
             isInPipMode = false
-            userRequestedPip = false
             wasLockedBeforePip = false
             super.finish()
         } catch (e: Exception) {
