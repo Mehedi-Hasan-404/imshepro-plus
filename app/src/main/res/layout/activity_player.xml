@@ -7,7 +7,6 @@
     android:background="@android:color/black"
     android:fitsSystemWindows="false">
 
-    <!-- UPDATED: Added dimensionRatio for proper Portrait behavior -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
@@ -17,39 +16,21 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
 
+        <!-- ExoPlayer without built-in controls -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             app:show_buffering="when_playing"
             app:surface_type="texture_view"
-            app:controller_layout_id="@layout/exo_modern_player_controls"
             app:use_controller="false"
-            app:show_timeout="5000"
             app:resize_mode="fit" />
 
-        <FrameLayout
-            android:id="@+id/lock_overlay"
+        <!-- Compose view for custom controls -->
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/player_controls_compose"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="#80000000"
-            android:visibility="gone"
-            android:clickable="true"
-            android:focusable="true">
-
-            <ImageButton
-                android:id="@+id/unlock_button"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:layout_gravity="top|start"
-                android:layout_marginStart="4dp"
-                android:layout_marginTop="4dp"
-                android:background="@drawable/ripple_square_white"
-                android:src="@drawable/ic_lock_closed"
-                android:tint="@android:color/white"
-                android:contentDescription="Unlock controls"
-                android:visibility="gone" />
-        </FrameLayout>
+            android:layout_height="match_parent" />
 
         <ProgressBar
             android:id="@+id/progress_bar"
@@ -129,7 +110,7 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:paddingBottom="8dp"
-            android:gravity="center_vertical|end"> 
+            android:gravity="center_vertical|end">
 
             <ProgressBar
                 android:id="@+id/related_loading_progress"
