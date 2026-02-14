@@ -1,9 +1,11 @@
 package com.livetvpro.ui.categories
 
+import android.app.Application
+import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.livetvpro.data.models.Channel
@@ -12,20 +14,27 @@ import com.livetvpro.data.models.FavoriteChannel
 import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
+import com.livetvpro.data.repository.PlaylistRepository
+import com.livetvpro.utils.M3uParser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import javax.inject.Inject
 
 @HiltViewModel
 class CategoryChannelsViewModel @Inject constructor(
+    private val application: Application,
     private val channelRepository: ChannelRepository,
     private val categoryRepository: CategoryRepository,
     private val favoritesRepository: FavoritesRepository,
+    private val playlistRepository: PlaylistRepository,
     private val savedStateHandle: SavedStateHandle
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private val _channels = MutableStateFlow<List<Channel>>(emptyList())
     private val _searchQuery = MutableStateFlow("")
@@ -83,15 +92,94 @@ class CategoryChannelsViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             try {
-                val result = channelRepository.getChannelsByCategory(categoryId)
-                _channels.value = result
+                // Check if it's a playlist ID
+                val playlist = playlistRepository.getPlaylistById(categoryId)
                 
-                extractCategoryGroups(result)
+                if (playlist != null) {
+                    // It's a playlist - load playlist channels
+                    loadPlaylistChannels(playlist)
+                } else {
+                    // It's a regular category - use existing logic
+                    loadCategoryChannels(categoryId)
+                }
             } catch (e: Exception) {
                 _error.value = e.message
-            } finally {
                 _isLoading.value = false
             }
+        }
+    }
+    
+    private suspend fun loadPlaylistChannels(playlist: com.livetvpro.data.models.Playlist) {
+        try {
+            // Get the M3U content
+            val m3uContent = if (playlist.isFile) {
+                // Read from file URI
+                readFileContent(playlist.filePath)
+            } else {
+                // Fetch from URL
+                fetchUrlContent(playlist.url)
+            }
+
+            // Parse M3U content using your existing M3uParser
+            val channels = M3uParser.parse(m3uContent)
+            
+            _channels.value = channels
+            
+            // Extract unique groups for the tab layout
+            extractCategoryGroups(channels)
+            
+        } catch (e: Exception) {
+            _error.value = "Failed to load playlist: ${e.message}"
+        } finally {
+            _isLoading.value = false
+        }
+    }
+    
+    private suspend fun readFileContent(uriString: String): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val uri = Uri.parse(uriString)
+                application.contentResolver.openInputStream(uri)?.use { inputStream ->
+                    inputStream.bufferedReader().use { it.readText() }
+                } ?: throw Exception("Could not read file")
+            } catch (e: Exception) {
+                throw Exception("Failed to read file: ${e.message}")
+            }
+        }
+    }
+    
+    private suspend fun fetchUrlContent(url: String): String {
+        return withContext(Dispatchers.IO) {
+            try {
+                val client = OkHttpClient.Builder()
+                    .followRedirects(true)
+                    .followSslRedirects(true)
+                    .build()
+                    
+                val request = Request.Builder()
+                    .url(url)
+                    .build()
+                
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw Exception("Failed to fetch playlist: HTTP ${response.code}")
+                    }
+                    response.body?.string() ?: throw Exception("Empty response")
+                }
+            } catch (e: Exception) {
+                throw Exception("Failed to fetch URL: ${e.message}")
+            }
+        }
+    }
+    
+    private suspend fun loadCategoryChannels(categoryId: String) {
+        try {
+            val result = channelRepository.getChannelsByCategory(categoryId)
+            _channels.value = result
+            
+            extractCategoryGroups(result)
+        } finally {
+            _isLoading.value = false
         }
     }
     
