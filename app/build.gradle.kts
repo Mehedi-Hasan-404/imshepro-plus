@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")  // ⚡ ADD THIS!
+    id("org.jetbrains.kotlin.plugin.compose")
     kotlin("kapt")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
@@ -92,9 +92,6 @@ android {
         buildConfig = true
         compose = true  // ⚡ Required for PlayerActivity Compose controls
     }
-
-    // ⚡ NO LONGER NEEDED - Compose Compiler Plugin handles this automatically!
-    // composeOptions block is REMOVED when using the Compose Compiler Plugin
 
     packaging {
         resources {
