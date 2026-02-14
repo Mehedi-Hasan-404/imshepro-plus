@@ -101,6 +101,72 @@ object FloatingPlayerHelper {
     }
     
     /**
+     * Launch floating player for a network stream
+     */
+    fun launchFloatingPlayerWithNetworkStream(
+        context: Context,
+        streamUrl: String,
+        cookie: String = "",
+        referer: String = "",
+        origin: String = "",
+        drmLicense: String = "",
+        userAgent: String = "Default",
+        drmScheme: String = "clearkey",
+        streamName: String = "Network Stream"
+    ): String? {
+        if (!hasOverlayPermission(context)) {
+            Toast.makeText(context, "Overlay permission required for floating player", Toast.LENGTH_LONG).show()
+            return null
+        }
+        
+        if (streamUrl.isBlank()) {
+            Toast.makeText(context, "Invalid stream URL", Toast.LENGTH_SHORT).show()
+            return null
+        }
+        
+        if (!FloatingPlayerManager.canAddNewPlayer()) {
+            val message = "Maximum ${FloatingPlayerManager.getMaxPlayerCount()} floating players active"
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            return null
+        }
+        
+        val instanceId = UUID.randomUUID().toString()
+        
+        FloatingPlayerManager.addPlayer(instanceId, streamName, "network_stream")
+        
+        return try {
+            val started = FloatingPlayerService.startFloatingPlayerWithNetworkStream(
+                context = context,
+                instanceId = instanceId,
+                streamUrl = streamUrl,
+                cookie = cookie,
+                referer = referer,
+                origin = origin,
+                drmLicense = drmLicense,
+                userAgent = userAgent,
+                drmScheme = drmScheme,
+                streamName = streamName
+            )
+            
+            if (started) {
+                createdInstances.add(instanceId)
+                val count = FloatingPlayerManager.getActivePlayerCount()
+                val message = "Floating player $count/${FloatingPlayerManager.getMaxPlayerCount()}"
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                instanceId
+            } else {
+                FloatingPlayerManager.removePlayer(instanceId)
+                Toast.makeText(context, "Failed to start floating player", Toast.LENGTH_SHORT).show()
+                null
+            }
+        } catch (e: Exception) {
+            FloatingPlayerManager.removePlayer(instanceId)
+            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            null
+        }
+    }
+    
+    /**
      * Update an existing floating player with a new stream/link
      */
     private fun updateFloatingPlayer(context: Context, instanceId: String, channel: Channel, linkIndex: Int) {
