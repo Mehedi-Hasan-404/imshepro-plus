@@ -163,6 +163,7 @@ class MainActivity : AppCompatActivity() {
                 R.id.sportsFragment -> "Sports"
                 R.id.contactFragment -> "Contact"
                 R.id.networkStreamFragment -> "Network Stream"
+                R.id.playlistsFragment -> "Playlists"
                 else -> "Live TV Pro"
             }
             
