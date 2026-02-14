@@ -717,7 +717,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
             return
         }
         
-        // Original channel/event parsing logic
         channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
@@ -1047,449 +1046,75 @@ class FloatingPlayerActivity : AppCompatActivity() {
         playerListener = null
     }
 
-// ====================================================================================
-// UNIVERSAL STREAM URL PARSER - Auto-detects and supports ANY format
-// ====================================================================================
-// Automatically handles:
-// ✅ ANY separator: |, ?|, ::, $$, ##, @@, ;; and more
-// ✅ ANY encoding: URL-encoded, base64, JSON
-// ✅ ANY parameter format: key=value, key:value
-// ✅ ANY header name: case-insensitive with variations
-// ✅ Embedded metadata in query params
-// ✅ Multiple formats combined
-// ====================================================================================
-
-private data class StreamInfo(
-    val url: String,
-    val headers: Map<String, String>,
-    val drmScheme: String?,
-    val drmKeyId: String?,
-    val drmKey: String?,
-    val drmLicenseUrl: String? = null
-)
-
-private fun parseStreamUrl(streamUrl: String): StreamInfo {
-    if (streamUrl.isBlank()) {
-        return StreamInfo("", mapOf(), null, null, null, null)
-    }
-    
-    var workingUrl = streamUrl.trim()
-    val headers = mutableMapOf<String, String>()
-    var drmScheme: String? = null
-    var drmKeyId: String? = null
-    var drmKey: String? = null
-    var drmLicenseUrl: String? = null
-    var cleanUrl = workingUrl
-    
-    // ========================================================================
-    // PHASE 1: Extract base64-encoded metadata from query parameters
-    // ========================================================================
-    
-    val base64Patterns = listOf(
-        """[?&](token|auth|key|data|meta|params|h|headers|b64)=([A-Za-z0-9+/=_-]{30,})""",
-        """[?&]([a-z]{1,3})=([A-Za-z0-9+/=_-]{50,})"""
+    private data class StreamInfo(
+        val url: String,
+        val headers: Map<String, String>,
+        val drmScheme: String?,
+        val drmKeyId: String?,
+        val drmKey: String?,
+        val drmLicenseUrl: String? = null
     )
-    
-    for (patternStr in base64Patterns) {
-        val pattern = Regex(patternStr)
-        val match = pattern.find(cleanUrl)
-        if (match != null) {
-            try {
-                val encoded = match.groupValues[2]
-                val decoded = try {
-                    String(android.util.Base64.decode(encoded, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP))
-                } catch (e: Exception) {
-                    try {
-                        String(android.util.Base64.decode(encoded, android.util.Base64.DEFAULT))
-                    } catch (e2: Exception) {
-                        continue
-                    }
-                }
-                
-                // Try parsing as JSON
-                if ((decoded.startsWith("{") && decoded.endsWith("}")) || 
-                    (decoded.startsWith("[") && decoded.endsWith("]"))) {
-                    try {
-                        val json = org.json.JSONObject(decoded)
-                        val keys = json.keys()
-                        while (keys.hasNext()) {
-                            val key = keys.next()
-                            val value = json.optString(key, "")
-                            if (value.isNotEmpty()) {
-                                processAndApplyKeyValue(key, value, headers, 
-                                    { s -> drmScheme = s }, 
-                                    { k -> drmKeyId = k }, 
-                                    { k -> drmKey = k },
-                                    { l -> drmLicenseUrl = l })
-                            }
-                        }
-                        cleanUrl = cleanUrl.replace(match.value, "")
-                        continue
-                    } catch (e: Exception) {}
-                }
-                
-                // Try parsing as key=value pairs
-                if (decoded.contains("=")) {
-                    val pairs = extractKeyValuePairs(decoded)
-                    for ((k, v) in pairs) {
-                        processAndApplyKeyValue(k, v, headers,
-                            { s -> drmScheme = s },
-                            { k -> drmKeyId = k },
-                            { k -> drmKey = k },
-                            { l -> drmLicenseUrl = l })
-                    }
-                    cleanUrl = cleanUrl.replace(match.value, "")
-                }
-            } catch (e: Exception) {}
-        }
-    }
-    
-    // ========================================================================
-    // PHASE 2: Extract URL-encoded JSON from query parameters
-    // ========================================================================
-    
-    val jsonPattern = Regex("""[?&](headers?|hdr|h|meta|params)=(%7B[^&]+|\{[^&]+)""")
-    val jsonMatch = jsonPattern.find(cleanUrl)
-    if (jsonMatch != null) {
-        try {
-            val encodedJson = jsonMatch.groupValues[2]
-            val decodedJson = if (encodedJson.startsWith("%")) {
-                java.net.URLDecoder.decode(encodedJson, "UTF-8")
-            } else {
-                encodedJson
-            }
-            val json = org.json.JSONObject(decodedJson)
-            val keys = json.keys()
-            while (keys.hasNext()) {
-                val key = keys.next()
-                val value = json.optString(key, "")
-                if (value.isNotEmpty()) {
-                    processAndApplyKeyValue(key, value, headers,
-                        { s -> drmScheme = s },
-                        { k -> drmKeyId = k },
-                        { k -> drmKey = k },
-                        { l -> drmLicenseUrl = l })
-                }
-            }
-            cleanUrl = cleanUrl.replace(jsonMatch.value, "")
-        } catch (e: Exception) {}
-    }
-    
-    // ========================================================================
-    // PHASE 3: Extract numbered parameters (c1, c2, etc.)
-    // ========================================================================
-    
-    val multiPattern = Regex("""[?&](c|cookie|h|header)\d+=([^&]+)""")
-    var multiMatch = multiPattern.find(cleanUrl)
-    val cookieParts = mutableListOf<String>()
-    while (multiMatch != null) {
-        try {
-            val value = java.net.URLDecoder.decode(multiMatch.groupValues[2], "UTF-8")
-            cookieParts.add(value)
-            cleanUrl = cleanUrl.replace(multiMatch.value, "")
-        } catch (e: Exception) {}
-        multiMatch = multiPattern.find(cleanUrl)
-    }
-    if (cookieParts.isNotEmpty()) {
-        headers["Cookie"] = cookieParts.joinToString("; ")
-    }
-    
-    // ========================================================================
-    // PHASE 4: Detect main separator and extract metadata
-    // ========================================================================
-    
-    val separators = listOf(
-        "|||", "||", "|",     // Pipe variants
-        "?||", "?|",          // Your format
-        ":::", "::",          // Colons
-        "$$", "##", "@@", "%%", // Symbols
-        ";;", ";;"            // Semicolons
-    )
-    
-    var foundSeparator: String? = null
-    var separatorIndex = -1
-    
-    for (sep in separators) {
-        val idx = cleanUrl.indexOf(sep)
-        if (idx > 0) {
-            foundSeparator = sep
-            separatorIndex = idx
-            break
-        }
-    }
-    
-    if (foundSeparator != null && separatorIndex > 0) {
-        cleanUrl = workingUrl.substring(0, separatorIndex).trim()
-        val paramsString = workingUrl.substring(separatorIndex + foundSeparator.length).trim()
-        
-        // Remove trailing ? from base URL
-        if (cleanUrl.endsWith("?")) {
-            cleanUrl = cleanUrl.substring(0, cleanUrl.length - 1)
-        }
-        
-        // Parse parameters
-        val pairs = extractKeyValuePairs(paramsString)
-        for ((k, v) in pairs) {
-            processAndApplyKeyValue(k, v, headers,
-                { s -> drmScheme = s },
-                { k -> drmKeyId = k },
-                { k -> drmKey = k },
-                { l -> drmLicenseUrl = l })
-        }
-    }
-    
-    // ========================================================================
-    // PHASE 5: Extract from hash fragments
-    // ========================================================================
-    
-    val hashIndex = cleanUrl.indexOf('#')
-    if (hashIndex > 0) {
-        val hashPart = cleanUrl.substring(hashIndex + 1)
-        if (hashPart.contains("=") || hashPart.contains(":")) {
-            val pairs = extractKeyValuePairs(hashPart)
-            for ((k, v) in pairs) {
-                processAndApplyKeyValue(k, v, headers,
-                    { s -> drmScheme = s },
-                    { k -> drmKeyId = k },
-                    { k -> drmKey = k },
-                    { l -> drmLicenseUrl = l })
-            }
-            cleanUrl = cleanUrl.substring(0, hashIndex)
-        }
-    }
-    
-    // ========================================================================
-    // PHASE 6: Extract headers from query parameters
-    // ========================================================================
-    
-    val queryPattern = Regex("""[?&]([^=&]+)=([^&]+)""")
-    val queryMatches = queryPattern.findAll(cleanUrl).toList()
-    
-    for (match in queryMatches) {
-        val key = match.groupValues[1].trim()
-        val value = match.groupValues[2].trim()
-        
-        val normalizedKey = normalizeKey(key)
-        if (isKnownHeaderKey(normalizedKey)) {
-            processAndApplyKeyValue(key, value, headers,
-                { s -> drmScheme = s },
-                { k -> drmKeyId = k },
-                { k -> drmKey = k },
-                { l -> drmLicenseUrl = l })
-            cleanUrl = cleanUrl.replace(match.value, "")
-        }
-    }
-    
-    // Clean up URL
-    cleanUrl = cleanUrl.replace(Regex("""[?&]+$"""), "")
-    
-    // Normalize DRM scheme
-    if (drmScheme != null) {
-        drmScheme = normalizeDrmScheme(drmScheme!!)
-    }
-    
-    return StreamInfo(cleanUrl, headers, drmScheme, drmKeyId, drmKey, drmLicenseUrl)
-}
 
-// ========================================================================
-// Helper Functions
-// ========================================================================
+    private fun parseStreamUrl(streamUrl: String): StreamInfo {
+        val pipeIndex = streamUrl.indexOf('|')
+        if (pipeIndex == -1) {
+            return StreamInfo(streamUrl, mapOf(), null, null, null, null)
+        }
 
-private fun extractKeyValuePairs(text: String): Map<String, String> {
-    val result = mutableMapOf<String, String>()
-    
-    // Try different delimiters
-    val possibleDelimiters = listOf(
-        Regex("""[&|;]"""),   // Common delimiters
-        Regex("""[\r\n]+"""), // Line breaks
-        Regex("""\s{2,}""")   // Multiple spaces
-    )
-    
-    for (delimiter in possibleDelimiters) {
-        val parts = text.split(delimiter)
-        var foundPairs = false
-        
+        val url = streamUrl.substring(0, pipeIndex).trim()
+        val rawParams = streamUrl.substring(pipeIndex + 1).trim()
+        val normalizedParams = rawParams.replace("&", "|")
+        val parts = normalizedParams.split("|")
+
+        val headers = mutableMapOf<String, String>()
+        var drmScheme: String? = null
+        var drmKeyId: String? = null
+        var drmKey: String? = null
+        var drmLicenseUrl: String? = null
+
         for (part in parts) {
-            val trimmed = part.trim()
-            if (trimmed.isEmpty()) continue
-            
-            // Try = or : as assignment operator
-            var eqIndex = trimmed.indexOf('=')
-            if (eqIndex == -1) {
-                eqIndex = trimmed.indexOf(':')
-            }
-            
-            if (eqIndex > 0) {
-                val key = trimmed.substring(0, eqIndex).trim()
-                val value = trimmed.substring(eqIndex + 1).trim()
-                if (key.isNotEmpty() && value.isNotEmpty()) {
-                    result[key] = value
-                    foundPairs = true
+            val eqIndex = part.indexOf('=')
+            if (eqIndex == -1) continue
+
+            val key = part.substring(0, eqIndex).trim()
+            val value = part.substring(eqIndex + 1).trim()
+
+            when (key.lowercase()) {
+                "drmscheme" -> drmScheme = normalizeDrmScheme(value)
+                "drmlicense" -> {
+                    if (value.startsWith("http://", ignoreCase = true) ||
+                        value.startsWith("https://", ignoreCase = true)) {
+                        drmLicenseUrl = value
+                    } else {
+                        val colonIndex = value.indexOf(':')
+                        if (colonIndex != -1) {
+                            drmKeyId = value.substring(0, colonIndex).trim()
+                            drmKey = value.substring(colonIndex + 1).trim()
+                        }
+                    }
                 }
+                "referer", "referrer" -> headers["Referer"] = value
+                "user-agent", "useragent" -> headers["User-Agent"] = value
+                "origin" -> headers["Origin"] = value
+                "cookie" -> headers["Cookie"] = value
+                "x-forwarded-for" -> headers["X-Forwarded-For"] = value
+                else -> headers[key] = value
             }
         }
-        
-        if (foundPairs) break
-    }
-    
-    return result
-}
 
-private fun processAndApplyKeyValue(
-    key: String,
-    value: String,
-    headers: MutableMap<String, String>,
-    drmSchemeSetter: (String) -> Unit,
-    drmKeyIdSetter: (String) -> Unit,
-    drmKeySetter: (String) -> Unit,
-    drmLicenseUrlSetter: (String) -> Unit
-) {
-    // Try to URL decode the value
-    var decodedValue = try {
-        java.net.URLDecoder.decode(value, "UTF-8")
-    } catch (e: Exception) {
-        value
+        return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey, drmLicenseUrl)
     }
-    
-    val normalizedKey = normalizeKey(key)
-    
-    when {
-        // DRM Scheme
-        normalizedKey.contains("drm") || normalizedKey == "scheme" -> {
-            drmSchemeSetter(decodedValue)
-        }
-        
-        // DRM License
-        normalizedKey.contains("license") || normalizedKey == "lic" -> {
-            if (decodedValue.startsWith("http://", ignoreCase = true) ||
-                decodedValue.startsWith("https://", ignoreCase = true)) {
-                drmLicenseUrlSetter(decodedValue)
-            } else if (decodedValue.contains(":")) {
-                val colonIndex = decodedValue.indexOf(':')
-                drmKeyIdSetter(decodedValue.substring(0, colonIndex).trim())
-                drmKeySetter(decodedValue.substring(colonIndex + 1).trim())
-            }
-        }
-        
-        // DRM Key ID
-        normalizedKey.contains("keyid") || normalizedKey == "kid" -> {
-            drmKeyIdSetter(decodedValue)
-        }
-        
-        // DRM Key
-        normalizedKey == "key" || normalizedKey == "k" -> {
-            drmKeySetter(decodedValue)
-        }
-        
-        // User-Agent
-        normalizedKey.contains("agent") || normalizedKey == "ua" -> {
-            headers["User-Agent"] = decodedValue
-        }
-        
-        // Referer
-        normalizedKey.contains("refer") || normalizedKey == "ref" -> {
-            headers["Referer"] = decodedValue
-        }
-        
-        // Origin
-        normalizedKey.contains("origin") || normalizedKey == "org" -> {
-            headers["Origin"] = decodedValue
-        }
-        
-        // Cookie
-        normalizedKey.contains("cookie") -> {
-            headers["Cookie"] = decodedValue
-        }
-        
-        // Authorization
-        normalizedKey.contains("auth") || normalizedKey.contains("bearer") || normalizedKey.contains("token") -> {
-            headers["Authorization"] = if (decodedValue.startsWith("Bearer ", ignoreCase = true)) {
-                decodedValue
-            } else {
-                "Bearer $decodedValue"
-            }
-        }
-        
-        // Content-Type
-        normalizedKey.contains("content") && normalizedKey.contains("type") -> {
-            headers["Content-Type"] = decodedValue
-        }
-        
-        // API Key
-        normalizedKey.contains("apikey") -> {
-            headers["X-API-Key"] = decodedValue
-        }
-        
-        // Other common headers
-        normalizedKey == "accept" || normalizedKey == "acc" -> {
-            headers["Accept"] = decodedValue
-        }
-        normalizedKey == "range" -> {
-            headers["Range"] = decodedValue
-        }
-        normalizedKey == "host" -> {
-            headers["Host"] = decodedValue
-        }
-        normalizedKey.contains("forward") || normalizedKey == "xff" -> {
-            headers["X-Forwarded-For"] = decodedValue
-        }
-        normalizedKey.contains("cache") && normalizedKey.contains("control") -> {
-            headers["Cache-Control"] = decodedValue
-        }
-        normalizedKey == "pragma" -> {
-            headers["Pragma"] = decodedValue
-        }
-        normalizedKey == "connection" || normalizedKey == "conn" -> {
-            headers["Connection"] = decodedValue
-        }
-        
-        // Any x-* or sec-* header
-        key.startsWith("x-", ignoreCase = true) || key.startsWith("sec-", ignoreCase = true) -> {
-            headers[key] = decodedValue
+
+    private fun normalizeDrmScheme(scheme: String): String {
+        val lower = scheme.lowercase()
+        return when {
+            lower.contains("clearkey") || lower == "org.w3.clearkey" -> "clearkey"
+            lower.contains("widevine") || lower == "com.widevine.alpha" -> "widevine"
+            lower.contains("playready") || lower == "com.microsoft.playready" -> "playready"
+            lower.contains("fairplay") -> "fairplay"
+            else -> lower
         }
     }
-}
-
-private fun normalizeKey(key: String): String {
-    return key.lowercase()
-        .replace("-", "")
-        .replace("_", "")
-        .replace(" ", "")
-}
-
-private fun isKnownHeaderKey(normalizedKey: String): Boolean {
-    val knownKeywords = listOf(
-        "agent", "ua",
-        "refer", "ref",
-        "origin", "org",
-        "cookie",
-        "auth", "bearer", "token",
-        "content", "type",
-        "accept", "acc",
-        "range",
-        "host",
-        "apikey",
-        "forward", "xff",
-        "cache", "control",
-        "pragma",
-        "connection", "conn"
-    )
-    
-    return knownKeywords.any { normalizedKey.contains(it) } ||
-           normalizedKey.startsWith("x") ||
-           normalizedKey.startsWith("sec")
-}
-
-private fun normalizeDrmScheme(scheme: String): String {
-    val lower = scheme.lowercase().trim()
-    return when {
-        lower.contains("clearkey") || lower == "org.w3.clearkey" || lower == "cenc" -> "clearkey"
-        lower.contains("widevine") || lower == "com.widevine.alpha" -> "widevine"
-        lower.contains("playready") || lower == "com.microsoft.playready" -> "playready"
-        lower.contains("fairplay") || lower == "com.apple.fps" || lower == "fps" -> "fairplay"
-        else -> lower
-    }
-}
 
     private fun buildStreamUrl(link: LiveEventLink): String {
         var url = link.url
