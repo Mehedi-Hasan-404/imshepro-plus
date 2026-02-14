@@ -119,7 +119,7 @@ class MainActivity : AppCompatActivity() {
                     binding.drawerLayout.closeDrawer(GravityCompat.START)
                     true
                 }
-                R.id.contactFragment, R.id.networkStreamFragment -> {
+                R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment -> {
                     // Close drawer first, then navigate
                     binding.drawerLayout.closeDrawer(GravityCompat.START)
                     
