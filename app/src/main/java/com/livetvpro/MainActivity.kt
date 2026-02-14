@@ -176,7 +176,8 @@ class MainActivity : AppCompatActivity() {
                 binding.btnFavorites.visibility = View.VISIBLE
             }
             
-            if (isTopLevel) {
+            // Network Stream and other non-top-level destinations should show back arrow
+            if (isTopLevel && !isNetworkStream) {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 
                 animateNavigationIcon(0f) 
