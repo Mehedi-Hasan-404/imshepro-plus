@@ -532,6 +532,9 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
+        // Rebind controls after exiting PiP to ensure they work properly
+        bindControllerViews()
+        
         if (wasLockedBeforePip) {
             isLocked = true
             binding.playerView.useController = false
@@ -1337,90 +1340,117 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun bindControllerViews() {
-        binding.playerView.post {
-            with(binding.playerView) {
-                btnBack = findViewById(R.id.exo_back)
-                btnPip = findViewById(R.id.exo_pip)
-                btnSettings = findViewById(R.id.exo_settings)
-                btnLock = findViewById(R.id.exo_lock)
-                btnMute = findViewById(R.id.exo_mute)
-                btnRewind = findViewById(R.id.exo_rewind)
-                btnPlayPause = findViewById(R.id.exo_play_pause)
-                btnForward = findViewById(R.id.exo_forward)
-                btnFullscreen = findViewById(R.id.exo_fullscreen)
-                btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
-                tvChannelName = findViewById(R.id.exo_channel_name)
-            }
-            
-            btnBack?.setImageResource(R.drawable.ic_arrow_back)
-            btnPip?.setImageResource(R.drawable.ic_pip)
-            btnSettings?.setImageResource(R.drawable.ic_settings)
-            btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
-            updateMuteIcon()
-            btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-            updatePlayPauseIcon(player?.isPlaying == true)
-            btnForward?.setImageResource(R.drawable.ic_skip_forward)
-            btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
-            
-            val currentOrientation = resources.configuration.orientation
-            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            } else {
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            }
-            
-            listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, 
-                   btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-                it?.apply { 
-                    isClickable = true
-                    isFocusable = true
-                    isEnabled = true
-                    visibility = View.VISIBLE
-                }
-            }
-            
-            btnAspectRatio?.visibility = View.VISIBLE
-            btnPip?.visibility = View.VISIBLE
-            btnFullscreen?.visibility = View.VISIBLE
-            
-            tvChannelName?.visibility = View.VISIBLE
-            if (contentType == ContentType.NETWORK_STREAM) {
-                tvChannelName?.text = ""
-            } else {
-                tvChannelName?.text = contentName
-            }
-            
+        // Use postDelayed to ensure PlayerView controller is fully inflated
+        binding.playerView.postDelayed({
             try {
-                val bergenSansFont = resources.getFont(R.font.bergen_sans)
-                tvChannelName?.typeface = bergenSansFont
+                with(binding.playerView) {
+                    btnBack = findViewById(R.id.exo_back)
+                    btnPip = findViewById(R.id.exo_pip)
+                    btnSettings = findViewById(R.id.exo_settings)
+                    btnLock = findViewById(R.id.exo_lock)
+                    btnMute = findViewById(R.id.exo_mute)
+                    btnRewind = findViewById(R.id.exo_rewind)
+                    btnPlayPause = findViewById(R.id.exo_play_pause)
+                    btnForward = findViewById(R.id.exo_forward)
+                    btnFullscreen = findViewById(R.id.exo_fullscreen)
+                    btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
+                    tvChannelName = findViewById(R.id.exo_channel_name)
+                }
                 
-                binding.playerView.findViewById<TextView>(R.id.exo_position)?.typeface = bergenSansFont
-                binding.playerView.findViewById<TextView>(R.id.exo_duration)?.typeface = bergenSansFont
+                // Initialize icons
+                btnBack?.setImageResource(R.drawable.ic_arrow_back)
+                btnPip?.setImageResource(R.drawable.ic_pip)
+                btnSettings?.setImageResource(R.drawable.ic_settings)
+                btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
+                updateMuteIcon()
+                btnRewind?.setImageResource(R.drawable.ic_skip_backward)
+                updatePlayPauseIcon(player?.isPlaying == true)
+                btnForward?.setImageResource(R.drawable.ic_skip_forward)
+                btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
+                
+                val currentOrientation = resources.configuration.orientation
+                if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
+                    btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
+                } else {
+                    btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
+                }
+                
+                // Enable all controls
+                listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, 
+                       btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
+                    it?.apply { 
+                        isClickable = true
+                        isFocusable = true
+                        isEnabled = true
+                        visibility = View.VISIBLE
+                    }
+                }
+                
+                btnAspectRatio?.visibility = View.VISIBLE
+                btnPip?.visibility = View.VISIBLE
+                btnFullscreen?.visibility = View.VISIBLE
+                
+                tvChannelName?.visibility = View.VISIBLE
+                if (contentType == ContentType.NETWORK_STREAM) {
+                    tvChannelName?.text = ""
+                } else {
+                    tvChannelName?.text = contentName
+                }
+                
+                try {
+                    val bergenSansFont = resources.getFont(R.font.bergen_sans)
+                    tvChannelName?.typeface = bergenSansFont
+                    
+                    binding.playerView.findViewById<TextView>(R.id.exo_position)?.typeface = bergenSansFont
+                    binding.playerView.findViewById<TextView>(R.id.exo_duration)?.typeface = bergenSansFont
+                } catch (e: Exception) {
+                    // Font loading failed, continue with default
+                }
+                
+                setupControlListeners()
             } catch (e: Exception) {
+                // If binding fails, retry once after a longer delay
+                binding.playerView.postDelayed({
+                    bindControllerViews()
+                }, 100)
             }
-            
-            setupControlListeners()
-        }
+        }, 50)
     }
 
     private fun setupControlListeners() {
-        btnBack?.setOnClickListener { if (!isLocked) finish() }
+        btnBack?.apply {
+            setOnClickListener { if (!isLocked) finish() }
+        }
         
-        btnPip?.setOnClickListener {
-            if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                userRequestedPip = true
-                enterPipMode()
+        btnPip?.apply {
+            setOnClickListener {
+                if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    userRequestedPip = true
+                    enterPipMode()
+                }
             }
         }
         
-        btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
-        btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
-        btnLock?.setOnClickListener { toggleLock() }
+        btnSettings?.apply {
+            setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
+        }
         
-        btnRewind?.setOnClickListener {
-            if (!isLocked) player?.let { p ->
-                val newPosition = p.currentPosition - skipMs
-                p.seekTo(if (newPosition < 0) 0 else newPosition)
+        btnAspectRatio?.apply {
+            setOnClickListener { if (!isLocked) toggleAspectRatio() }
+        }
+        
+        btnLock?.apply {
+            setOnClickListener { toggleLock() }
+        }
+        
+        btnRewind?.apply {
+            setOnClickListener {
+                if (!isLocked) {
+                    player?.let { p ->
+                        val newPosition = p.currentPosition - skipMs
+                        p.seekTo(if (newPosition < 0) 0 else newPosition)
+                    }
+                }
             }
         }
         
@@ -1432,13 +1462,17 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        btnForward?.setOnClickListener {
-            if (!isLocked) player?.let { p ->
-                val newPosition = p.currentPosition + skipMs
-                if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
-                    p.seekTo(p.duration)
-                } else {
-                    p.seekTo(newPosition)
+        btnForward?.apply {
+            setOnClickListener {
+                if (!isLocked) {
+                    player?.let { p ->
+                        val newPosition = p.currentPosition + skipMs
+                        if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
+                            p.seekTo(p.duration)
+                        } else {
+                            p.seekTo(newPosition)
+                        }
+                    }
                 }
             }
         }
@@ -1453,7 +1487,9 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
+        btnMute?.apply {
+            setOnClickListener { if (!isLocked) toggleMute() }
+        }
     }
 
     private fun handlePlayPauseClick() {
@@ -1654,6 +1690,7 @@ class PlayerActivity : AppCompatActivity() {
             val builder = PictureInPictureParams.Builder()
             builder.setAspectRatio(ratio)
             
+            // Build PiP actions - these work independently of the UI controls
             val actions = buildPipActions()
             builder.setActions(actions)
             
@@ -1674,6 +1711,8 @@ class PlayerActivity : AppCompatActivity() {
                 setPictureInPictureParams(builder.build())
             }
         } catch (e: Exception) {
+            // PiP update failed, but don't crash - log for debugging if needed
+            e.printStackTrace()
         }
     }
 
@@ -1765,7 +1804,10 @@ class PlayerActivity : AppCompatActivity() {
                         } else {
                             currentPlayer.play()
                         }
-                        updatePipParams()
+                        // Update PiP params to reflect new play state
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            updatePipParams()
+                        }
                     }
                     CONTROL_TYPE_PAUSE -> {
                         if (hasError || hasEnded) {
@@ -1773,7 +1815,10 @@ class PlayerActivity : AppCompatActivity() {
                         } else {
                             currentPlayer.pause()
                         }
-                        updatePipParams()
+                        // Update PiP params to reflect new pause state
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            updatePipParams()
+                        }
                     }
                     CONTROL_TYPE_REWIND -> {
                         if (!hasError && !hasEnded) {
