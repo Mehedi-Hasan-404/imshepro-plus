@@ -26,6 +26,9 @@
         <action
             android:id="@+id/action_home_to_contact"
             app:destination="@id/contactFragment" />
+        <action
+            android:id="@+id/action_home_to_playlists"
+            app:destination="@id/playlistsFragment" />
     </fragment>
 
     <fragment
@@ -125,6 +128,20 @@
             app:destination="@id/homeFragment"
             app:popUpTo="@id/homeFragment"
             app:popUpToInclusive="false" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/playlistsFragment"
+        android:name="com.livetvpro.ui.playlists.PlaylistsFragment"
+        android:label="Playlists">
+        <action
+            android:id="@+id/action_playlists_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="false" />
+        <action
+            android:id="@+id/action_playlists_to_category"
+            app:destination="@id/categoryChannelsFragment" />
     </fragment>
 
 </navigation>
