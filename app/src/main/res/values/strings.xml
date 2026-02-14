@@ -11,6 +11,7 @@
     <string name="nav_favorites">Favorites</string>
     <string name="nav_floating_player">Floating Player</string>
     <string name="nav_network_stream">Network Stream</string>
+    <string name="nav_playlists">Playlists</string>
     
     <!-- Drawer -->
     <string name="navigation_drawer_open">Open navigation drawer</string>
