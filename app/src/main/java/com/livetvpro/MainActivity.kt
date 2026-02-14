@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -78,7 +79,7 @@ class MainActivity : AppCompatActivity() {
             isDrawerSlideAnimationEnabled = true
             syncState()
         }
-        
+    
         drawerToggle?.let {
             binding.drawerLayout.addDrawerListener(it)
         }
@@ -176,47 +177,46 @@ class MainActivity : AppCompatActivity() {
                 binding.btnFavorites.visibility = View.VISIBLE
             }
             
-            // Network Stream and other non-top-level destinations should show back arrow
-            if (isTopLevel && !isNetworkStream) {
-                binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
-                
-                animateNavigationIcon(0f) 
+            // Use post to ensure this runs AFTER layout changes (fixing the hamburger glitch)
+            binding.toolbar.post {
+                // Network Stream and other non-top-level destinations should show back arrow
+                if (isTopLevel && !isNetworkStream) {
+                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
+                    
+                    animateNavigationIcon(0f) // Hamburger
 
-                binding.toolbar.setNavigationOnClickListener {
-                    if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                        binding.drawerLayout.closeDrawer(GravityCompat.START)
-                    } else {
-                        binding.drawerLayout.openDrawer(GravityCompat.START)
+                    binding.toolbar.setNavigationOnClickListener {
+                        if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                            binding.drawerLayout.closeDrawer(GravityCompat.START)
+                        } else {
+                            binding.drawerLayout.openDrawer(GravityCompat.START)
+                        }
                     }
-                }
-                
-                binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
-                
-                val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
-                animateBottomNavItem(currentView)
+                    
+                    binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
+                    val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
+                    animateBottomNavItem(currentView)
 
-            } else {
-                binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
-                
-                // Post animation to ensure it happens after drawer closes
-                binding.toolbar.post {
-                    animateNavigationIcon(1f)
+                } else {
+                    binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+                    
+                    animateNavigationIcon(1f) // Back Arrow
+                    
+                    binding.toolbar.setNavigationOnClickListener {
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                    
+                    if (lastSelectedView != null) {
+                        lastSelectedView?.animate()
+                            ?.scaleX(1.0f)
+                            ?.scaleY(1.0f)
+                            ?.translationY(0f)
+                            ?.setDuration(150)
+                            ?.start()
+                        lastSelectedView = null
+                    }
+                    indicator.animate().alpha(0f).setDuration(150).start()
                 }
-                
-                binding.toolbar.setNavigationOnClickListener {
-                    onBackPressedDispatcher.onBackPressed()
-                }
-                
-                if (lastSelectedView != null) {
-                    lastSelectedView?.animate()
-                        ?.scaleX(1.0f)
-                        ?.scaleY(1.0f)
-                        ?.translationY(0f)
-                        ?.setDuration(150)
-                        ?.start()
-                    lastSelectedView = null
-                }
-                indicator.animate().alpha(0f).setDuration(150).start()
             }
             
             if (isSearchVisible) {
@@ -416,7 +416,7 @@ class MainActivity : AppCompatActivity() {
             val slideOffset = valueAnimator.animatedValue as Float
             drawerToggle?.drawerArrowDrawable?.progress = slideOffset
         }
-        animator.interpolator = android.view.animation.DecelerateInterpolator()
+        animator.interpolator = DecelerateInterpolator()
         animator.duration = 300
         animator.start()
     }
