@@ -1,23 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="512"
-    android:viewportHeight="512">
-    <!-- Playlist icon: play button on left, three horizontal lines on right -->
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M0,30C0,13.4 13.4,0 30,0L182,0C198.6,0 212,13.4 212,30L212,150C212,166.6 198.6,180 182,180L30,180C13.4,180 0,166.6 0,150L0,30ZM48,64L48,116L110,90L48,64Z"/>
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M232,30C232,13.4 245.4,0 262,0L482,0C498.6,0 512,13.4 512,30L512,90C512,106.6 498.6,120 482,120L262,120C245.4,120 232,106.6 232,90L232,30Z"/>
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M232,150C232,133.4 245.4,120 262,120L482,120C498.6,120 512,133.4 512,150L512,210C512,226.6 498.6,240 482,240L262,240C245.4,240 232,226.6 232,210L232,150Z"/>
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M0,270C0,253.4 13.4,240 30,240L482,240C498.6,240 512,253.4 512,270L512,330C512,346.6 498.6,360 482,360L30,360C13.4,360 0,346.6 0,330L0,270Z"/>
-    <path
-        android:fillColor="#FF000000"
-        android:pathData="M0,390C0,373.4 13.4,360 30,360L482,360C498.6,360 512,373.4 512,390L512,482C512,498.6 498.6,512 482,512L30,512C13.4,512 0,498.6 0,482L0,390Z"/>
+    android:viewportHeight="512"
+    android:tint="?attr/colorControlNormal">
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M120,640L120,560L400,560L400,640L120,640ZM120,480L120,400L560,400L560,480L120,480ZM120,320L120,240L560,240L560,320L120,320ZM640,800L640,640L480,640L480,560L640,560L640,400L720,400L720,560L880,560L880,640L720,640L720,800L640,800Z"/>
 </vector>
