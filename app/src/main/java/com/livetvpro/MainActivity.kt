@@ -119,12 +119,6 @@ class MainActivity : AppCompatActivity() {
                     binding.drawerLayout.closeDrawer(GravityCompat.START)
                     true
                 }
-                R.id.contactFragment, R.id.networkStreamFragment -> {
-                    // Navigate to non-top-level fragments
-                    navController.navigate(menuItem.itemId)
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                    true
-                }
                 else -> {
                     if (menuItem.itemId in topLevelDestinations) {
                         navigateTopLevel(menuItem.itemId)
@@ -163,6 +157,18 @@ class MainActivity : AppCompatActivity() {
             }
             
             val isTopLevel = destination.id in topLevelDestinations
+            val isNetworkStream = destination.id == R.id.networkStreamFragment
+            
+            // Hide bottom navigation and search/favorites for Network Stream
+            if (isNetworkStream) {
+                binding.bottomNavigation.visibility = View.GONE
+                binding.btnSearch.visibility = View.GONE
+                binding.btnFavorites.visibility = View.GONE
+            } else {
+                binding.bottomNavigation.visibility = View.VISIBLE
+                binding.btnSearch.visibility = View.VISIBLE
+                binding.btnFavorites.visibility = View.VISIBLE
+            }
             
             if (isTopLevel) {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
