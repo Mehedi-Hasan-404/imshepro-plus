@@ -138,7 +138,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private var savedPlaybackPosition: Long = -1L
 
     enum class ContentType {
-        CHANNEL, EVENT
+        CHANNEL, EVENT, NETWORK_STREAM
     }
 
     companion object {
@@ -648,6 +648,51 @@ class FloatingPlayerActivity : AppCompatActivity() {
     // ===== Rest of your existing methods (unchanged) =====
     
     private fun parseIntent() {
+        // Check if this is a network stream request
+        val isNetworkStream = intent.getBooleanExtra("IS_NETWORK_STREAM", false)
+        
+        if (isNetworkStream) {
+            // Handle network stream
+            contentType = ContentType.NETWORK_STREAM
+            contentName = intent.getStringExtra("CHANNEL_NAME") ?: "Network Stream"
+            contentId = "network_stream_${System.currentTimeMillis()}"
+            
+            // Get network stream parameters
+            val streamUrlRaw = intent.getStringExtra("STREAM_URL") ?: ""
+            val cookie = intent.getStringExtra("COOKIE") ?: ""
+            val referer = intent.getStringExtra("REFERER") ?: ""
+            val origin = intent.getStringExtra("ORIGIN") ?: ""
+            val drmLicense = intent.getStringExtra("DRM_LICENSE") ?: ""
+            val userAgent = intent.getStringExtra("USER_AGENT") ?: "Default"
+            val drmScheme = intent.getStringExtra("DRM_SCHEME") ?: "clearkey"
+            
+            // Create a single link with network stream data
+            allEventLinks = listOf(
+                LiveEventLink(
+                    quality = "Network Stream",
+                    url = streamUrlRaw,
+                    cookie = cookie,
+                    referer = referer,
+                    origin = origin,
+                    userAgent = userAgent,
+                    drmScheme = drmScheme,
+                    drmLicenseUrl = drmLicense
+                )
+            )
+            
+            currentLinkIndex = 0
+            streamUrl = buildStreamUrl(allEventLinks[0])
+            
+            // Extract playback position if coming from FloatingPlayerService
+            val savedPosition = intent.getLongExtra("playback_position", -1L)
+            if (savedPosition > 0) {
+                this.savedPlaybackPosition = savedPosition
+                android.util.Log.d("FloatingPlayerActivity", "Received saved position: $savedPosition")
+            }
+            return
+        }
+        
+        // Original channel/event parsing logic
         channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
@@ -730,6 +775,12 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupRelatedChannels() {
+        if (contentType == ContentType.NETWORK_STREAM) {
+            // For network streams, hide the related channels section
+            binding.relatedChannelsSection.visibility = View.GONE
+            return
+        }
+        
         if (contentType == ContentType.EVENT) {
             relatedEventsAdapter = LiveEventAdapter(
                 context = this,
@@ -828,6 +879,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 eventData?.let { event ->
                     viewModel.loadRelatedEvents(event.id)
                 }
+            }
+            ContentType.NETWORK_STREAM -> {
+                // No related content for network streams
             }
         }
     }
@@ -1820,7 +1874,14 @@ private fun normalizeDrmScheme(scheme: String): String {
             btnPip?.visibility = View.VISIBLE
             btnFullscreen?.visibility = View.VISIBLE
             
-            tvChannelName?.text = contentName
+            // Always show title TextView to maintain layout structure
+            tvChannelName?.visibility = View.VISIBLE
+            if (contentType == ContentType.NETWORK_STREAM) {
+                // For network streams, show empty title (or use contentName if you want to show the stream name)
+                tvChannelName?.text = ""
+            } else {
+                tvChannelName?.text = contentName
+            }
             
             try {
                 val bergenSansFont = resources.getFont(R.font.bergen_sans)
