@@ -201,10 +201,8 @@ class MainActivity : AppCompatActivity() {
                 // Network Stream: Show back arrow
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
-                // Disable drawer indicator and enable back arrow
-                drawerToggle?.isDrawerIndicatorEnabled = false
-                supportActionBar?.setDisplayHomeAsUpEnabled(true)
-                supportActionBar?.setHomeButtonEnabled(true)
+                // Set back arrow manually
+                binding.toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
                 
                 binding.toolbar.setNavigationOnClickListener {
                     onBackPressedDispatcher.onBackPressed()
@@ -225,10 +223,9 @@ class MainActivity : AppCompatActivity() {
                 // Other non-top-level (Category, Contact): Animate to back arrow
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
-                // Disable drawer indicator and enable back arrow
+                // Disable drawer indicator to show animated back arrow
                 drawerToggle?.isDrawerIndicatorEnabled = false
                 supportActionBar?.setDisplayHomeAsUpEnabled(true)
-                supportActionBar?.setHomeButtonEnabled(true)
                 
                 binding.toolbar.setNavigationOnClickListener {
                     onBackPressedDispatcher.onBackPressed()
