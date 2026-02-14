@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    kotlin("kapt")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
     id("kotlin-parcelize")
@@ -200,12 +199,12 @@ dependencies {
     // Dependency Injection - Hilt
     val hiltVersion = "2.52"
     implementation("com.google.dagger:hilt-android:$hiltVersion")
-    kapt("com.google.dagger:hilt-compiler:$hiltVersion")
+    ksp("com.google.dagger:hilt-compiler:$hiltVersion")
 
     // Image Loading - Glide
     val glideVersion = "4.16.0"
     implementation("com.github.bumptech.glide:glide:$glideVersion")
-    kapt("com.github.bumptech.glide:compiler:$glideVersion")
+    ksp("com.github.bumptech.glide:ksp:$glideVersion")
     
     // SVG Support for Glide
     implementation("com.caverock:androidsvg-aar:1.4")
@@ -239,8 +238,11 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
 
-kapt {
-    correctErrorTypes = true
+// KSP Configuration
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+    arg("room.incremental", "true")
+    arg("room.generateKotlin", "true")
 }
 
 // Version Code Configuration for ABI Splits
