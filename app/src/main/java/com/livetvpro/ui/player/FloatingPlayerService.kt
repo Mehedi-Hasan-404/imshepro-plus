@@ -257,6 +257,54 @@ class FloatingPlayerService : Service() {
         }
         
         /**
+         * Start floating player with network stream
+         */
+        fun startFloatingPlayerWithNetworkStream(
+            context: Context,
+            instanceId: String,
+            streamUrl: String,
+            cookie: String = "",
+            referer: String = "",
+            origin: String = "",
+            drmLicense: String = "",
+            userAgent: String = "Default",
+            drmScheme: String = "clearkey",
+            streamName: String = "Network Stream"
+        ): Boolean {
+            try {
+                val intent = Intent(context, FloatingPlayerService::class.java).apply {
+                    putExtra(EXTRA_INSTANCE_ID, instanceId)
+                    putExtra("IS_NETWORK_STREAM", true)
+                    putExtra("STREAM_URL", streamUrl)
+                    putExtra("COOKIE", cookie)
+                    putExtra("REFERER", referer)
+                    putExtra("ORIGIN", origin)
+                    putExtra("DRM_LICENSE", drmLicense)
+                    putExtra("USER_AGENT", userAgent)
+                    putExtra("DRM_SCHEME", drmScheme)
+                    putExtra("CHANNEL_NAME", streamName)
+                    putExtra(EXTRA_LINK_INDEX, 0)
+                }
+                
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    context.startForegroundService(intent)
+                } else {
+                    context.startService(intent)
+                }
+                
+                return true
+                
+            } catch (e: Exception) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Failed to start floating player: ${e.message}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                return false
+            }
+        }
+        
+        /**
          * Update an existing floating player with a new stream
          */
         fun updateFloatingPlayer(
@@ -369,12 +417,41 @@ class FloatingPlayerService : Service() {
         
         val instanceId = intent?.getStringExtra(EXTRA_INSTANCE_ID) ?: java.util.UUID.randomUUID().toString()
         val isRestoredFromFullscreen = intent?.getBooleanExtra("use_transferred_player", false) == true
+        val isNetworkStream = intent?.getBooleanExtra("IS_NETWORK_STREAM", false) == true
         
         // FIX Bug 2: Don't block restoration of the same instance ID.
         // When a floating window launches fullscreen it removes itself from activeInstances.
         // The PiP button in FloatingPlayerActivity sends the same instanceId back,
         // so we must NOT treat it as a duplicate—we need to re-add the window.
         if (activeInstances.containsKey(instanceId) && !isRestoredFromFullscreen) {
+            return START_STICKY
+        }
+        
+        // Handle network streams
+        if (isNetworkStream) {
+            val streamUrl = intent?.getStringExtra("STREAM_URL") ?: ""
+            val cookie = intent?.getStringExtra("COOKIE") ?: ""
+            val referer = intent?.getStringExtra("REFERER") ?: ""
+            val origin = intent?.getStringExtra("ORIGIN") ?: ""
+            val drmLicense = intent?.getStringExtra("DRM_LICENSE") ?: ""
+            val userAgent = intent?.getStringExtra("USER_AGENT") ?: "Default"
+            val drmScheme = intent?.getStringExtra("DRM_SCHEME") ?: "clearkey"
+            val streamName = intent?.getStringExtra("CHANNEL_NAME") ?: "Network Stream"
+            
+            if (streamUrl.isNotBlank()) {
+                createFloatingPlayerInstanceForNetworkStream(
+                    instanceId = instanceId,
+                    streamUrl = streamUrl,
+                    cookie = cookie,
+                    referer = referer,
+                    origin = origin,
+                    drmLicense = drmLicense,
+                    userAgent = userAgent,
+                    drmScheme = drmScheme,
+                    streamName = streamName
+                )
+                updateNotification()
+            }
             return START_STICKY
         }
         
@@ -700,6 +777,132 @@ class FloatingPlayerService : Service() {
     }
 
     /**
+     * Create floating player instance for network stream
+     */
+    private fun createFloatingPlayerInstanceForNetworkStream(
+        instanceId: String,
+        streamUrl: String,
+        cookie: String,
+        referer: String,
+        origin: String,
+        drmLicense: String,
+        userAgent: String,
+        drmScheme: String,
+        streamName: String
+    ) {
+        try {
+            // Build full stream URL with parameters
+            val params = mutableListOf<String>()
+            if (cookie.isNotEmpty()) params.add("cookie=$cookie")
+            if (referer.isNotEmpty()) params.add("referer=$referer")
+            if (origin.isNotEmpty()) params.add("origin=$origin")
+            if (userAgent.isNotEmpty()) params.add("user-agent=$userAgent")
+            if (drmScheme.isNotEmpty()) params.add("drmScheme=$drmScheme")
+            if (drmLicense.isNotEmpty()) params.add("drmLicense=$drmLicense")
+            
+            val fullStreamUrl = if (params.isNotEmpty()) {
+                streamUrl + "|" + params.joinToString("|")
+            } else {
+                streamUrl
+            }
+            
+            val floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
+            
+            val screenWidth = getScreenWidth()
+            val screenHeight = getScreenHeight()
+            val statusBarHeight: Int = run {
+                val resId = resources.getIdentifier("status_bar_height", "dimen", "android")
+                if (resId > 0) resources.getDimensionPixelSize(resId) else 0
+            }
+            
+            val savedWidth = preferencesManager.getFloatingPlayerWidth()
+            val savedHeight = preferencesManager.getFloatingPlayerHeight()
+            val initialWidth = if (savedWidth > 0) {
+                savedWidth.coerceIn(getMinWidth(), getMaxWidth())
+            } else {
+                (screenWidth * 0.6f).toInt().coerceIn(getMinWidth(), getMaxWidth())
+            }
+            val initialHeight = if (savedHeight > 0) {
+                savedHeight.coerceIn(getMinHeight(), getMaxHeight())
+            } else {
+                initialWidth * 9 / 16
+            }
+            
+            val savedX = preferencesManager.getFloatingPlayerX()
+            val savedY = preferencesManager.getFloatingPlayerY()
+            val initialX = if (savedX != Int.MIN_VALUE) savedX
+                           else (screenWidth - initialWidth) / 2
+            val initialY = if (savedY != Int.MIN_VALUE) savedY
+                           else statusBarHeight + (screenHeight - statusBarHeight - initialHeight) / 2
+            
+            val layoutParams = WindowManager.LayoutParams(
+                initialWidth,
+                initialHeight,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                },
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                x = initialX
+                y = initialY
+            }
+            
+            val player = ExoPlayer.Builder(this).build()
+            val mediaItem = MediaItem.fromUri(fullStreamUrl)
+            player.setMediaItem(mediaItem)
+            player.prepare()
+            player.playWhenReady = true
+            
+            val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
+            playerView.player = player
+            
+            val titleText = floatingView.findViewById<TextView>(R.id.tv_title)
+            titleText.text = streamName
+            
+            val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
+            val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
+            
+            setupFloatingControls(floatingView, playerView, layoutParams, instanceId, player, lockOverlay, unlockButton, null, null)
+            
+            windowManager?.addView(floatingView, layoutParams)
+            
+            hideControlsHandlers[instanceId] = android.os.Handler(android.os.Looper.getMainLooper())
+            
+            val instance = FloatingPlayerInstance(
+                instanceId = instanceId,
+                floatingView = floatingView,
+                player = player,
+                playerView = playerView,
+                params = layoutParams,
+                currentChannel = null,
+                currentEvent = null,
+                lockOverlay = lockOverlay,
+                unlockButton = unlockButton
+            )
+            activeInstances[instanceId] = instance
+            
+            if (activeInstances.size == 1) {
+                val notification = createNotification(streamName)
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            
+        } catch (e: Exception) {
+            android.widget.Toast.makeText(
+                this,
+                "Failed to create floating player: ${e.message}",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    /**
      * Update an existing floating player instance with a new stream
      */
     private fun updateInstanceStream(instanceId: String, channel: Channel, linkIndex: Int) {
@@ -777,7 +980,7 @@ class FloatingPlayerService : Service() {
             val currentChannel = instance?.currentChannel
             val currentEvent = instance?.currentEvent
 
-            if (currentPlayer != null && (currentChannel != null || currentEvent != null)) {
+            if (currentPlayer != null) {
                 // Save both size AND position so PiP→back restores them exactly
                 preferencesManager.setFloatingPlayerWidth(params.width)
                 preferencesManager.setFloatingPlayerHeight(params.height)
@@ -806,11 +1009,21 @@ class FloatingPlayerService : Service() {
 
                 // Launch fullscreen activity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                    if (currentChannel != null) {
-                        putExtra("extra_channel", currentChannel)
-                    }
-                    if (currentEvent != null) {
-                        putExtra("extra_event", currentEvent)
+                    // Check if this is a network stream (no channel or event)
+                    if (currentChannel == null && currentEvent == null && streamUrl.isNotEmpty()) {
+                        // Network stream
+                        putExtra("IS_NETWORK_STREAM", true)
+                        putExtra("STREAM_URL", streamUrl)
+                        putExtra("CHANNEL_NAME", contentName)
+                        // Parse additional parameters from stream URL if needed
+                    } else {
+                        // Channel or event
+                        if (currentChannel != null) {
+                            putExtra("extra_channel", currentChannel)
+                        }
+                        if (currentEvent != null) {
+                            putExtra("extra_event", currentEvent)
+                        }
                     }
                     putExtra("use_transferred_player", true)
                     putExtra("source_instance_id", instanceId)
