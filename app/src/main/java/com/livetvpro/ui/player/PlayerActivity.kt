@@ -1452,7 +1452,13 @@ class PlayerActivity : AppCompatActivity() {
             btnPip?.visibility = View.VISIBLE
             btnFullscreen?.visibility = View.VISIBLE
             
-            tvChannelName?.text = contentName
+            // Hide title for network streams, show for others
+            if (contentType == ContentType.NETWORK_STREAM) {
+                tvChannelName?.visibility = View.GONE
+            } else {
+                tvChannelName?.visibility = View.VISIBLE
+                tvChannelName?.text = contentName
+            }
             
             try {
                 val bergenSansFont = resources.getFont(R.font.bergen_sans)
