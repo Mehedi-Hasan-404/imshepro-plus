@@ -12,6 +12,11 @@
             android:title="@string/nav_live" />
 
         <item
+            android:id="@+id/playlistsFragment"
+            android:icon="@drawable/ic_playlist"
+            android:title="@string/nav_playlists" />
+
+        <item
             android:id="@+id/contactFragment"
             android:icon="@drawable/ic_contact"
             android:title="@string/nav_contact" />
