@@ -532,19 +532,24 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        // Rebind controls after exiting PiP to ensure they work properly
-        bindControllerViews()
-        
+        // Restore controller state BEFORE rebinding controls
         if (wasLockedBeforePip) {
             isLocked = true
             binding.playerView.useController = false
             binding.lockOverlay.visibility = View.VISIBLE
-            showUnlockButton()
             wasLockedBeforePip = false
         } else {
             isLocked = false
             binding.playerView.useController = true
-            
+        }
+        
+        // Rebind controls after controller is enabled
+        bindControllerViews()
+        
+        // Show controller and unlock button if needed
+        if (wasLockedBeforePip || isLocked) {
+            showUnlockButton()
+        } else {
             binding.playerView.postDelayed({
                 if (!isInPipMode && !isLocked) {
                     binding.playerView.showController()
