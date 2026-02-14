@@ -44,6 +44,8 @@ import kotlin.math.abs
 class FloatingPlayerService : Service() {
 
     // Data class to hold player instance information
+
+    // 🔥 FIX #4: Added network stream metadata storage
     data class FloatingPlayerInstance(
         val instanceId: String,
         val floatingView: View,
@@ -55,7 +57,17 @@ class FloatingPlayerService : Service() {
         var controlsLocked: Boolean = false,
         var isMuted: Boolean = false,
         val lockOverlay: View?,
-        val unlockButton: ImageButton?
+        val unlockButton: ImageButton?,
+        // 🔥 NEW: Network stream metadata
+        var isNetworkStream: Boolean = false,
+        var networkStreamUrl: String? = null,
+        var networkStreamName: String? = null,
+        var networkCookie: String? = null,
+        var networkReferer: String? = null,
+        var networkOrigin: String? = null,
+        var networkDrmLicense: String? = null,
+        var networkUserAgent: String? = null,
+        var networkDrmScheme: String? = null
     )
     
     private var windowManager: WindowManager? = null
@@ -876,6 +888,9 @@ class FloatingPlayerService : Service() {
             hideControlsHandlers[instanceId] = android.os.Handler(android.os.Looper.getMainLooper())
             
             val instance = FloatingPlayerInstance(
+            
+            // 🔥 FIX #4: Store network stream parameters in instance
+            val instance = FloatingPlayerInstance(
                 instanceId = instanceId,
                 floatingView = floatingView,
                 player = player,
@@ -884,7 +899,17 @@ class FloatingPlayerService : Service() {
                 currentChannel = null,
                 currentEvent = null,
                 lockOverlay = lockOverlay,
-                unlockButton = unlockButton
+                unlockButton = unlockButton,
+                // Store network stream metadata
+                isNetworkStream = true,
+                networkStreamUrl = streamUrl,
+                networkStreamName = streamName,
+                networkCookie = cookie,
+                networkReferer = referer,
+                networkOrigin = origin,
+                networkDrmLicense = drmLicense,
+                networkUserAgent = userAgent,
+                networkDrmScheme = drmScheme
             )
             activeInstances[instanceId] = instance
             
@@ -1008,16 +1033,34 @@ class FloatingPlayerService : Service() {
                 }
 
                 // Launch fullscreen activity
+
+                // Hide every OTHER floating window before the activity appears.
+                // TYPE_APPLICATION_OVERLAY windows draw above all activities, so
+                // without this they would be visible on top of FloatingPlayerActivity.
+                activeInstances.forEach { (id, inst) ->
+                    if (id != instanceId) {
+                        inst.floatingView.visibility = View.INVISIBLE
+                    }
+                }
+
+                // Launch fullscreen activity
                 val intent = Intent(this, FloatingPlayerActivity::class.java).apply {
-                    // Check if this is a network stream (no channel or event)
-                    if (currentChannel == null && currentEvent == null && streamUrl.isNotEmpty()) {
-                        // Network stream
+                    val instance = activeInstances[instanceId]
+                    
+                    // 🔥 FIX #4: Check if this is a network stream and pass ALL parameters
+                    if (instance?.isNetworkStream == true) {
+                        // Network stream - pass complete metadata
                         putExtra("IS_NETWORK_STREAM", true)
-                        putExtra("STREAM_URL", streamUrl)
-                        putExtra("CHANNEL_NAME", contentName)
-                        // Parse additional parameters from stream URL if needed
+                        putExtra("STREAM_URL", instance.networkStreamUrl ?: "")
+                        putExtra("CHANNEL_NAME", instance.networkStreamName ?: "Network Stream")
+                        putExtra("COOKIE", instance.networkCookie ?: "")
+                        putExtra("REFERER", instance.networkReferer ?: "")
+                        putExtra("ORIGIN", instance.networkOrigin ?: "")
+                        putExtra("DRM_LICENSE", instance.networkDrmLicense ?: "")
+                        putExtra("USER_AGENT", instance.networkUserAgent ?: "Default")
+                        putExtra("DRM_SCHEME", instance.networkDrmScheme ?: "clearkey")
                     } else {
-                        // Channel or event
+                        // Channel or event - existing code works fine
                         if (currentChannel != null) {
                             putExtra("extra_channel", currentChannel)
                         }
@@ -1025,6 +1068,7 @@ class FloatingPlayerService : Service() {
                             putExtra("extra_event", currentEvent)
                         }
                     }
+                    
                     putExtra("use_transferred_player", true)
                     putExtra("source_instance_id", instanceId)
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -1046,50 +1090,6 @@ class FloatingPlayerService : Service() {
                     updateNotification()
                 }
             }
-        }
-        
-        // Mute button
-        btnMute?.setOnClickListener {
-            val instance = activeInstances[instanceId] ?: return@setOnClickListener
-            instance.isMuted = !instance.isMuted
-            player.volume = if (instance.isMuted) 0f else 1f
-            btnMute.setImageResource(
-                if (instance.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
-            )
-        }
-        
-        // Lock button
-        btnLock?.setOnClickListener {
-            toggleLock(instanceId)
-        }
-        
-        // Unlock button in overlay
-        unlockButton?.setOnClickListener {
-            toggleLock(instanceId)
-        }
-        
-        // Play/Pause button
-        btnPlayPause?.setOnClickListener {
-            if (player.isPlaying) {
-                player.pause()
-                btnPlayPause.setImageResource(R.drawable.ic_play)
-            } else {
-                player.play()
-                btnPlayPause.setImageResource(R.drawable.ic_pause)
-            }
-        }
-        
-        // Seek back button
-        btnSeekBack?.setOnClickListener {
-            player.seekBack()
-        }
-        
-        // Seek forward button
-        btnSeekForward?.setOnClickListener {
-            player.seekForward()
-        }
-        
-        // Add player listener to update play/pause button icon
         
         player.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -1168,6 +1168,51 @@ class FloatingPlayerService : Service() {
                 
                 // Update play/pause button to show error state
                 btnPlayPause?.setImageResource(R.drawable.ic_error_outline)
+            }
+        })
+            player.volume = if (instance.isMuted) 0f else 1f
+            btnMute.setImageResource(
+                if (instance.isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up
+            )
+        }
+        
+        // Lock button
+        btnLock?.setOnClickListener {
+            toggleLock(instanceId)
+        }
+        
+        // Unlock button in overlay
+        unlockButton?.setOnClickListener {
+            toggleLock(instanceId)
+        }
+        
+        // Play/Pause button
+        btnPlayPause?.setOnClickListener {
+            if (player.isPlaying) {
+                player.pause()
+                btnPlayPause.setImageResource(R.drawable.ic_play)
+            } else {
+                player.play()
+                btnPlayPause.setImageResource(R.drawable.ic_pause)
+            }
+        }
+        
+        // Seek back button
+        btnSeekBack?.setOnClickListener {
+            player.seekBack()
+        }
+        
+        // Seek forward button
+        btnSeekForward?.setOnClickListener {
+            player.seekForward()
+        }
+        
+        // Add player listener to update play/pause button icon
+        player.addListener(object : Player.Listener {
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                btnPlayPause?.setImageResource(
+                    if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play
+                )
             }
         })
         
