@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.Room
 import com.livetvpro.data.local.AppDatabase
 import com.livetvpro.data.local.dao.FavoriteChannelDao
+import com.livetvpro.data.local.dao.PlaylistDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,5 +32,11 @@ object DatabaseModule {
     @Singleton
     fun provideFavoriteChannelDao(database: AppDatabase): FavoriteChannelDao {
         return database.favoriteChannelDao()
+    }
+
+    @Provides
+    @Singleton
+    fun providePlaylistDao(database: AppDatabase): PlaylistDao {
+        return database.playlistDao()
     }
 }
