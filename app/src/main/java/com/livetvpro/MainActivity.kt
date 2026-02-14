@@ -180,11 +180,6 @@ class MainActivity : AppCompatActivity() {
             if (isTopLevel && !isNetworkStream) {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 
-                // Re-enable drawer indicator for top-level
-                drawerToggle?.isDrawerIndicatorEnabled = true
-                supportActionBar?.setDisplayHomeAsUpEnabled(false)
-                drawerToggle?.syncState()  // Critical: sync the state!
-                
                 animateNavigationIcon(0f) 
 
                 binding.toolbar.setNavigationOnClickListener {
@@ -202,10 +197,6 @@ class MainActivity : AppCompatActivity() {
 
             } else {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
-                
-                // Force the drawer toggle to show back arrow
-                drawerToggle?.isDrawerIndicatorEnabled = false
-                supportActionBar?.setDisplayHomeAsUpEnabled(true)
                 
                 animateNavigationIcon(1f)
                 
