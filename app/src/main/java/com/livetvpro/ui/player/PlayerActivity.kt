@@ -141,6 +141,7 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
+        private const val EXTRA_RELATED_CHANNELS = "extra_related_channels"
         private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
         private const val EXTRA_CONTROL_TYPE = "control_type"
         private const val CONTROL_TYPE_PLAY = 1
@@ -148,10 +149,13 @@ class PlayerActivity : AppCompatActivity() {
         private const val CONTROL_TYPE_REWIND = 3
         private const val CONTROL_TYPE_FORWARD = 4
 
-        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1) {
+        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1, relatedChannels: ArrayList<Channel>? = null) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
+                relatedChannels?.let {
+                    putParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, it)
+                }
                 // Disable enter animation to prevent black screen
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
@@ -712,6 +716,14 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
+        
+        // Extract related channels if passed (e.g., from playlist)
+        val passedRelatedChannels: List<Channel>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, Channel::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS)
+        }
 
         if (channelData != null) {
             contentType = ContentType.CHANNEL
@@ -865,7 +877,22 @@ class PlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+                    // Check if related channels were passed (e.g., from playlist)
+                    val passedRelatedChannels: List<Channel>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, Channel::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS)
+                    }
+                    
+                    if (passedRelatedChannels != null && passedRelatedChannels.isNotEmpty()) {
+                        // Use passed related channels (from playlist)
+                        val filteredChannels = passedRelatedChannels.filter { it.id != channel.id }
+                        viewModel.setRelatedChannels(filteredChannels)
+                    } else {
+                        // Load from repository (normal category channels)
+                        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+                    }
                 }
             }
             ContentType.EVENT -> {
