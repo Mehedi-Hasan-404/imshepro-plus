@@ -132,6 +132,13 @@ class PlayerViewModel @Inject constructor(
             }
         }
     }
+    
+    /**
+     * Set related channels directly (e.g., from playlist)
+     */
+    fun setRelatedChannels(channels: List<Channel>) {
+        _relatedItems.postValue(channels.take(9))
+    }
 
     fun loadRelatedEvents(currentEventId: String) {
         viewModelScope.launch {
