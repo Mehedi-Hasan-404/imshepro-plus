@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")  // ⚡ ADD THIS!
     kotlin("kapt")
     id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
@@ -11,12 +12,12 @@ plugins {
 
 android {
     namespace = "com.livetvpro"
-    compileSdk = 35  // Updated to latest
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.livetvpro"
         minSdk = 24
-        targetSdk = 35  // Updated to latest
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
 
@@ -89,14 +90,11 @@ android {
     buildFeatures {
         viewBinding = true
         buildConfig = true
-        compose = true  // ⚡ CRITICAL: Required for PlayerActivity Compose controls
+        compose = true  // ⚡ Required for PlayerActivity Compose controls
     }
 
-    composeOptions {
-        // Must match Kotlin version compatibility
-        // Kotlin 1.9.20 -> Compose Compiler 1.5.4
-        kotlinCompilerExtensionVersion = "1.5.4"
-    }
+    // ⚡ NO LONGER NEEDED - Compose Compiler Plugin handles this automatically!
+    // composeOptions block is REMOVED when using the Compose Compiler Plugin
 
     packaging {
         resources {
@@ -129,21 +127,21 @@ android {
 
 dependencies {
     // Core Android
-    implementation("androidx.core:core-ktx:1.15.0")  // Updated
-    implementation("androidx.appcompat:appcompat:1.7.0")  // Updated
-    implementation("com.google.android.material:material:1.12.0")  // Updated
-    implementation("androidx.constraintlayout:constraintlayout:2.2.0")  // Updated
+    implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.appcompat:appcompat:1.7.0")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("androidx.constraintlayout:constraintlayout:2.2.0")
     implementation("androidx.drawerlayout:drawerlayout:1.2.0")
 
     // Lifecycle Components
-    val lifecycleVersion = "2.8.7"  // Updated
+    val lifecycleVersion = "2.8.7"
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycleVersion")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:$lifecycleVersion")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:$lifecycleVersion")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycleVersion")  // For Compose
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:$lifecycleVersion")
 
     // Navigation Components
-    val navVersion = "2.8.5"  // Updated
+    val navVersion = "2.8.5"
     implementation("androidx.navigation:navigation-fragment-ktx:$navVersion")
     implementation("androidx.navigation:navigation-ui-ktx:$navVersion")
 
@@ -163,13 +161,13 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     
-    // Material 3 for Compose (used in PlayerControls.kt)
+    // Material 3 for Compose
     implementation("androidx.compose.material3:material3")
     
-    // Material Icons Extended (for Icons.Filled.* in PlayerControls)
+    // Material Icons Extended
     implementation("androidx.compose.material:material-icons-extended")
     
-    // Activity Compose integration
+    // Activity Compose
     implementation("androidx.activity:activity-compose:1.9.3")
     
     // Compose Runtime
@@ -181,7 +179,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 
     // Media3 (ExoPlayer) - Latest Stable
-    val media3Version = "1.5.0"  // Updated to latest stable
+    val media3Version = "1.5.0"
     implementation("androidx.media3:media3-exoplayer:$media3Version")
     implementation("androidx.media3:media3-exoplayer-hls:$media3Version")
     implementation("androidx.media3:media3-exoplayer-dash:$media3Version")
@@ -193,17 +191,17 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
     implementation("com.squareup.okhttp3:logging-interceptor:$okhttpVersion")
     
-    val retrofitVersion = "2.11.0"  // Updated
+    val retrofitVersion = "2.11.0"
     implementation("com.squareup.retrofit2:retrofit:$retrofitVersion")
     implementation("com.squareup.retrofit2:converter-gson:$retrofitVersion")
 
     // Coroutines
-    val coroutinesVersion = "1.9.0"  // Updated
+    val coroutinesVersion = "1.9.0"
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:$coroutinesVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:$coroutinesVersion")
 
     // Dependency Injection - Hilt
-    val hiltVersion = "2.52"  // Updated
+    val hiltVersion = "2.52"
     implementation("com.google.dagger:hilt-android:$hiltVersion")
     kapt("com.google.dagger:hilt-compiler:$hiltVersion")
 
@@ -222,26 +220,26 @@ dependencies {
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
 
     // JSON - Gson
-    implementation("com.google.code.gson:gson:2.11.0")  // Updated
+    implementation("com.google.code.gson:gson:2.11.0")
 
     // Logging - Timber
     implementation("com.jakewharton.timber:timber:5.0.1")
 
     // Browser
-    implementation("androidx.browser:browser:1.8.0")  // Updated
+    implementation("androidx.browser:browser:1.8.0")
 
     // Firebase
-    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))  // Updated
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-config-ktx")
     implementation("com.google.firebase:firebase-analytics-ktx")
 
     // Lottie Animations
-    implementation("com.airbnb.android:lottie:6.6.0")  // Updated
+    implementation("com.airbnb.android:lottie:6.6.0")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")  // Updated
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")  // Updated
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
 }
 
 kapt {
