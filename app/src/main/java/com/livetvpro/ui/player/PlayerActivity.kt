@@ -1853,11 +1853,12 @@ private fun normalizeDrmScheme(scheme: String): String {
             btnPip?.visibility = View.VISIBLE
             btnFullscreen?.visibility = View.VISIBLE
             
-            // Hide title for network streams, show for others
+            // Always show title TextView to maintain layout structure
+            tvChannelName?.visibility = View.VISIBLE
             if (contentType == ContentType.NETWORK_STREAM) {
-                tvChannelName?.visibility = View.GONE
+                // For network streams, show empty title (or use contentName if you want to show the stream name)
+                tvChannelName?.text = ""
             } else {
-                tvChannelName?.visibility = View.VISIBLE
                 tvChannelName?.text = contentName
             }
             
