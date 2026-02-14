@@ -120,9 +120,13 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.contactFragment, R.id.networkStreamFragment -> {
-                    // Navigate to non-top-level fragments
-                    navController.navigate(menuItem.itemId)
+                    // Close drawer first, then navigate
                     binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    
+                    // Navigate after drawer closes to ensure proper icon animation
+                    binding.drawerLayout.postDelayed({
+                        navController.navigate(menuItem.itemId)
+                    }, 250)
                     true
                 }
                 else -> {
