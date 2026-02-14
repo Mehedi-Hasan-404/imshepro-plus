@@ -659,29 +659,54 @@ class FloatingPlayerActivity : AppCompatActivity() {
             
             // Get network stream parameters
             val streamUrlRaw = intent.getStringExtra("STREAM_URL") ?: ""
-            val cookie = intent.getStringExtra("COOKIE") ?: ""
-            val referer = intent.getStringExtra("REFERER") ?: ""
-            val origin = intent.getStringExtra("ORIGIN") ?: ""
-            val drmLicense = intent.getStringExtra("DRM_LICENSE") ?: ""
-            val userAgent = intent.getStringExtra("USER_AGENT") ?: "Default"
-            val drmScheme = intent.getStringExtra("DRM_SCHEME") ?: "clearkey"
             
-            // Create a single link with network stream data
-            allEventLinks = listOf(
-                LiveEventLink(
-                    quality = "Network Stream",
-                    url = streamUrlRaw,
-                    cookie = cookie,
-                    referer = referer,
-                    origin = origin,
-                    userAgent = userAgent,
-                    drmScheme = drmScheme,
-                    drmLicenseUrl = drmLicense
+            // Check if this is a pre-formatted URL from floating player (contains parameters)
+            // or individual parameters from NetworkStreamFragment
+            if (streamUrlRaw.contains("|")) {
+                // Pre-formatted URL from floating player - use as-is
+                streamUrl = streamUrlRaw
+                
+                // Parse it to extract individual components for display/editing if needed
+                val parsed = parseStreamUrl(streamUrlRaw)
+                allEventLinks = listOf(
+                    LiveEventLink(
+                        quality = "Network Stream",
+                        url = parsed.url,
+                        cookie = parsed.headers["Cookie"] ?: "",
+                        referer = parsed.headers["Referer"] ?: "",
+                        origin = parsed.headers["Origin"] ?: "",
+                        userAgent = parsed.headers["User-Agent"] ?: "Default",
+                        drmScheme = parsed.drmScheme,
+                        drmLicenseUrl = parsed.drmLicenseUrl
+                    )
                 )
-            )
+            } else {
+                // Individual parameters from NetworkStreamFragment
+                val cookie = intent.getStringExtra("COOKIE") ?: ""
+                val referer = intent.getStringExtra("REFERER") ?: ""
+                val origin = intent.getStringExtra("ORIGIN") ?: ""
+                val drmLicense = intent.getStringExtra("DRM_LICENSE") ?: ""
+                val userAgent = intent.getStringExtra("USER_AGENT") ?: "Default"
+                val drmScheme = intent.getStringExtra("DRM_SCHEME") ?: "clearkey"
+                
+                // Create a single link with network stream data
+                allEventLinks = listOf(
+                    LiveEventLink(
+                        quality = "Network Stream",
+                        url = streamUrlRaw,
+                        cookie = cookie,
+                        referer = referer,
+                        origin = origin,
+                        userAgent = userAgent,
+                        drmScheme = drmScheme,
+                        drmLicenseUrl = drmLicense
+                    )
+                )
+                
+                streamUrl = buildStreamUrl(allEventLinks[0])
+            }
             
             currentLinkIndex = 0
-            streamUrl = buildStreamUrl(allEventLinks[0])
             
             // Extract playback position if coming from FloatingPlayerService
             val savedPosition = intent.getLongExtra("playback_position", -1L)
