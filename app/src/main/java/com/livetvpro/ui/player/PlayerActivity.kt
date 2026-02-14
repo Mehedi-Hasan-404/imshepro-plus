@@ -1229,7 +1229,17 @@ class PlayerActivity : AppCompatActivity() {
                     // FIX 2: Ensure controls remain hidden after attaching player
                     binding.playerView.hideController()
                     
-                    val mediaItem = MediaItem.fromUri(streamInfo.url)
+                    // Create MediaItem with proper URI handling
+                    val uri = android.net.Uri.parse(streamInfo.url)
+                    val mediaItemBuilder = MediaItem.Builder().setUri(uri)
+                    
+                    // Detect HLS streams and set MIME type explicitly
+                    if (streamInfo.url.contains("m3u8", ignoreCase = true) || 
+                        streamInfo.url.contains("extension=m3u8", ignoreCase = true)) {
+                        mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+                    }
+                    
+                    val mediaItem = mediaItemBuilder.build()
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
                     exo.playWhenReady = true
