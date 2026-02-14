@@ -1238,7 +1238,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             if (transferredPlayer != null) {
                 android.util.Log.d("FloatingPlayerActivity", "Using transferred player - NO LOADING!")
                 
-                // FIXED: Hide loading indicator since we're not loading!
+                // Hide loading indicator since we're not loading
                 binding.progressBar.visibility = View.GONE
                 binding.errorView.visibility = View.GONE
                 
@@ -1253,6 +1253,70 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 bindControllerViews()
                 configurePlayerInteractions()
                 setupLockOverlay()
+                
+                // CRITICAL FIX: Attach a fresh listener so errors are shown in this Activity.
+                // The transferred player still has the Service's listener which only logs —
+                // it never calls showError(). We attach our own here to catch any errors.
+                playerListener = object : Player.Listener {
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        when (playbackState) {
+                            Player.STATE_READY -> {
+                                updatePlayPauseIcon(transferredPlayer.playWhenReady)
+                                binding.progressBar.visibility = View.GONE
+                                binding.errorView.visibility = View.GONE
+                                updatePipParams()
+                            }
+                            Player.STATE_BUFFERING -> {
+                                binding.progressBar.visibility = View.VISIBLE
+                                binding.errorView.visibility = View.GONE
+                                binding.playerView.hideController()
+                            }
+                            Player.STATE_ENDED -> {
+                                binding.progressBar.visibility = View.GONE
+                                binding.playerView.showController()
+                            }
+                            Player.STATE_IDLE -> {}
+                        }
+                    }
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        updatePlayPauseIcon(isPlaying)
+                        if (isInPipMode) updatePipParams()
+                    }
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        super.onVideoSizeChanged(videoSize)
+                        updatePipParams()
+                    }
+                    override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                        super.onPlayerError(error)
+                        binding.progressBar.visibility = View.GONE
+                        val errorMessage = when {
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_TIMEOUT ->
+                                "Connection Failed"
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS -> when {
+                                error.message?.contains("403") == true -> "Access Denied"
+                                error.message?.contains("404") == true -> "Stream Not Found"
+                                else -> "Playback Error"
+                            }
+                            error.message?.contains("drm", ignoreCase = true) == true ||
+                            error.message?.contains("widevine", ignoreCase = true) == true ||
+                            error.message?.contains("clearkey", ignoreCase = true) == true ||
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_PROVISIONING_FAILED ||
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DRM_LICENSE_ACQUISITION_FAILED ||
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_PARSING_MANIFEST_MALFORMED ||
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                            error.errorCode == androidx.media3.common.PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED ->
+                                "Stream Error"
+                            error.message?.contains("geo", ignoreCase = true) == true ||
+                            error.message?.contains("region", ignoreCase = true) == true ->
+                                "Not Available"
+                            else -> "Playback Error"
+                        }
+                        showError(errorMessage)
+                    }
+                }
+                transferredPlayer.addListener(playerListener!!)
                 
                 // Player is already playing - just continue!
                 return  // Exit early - no need to create new player
@@ -1444,9 +1508,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
     
     private fun showError(message: String) {
         binding.progressBar.visibility = View.GONE
-        binding.playerView.visibility = View.VISIBLE
-        
-        // Controls are already visible, just show the error message
         
         binding.errorText.apply {
             text = message
