@@ -173,7 +173,7 @@ class MainActivity : AppCompatActivity() {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 
                 drawerToggle?.isDrawerIndicatorEnabled = true
-                drawerToggle?.syncState()
+                animateNavigationIcon(0f)
                 
                 binding.toolbar.setNavigationOnClickListener {
                     if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
@@ -189,10 +189,11 @@ class MainActivity : AppCompatActivity() {
                 animateBottomNavItem(currentView)
 
             } else {
-                // All child pages (Network Stream, Contact, Category, Favorites): Show back arrow
+                // All child pages (Network Stream, Contact, Category, Favorites): Show back arrow with animation
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
-                binding.toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material)
+                drawerToggle?.isDrawerIndicatorEnabled = true
+                animateNavigationIcon(1f)
                 
                 binding.toolbar.setNavigationOnClickListener {
                     onBackPressedDispatcher.onBackPressed()
