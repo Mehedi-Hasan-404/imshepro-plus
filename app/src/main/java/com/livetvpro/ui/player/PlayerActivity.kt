@@ -62,18 +62,6 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-/**
- * PlayerActivity - Main video player activity
- * 
- * UPDATED VERSION with proper orientation and PiP handling
- * 
- * KEY FIXES:
- * - Modern WindowInsetsController for system UI management
- * - Complete layout recalculation on orientation changes
- * - Proper PiP state management and restoration
- * - Window flags properly restored when exiting PiP
- * - No activity recreation (handled via configChanges in manifest)
- */
 @UnstableApi
 @AndroidEntryPoint
 class PlayerActivity : AppCompatActivity() {
@@ -92,10 +80,8 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var relatedEventsAdapter: LiveEventAdapter
     private lateinit var linkChipAdapter: LinkChipAdapter
 
-    // ===== CRITICAL FIX: WindowInsetsController for modern system UI management =====
     private lateinit var windowInsetsController: WindowInsetsControllerCompat
 
-    // Custom control buttons
     private var btnBack: ImageButton? = null
     private var btnPip: ImageButton? = null
     private var btnSettings: ImageButton? = null
@@ -108,7 +94,6 @@ class PlayerActivity : AppCompatActivity() {
     private var btnAspectRatio: ImageButton? = null
     private var tvChannelName: TextView? = null
 
-    // State variables
     private var isInPipMode = false
     private var isLocked = false
     private var isMuted = false
@@ -123,7 +108,6 @@ class PlayerActivity : AppCompatActivity() {
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
 
-    // Content data
     private var contentType: ContentType = ContentType.CHANNEL
     private var channelData: Channel? = null
     private var eventData: LiveEvent? = null
@@ -156,11 +140,9 @@ class PlayerActivity : AppCompatActivity() {
                 relatedChannels?.let {
                     putParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, it)
                 }
-                // Disable enter animation to prevent black screen
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
             context.startActivity(intent)
-            // Override transition to instant (no animation)
             if (context is android.app.Activity) {
                 context.overridePendingTransition(0, 0)
             }
@@ -170,11 +152,9 @@ class PlayerActivity : AppCompatActivity() {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_EVENT, event as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
-                // Disable enter animation to prevent black screen
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
             context.startActivity(intent)
-            // Override transition to instant (no animation)
             if (context is android.app.Activity) {
                 context.overridePendingTransition(0, 0)
             }
@@ -184,23 +164,17 @@ class PlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // CRITICAL FIX: Delay showing the activity until the UI is ready
-        // This prevents the black screen issue
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             postponeEnterTransition()
         }
         
-        // Initialize binding - this persists across orientation changes
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // ===== CRITICAL FIX: Initialize WindowInsetsController =====
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
-        // Keep screen on
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         
-        // Setup window flags and UI based on initial orientation
         val currentOrientation = resources.configuration.orientation
         val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         
@@ -208,8 +182,6 @@ class PlayerActivity : AppCompatActivity() {
         setupSystemUI(isLandscape)
         setupWindowInsets()
         
-        // CRITICAL: Force 16:9 layout immediately in portrait mode
-        // This prevents the spinner from appearing in center of full screen
         if (!isLandscape) {
             exitFullscreen()
         }
@@ -220,30 +192,24 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
-        // Setup UI components
         bindControllerViews()
         setupRelatedChannels()
         setupLinksUI()
         configurePlayerInteractions()
         setupLockOverlay()
         
-        // Apply orientation
         applyOrientationSettings(isLandscape)
         
-        // Enable controller
         binding.playerView.useController = true
         binding.playerView.controllerAutoShow = false
         
-        // Show initial loading state for related channels
         if (!isLandscape) {
             binding.relatedLoadingProgress.visibility = View.VISIBLE
             binding.relatedChannelsRecycler.visibility = View.GONE
         }
         
-        // Show loading spinner
         binding.progressBar.visibility = View.VISIBLE
         
-        // CRITICAL: Start transition after UI is laid out
         binding.root.viewTreeObserver.addOnPreDrawListener(
             object : ViewTreeObserver.OnPreDrawListener {
                 override fun onPreDraw(): Boolean {
@@ -256,11 +222,9 @@ class PlayerActivity : AppCompatActivity() {
             }
         )
         
-        // Start player and load content
         setupPlayer()
         loadRelatedContent()
         
-        // Observe refreshed channel data
         viewModel.refreshedChannel.observe(this) { freshChannel ->
             if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
                 if (allEventLinks.isEmpty() || allEventLinks.size < freshChannel.links.size) {
@@ -318,13 +282,8 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
     
-    /**
-     * ===== CRITICAL FIX: Setup window flags for immersive mode =====
-     * Called on create, orientation change, and when returning from PiP
-     */
     private fun setupWindowFlags(isLandscape: Boolean) {
         if (isLandscape) {
-            // Landscape: Full immersive mode with display cutout support
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes = window.attributes.apply {
                     layoutInDisplayCutoutMode = 
@@ -332,14 +291,12 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             
-            // Set layout flags for immersive mode
             WindowCompat.setDecorFitsSystemWindows(window, false)
             window.setFlags(
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             )
         } else {
-            // Portrait: Allow system windows
             WindowCompat.setDecorFitsSystemWindows(window, true)
             window.clearFlags(WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS)
         }
@@ -348,19 +305,14 @@ class PlayerActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
     }
 
-    /**
-     * ===== CRITICAL FIX: Setup system UI visibility using modern API =====
-     */
     private fun setupSystemUI(isLandscape: Boolean) {
         if (isLandscape) {
-            // Hide all system bars in landscape
             windowInsetsController.apply {
                 hide(WindowInsetsCompat.Type.systemBars())
                 systemBarsBehavior = 
                     WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         } else {
-            // Show system bars in portrait
             windowInsetsController.apply {
                 show(WindowInsetsCompat.Type.systemBars())
                 systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
@@ -401,14 +353,9 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * ===== CRITICAL FIX: Handle configuration changes =====
-     * This is called instead of recreating the activity (thanks to configChanges in manifest)
-     */
     override fun onConfigurationChanged(newConfig: Configuration) {
     super.onConfigurationChanged(newConfig)
     
-    // If in PiP mode, just hide controller and return
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isInPictureInPictureMode) {
         binding.playerView.hideController()
         return
@@ -416,18 +363,15 @@ class PlayerActivity : AppCompatActivity() {
     
     val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
     
-    // Apply all orientation-related changes in the correct sequence
     setupWindowFlags(isLandscape)
     setupSystemUI(isLandscape)
     applyOrientationSettings(isLandscape)
     setSubtitleTextSize()
     
-    // FIX: Safety check to keep controls hidden if we are currently loading/buffering
     if (player?.playbackState == Player.STATE_BUFFERING) {
         binding.playerView.hideController()
     }
 
-    // Force layout refresh
     binding.root.post {
         binding.root.requestLayout()
         binding.playerContainer.requestLayout()
@@ -435,10 +379,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 }
 
-
-    /**
-     * Apply all orientation-specific settings
-     */
     private fun applyOrientationSettings(isLandscape: Boolean) {
         adjustLayoutForOrientation(isLandscape)
         updateLinksForOrientation(isLandscape)
@@ -449,17 +389,11 @@ class PlayerActivity : AppCompatActivity() {
         )
     }
 
-    /**
-     * ===== CRITICAL FIX: Completely recalculate layout for orientation =====
-     * This is the key method that fixes the layout issues
-     */
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         if (isLandscape) {
-            // Use enterFullscreen helper for consistency
             enterFullscreen()
             
             val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-            // Additional landscape-specific constraints
             params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             params.topMargin = 0
@@ -472,19 +406,14 @@ class PlayerActivity : AppCompatActivity() {
             binding.playerContainer.setPadding(0, 0, 0, 0)
             binding.playerContainer.layoutParams = params
             
-            // Player view settings
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 3000
             binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
         } else {
-            // Portrait mode
             
-            // For NETWORK_STREAM: Make player fullscreen like landscape
-            // For regular channels: Use 16:9 container with RecyclerView below
             if (contentType == ContentType.NETWORK_STREAM) {
-                // Network stream portrait = fullscreen with overlay controls
                 val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
                 params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
                 params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -494,28 +423,23 @@ class PlayerActivity : AppCompatActivity() {
                 params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
                 params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
                 params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                params.dimensionRatio = null  // Remove 16:9 constraint
+                params.dimensionRatio = null
                 
                 binding.playerContainer.setPadding(0, 0, 0, 0)
                 binding.playerContainer.layoutParams = params
                 
-                // Start with FIT, but allow toggling
                 binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             } else {
-                // Regular channel/event: 16:9 container with RecyclerView below
                 exitFullscreen()
                 
-                // Lock to FIT for regular channels (RecyclerView below needs consistent space)
                 binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
             
-            // Player view settings
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 5000
             
-            // Setup constraints for links section
             val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
             linksParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             linksParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
@@ -525,7 +449,6 @@ class PlayerActivity : AppCompatActivity() {
             linksParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             binding.linksSection.layoutParams = linksParams
             
-            // Setup constraints for related channels section
             val relatedParams = binding.relatedChannelsSection.layoutParams as ConstraintLayout.LayoutParams
             relatedParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             relatedParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -535,11 +458,8 @@ class PlayerActivity : AppCompatActivity() {
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
             
-            // Sections are visible by default in XML
-            // They will be hidden by ViewModel observers if no data is available
         }
         
-        // CRITICAL: Request layout update
         binding.root.requestLayout()
     }
 
@@ -554,9 +474,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * ===== CRITICAL FIX: Handle PiP mode changes =====
-     */
     override fun onPictureInPictureModeChanged(
         isInPictureInPictureMode: Boolean,
         newConfig: Configuration
@@ -566,17 +483,12 @@ class PlayerActivity : AppCompatActivity() {
         isInPipMode = isInPictureInPictureMode
         
         if (isInPipMode) {
-            // Entering PiP mode
             enterPipUIMode()
         } else {
-            // Exiting PiP mode
             exitPipUIMode(newConfig)
         }
     }
 
-    /**
-     * Configure UI for entering PiP mode
-     */
     private fun enterPipUIMode() {
         binding.playerView.useController = false 
         binding.lockOverlay.visibility = View.GONE
@@ -584,7 +496,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         binding.playerView.hideController()
         
-        // Show system UI in PiP
         WindowCompat.setDecorFitsSystemWindows(window, true)
         windowInsetsController.apply {
             show(WindowInsetsCompat.Type.systemBars())
@@ -592,10 +503,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * ===== CRITICAL FIX: Restore UI when exiting PiP mode =====
-     * This ensures all window flags and system UI are properly restored
-     */
     private fun exitPipUIMode(newConfig: Configuration) {
         userRequestedPip = false
         
@@ -607,21 +514,15 @@ class PlayerActivity : AppCompatActivity() {
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
         
-        // CRITICAL: Restore window flags and system UI
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
         
-        // Restore orientation settings
         applyOrientationSettings(isLandscape)
         
-        // Show portrait sections if not in landscape
         if (!isLandscape) {
             if (allEventLinks.size > 1) {
                 binding.linksSection.visibility = View.VISIBLE
             }
-            // Restore related section for both channels AND events.
-            // Previously only relatedChannels was checked, so EVENT content
-            // always came back blank after exiting PiP.
             val hasRelated = relatedChannels.isNotEmpty() ||
                 (contentType == ContentType.EVENT && ::relatedEventsAdapter.isInitialized)
             if (hasRelated) {
@@ -631,7 +532,6 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        // Restore lock state
         if (wasLockedBeforePip) {
             isLocked = true
             binding.playerView.useController = false
@@ -660,28 +560,20 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    // ===== Rest of your existing methods (unchanged) =====
     
     private fun parseIntent() {
-        // Check if this is a network stream request
         val isNetworkStream = intent.getBooleanExtra("IS_NETWORK_STREAM", false)
         
         if (isNetworkStream) {
-            // Handle network stream
             contentType = ContentType.NETWORK_STREAM
             contentName = intent.getStringExtra("CHANNEL_NAME") ?: "Network Stream"
             contentId = "network_stream_${System.currentTimeMillis()}"
             
-            // Get network stream parameters
             val streamUrlRaw = intent.getStringExtra("STREAM_URL") ?: ""
             
-            // Check if this is a pre-formatted URL (contains parameters already)
-            // or individual parameters from NetworkStreamFragment
             if (streamUrlRaw.contains("|")) {
-                // Pre-formatted URL - use as-is
                 streamUrl = streamUrlRaw
                 
-                // Parse it to extract individual components
                 val parsed = parseStreamUrl(streamUrlRaw)
                 allEventLinks = listOf(
                     LiveEventLink(
@@ -696,7 +588,6 @@ class PlayerActivity : AppCompatActivity() {
                     )
                 )
             } else {
-                // Individual parameters from NetworkStreamFragment
                 val cookie = intent.getStringExtra("COOKIE") ?: ""
                 val referer = intent.getStringExtra("REFERER") ?: ""
                 val origin = intent.getStringExtra("ORIGIN") ?: ""
@@ -704,7 +595,6 @@ class PlayerActivity : AppCompatActivity() {
                 val userAgent = intent.getStringExtra("USER_AGENT") ?: "Default"
                 val drmScheme = intent.getStringExtra("DRM_SCHEME") ?: "clearkey"
                 
-                // Create a single link with network stream data
                 allEventLinks = listOf(
                     LiveEventLink(
                         quality = "Network Stream",
@@ -725,7 +615,6 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         
-        // Original channel/event parsing logic
         channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableExtra(EXTRA_CHANNEL, Channel::class.java)
         } else {
@@ -742,7 +631,6 @@ class PlayerActivity : AppCompatActivity() {
 
         val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
         
-        // Extract related channels if passed (e.g., from playlist)
         val passedRelatedChannels: List<Channel>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, Channel::class.java)
         } else {
@@ -806,7 +694,6 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun setupRelatedChannels() {
         if (contentType == ContentType.NETWORK_STREAM) {
-            // For network streams, hide the related channels section
             binding.relatedChannelsSection.visibility = View.GONE
             return
         }
@@ -817,7 +704,6 @@ class PlayerActivity : AppCompatActivity() {
                 events = emptyList(), 
                 preferencesManager = preferencesManager,
                 onEventClick = { event, linkIndex ->
-                    // Switch to the selected event in the same activity
                     switchToEventFromLiveEvent(event)
                 }
             )
@@ -902,7 +788,6 @@ class PlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    // Check if related channels were passed (e.g., from playlist)
                     val passedRelatedChannels: List<Channel>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, Channel::class.java)
                     } else {
@@ -911,11 +796,9 @@ class PlayerActivity : AppCompatActivity() {
                     }
                     
                     if (passedRelatedChannels != null && passedRelatedChannels.isNotEmpty()) {
-                        // Use passed related channels (from playlist)
                         val filteredChannels = passedRelatedChannels.filter { it.id != channel.id }
                         viewModel.setRelatedChannels(filteredChannels)
                     } else {
-                        // Load from repository (normal category channels)
                         viewModel.loadRelatedChannels(channel.categoryId, channel.id)
                     }
                 }
@@ -926,7 +809,6 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             ContentType.NETWORK_STREAM -> {
-                // No related content for network streams
             }
         }
     }
@@ -1008,7 +890,6 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.loadRelatedEvents(newEvent.id)
             
         } catch (e: Exception) {
-            android.util.Log.e("PlayerActivity", "Error switching to event", e)
         }
     }
 
@@ -1159,7 +1040,6 @@ class PlayerActivity : AppCompatActivity() {
         binding.errorText.text = ""
         binding.progressBar.visibility = View.VISIBLE
         
-        // FIX 1: Hide controls immediately on setup start
         binding.playerView.hideController()
         
         trackSelector = DefaultTrackSelector(this)
@@ -1226,14 +1106,11 @@ class PlayerActivity : AppCompatActivity() {
                 .build().also { exo ->
                     binding.playerView.player = exo
                     
-                    // FIX 2: Ensure controls remain hidden after attaching player
                     binding.playerView.hideController()
                     
-                    // Create MediaItem with proper URI handling
                     val uri = android.net.Uri.parse(streamInfo.url)
                     val mediaItemBuilder = MediaItem.Builder().setUri(uri)
                     
-                    // Detect HLS streams and set MIME type explicitly
                     if (streamInfo.url.contains("m3u8", ignoreCase = true) || 
                         streamInfo.url.contains("extension=m3u8", ignoreCase = true)) {
                         mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
@@ -1248,26 +1125,19 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_READY -> {
-                                    // Stream is ready - hide loading
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
                                     
-                                    // FIX 3: REMOVED binding.playerView.showController()
-                                    // Controls will NOT auto-show. User must tap to see them.
                                     
                                     updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
                                     binding.errorView.visibility = View.GONE
-                                    // Do NOT hideController here — seeking also triggers
-                                    // STATE_BUFFERING briefly, which would hide controls
-                                    // mid-seek. The spinner is enough visual feedback.
                                 }
                                 Player.STATE_ENDED -> {
                                     binding.progressBar.visibility = View.GONE
-                                    // Optional: You might want to show controls here so user can restart
                                     binding.playerView.showController()
                                 }
                                 Player.STATE_IDLE -> {}
@@ -1332,7 +1202,6 @@ class PlayerActivity : AppCompatActivity() {
     private fun showError(message: String) {
         binding.progressBar.visibility = View.GONE
         
-        // Controls are already visible, just show the error message
         
         binding.errorText.apply {
             text = message
@@ -1514,10 +1383,8 @@ class PlayerActivity : AppCompatActivity() {
             btnPip?.visibility = View.VISIBLE
             btnFullscreen?.visibility = View.VISIBLE
             
-            // Always show title TextView to maintain layout structure
             tvChannelName?.visibility = View.VISIBLE
             if (contentType == ContentType.NETWORK_STREAM) {
-                // For network streams, show empty title (space maintained)
                 tvChannelName?.text = ""
             } else {
                 tvChannelName?.text = contentName
@@ -1694,53 +1561,39 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
     
-    /**
-     * Force exit fullscreen mode - ensures 16:9 player container immediately
-     */
     private fun exitFullscreen() {
-        // 1. Show System UI (Status bar, navigation)
         windowInsetsController.apply {
             show(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
         
-        // 2. FORCE the Player Container to 16:9 Ratio
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
         params.height = 0 // 0dp means "Match Constraint"
-        params.dimensionRatio = "H,16:9" // Force the 16:9 aspect ratio
+        params.dimensionRatio = "H,16:9"
         
-        // Remove bottom constraint to allow it to sit at the top only
         params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
         
         binding.playerContainer.layoutParams = params
 
-        // 3. Update related UI visibility if needed
         binding.relatedChannelsSection.visibility = View.VISIBLE
         binding.linksSection.visibility = View.VISIBLE
-        // Ensure the container itself is visible
         binding.playerContainer.visibility = View.VISIBLE
     }
     
-    /**
-     * Force enter fullscreen mode - makes player fill entire screen
-     */
     private fun enterFullscreen() {
-        // Hide System UI
         windowInsetsController.apply {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        // Force Player Container to Fill Screen
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
-        params.height = ConstraintLayout.LayoutParams.MATCH_PARENT // Fill height
-        params.dimensionRatio = null // Remove ratio constraint
+        params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+        params.dimensionRatio = null
         
         binding.playerContainer.layoutParams = params
         
-        // Optional: Hide other views if you want true fullscreen
         binding.relatedChannelsSection.visibility = View.GONE
         binding.linksSection.visibility = View.GONE
     }
@@ -1963,14 +1816,12 @@ class PlayerActivity : AppCompatActivity() {
         binding.errorView.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
         
-        // FIX 5: Hide controls explicitly when retrying
         binding.playerView.hideController()
         
         player?.release()
         player = null
         setupPlayer()
     }
-
 
     override fun finish() {
         try {
