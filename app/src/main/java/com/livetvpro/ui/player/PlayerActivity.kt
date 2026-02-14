@@ -491,6 +491,7 @@ class PlayerActivity : AppCompatActivity() {
             }
             
             super.onPictureInPictureModeChanged(false, newConfig)
+            exitPipUIMode(newConfig)
             return
         }
         
@@ -543,16 +544,9 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         super.onPictureInPictureModeChanged(true, newConfig)
-    } else {
-            exitPipUIMode(newConfig)
-        }
     }
 
-
-    }
-
-
-        
+    private fun exitPipUIMode(newConfig: Configuration) {
         setSubtitleTextSize()
         
         val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -602,6 +596,8 @@ class PlayerActivity : AppCompatActivity() {
             wasLockedBeforePip = controlsState.isLocked
             enterPictureInPictureMode(createPipParams())
         }
+    }
+
     private fun setupComposeControls() {
         binding.playerControlsCompose.apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
@@ -691,13 +687,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun toggleMute() {
-        player?.let {
-            isMuted = !isMuted
-            it.volume = if (isMuted) 0f else 1f
-        }
-    }
-
     private fun cycleAspectRatio() {
         currentResizeMode = when (currentResizeMode) {
             AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
@@ -716,10 +705,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-        super.onUserLeaveHint()
-    }
-
-    
     private fun parseIntent() {
         val isNetworkStream = intent.getBooleanExtra("IS_NETWORK_STREAM", false)
         
@@ -1193,7 +1178,7 @@ class PlayerActivity : AppCompatActivity() {
         return url
     }
 
-        private fun setupPlayer() {
+    private fun setupPlayer() {
         if (player != null) return
         binding.errorView.visibility = View.GONE
         binding.errorText.text = ""
@@ -1493,7 +1478,7 @@ class PlayerActivity : AppCompatActivity() {
 
 
 
-    private fun setupComposeControls() {
+    private fun bindPlayerControlViews() {
         // Use postDelayed to ensure PlayerView controller is fully inflated
         binding.playerView.postDelayed({
             try {
@@ -1565,15 +1550,13 @@ class PlayerActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 // If binding fails, retry once after a longer delay
                 binding.playerView.postDelayed({
-                    setupComposeControls()
+                    bindPlayerControlViews()
                 }, 100)
             }
         }, 50)
     }
 
-
-        }
-        
+    private fun setupControlListeners() {
         btnPip?.apply {
             setOnClickListener {
                 if (!isLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1644,11 +1627,10 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
- else {
-            if (!isLocked) {
-                player?.let { p ->
-                    if (p.isPlaying) p.pause() else p.play()
-                }
+    private fun handlePlayPauseClick() {
+        if (!isLocked) {
+            player?.let { p ->
+                if (p.isPlaying) p.pause() else p.play()
             }
         }
     }
@@ -1661,22 +1643,15 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-
-
-
+    private fun applyResizeMode() {
         binding.playerView.resizeMode = currentResizeMode
-    }
-
- catch (e: Exception) {
-        }
     }
 
     private fun configurePlayerInteractions() {
         // Player interactions now handled by Compose controls
     }
-    }
 
-
+    private fun setupLockOverlay() {
         binding.lockOverlay.setOnClickListener {
             if (binding.unlockButton.visibility == View.VISIBLE) hideUnlockButton() else showUnlockButton()
         }
@@ -1684,11 +1659,11 @@ class PlayerActivity : AppCompatActivity() {
         binding.unlockButton.visibility = View.GONE
     }
 
-
-
-
-
-
+    private fun toggleLock() {
+        isLocked = !isLocked
+        if (isLocked) {
+            binding.playerView.useController = false
+            binding.lockOverlay.visibility = View.VISIBLE
             showUnlockButton()
             btnLock?.setImageResource(R.drawable.ic_lock_closed)
         } else {
@@ -1755,10 +1730,10 @@ class PlayerActivity : AppCompatActivity() {
         val subtitleView = binding.playerView.subtitleView ?: return
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
-    
 
-        }
 
+    @SuppressLint("NewApi")
+    private fun enterPipMode() {
         binding.playerView.useController = false
         binding.lockOverlay.visibility = View.GONE
         binding.unlockButton.visibility = View.GONE
@@ -1768,9 +1743,24 @@ class PlayerActivity : AppCompatActivity() {
         updatePipParams(enter = true)
     }
 
- else {
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createPipRatio(): Rational {
+        return try {
+            val videoFormat = player?.videoFormat
+            if (videoFormat != null && videoFormat.width > 0 && videoFormat.height > 0) {
+                Rational(videoFormat.width, videoFormat.height)
+            } else {
                 Rational(16, 9)
             }
+        } catch (e: Exception) {
+            Rational(16, 9)
+        }
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun updatePipParamsInternal(enter: Boolean = false) {
+        try {
+            var ratio = createPipRatio()
             
             val rationalLimitWide = Rational(239, 100)
             val rationalLimitTall = Rational(100, 239)
@@ -1810,7 +1800,21 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
- else {
+    @SuppressLint("NewApi")
+    private fun buildPipActions(): List<android.app.RemoteAction> {
+        val actions = mutableListOf<android.app.RemoteAction>()
+        val isPlaying = player?.isPlaying == true
+        if (isPlaying) {
+            val pauseIntent = PendingIntent.getBroadcast(
+                this, CONTROL_TYPE_PAUSE,
+                Intent(ACTION_MEDIA_CONTROL).setPackage(packageName).putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
+                PendingIntent.FLAG_IMMUTABLE
+            )
+            actions.add(android.app.RemoteAction(
+                Icon.createWithResource(this, R.drawable.ic_pause),
+                getString(R.string.pause), getString(R.string.pause), pauseIntent
+            ))
+        } else {
             val playIntent = PendingIntent.getBroadcast(
                 this,
                 CONTROL_TYPE_PLAY,
@@ -1845,7 +1849,18 @@ class PlayerActivity : AppCompatActivity() {
         return actions
     }
 
- else {
+    private fun setupPipReceiver() {
+        pipReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != ACTION_MEDIA_CONTROL) return
+                val currentPlayer = player ?: return
+                val hasError = false
+                val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
+                when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
+                    CONTROL_TYPE_PLAY -> {
+                        if (hasError || hasEnded) {
+                            retryPlayback()
+                        } else {
                             currentPlayer.play()
                         }
                         // Update PiP params to reflect new play state
@@ -1891,12 +1906,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-
-        } catch (e: Exception) {
-        }
-    }
-
-    
     @RequiresApi(Build.VERSION_CODES.O)
     fun createPipParams(): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
@@ -1996,5 +2005,43 @@ class PlayerActivity : AppCompatActivity() {
         } catch (e: Exception) {
             super.finish()
         }
+    }
+
+    private fun updateMuteIcon() {
+        btnMute?.setImageResource(
+            if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_on
+        )
+    }
+
+    @SuppressLint("NewApi")
+    private fun updatePipParams(enter: Boolean = false) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            updatePipParamsInternal(enter)
+        }
+    }
+
+    private fun showUnlockButton() {
+        binding.unlockButton.visibility = View.VISIBLE
+        binding.unlockButton.setOnClickListener { toggleLock() }
+        binding.unlockButton.postDelayed({
+            if (isLocked) hideUnlockButton()
+        }, 3000)
+    }
+
+    private fun hideUnlockButton() {
+        binding.unlockButton.visibility = View.GONE
+    }
+
+    private fun showPlayerSettingsDialog() {
+        try {
+            val exoPlayer = player ?: return
+            val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(this, exoPlayer)
+            dialog.show()
+        } catch (e: Exception) {
+        }
+    }
+
+    private fun toggleAspectRatio() {
+        cycleAspectRatio()
     }
 }
