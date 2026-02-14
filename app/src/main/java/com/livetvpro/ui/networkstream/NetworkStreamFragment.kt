@@ -12,11 +12,18 @@ import androidx.fragment.app.Fragment
 import com.livetvpro.R
 import com.livetvpro.databinding.FragmentNetworkStreamBinding
 import com.livetvpro.ui.player.PlayerActivity
+import com.livetvpro.utils.FloatingPlayerHelper
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class NetworkStreamFragment : Fragment() {
 
     private var _binding: FragmentNetworkStreamBinding? = null
     private val binding get() = _binding!!
+    
+    @Inject
+    lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
 
     private val userAgentOptions = listOf(
         "Default",
@@ -125,6 +132,56 @@ class NetworkStreamFragment : Fragment() {
     }
 
     private fun launchPlayer(
+        streamUrl: String,
+        cookie: String,
+        referer: String,
+        origin: String,
+        drmLicense: String,
+        userAgent: String,
+        drmScheme: String
+    ) {
+        val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
+        val hasPermission = FloatingPlayerHelper.hasOverlayPermission(requireContext())
+        
+        if (floatingEnabled) {
+            if (!hasPermission) {
+                Toast.makeText(
+                    requireContext(),
+                    "Overlay permission required for floating player. Opening normally instead.",
+                    Toast.LENGTH_LONG
+                ).show()
+                
+                launchFullscreenPlayer(streamUrl, cookie, referer, origin, drmLicense, userAgent, drmScheme)
+                return
+            }
+            
+            try {
+                // Launch floating player for network stream
+                FloatingPlayerHelper.launchFloatingPlayerWithNetworkStream(
+                    context = requireContext(),
+                    streamUrl = streamUrl,
+                    cookie = cookie,
+                    referer = referer,
+                    origin = origin,
+                    drmLicense = drmLicense,
+                    userAgent = userAgent,
+                    drmScheme = drmScheme,
+                    streamName = "Network Stream"
+                )
+            } catch (e: Exception) {
+                Toast.makeText(
+                    requireContext(),
+                    "Failed to launch floating player: ${e.message}",
+                    Toast.LENGTH_SHORT
+                ).show()
+                launchFullscreenPlayer(streamUrl, cookie, referer, origin, drmLicense, userAgent, drmScheme)
+            }
+        } else {
+            launchFullscreenPlayer(streamUrl, cookie, referer, origin, drmLicense, userAgent, drmScheme)
+        }
+    }
+    
+    private fun launchFullscreenPlayer(
         streamUrl: String,
         cookie: String,
         referer: String,
