@@ -141,6 +141,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         CHANNEL, EVENT, NETWORK_STREAM
     }
 
+
     companion object {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
@@ -170,6 +171,67 @@ class FloatingPlayerActivity : AppCompatActivity() {
             val intent = Intent(context, FloatingPlayerActivity::class.java).apply {
                 putExtra(EXTRA_EVENT, event as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
+                // Disable enter animation to prevent black screen
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
+            context.startActivity(intent)
+            // Override transition to instant (no animation)
+            if (context is android.app.Activity) {
+                context.overridePendingTransition(0, 0)
+            }
+        }
+
+        // 🔥 FIX #1: Added network stream support
+        /**
+         * Launch FloatingPlayerActivity with a network stream
+         * 
+         * This method provides a convenient way to launch the floating player with custom
+         * network stream parameters including headers, cookies, and DRM configuration.
+         * 
+         * @param context The context from which to launch the activity
+         * @param streamUrl The URL of the stream to play
+         * @param cookie Optional cookie header value
+         * @param referer Optional referer header value
+         * @param origin Optional origin header value
+         * @param drmLicense Optional DRM license URL or key:value pair
+         * @param userAgent User agent string (default: "Default")
+         * @param drmScheme DRM scheme to use: "clearkey", "widevine", or "playready" (default: "clearkey")
+         * @param streamName Display name for the stream (default: "Network Stream")
+         * @param playbackPosition Optional playback position in milliseconds for resuming
+         */
+        fun startWithNetworkStream(
+            context: Context,
+            streamUrl: String,
+            cookie: String = "",
+            referer: String = "",
+            origin: String = "",
+            drmLicense: String = "",
+            userAgent: String = "Default",
+            drmScheme: String = "clearkey",
+            streamName: String = "Network Stream",
+            playbackPosition: Long = -1L
+        ) {
+            val intent = Intent(context, FloatingPlayerActivity::class.java).apply {
+                // Flag to indicate this is a network stream
+                putExtra("IS_NETWORK_STREAM", true)
+                
+                // Stream data
+                putExtra("STREAM_URL", streamUrl)
+                putExtra("COOKIE", cookie)
+                putExtra("REFERER", referer)
+                putExtra("ORIGIN", origin)
+                putExtra("DRM_LICENSE", drmLicense)
+                putExtra("USER_AGENT", userAgent)
+                putExtra("DRM_SCHEME", drmScheme)
+                
+                // Set a title for the player
+                putExtra("CHANNEL_NAME", streamName)
+                
+                // Optional: playback position for resuming
+                if (playbackPosition > 0) {
+                    putExtra("playback_position", playbackPosition)
+                }
+                
                 // Disable enter animation to prevent black screen
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
@@ -473,6 +535,12 @@ class FloatingPlayerActivity : AppCompatActivity() {
      * ===== CRITICAL FIX: Completely recalculate layout for orientation =====
      * This is the key method that fixes the layout issues
      */
+
+    /**
+     * ===== CRITICAL FIX: Completely recalculate layout for orientation =====
+     * This is the key method that fixes the layout issues
+     * 🔥 FIX #2: Added network stream support in portrait mode
+     */
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
         if (isLandscape) {
             // Use enterFullscreen helper for consistency
@@ -499,14 +567,40 @@ class FloatingPlayerActivity : AppCompatActivity() {
             currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
         } else {
-            // Use exitFullscreen helper for consistency
-            exitFullscreen()
+            // Portrait mode
+            
+            // 🔥 FIX #2: Check content type for network streams (like PlayerActivity does)
+            if (contentType == ContentType.NETWORK_STREAM) {
+                // Network stream portrait = fullscreen with overlay controls
+                val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+                params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+                params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+                params.topMargin = 0
+                params.bottomMargin = 0
+                params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                params.dimensionRatio = null  // Remove 16:9 constraint
+                
+                binding.playerContainer.setPadding(0, 0, 0, 0)
+                binding.playerContainer.layoutParams = params
+                
+                // Start with FIT, but allow toggling via aspect ratio button
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            } else {
+                // Regular channel/event: 16:9 container with RecyclerView below
+                exitFullscreen()
+                
+                // Lock to FIT for regular channels (RecyclerView below needs consistent space)
+                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            }
             
             // Player view settings
             binding.playerView.controllerAutoShow = true  // Show controls on start
             binding.playerView.controllerShowTimeoutMs = 5000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             
             // Setup constraints for links section
             val linksParams = binding.linksSection.layoutParams as ConstraintLayout.LayoutParams
@@ -1240,7 +1334,17 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     // FIX 2: Ensure controls remain hidden after attaching player
                     binding.playerView.hideController()
                     
-                    val mediaItem = MediaItem.fromUri(streamInfo.url)
+                    // Create MediaItem with proper URI handling
+                    val uri = android.net.Uri.parse(streamInfo.url)
+                    val mediaItemBuilder = MediaItem.Builder().setUri(uri)
+                    
+                    // Detect HLS streams and set MIME type explicitly
+                    if (streamInfo.url.contains("m3u8", ignoreCase = true) || 
+                        streamInfo.url.contains("extension=m3u8", ignoreCase = true)) {
+                        mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+                    }
+                    
+                    val mediaItem = mediaItemBuilder.build()
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
                     
