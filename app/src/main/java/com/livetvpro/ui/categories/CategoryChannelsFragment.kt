@@ -112,7 +112,9 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
                 if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
                     showLinkSelectionDialog(channel)
                 } else {
-                    PlayerActivity.startWithChannel(requireContext(), channel)
+                    // Pass the current filtered channels as related channels (excluding the current one)
+                    val relatedChannels = ArrayList(viewModel.filteredChannels.value?.filter { it.id != channel.id } ?: emptyList())
+                    PlayerActivity.startWithChannel(requireContext(), channel, relatedChannels = relatedChannels)
                 }
             },
             onFavoriteToggle = { channel ->
@@ -145,7 +147,9 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
                 val modifiedChannel = channel.copy(streamUrl = selectedLink.url)
-                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which)
+                // Pass related channels here too
+                val relatedChannels = ArrayList(viewModel.filteredChannels.value?.filter { it.id != channel.id } ?: emptyList())
+                PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which, relatedChannels)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
