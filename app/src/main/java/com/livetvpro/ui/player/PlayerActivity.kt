@@ -99,7 +99,7 @@ class PlayerActivity : AppCompatActivity() {
     private var isInPipMode = false
     private var isMuted = false
     private val skipMs = 10_000L
-    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -185,9 +185,9 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Set FIT mode immediately at the very start
-        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        // Set FIXED_WIDTH mode immediately at the very start
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
         
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
@@ -740,9 +740,10 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun cycleAspectRatio() {
         currentResizeMode = when (currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH -> AspectRatioFrameLayout.RESIZE_MODE_FIT
             AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
         }
         binding.playerView.resizeMode = currentResizeMode
     }
@@ -1661,7 +1662,7 @@ class PlayerActivity : AppCompatActivity() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action != ACTION_MEDIA_CONTROL) return
                 val currentPlayer = player ?: return
-                val hasError = false
+                val hasError = binding.errorView.visibility == View.VISIBLE
                 val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
                 when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
                     CONTROL_TYPE_PLAY -> {
