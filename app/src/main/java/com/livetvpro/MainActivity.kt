@@ -61,14 +61,33 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Explicitly show status bar
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
-        windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
+        // Handle status bar visibility based on orientation
+        handleStatusBarForOrientation()
         
         setupToolbar()
         setupDrawer()
         setupNavigation()
         setupSearch()
+    }
+    
+    private fun handleStatusBarForOrientation() {
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        
+        if (isLandscape) {
+            // Hide status bar in landscape
+            windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
+            windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        } else {
+            // Show status bar in portrait
+            windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
+            windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+        }
+    }
+    
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        handleStatusBarForOrientation()
     }
 
     private fun setupToolbar() {
