@@ -99,7 +99,7 @@ class PlayerActivity : AppCompatActivity() {
     private var isInPipMode = false
     private var isMuted = false
     private val skipMs = 10_000L
-    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -185,10 +185,6 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Set FIXED_WIDTH mode immediately at the very start
-        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-        
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -210,6 +206,9 @@ class PlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
+        // Adjust player container for orientation
+        adjustPlayerContainerForOrientation(isLandscape)
+
         setupComposeControls()
         setupRelatedChannels()
         setupLinksUI()
@@ -217,12 +216,6 @@ class PlayerActivity : AppCompatActivity() {
         applyOrientationSettings(isLandscape)
         
         binding.playerView.useController = false
-        
-        // Explicitly set resize mode to FIT at start
-        if (!isLandscape) {
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        }
         
         if (!isLandscape) {
             binding.relatedLoadingProgress.visibility = View.VISIBLE
@@ -384,6 +377,7 @@ class PlayerActivity : AppCompatActivity() {
     
     val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
     
+    adjustPlayerContainerForOrientation(isLandscape)
     setupWindowFlags(isLandscape)
     setupSystemUI(isLandscape)
     applyOrientationSettings(isLandscape)
@@ -399,6 +393,28 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.requestLayout()
     }
 }
+
+    private fun adjustPlayerContainerForOrientation(isLandscape: Boolean) {
+        val containerParams = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+        
+        if (isLandscape) {
+            // Landscape: Remove ratio, make height match_parent (fill screen)
+            containerParams.dimensionRatio = null
+            containerParams.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+            containerParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        } else {
+            // Portrait: Use 16:9 ratio, wrap content height
+            containerParams.dimensionRatio = "H,16:9"
+            containerParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
+            containerParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+            
+            // Use FIT mode in portrait to fill the 16:9 container properly
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        
+        binding.playerContainer.layoutParams = containerParams
+    }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
         adjustLayoutForOrientation(isLandscape)
