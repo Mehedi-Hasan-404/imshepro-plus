@@ -446,8 +446,6 @@ class PlayerActivity : AppCompatActivity() {
             
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
         } else {
             
@@ -465,14 +463,8 @@ class PlayerActivity : AppCompatActivity() {
                 
                 binding.playerContainer.setPadding(0, 0, 0, 0)
                 binding.playerContainer.layoutParams = params
-                
-                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             } else {
                 exitFullscreen()
-                
-                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
             
             binding.playerView.controllerAutoShow = false
