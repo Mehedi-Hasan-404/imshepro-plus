@@ -53,7 +53,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
-import com.livetvpro.databinding.ActivityPlayerBinding
+import com.livetvpro.databinding.ActivityFloatingPlayerBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import com.livetvpro.ui.adapters.LiveEventAdapter
 import com.livetvpro.ui.adapters.LinkChipAdapter
@@ -66,7 +66,7 @@ import java.util.UUID
 @AndroidEntryPoint
 class FloatingPlayerActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityPlayerBinding
+    private lateinit var binding: ActivityFloatingPlayerBinding
     private val viewModel: PlayerViewModel by viewModels()
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
@@ -203,7 +203,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             postponeEnterTransition()
         }
         
-        binding = ActivityPlayerBinding.inflate(layoutInflater)
+        binding = ActivityFloatingPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
