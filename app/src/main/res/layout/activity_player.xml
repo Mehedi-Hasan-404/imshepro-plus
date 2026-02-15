@@ -40,7 +40,7 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
-        <!-- Landscape links overlay (on top of Compose controls) -->
+        <!-- Landscape links overlay (on top of Compose controls, positioned at top) -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/exo_links_recycler"
             android:layout_width="0dp"
@@ -48,12 +48,12 @@
             android:orientation="horizontal"
             android:paddingStart="12dp"
             android:paddingEnd="12dp"
-            android:paddingTop="8dp"
+            android:paddingTop="60dp"
             android:paddingBottom="8dp"
-            android:background="#1A1A1A"
+            android:background="@android:color/transparent"
             android:clipToPadding="false"
             android:visibility="gone"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
 
