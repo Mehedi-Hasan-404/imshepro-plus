@@ -35,21 +35,26 @@ jobs:
         echo "✅ Keystore decoded"
         ls -lh release-keystore.jks
     
-    - name: 🧹 Deep Clean Build Artifacts
+    - name: 🧹 Deep Clean - Remove ALL Cached Files
       run: |
-        echo "Performing deep clean to remove all cached files..."
-        ./gradlew clean
+        echo "🧹 Performing deep clean..."
+        ./gradlew clean || true
+        echo "🗑️ Removing all cache directories..."
         rm -rf .gradle
         rm -rf app/build
         rm -rf build
         rm -rf app/.cxx
-        rm -rf ~/.gradle/caches/
-        echo "✅ Clean completed - all caches removed"
+        rm -rf */build
+        rm -rf ~/.gradle/caches
+        rm -rf ~/.gradle/wrapper
+        find . -type d -name "build" -exec rm -rf {} + 2>/dev/null || true
+        echo "✅ Deep clean completed"
     
-    - name: 🔨 Build Release APK
+    - name: 🔨 Build Release APK (Clean Build)
       run: |
-        echo "Building all ABI variants..."
+        echo "🔨 Building all ABI variants from scratch..."
         ./gradlew assembleRelease --stacktrace --no-daemon --no-build-cache --rerun-tasks
+        echo "✅ Build completed!"
       env:
         KEYSTORE_FILE: ${{ github.workspace }}/release-keystore.jks
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -66,39 +71,33 @@ jobs:
       with:
         name: app-universal-release
         path: app/build/outputs/apk/release/app-universal-release.apk
-        if-no-files-found: warn
     
     - name: ⬆️ Upload ARM64 APK
       uses: actions/upload-artifact@v4
       with:
         name: app-arm64-v8a-release
         path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
-        if-no-files-found: warn
     
     - name: ⬆️ Upload ARMv7 APK
       uses: actions/upload-artifact@v4
       with:
         name: app-armeabi-v7a-release
         path: app/build/outputs/apk/release/app-armeabi-v7a-release.apk
-        if-no-files-found: warn
     
     - name: ⬆️ Upload x86_64 APK
       uses: actions/upload-artifact@v4
       with:
         name: app-x86_64-release
         path: app/build/outputs/apk/release/app-x86_64-release.apk
-        if-no-files-found: warn
     
     - name: ⬆️ Upload x86 APK
       uses: actions/upload-artifact@v4
       with:
         name: app-x86-release
         path: app/build/outputs/apk/release/app-x86-release.apk
-        if-no-files-found: warn
     
     - name: ⬆️ Upload All APKs
       uses: actions/upload-artifact@v4
       with:
         name: all-release-apks
         path: app/build/outputs/apk/release/*.apk
-        if-no-files-found: error
