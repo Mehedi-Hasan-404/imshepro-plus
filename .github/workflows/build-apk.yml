@@ -27,30 +27,115 @@ jobs:
     - name: 📝 Grant Execute Permission for Gradlew
       run: chmod +x gradlew
     
-    - name: 🔧 Create google-services.json from secrets
+    - name: 🔧 Create google-services.json
       run: |
-        echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+        echo "Creating google-services.json with embedded configuration..."
+        cat > app/google-services.json << 'EOF'
+        {
+          "project_info": {
+            "project_number": "354874868790",
+            "project_id": "livetv-d9b81",
+            "storage_bucket": "livetv-d9b81.firebasestorage.app"
+          },
+          "client": [
+            {
+              "client_info": {
+                "mobilesdk_app_id": "1:354874868790:android:2c016cc71df885732f4497",
+                "android_client_info": {
+                  "package_name": "com.livetvpro"
+                }
+              },
+              "oauth_client": [],
+              "api_key": [
+                {
+                  "current_key": "AIzaSyBuaSp9csn6bo4d_617WE3pg3BVsUI9sH8"
+                }
+              ],
+              "services": {
+                "appinvite_service": {
+                  "other_platform_oauth_client": []
+                }
+              }
+            },
+            {
+              "client_info": {
+                "mobilesdk_app_id": "1:354874868790:android:b0d1fed7cb74ac922f4497",
+                "android_client_info": {
+                  "package_name": "com.livetvpro.debug"
+                }
+              },
+              "oauth_client": [],
+              "api_key": [
+                {
+                  "current_key": "AIzaSyBuaSp9csn6bo4d_617WE3pg3BVsUI9sH8"
+                }
+              ],
+              "services": {
+                "appinvite_service": {
+                  "other_platform_oauth_client": []
+                }
+              }
+            }
+          ],
+          "configuration_version": "1"
+        }
+        EOF
         echo "✅ Created google-services.json"
+        cat app/google-services.json
     
-    - name: 🔑 Decode Keystore
+    - name: 🔑 Generate Random Keystore
       run: |
-        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
-        echo "✅ Keystore decoded"
+        echo "🔑 Generating random signing keystore..."
+        
+        # Generate random values
+        RANDOM_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-25)
+        RANDOM_ALIAS="release_key_$(date +%s)"
+        RANDOM_DN="CN=ImShePro Plus, OU=Development, O=ImShePro, L=City, ST=State, C=US"
+        
+        echo "Generated credentials:"
+        echo "  Alias: $RANDOM_ALIAS"
+        echo "  Password: [HIDDEN]"
+        
+        # Generate keystore
+        keytool -genkey -v \
+          -keystore release-keystore.jks \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -alias "$RANDOM_ALIAS" \
+          -storepass "$RANDOM_PASSWORD" \
+          -keypass "$RANDOM_PASSWORD" \
+          -dname "$RANDOM_DN" \
+          2>&1 | grep -v "Warning"
+        
+        echo "✅ Keystore generated: release-keystore.jks"
         ls -lh release-keystore.jks
+        
+        # Export variables for next steps
+        echo "KEYSTORE_PASSWORD=$RANDOM_PASSWORD" >> $GITHUB_ENV
+        echo "KEY_ALIAS=$RANDOM_ALIAS" >> $GITHUB_ENV
+        echo "KEY_PASSWORD=$RANDOM_PASSWORD" >> $GITHUB_ENV
+        
+        # Display keystore info (without exposing passwords)
+        echo ""
+        echo "📋 Keystore Information:"
+        keytool -list -v -keystore release-keystore.jks -storepass "$RANDOM_PASSWORD" 2>&1 | \
+          grep -E "(Alias name|Creation date|Entry type|Owner|Issuer|Valid)" || true
     
-    - name: 🎨 Generate Launcher Icons (if needed)
+    - name: 🎨 Validate Launcher Icons
       run: |
-        echo "Checking for launcher icons..."
+        echo "🎨 Checking for launcher icons..."
         
         # Check if ic_launcher.xml exists
         if [ ! -f "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" ]; then
           echo "⚠️ Adaptive icons not found, will use existing PNG icons"
         else
-          echo "✅ Launcher icons found"
+          echo "✅ Adaptive launcher icons found"
         fi
         
         # List all mipmap directories
-        echo "Current mipmap directories:"
+        echo ""
+        echo "📁 Mipmap directories:"
         ls -la app/src/main/res/ | grep mipmap || echo "No mipmap directories found"
         
         # Verify icons exist in at least one density
@@ -64,26 +149,26 @@ jobs:
     
     - name: 📋 Validate AndroidManifest.xml
       run: |
-        echo "Validating AndroidManifest.xml..."
+        echo "📋 Validating AndroidManifest.xml..."
         
-        # Check if manifest exists
         if [ -f "app/src/main/AndroidManifest.xml" ]; then
           echo "✅ AndroidManifest.xml found"
           
           # Check for launcher icon reference
           if grep -q "android:icon=\"@mipmap/ic_launcher\"" app/src/main/AndroidManifest.xml; then
-            echo "✅ Launcher icon reference found in manifest"
+            echo "✅ Launcher icon reference found"
           else
             echo "⚠️ Warning: No launcher icon reference in manifest"
           fi
           
-          # Check for round icon reference (adaptive icons)
+          # Check for round icon
           if grep -q "android:roundIcon" app/src/main/AndroidManifest.xml; then
             echo "✅ Round icon reference found (adaptive icons)"
           fi
           
-          # Show application tag
-          echo "Application configuration:"
+          # Show application configuration
+          echo ""
+          echo "📱 Application Configuration:"
           grep -A5 "<application" app/src/main/AndroidManifest.xml | head -6
         else
           echo "❌ AndroidManifest.xml not found!"
@@ -92,42 +177,72 @@ jobs:
     
     - name: 🧹 Deep Clean Build Artifacts
       run: |
-        echo "Performing deep clean to remove all cached files..."
+        echo "🧹 Performing deep clean..."
         ./gradlew clean || true
         rm -rf .gradle
         rm -rf app/build
         rm -rf build
         rm -rf app/.cxx
         rm -rf ~/.gradle/caches/
-        echo "✅ Clean completed - all caches removed"
+        echo "✅ Clean completed"
     
     - name: 🔍 Pre-build Diagnostics
       run: |
-        echo "=== Build Environment Info ==="
-        echo "Java version:"
-        java -version
+        echo "═══════════════════════════════════════════════════════"
+        echo "📊 BUILD ENVIRONMENT INFORMATION"
+        echo "═══════════════════════════════════════════════════════"
+        
         echo ""
-        echo "Gradle version:"
-        ./gradlew --version
+        echo "☕ Java Version:"
+        java -version 2>&1 | head -3
+        
         echo ""
-        echo "Android SDK location:"
-        echo $ANDROID_HOME
+        echo "🔧 Gradle Version:"
+        ./gradlew --version | head -5
+        
         echo ""
-        echo "Available disk space:"
-        df -h
+        echo "📱 Android SDK:"
+        echo "  Location: $ANDROID_HOME"
+        echo "  Build Tools: $(ls $ANDROID_HOME/build-tools 2>/dev/null | tail -1 || echo 'Not found')"
+        
         echo ""
-        echo "Memory:"
-        free -h
+        echo "💾 Disk Space:"
+        df -h / | tail -1 | awk '{print "  Available: " $4 " / " $2}'
+        
+        echo ""
+        echo "🧠 Memory:"
+        free -h | grep "Mem:" | awk '{print "  Available: " $7 " / " $2}'
+        
+        echo ""
+        echo "🔑 Keystore Status:"
+        echo "  File: release-keystore.jks"
+        echo "  Size: $(ls -lh release-keystore.jks | awk '{print $5}')"
+        echo "  Alias: $KEY_ALIAS"
+        
+        echo ""
+        echo "═══════════════════════════════════════════════════════"
     
     - name: 📦 Download Dependencies
       run: |
-        echo "Downloading and caching dependencies..."
+        echo "📦 Downloading and caching dependencies..."
         ./gradlew dependencies --no-daemon || true
-        echo "✅ Dependencies downloaded"
+        echo "✅ Dependencies ready"
     
     - name: 🔨 Build Release APK
       run: |
-        echo "🔨 Building all ABI variants..."
+        echo "════════════════════════════════════════════════════════"
+        echo "🔨 BUILDING RELEASE APK"
+        echo "════════════════════════════════════════════════════════"
+        echo ""
+        echo "Building all ABI variants..."
+        echo "  - Universal"
+        echo "  - ARM64 (arm64-v8a)"
+        echo "  - ARMv7 (armeabi-v7a)"
+        echo "  - x86_64"
+        echo "  - x86"
+        echo ""
+        
+        # Build with detailed output
         ./gradlew assembleRelease \
           --stacktrace \
           --no-daemon \
@@ -136,49 +251,82 @@ jobs:
           --warning-mode all \
           2>&1 | tee build.log
         
-        echo "✅ Build completed!"
+        BUILD_RESULT=${PIPESTATUS[0]}
+        
+        if [ $BUILD_RESULT -eq 0 ]; then
+          echo ""
+          echo "════════════════════════════════════════════════════════"
+          echo "✅ BUILD SUCCESSFUL!"
+          echo "════════════════════════════════════════════════════════"
+        else
+          echo ""
+          echo "════════════════════════════════════════════════════════"
+          echo "❌ BUILD FAILED!"
+          echo "════════════════════════════════════════════════════════"
+          exit $BUILD_RESULT
+        fi
       env:
         KEYSTORE_FILE: ${{ github.workspace }}/release-keystore.jks
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        KEYSTORE_PASSWORD: ${{ env.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ env.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
     
     - name: 📊 Build Summary
-      if: always()
+      if: success()
       run: |
-        echo "=== BUILD SUMMARY ==="
+        echo ""
+        echo "════════════════════════════════════════════════════════"
+        echo "📊 BUILD SUMMARY"
+        echo "════════════════════════════════════════════════════════"
         
         if [ -d "app/build/outputs/apk/release" ]; then
-          echo "✅ APK output directory exists"
-          
           echo ""
-          echo "=== Generated APKs ==="
-          find app/build/outputs/apk/release -name "*.apk" -exec ls -lh {} \; | while read line; do
-            echo "  📱 $line"
+          echo "📱 Generated APK Files:"
+          echo "────────────────────────────────────────────────────────"
+          
+          APK_COUNT=0
+          TOTAL_SIZE=0
+          
+          for apk in app/build/outputs/apk/release/*.apk; do
+            if [ -f "$apk" ]; then
+              FILENAME=$(basename "$apk")
+              SIZE=$(stat -f%z "$apk" 2>/dev/null || stat -c%s "$apk")
+              SIZE_MB=$(echo "scale=2; $SIZE/1048576" | bc)
+              
+              echo "  ✅ $FILENAME"
+              echo "     Size: ${SIZE_MB} MB"
+              echo ""
+              
+              APK_COUNT=$((APK_COUNT + 1))
+              TOTAL_SIZE=$((TOTAL_SIZE + SIZE))
+            fi
           done
           
-          echo ""
-          echo "=== APK Sizes ==="
-          find app/build/outputs/apk/release -name "*.apk" -exec du -h {} \;
+          TOTAL_SIZE_MB=$(echo "scale=2; $TOTAL_SIZE/1048576" | bc)
           
-          echo ""
-          echo "=== Total APKs Count ==="
-          APK_COUNT=$(find app/build/outputs/apk/release -name "*.apk" | wc -l)
-          echo "  📊 Total: $APK_COUNT APK files"
+          echo "────────────────────────────────────────────────────────"
+          echo "📈 Statistics:"
+          echo "  Total APKs: $APK_COUNT"
+          echo "  Total Size: ${TOTAL_SIZE_MB} MB"
+          echo "────────────────────────────────────────────────────────"
         else
           echo "❌ APK output directory not found"
-          echo "Build may have failed. Check build.log"
+          exit 1
         fi
+        
+        echo ""
+        echo "════════════════════════════════════════════════════════"
     
     - name: 🔍 Upload Build Log
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: build-log
+        name: build-log-failed
         path: build.log
         retention-days: 7
     
     - name: ⬆️ Upload Universal APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: app-universal-release
@@ -186,6 +334,7 @@ jobs:
         if-no-files-found: warn
     
     - name: ⬆️ Upload ARM64 APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: app-arm64-v8a-release
@@ -193,6 +342,7 @@ jobs:
         if-no-files-found: warn
     
     - name: ⬆️ Upload ARMv7 APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: app-armeabi-v7a-release
@@ -200,6 +350,7 @@ jobs:
         if-no-files-found: warn
     
     - name: ⬆️ Upload x86_64 APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: app-x86_64-release
@@ -207,6 +358,7 @@ jobs:
         if-no-files-found: warn
     
     - name: ⬆️ Upload x86 APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: app-x86-release
@@ -214,55 +366,94 @@ jobs:
         if-no-files-found: warn
     
     - name: ⬆️ Upload All APKs (Backup)
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: all-release-apks
         path: app/build/outputs/apk/release/*.apk
         if-no-files-found: error
+        retention-days: 30
     
-    - name: 📊 Generate APK Info
+    - name: 📄 Generate Build Info
       if: success()
       run: |
-        echo "# 🎉 Build Successful!" > apk-info.md
-        echo "" >> apk-info.md
-        echo "## 📱 Generated APKs" >> apk-info.md
-        echo "" >> apk-info.md
+        echo "# 🎉 Build Successful!" > build-info.md
+        echo "" >> build-info.md
+        echo "## 📱 Generated APK Files" >> build-info.md
+        echo "" >> build-info.md
         
         for apk in app/build/outputs/apk/release/*.apk; do
           if [ -f "$apk" ]; then
-            filename=$(basename "$apk")
-            size=$(du -h "$apk" | cut -f1)
-            echo "- **$filename** - Size: $size" >> apk-info.md
+            FILENAME=$(basename "$apk")
+            SIZE=$(stat -f%z "$apk" 2>/dev/null || stat -c%s "$apk")
+            SIZE_MB=$(echo "scale=2; $SIZE/1048576" | bc)
+            
+            echo "- **$FILENAME** - ${SIZE_MB} MB" >> build-info.md
           fi
         done
         
-        echo "" >> apk-info.md
-        echo "## 📋 Build Info" >> apk-info.md
-        echo "- Commit: \`${{ github.sha }}\`" >> apk-info.md
-        echo "- Branch: \`${{ github.ref_name }}\`" >> apk-info.md
-        echo "- Build Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> apk-info.md
-        echo "- Workflow Run: #${{ github.run_number }}" >> apk-info.md
+        echo "" >> build-info.md
+        echo "## 🔧 Build Configuration" >> build-info.md
+        echo "" >> build-info.md
+        echo "- **Build Type:** Release" >> build-info.md
+        echo "- **Keystore:** Randomly generated (temporary)" >> build-info.md
+        echo "- **Key Alias:** \`$KEY_ALIAS\`" >> build-info.md
+        echo "- **Signed:** Yes ✅" >> build-info.md
+        echo "" >> build-info.md
+        echo "## 📋 Build Information" >> build-info.md
+        echo "" >> build-info.md
+        echo "- **Commit:** \`${{ github.sha }}\`" >> build-info.md
+        echo "- **Branch:** \`${{ github.ref_name }}\`" >> build-info.md
+        echo "- **Build Date:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> build-info.md
+        echo "- **Workflow Run:** [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-info.md
+        echo "- **Triggered By:** ${{ github.actor }}" >> build-info.md
+        echo "" >> build-info.md
+        echo "## ⚠️ Important Notes" >> build-info.md
+        echo "" >> build-info.md
+        echo "- This build uses a **randomly generated keystore** for demonstration purposes" >> build-info.md
+        echo "- For production releases, use a **persistent keystore** stored in GitHub Secrets" >> build-info.md
+        echo "- The keystore credentials are **not saved** and will be different each build" >> build-info.md
+        echo "- If you need to update the app, you'll need to use the same keystore" >> build-info.md
+        echo "" >> build-info.md
+        echo "## 📥 Download" >> build-info.md
+        echo "" >> build-info.md
+        echo "Download artifacts from the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> build-info.md
         
-        cat apk-info.md
+        echo ""
+        echo "════════════════════════════════════════════════════════"
+        echo "📄 Build Info Summary"
+        echo "════════════════════════════════════════════════════════"
+        cat build-info.md
+        echo "════════════════════════════════════════════════════════"
     
     - name: 📄 Upload Build Info
       if: success()
       uses: actions/upload-artifact@v4
       with:
         name: build-info
-        path: apk-info.md
-        retention-days: 30
+        path: build-info.md
+        retention-days: 90
     
-    - name: ✅ Build Status
+    - name: ✅ Final Status
       if: success()
       run: |
-        echo "════════════════════════════════════════════════════════════════"
-        echo "✅ BUILD SUCCESSFUL!"
-        echo "════════════════════════════════════════════════════════════════"
         echo ""
-        echo "🎉 All APKs have been built and uploaded successfully!"
+        echo "════════════════════════════════════════════════════════"
+        echo "✅ BUILD COMPLETED SUCCESSFULLY!"
+        echo "════════════════════════════════════════════════════════"
         echo ""
-        echo "📥 Download artifacts from the Actions tab:"
-        echo "   https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        echo "🎉 All APK files have been generated and signed!"
         echo ""
-        echo "════════════════════════════════════════════════════════════════"
+        echo "📥 Download your APKs from:"
+        echo "   ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        echo ""
+        echo "🔑 Keystore Information (Temporary):"
+        echo "   Alias: $KEY_ALIAS"
+        echo "   Note: This keystore is randomly generated and not saved"
+        echo ""
+        echo "⚠️  For production use:"
+        echo "   1. Generate a permanent keystore"
+        echo "   2. Store it in GitHub Secrets (KEYSTORE_BASE64)"
+        echo "   3. Update workflow to use the permanent keystore"
+        echo ""
+        echo "════════════════════════════════════════════════════════"
