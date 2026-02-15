@@ -24,7 +24,18 @@ jobs:
     - name: Grant Execute Permission for Gradlew
       run: chmod +x gradlew
     
-    - name: 🧹 CRITICAL - Deep Clean Build Artifacts
+    - name: Create google-services.json from secrets
+      run: |
+        echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+        echo "✅ Created google-services.json"
+    
+    - name: Decode Keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
+        echo "✅ Keystore decoded"
+        ls -lh release-keystore.jks
+    
+    - name: 🧹 Deep Clean Build Artifacts
       run: |
         echo "Performing deep clean to remove all cached files..."
         ./gradlew clean
@@ -40,7 +51,7 @@ jobs:
         echo "Building all ABI variants..."
         ./gradlew assembleRelease --stacktrace --no-daemon --no-build-cache --rerun-tasks
       env:
-        KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
+        KEYSTORE_FILE: ${{ github.workspace }}/release-keystore.jks
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
