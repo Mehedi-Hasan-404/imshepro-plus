@@ -28,7 +28,7 @@
             app:show_buffering="when_playing"
             app:surface_type="texture_view"
             app:use_controller="false"
-            app:resize_mode="fixed_width" />
+            app:resize_mode="fit" />
 
         <!-- Compose view for custom controls -->
         <androidx.compose.ui.platform.ComposeView
