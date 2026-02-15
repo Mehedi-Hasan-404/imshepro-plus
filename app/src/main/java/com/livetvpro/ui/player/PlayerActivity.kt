@@ -15,6 +15,10 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
 import android.util.Rational
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toAndroidRect
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import android.view.View
 import android.view.ViewTreeObserver
 import android.view.WindowInsets
@@ -131,8 +135,8 @@ class PlayerActivity : AppCompatActivity() {
         private const val PIP_INTENT_ACTION = "pip_action"
         private const val PIP_PLAY = 1
         private const val PIP_PAUSE = 2
-        private const val PIP_REWIND = 3
-        private const val PIP_FORWARD = 4
+        private const val PIP_FR = 3  // Fast Rewind
+        private const val PIP_FF = 4  // Fast Forward
 
         fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1, relatedChannels: ArrayList<Channel>? = null) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
@@ -477,12 +481,12 @@ class PlayerActivity : AppCompatActivity() {
         newConfig: Configuration
     ) {
         if (!isInPictureInPictureMode) {
+            // Exiting PIP mode
             pipReceiver?.let {
-                unregisterReceiver(pipReceiver)
+                unregisterReceiver(it)
                 pipReceiver = null
             }
             isInPipMode = false
-            
             controlsState.show(lifecycleScope)
             
             if (wasLockedBeforePip) {
@@ -495,48 +499,58 @@ class PlayerActivity : AppCompatActivity() {
             return
         }
         
+        // Entering PIP mode
         isInPipMode = true
+        
+        // Update PIP params with current state
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             setPictureInPictureParams(createPipParams())
         }
         
+        // Hide controls and UI elements
         controlsState.hide()
         
+        // Register broadcast receiver for PIP actions
         pipReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent == null || intent.action != PIP_INTENTS_FILTER) return
                 
-                val currentPlayer = player ?: return
-                
                 when (intent.getIntExtra(PIP_INTENT_ACTION, 0)) {
-                    PIP_PLAY -> {
-                        currentPlayer.play()
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            setPictureInPictureParams(createPipParams())
-                        }
-                    }
                     PIP_PAUSE -> {
-                        currentPlayer.pause()
+                        player?.pause()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             setPictureInPictureParams(createPipParams())
                         }
                     }
-                    PIP_REWIND -> {
-                        val newPosition = currentPlayer.currentPosition - skipMs
-                        currentPlayer.seekTo(if (newPosition < 0) 0 else newPosition)
+                    PIP_PLAY -> {
+                        player?.play()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            setPictureInPictureParams(createPipParams())
+                        }
                     }
-                    PIP_FORWARD -> {
-                        val newPosition = currentPlayer.currentPosition + skipMs
-                        if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
-                            currentPlayer.seekTo(currentPlayer.duration)
-                        } else {
-                            currentPlayer.seekTo(newPosition)
+                    PIP_FF -> {
+                        // Fast forward 10 seconds
+                        player?.let { p ->
+                            val newPosition = p.currentPosition + 10_000L
+                            if (p.isCurrentMediaItemLive && p.duration != C.TIME_UNSET) {
+                                p.seekTo(minOf(newPosition, p.duration))
+                            } else {
+                                p.seekTo(newPosition)
+                            }
+                        }
+                    }
+                    PIP_FR -> {
+                        // Fast rewind 10 seconds
+                        player?.let { p ->
+                            val newPosition = maxOf(0L, p.currentPosition - 10_000L)
+                            p.seekTo(newPosition)
                         }
                     }
                 }
             }
         }
         
+        // Register the receiver
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             registerReceiver(pipReceiver, IntentFilter(PIP_INTENTS_FILTER), Context.RECEIVER_NOT_EXPORTED)
         } else {
@@ -1289,6 +1303,11 @@ class PlayerActivity : AppCompatActivity() {
                         }
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            // Update PIP actions when playback state changes
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+                setPictureInPictureParams(createPipParams())
+            }
+
                             updatePlayPauseIcon(isPlaying)
                             if (isInPipMode) {
                                 updatePipParams()
@@ -1800,51 +1819,79 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @SuppressLint("NewApi")
-    private fun buildPipActions(): List<android.app.RemoteAction> {
-        val actions = mutableListOf<android.app.RemoteAction>()
-        val isPlaying = player?.isPlaying == true
-        if (isPlaying) {
-            val pauseIntent = PendingIntent.getBroadcast(
-                this, CONTROL_TYPE_PAUSE,
-                Intent(ACTION_MEDIA_CONTROL).setPackage(packageName).putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PAUSE),
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun createPipActions(context: Context, isPaused: Boolean): List<RemoteAction> {
+        val actions = mutableListOf<RemoteAction>()
+        
+        // Fast Rewind action
+        val rewindAction = RemoteAction(
+            Icon.createWithResource(context, R.drawable.ic_skip_backward),
+            "Rewind",
+            "Rewind 10s",
+            PendingIntent.getBroadcast(
+                context,
+                PIP_FR,
+                Intent(PIP_INTENTS_FILTER).apply {
+                    setPackage(context.packageName)
+                    putExtra(PIP_INTENT_ACTION, PIP_FR)
+                },
                 PendingIntent.FLAG_IMMUTABLE
             )
-            actions.add(android.app.RemoteAction(
-                Icon.createWithResource(this, R.drawable.ic_pause),
-                getString(R.string.pause), getString(R.string.pause), pauseIntent
-            ))
+        )
+        
+        // Play/Pause action
+        val playPauseAction = if (isPaused) {
+            RemoteAction(
+                Icon.createWithResource(context, R.drawable.ic_play),
+                getString(R.string.play),
+                getString(R.string.play),
+                PendingIntent.getBroadcast(
+                    context,
+                    PIP_PLAY,
+                    Intent(PIP_INTENTS_FILTER).apply {
+                        setPackage(context.packageName)
+                        putExtra(PIP_INTENT_ACTION, PIP_PLAY)
+                    },
+                    PendingIntent.FLAG_IMMUTABLE
+                )
+            )
         } else {
-            val playIntent = PendingIntent.getBroadcast(
-                this,
-                CONTROL_TYPE_PLAY,
-                Intent(ACTION_MEDIA_CONTROL)
-                    .setPackage(packageName)
-                    .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_PLAY),
-                PendingIntent.FLAG_IMMUTABLE
+            RemoteAction(
+                Icon.createWithResource(context, R.drawable.ic_pause),
+                getString(R.string.pause),
+                getString(R.string.pause),
+                PendingIntent.getBroadcast(
+                    context,
+                    PIP_PAUSE,
+                    Intent(PIP_INTENTS_FILTER).apply {
+                        setPackage(context.packageName)
+                        putExtra(PIP_INTENT_ACTION, PIP_PAUSE)
+                    },
+                    PendingIntent.FLAG_IMMUTABLE
+                )
             )
-            actions.add(RemoteAction(
-                Icon.createWithResource(this, R.drawable.ic_play),
-                getString(R.string.play),
-                getString(R.string.play),
-                playIntent
-            ))
         }
         
-        val forwardIntent = PendingIntent.getBroadcast(
-            this,
-            CONTROL_TYPE_FORWARD,
-            Intent(ACTION_MEDIA_CONTROL)
-                .setPackage(packageName)
-                .putExtra(EXTRA_CONTROL_TYPE, CONTROL_TYPE_FORWARD),
-            PendingIntent.FLAG_IMMUTABLE
-        )
-        actions.add(RemoteAction(
-            Icon.createWithResource(this, R.drawable.ic_skip_forward),
+        // Fast Forward action
+        val forwardAction = RemoteAction(
+            Icon.createWithResource(context, R.drawable.ic_skip_forward),
             "Forward",
             "Forward 10s",
-            forwardIntent
-        ))
+            PendingIntent.getBroadcast(
+                context,
+                PIP_FF,
+                Intent(PIP_INTENTS_FILTER).apply {
+                    setPackage(context.packageName)
+                    putExtra(PIP_INTENT_ACTION, PIP_FF)
+                },
+                PendingIntent.FLAG_IMMUTABLE
+            )
+        )
+        
+        // Add actions in order: Rewind, Play/Pause, Forward
+        actions.add(rewindAction)
+        actions.add(playPauseAction)
+        actions.add(forwardAction)
         
         return actions
     }
