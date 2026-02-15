@@ -10,8 +10,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
         android:layout_width="0dp"
-        android:layout_height="0dp"
-        app:layout_constraintDimensionRatio="H,16:9"
+        android:layout_height="wrap_content"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent">
@@ -19,8 +18,8 @@
         <!-- ExoPlayer without built-in controls -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             app:layout_constraintTop_toTopOf="parent"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
@@ -28,7 +27,7 @@
             app:show_buffering="when_playing"
             app:surface_type="texture_view"
             app:use_controller="false"
-            app:resize_mode="fit" />
+            app:resize_mode="fixed_width" />
 
         <!-- Compose view for custom controls -->
         <androidx.compose.ui.platform.ComposeView
