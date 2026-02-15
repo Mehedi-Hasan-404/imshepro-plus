@@ -54,14 +54,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Ensure status bar is always visible and layout respects it (BEFORE setContentView)
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Set status bar to black
+        window.statusBarColor = android.graphics.Color.BLACK
         
         themeManager.applyTheme()
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Handle status bar visibility based on orientation
+        // Handle status bar and insets based on orientation
         handleStatusBarForOrientation()
         
         setupToolbar()
@@ -71,17 +71,31 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun handleStatusBarForOrientation() {
-        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         val isLandscape = resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
         if (isLandscape) {
-            // Hide status bar in landscape
+            // Landscape: Immersive fullscreen with cutout support
+            WindowCompat.setDecorFitsSystemWindows(window, false)
             windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
             windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            
+            // Support display cutouts in landscape
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode = 
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
         } else {
-            // Show status bar in portrait
+            // Portrait: Show status bar with proper padding
+            WindowCompat.setDecorFitsSystemWindows(window, true)
             windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
             windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+            
+            // Reset cutout mode in portrait
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode = 
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+            }
         }
     }
     
