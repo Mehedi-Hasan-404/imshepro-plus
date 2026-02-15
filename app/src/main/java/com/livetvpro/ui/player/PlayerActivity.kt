@@ -74,7 +74,19 @@ import kotlinx.coroutines.delay
 @AndroidEntryPoint
 class PlayerActivity : AppCompatActivity() {
 
+    companion object {
+        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
+        private const val EXTRA_CONTROL_TYPE = "control_type"
+        private const val CONTROL_TYPE_PLAY = 1
+        private const val CONTROL_TYPE_PAUSE = 2
+        private const val CONTROL_TYPE_REWIND = 3
+        private const val CONTROL_TYPE_FORWARD = 4
+    }
+
+
     private lateinit var binding: ActivityPlayerBinding
+
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val viewModel: PlayerViewModel by viewModels()
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
@@ -503,7 +515,7 @@ class PlayerActivity : AppCompatActivity() {
         
         // Update PIP params with current state
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            setPictureInPictureParams(createPipParams())
+            setPictureInPictureParams(updatePipParams(enter = false))
         }
         
         // Hide controls and UI elements
@@ -518,13 +530,13 @@ class PlayerActivity : AppCompatActivity() {
                     PIP_PAUSE -> {
                         player?.pause()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            setPictureInPictureParams(createPipParams())
+                            setPictureInPictureParams(updatePipParams(enter = false))
                         }
                     }
                     PIP_PLAY -> {
                         player?.play()
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            setPictureInPictureParams(createPipParams())
+                            setPictureInPictureParams(updatePipParams(enter = false))
                         }
                     }
                     PIP_FF -> {
@@ -588,7 +600,7 @@ class PlayerActivity : AppCompatActivity() {
         if (wasLockedBeforePip) {
             controlsState.isLocked = true
             binding.playerView.useController = false
-            binding.lockOverlay.visibility = View.VISIBLE
+            // Lock overlay removed - now managed by Compose PlayerControls
             wasLockedBeforePip = false
         } else {
             controlsState.isLocked = false
@@ -606,7 +618,7 @@ class PlayerActivity : AppCompatActivity() {
     override fun onUserLeaveHint() {
         if (isPipSupported && player?.isPlaying == true) {
             wasLockedBeforePip = controlsState.isLocked
-            enterPictureInPictureMode(createPipParams())
+            enterPictureInPictureMode(updatePipParams(enter = false))
         }
     }
 
@@ -661,7 +673,7 @@ class PlayerActivity : AppCompatActivity() {
                         onPipClick = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                 wasLockedBeforePip = controlsState.isLocked
-                                enterPictureInPictureMode(createPipParams())
+                                enterPictureInPictureMode(updatePipParams(enter = false))
                             }
                         },
                         onSettingsClick = { showSettingsDialog() },
@@ -1305,7 +1317,7 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
             // Update PIP actions when playback state changes
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
-                setPictureInPictureParams(createPipParams())
+                setPictureInPictureParams(updatePipParams(enter = false))
             }
 
                             updatePlayPauseIcon(isPlaying)
@@ -1518,23 +1530,23 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupLockOverlay() {
-        binding.lockOverlay.setOnClickListener {
-            if (binding.unlockButton.visibility == View.VISIBLE) hideUnlockButton() else showUnlockButton()
-        }
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
+        // Lock overlay functionality now handled by Compose PlayerControls
+        // The controlsState manages the lock state
+    }
+        // Lock overlay removed - now managed by Compose PlayerControls
+        // Unlock button removed - now managed by Compose
     }
 
     private fun toggleLock() {
         controlsState.isLocked = !controlsState.isLocked
         if (controlsState.isLocked) {
             binding.playerView.useController = false
-            binding.lockOverlay.visibility = View.VISIBLE
+            // Lock overlay removed - now managed by Compose PlayerControls
             showUnlockButton()
             // Lock icon updated by Compose controls
         } else {
             binding.playerView.useController = true
-            binding.lockOverlay.visibility = View.GONE
+            // Lock overlay removed - now managed by Compose PlayerControls
             hideUnlockButton()
             // Lock icon updated by Compose controls
             binding.playerView.showController()
@@ -1601,8 +1613,8 @@ class PlayerActivity : AppCompatActivity() {
     @SuppressLint("NewApi")
     private fun enterPipMode() {
         binding.playerView.useController = false
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
+        // Lock overlay removed - now managed by Compose PlayerControls
+        // Unlock button removed - now managed by Compose
 
         setSubtitleTextSizePiP()
 
@@ -1641,7 +1653,7 @@ class PlayerActivity : AppCompatActivity() {
             builder.setAspectRatio(ratio)
             
             // Build PiP actions - these work independently of the UI controls
-            val actions = buildPipActions()
+            val actions = createPipActions(this, player?.isPlaying != true)
             builder.setActions(actions)
             
             val pipSourceRect = android.graphics.Rect()
@@ -1801,7 +1813,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    fun createPipParams(): PictureInPictureParams {
+    fun updatePipParams(enter = false): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1911,17 +1923,41 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun showUnlockButton() {
-        binding.unlockButton.visibility = View.VISIBLE
-        binding.unlockButton.setOnClickListener { toggleLock() }
-        binding.unlockButton.postDelayed({
+        // Unlock button removed - now managed by Compose
+        // Unlock button click listener removed - handled by Compose
+        // Removed: Now managed by Compose
             if (controlsState.isLocked) hideUnlockButton()
         }, 3000)
     }
 
     private fun hideUnlockButton() {
-        binding.unlockButton.visibility = View.GONE
+        // Unlock button removed - now managed by Compose
     }
 
     // showPlayerSettingsDialog() deleted - duplicate of showSettingsDialog()
     // toggleAspectRatio() deleted - duplicate of cycleAspectRatio()
+
+
+    private fun unregisterPipReceiver() {
+        try {
+            pipReceiver?.let {
+                unregisterReceiver(it)
+                pipReceiver = null
+            }
+        } catch (e: Exception) {
+            // Receiver not registered or already unregistered
+        }
+    }
+
+
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun isPipSupported(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        } else {
+            false
+        }
+    }
+
 }
