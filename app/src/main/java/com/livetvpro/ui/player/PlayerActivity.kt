@@ -13,6 +13,8 @@ import android.content.res.Configuration
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.Parcelable
 import android.util.Rational
 import androidx.compose.ui.Modifier
@@ -74,15 +76,6 @@ import kotlinx.coroutines.delay
 @AndroidEntryPoint
 class PlayerActivity : AppCompatActivity() {
 
-    companion object {
-        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
-        private const val EXTRA_CONTROL_TYPE = "control_type"
-        private const val CONTROL_TYPE_PLAY = 1
-        private const val CONTROL_TYPE_PAUSE = 2
-        private const val CONTROL_TYPE_REWIND = 3
-        private const val CONTROL_TYPE_FORWARD = 4
-    }
-
     private lateinit var binding: ActivityPlayerBinding
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -137,6 +130,14 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
         private const val EXTRA_RELATED_CHANNELS = "extra_related_channels"
+        
+        // Media control constants
+        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
+        private const val EXTRA_CONTROL_TYPE = "control_type"
+        private const val CONTROL_TYPE_PLAY = 1
+        private const val CONTROL_TYPE_PAUSE = 2
+        private const val CONTROL_TYPE_REWIND = 3
+        private const val CONTROL_TYPE_FORWARD = 4
         
         // PiP constants
         private const val PIP_INTENTS_FILTER = "com.livetvpro.PIP_CONTROL"
@@ -1293,7 +1294,6 @@ class PlayerActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_READY -> {
-                                    updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
 
@@ -1317,7 +1317,6 @@ class PlayerActivity : AppCompatActivity() {
                 setPictureInPictureParams(updatePipParams(enter = false))
             }
 
-                            updatePlayPauseIcon(isPlaying)
                             if (isInPipMode) {
                                 updatePipParams()
                             }
@@ -1526,25 +1525,6 @@ class PlayerActivity : AppCompatActivity() {
         // Lock overlay functionality now handled by Compose PlayerControls
         // The controlsState manages the lock state
     }
-        // Lock overlay removed - now managed by Compose PlayerControls
-        // Unlock button removed - now managed by Compose
-    }
-
-    private fun toggleLock() {
-        controlsState.isLocked = !controlsState.isLocked
-        if (controlsState.isLocked) {
-            binding.playerView.useController = false
-            // Lock overlay removed - now managed by Compose PlayerControls
-            showUnlockButton()
-            // Lock icon updated by Compose controls
-        } else {
-            binding.playerView.useController = true
-            // Lock overlay removed - now managed by Compose PlayerControls
-            hideUnlockButton()
-            // Lock icon updated by Compose controls
-            binding.playerView.showController()
-        }
-    }
 
     private fun toggleFullscreen() {
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -1627,125 +1607,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun updatePipParamsInternal(enter: Boolean = false) {
-        try {
-            var ratio = createPipRatio()
-            
-            val rationalLimitWide = Rational(239, 100)
-            val rationalLimitTall = Rational(100, 239)
-            
-            if (ratio.toFloat() > rationalLimitWide.toFloat()) {
-                ratio = rationalLimitWide
-            } else if (ratio.toFloat() < rationalLimitTall.toFloat()) {
-                ratio = rationalLimitTall
-            }
-            
-            val builder = PictureInPictureParams.Builder()
-            builder.setAspectRatio(ratio)
-            
-            // Build PiP actions - these work independently of the UI controls
-            val actions = createPipActions(this, player?.isPlaying != true)
-            builder.setActions(actions)
-            
-            val pipSourceRect = android.graphics.Rect()
-            binding.playerView.getGlobalVisibleRect(pipSourceRect)
-            if (!pipSourceRect.isEmpty) {
-                builder.setSourceRectHint(pipSourceRect)
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                builder.setAutoEnterEnabled(false)
-                builder.setSeamlessResizeEnabled(true)
-            }
-            
-            if (enter) {
-                enterPictureInPictureMode(builder.build())
-            } else {
-                setPictureInPictureParams(builder.build())
-            }
-        } catch (e: Exception) {
-            // PiP update failed, but don't crash - log for debugging if needed
-            e.printStackTrace()
-        }
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun createPipActions(context: Context, isPaused: Boolean): List<RemoteAction> {
-        val actions = mutableListOf<RemoteAction>()
-        
-        // Fast Rewind action
-        val rewindAction = RemoteAction(
-            Icon.createWithResource(context, R.drawable.ic_skip_backward),
-            "Rewind",
-            "Rewind 10s",
-            PendingIntent.getBroadcast(
-                context,
-                PIP_FR,
-                Intent(PIP_INTENTS_FILTER).apply {
-                    setPackage(context.packageName)
-                    putExtra(PIP_INTENT_ACTION, PIP_FR)
-                },
-                PendingIntent.FLAG_IMMUTABLE
-            )
-        )
-        
-        // Play/Pause action
-        val playPauseAction = if (isPaused) {
-            RemoteAction(
-                Icon.createWithResource(context, R.drawable.ic_play),
-                getString(R.string.play),
-                getString(R.string.play),
-                PendingIntent.getBroadcast(
-                    context,
-                    PIP_PLAY,
-                    Intent(PIP_INTENTS_FILTER).apply {
-                        setPackage(context.packageName)
-                        putExtra(PIP_INTENT_ACTION, PIP_PLAY)
-                    },
-                    PendingIntent.FLAG_IMMUTABLE
-                )
-            )
-        } else {
-            RemoteAction(
-                Icon.createWithResource(context, R.drawable.ic_pause),
-                getString(R.string.pause),
-                getString(R.string.pause),
-                PendingIntent.getBroadcast(
-                    context,
-                    PIP_PAUSE,
-                    Intent(PIP_INTENTS_FILTER).apply {
-                        setPackage(context.packageName)
-                        putExtra(PIP_INTENT_ACTION, PIP_PAUSE)
-                    },
-                    PendingIntent.FLAG_IMMUTABLE
-                )
-            )
-        }
-        
-        // Fast Forward action
-        val forwardAction = RemoteAction(
-            Icon.createWithResource(context, R.drawable.ic_skip_forward),
-            "Forward",
-            "Forward 10s",
-            PendingIntent.getBroadcast(
-                context,
-                PIP_FF,
-                Intent(PIP_INTENTS_FILTER).apply {
-                    setPackage(context.packageName)
-                    putExtra(PIP_INTENT_ACTION, PIP_FF)
-                },
-                PendingIntent.FLAG_IMMUTABLE
-            )
-        )
-        
-        // Add actions in order: Rewind, Play/Pause, Forward
-        actions.add(rewindAction)
-        actions.add(playPauseAction)
-        actions.add(forwardAction)
-        
-        return actions
-    }
 
     private fun setupPipReceiver() {
         pipReceiver = object : BroadcastReceiver() {
@@ -1805,7 +1666,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     @RequiresApi(Build.VERSION_CODES.O)
-    fun updatePipParams(enter = false): PictureInPictureParams {
+    fun updatePipParams(enter: Boolean = false): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -1842,9 +1703,9 @@ class PlayerActivity : AppCompatActivity() {
         actions.add(RemoteAction(
             Icon.createWithResource(context, R.drawable.ic_skip_backward),
             "Rewind", "Rewind 10s",
-            PendingIntent.getBroadcast(context, PIP_REWIND,
+            PendingIntent.getBroadcast(context, PIP_FR,
                 Intent(PIP_INTENTS_FILTER).setPackage(context.packageName)
-                    .putExtra(PIP_INTENT_ACTION, PIP_REWIND),
+                    .putExtra(PIP_INTENT_ACTION, PIP_FR),
                 PendingIntent.FLAG_IMMUTABLE)
         ))
         
@@ -1871,9 +1732,9 @@ class PlayerActivity : AppCompatActivity() {
         actions.add(RemoteAction(
             Icon.createWithResource(context, R.drawable.ic_skip_forward),
             "Forward", "Forward 10s",
-            PendingIntent.getBroadcast(context, PIP_FORWARD,
+            PendingIntent.getBroadcast(context, PIP_FF,
                 Intent(PIP_INTENTS_FILTER).setPackage(context.packageName)
-                    .putExtra(PIP_INTENT_ACTION, PIP_FORWARD),
+                    .putExtra(PIP_INTENT_ACTION, PIP_FF),
                 PendingIntent.FLAG_IMMUTABLE)
         ))
         
@@ -1908,18 +1769,10 @@ class PlayerActivity : AppCompatActivity() {
     // updateMuteIcon() deleted - Compose handles mute icon state
 
     @SuppressLint("NewApi")
-    private fun updatePipParams(enter: Boolean = false) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            updatePipParamsInternal(enter)
-        }
-    }
-
     private fun showUnlockButton() {
         // Unlock button removed - now managed by Compose
         // Unlock button click listener removed - handled by Compose
         // Removed: Now managed by Compose
-            if (controlsState.isLocked) hideUnlockButton()
-        }, 3000)
     }
 
     private fun hideUnlockButton() {
@@ -1939,12 +1792,4 @@ class PlayerActivity : AppCompatActivity() {
             // Receiver not registered or already unregistered
         }
     }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun isPipSupported(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-        } else {
-            false
-        }
-    }
+}
