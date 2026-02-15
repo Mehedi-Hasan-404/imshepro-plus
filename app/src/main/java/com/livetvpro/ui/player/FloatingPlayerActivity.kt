@@ -53,7 +53,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
-import com.livetvpro.databinding.ActivityFloatingPlayerBinding
+import com.livetvpro.databinding.ActivityPlayerBinding
 import com.livetvpro.ui.adapters.RelatedChannelAdapter
 import com.livetvpro.ui.adapters.LiveEventAdapter
 import com.livetvpro.ui.adapters.LinkChipAdapter
@@ -61,12 +61,20 @@ import com.livetvpro.data.models.LiveEventLink
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import java.util.UUID
+import android.annotation.SuppressLint
+import android.graphics.Rect
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import com.livetvpro.ui.player.compose.PlayerControls
+import com.livetvpro.ui.player.compose.PlayerControlsState
+import com.livetvpro.ui.theme.AppTheme
+import kotlinx.coroutines.delay
 
 @UnstableApi
 @AndroidEntryPoint
 class FloatingPlayerActivity : AppCompatActivity() {
 
-    private lateinit var binding: ActivityFloatingPlayerBinding
+    private lateinit var binding: ActivityPlayerBinding
     private val viewModel: PlayerViewModel by viewModels()
     private var player: ExoPlayer? = null
     private var trackSelector: DefaultTrackSelector? = null
@@ -81,29 +89,15 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private lateinit var linkChipAdapter: LinkChipAdapter
 
     private lateinit var windowInsetsController: WindowInsetsControllerCompat
-
-    private var btnBack: ImageButton? = null
-    private var btnPip: ImageButton? = null
-    private var btnSettings: ImageButton? = null
-    private var btnLock: ImageButton? = null
-    private var btnMute: ImageButton? = null
-    private var btnRewind: ImageButton? = null
-    private var btnPlayPause: ImageButton? = null
-    private var btnForward: ImageButton? = null
-    private var btnFullscreen: ImageButton? = null
-    private var btnAspectRatio: ImageButton? = null
-    private var tvChannelName: TextView? = null
+    
+    // Compose controls state
+    private val controlsState = PlayerControlsState()
 
     private var isInPipMode = false
-    private var isLocked = false
     private var isMuted = false
     private val skipMs = 10_000L
     private var userRequestedPip = false
     private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val hideUnlockButtonRunnable = Runnable {
-        binding.unlockButton.visibility = View.GONE
-    }
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -203,7 +197,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             postponeEnterTransition()
         }
         
-        binding = ActivityFloatingPlayerBinding.inflate(layoutInflater)
+        binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
@@ -227,7 +221,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             viewModel.refreshChannelData(contentId)
         }
 
-        bindControllerViews()
+        setupComposeControls()
         setupRelatedChannels()
         setupLinksUI()
         configurePlayerInteractions()
@@ -963,7 +957,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         FloatingPlayerService.showAll(this)
-        mainHandler.removeCallbacksAndMessages(null)
+        // mainHandler removed - no longer needed
         unregisterPipReceiver()
         releasePlayer()
     }
@@ -1093,7 +1087,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     override fun onPlaybackStateChanged(playbackState: Int) {
                         when (playbackState) {
                             Player.STATE_READY -> {
-                                updatePlayPauseIcon(transferredPlayer.playWhenReady)
+                                // updatePlayPauseIcon removed - Compose handles icons
                                 binding.progressBar.visibility = View.GONE
                                 binding.errorView.visibility = View.GONE
                                 updatePipParams()
@@ -1111,7 +1105,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         }
                     }
                     override fun onIsPlayingChanged(isPlaying: Boolean) {
-                        updatePlayPauseIcon(isPlaying)
+                        // updatePlayPauseIcon removed - Compose handles icons
                         if (isInPipMode) updatePipParams()
                     }
                     override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
@@ -1250,7 +1244,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         override fun onPlaybackStateChanged(playbackState: Int) {
                             when (playbackState) {
                                 Player.STATE_READY -> {
-                                    updatePlayPauseIcon(exo.playWhenReady)
+                                    // updatePlayPauseIcon removed - Compose handles icons
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
                                     
@@ -1272,7 +1266,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         }
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
-                            updatePlayPauseIcon(isPlaying)
+                            // updatePlayPauseIcon removed - Compose handles icons
                             if (isInPipMode) {
                                 updatePipParams()
                             }
@@ -1458,198 +1452,100 @@ class FloatingPlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun updatePlayPauseIcon(isPlaying: Boolean) {
-        btnPlayPause?.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
-    }
-
-    private fun bindControllerViews() {
-        binding.playerView.post {
-            with(binding.playerView) {
-                btnBack = findViewById(R.id.exo_back)
-                btnPip = findViewById(R.id.exo_pip)
-                btnSettings = findViewById(R.id.exo_settings)
-                btnLock = findViewById(R.id.exo_lock)
-                btnMute = findViewById(R.id.exo_mute)
-                btnRewind = findViewById(R.id.exo_rewind)
-                btnPlayPause = findViewById(R.id.exo_play_pause)
-                btnForward = findViewById(R.id.exo_forward)
-                btnFullscreen = findViewById(R.id.exo_fullscreen)
-                btnAspectRatio = findViewById(R.id.exo_aspect_ratio)
-                tvChannelName = findViewById(R.id.exo_channel_name)
-            }
-            
-            btnBack?.setImageResource(R.drawable.ic_arrow_back)
-            btnPip?.setImageResource(R.drawable.ic_pip)
-            btnSettings?.setImageResource(R.drawable.ic_settings)
-            btnLock?.setImageResource(if (isLocked) R.drawable.ic_lock_closed else R.drawable.ic_lock_open)
-            updateMuteIcon()
-            btnRewind?.setImageResource(R.drawable.ic_skip_backward)
-            updatePlayPauseIcon(player?.isPlaying == true)
-            btnForward?.setImageResource(R.drawable.ic_skip_forward)
-            btnAspectRatio?.setImageResource(R.drawable.ic_aspect_ratio)
-            
-            val currentOrientation = resources.configuration.orientation
-            if (currentOrientation == Configuration.ORIENTATION_LANDSCAPE) {
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen_exit)
-            } else {
-                btnFullscreen?.setImageResource(R.drawable.ic_fullscreen)
-            }
-            
-            listOf(btnBack, btnPip, btnSettings, btnLock, btnMute, btnRewind, 
-                   btnPlayPause, btnForward, btnFullscreen, btnAspectRatio).forEach {
-                it?.apply { 
-                    isClickable = true
-                    isFocusable = true
-                    isEnabled = true
-                    visibility = View.VISIBLE
-                }
-            }
-            
-            btnAspectRatio?.visibility = View.VISIBLE
-            btnPip?.visibility = View.VISIBLE
-            btnFullscreen?.visibility = View.VISIBLE
-            
-            tvChannelName?.visibility = View.VISIBLE
-            if (contentType == ContentType.NETWORK_STREAM) {
-                tvChannelName?.text = ""
-            } else {
-                tvChannelName?.text = contentName
-            }
-            
-            try {
-                val bergenSansFont = resources.getFont(R.font.bergen_sans)
-                tvChannelName?.typeface = bergenSansFont
-                
-                binding.playerView.findViewById<TextView>(R.id.exo_position)?.typeface = bergenSansFont
-                binding.playerView.findViewById<TextView>(R.id.exo_duration)?.typeface = bergenSansFont
-            } catch (e: Exception) {
-            }
-            
-            setupControlListeners()
-        }
-    }
-
-    private fun setupControlListeners() {
-        btnBack?.setOnClickListener { if (!isLocked) finish() }
-        
-        btnPip?.setOnClickListener {
-            if (!isLocked) {
-                val currentChannel = channelData
-                val currentEvent = eventData
-                val currentPlayer = player
-                val currentStreamUrl = streamUrl
-                val currentName = contentName
-
-                if (currentPlayer != null && (currentChannel != null || currentEvent != null)) {
-                    PlayerHolder.transferPlayer(currentPlayer, currentStreamUrl, currentName)
-
-                    val sourceInstanceId = intent.getStringExtra("source_instance_id")
-
-                    val intent = Intent(this, FloatingPlayerService::class.java).apply {
-                        if (currentChannel != null) {
-                            putExtra(FloatingPlayerService.EXTRA_CHANNEL, currentChannel)
-                        }
-                        if (currentEvent != null) {
-                            putExtra(FloatingPlayerService.EXTRA_EVENT, currentEvent)
-                        }
-                        putExtra(FloatingPlayerService.EXTRA_RESTORE_POSITION, true)
-                        putExtra("use_transferred_player", true)
-                        if (sourceInstanceId != null) {
-                            putExtra(FloatingPlayerService.EXTRA_INSTANCE_ID, sourceInstanceId)
-                        }
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(intent)
-                    } else {
-                        startService(intent)
-                    }
-
-                    player = null
-                    finish()
-                }
-            }
-        }
-        
-        btnSettings?.setOnClickListener { if (!isLocked) showPlayerSettingsDialog() }
-        btnAspectRatio?.setOnClickListener { if (!isLocked) toggleAspectRatio() }
-        btnLock?.setOnClickListener { toggleLock() }
-        
-        btnRewind?.setOnClickListener {
-            if (!isLocked) player?.let { p ->
-                val newPosition = p.currentPosition - skipMs
-                p.seekTo(if (newPosition < 0) 0 else newPosition)
-            }
-        }
-        
-        btnPlayPause?.apply {
-            isClickable = true
-            isFocusable = true
-            setOnClickListener {
-                handlePlayPauseClick()
-            }
-        }
-        
-        btnForward?.setOnClickListener {
-            if (!isLocked) player?.let { p ->
-                val newPosition = p.currentPosition + skipMs
-                if (p.isCurrentWindowLive && p.duration != C.TIME_UNSET && newPosition >= p.duration) {
-                    p.seekTo(p.duration)
-                } else {
-                    p.seekTo(newPosition)
-                }
-            }
-        }
-        
-        btnFullscreen?.apply {
-            isClickable = true
-            isFocusable = true
-            setOnClickListener { 
-                if (!isLocked) {
-                    toggleFullscreen()
-                }
-            }
-        }
-        
-        btnMute?.setOnClickListener { if (!isLocked) toggleMute() }
-    }
-
-    private fun handlePlayPauseClick() {
-        val hasError = binding.errorView.visibility == View.VISIBLE
-        val hasEnded = player?.playbackState == Player.STATE_ENDED
-        
-        if (hasError || hasEnded) {
-            retryPlayback()
-        } else {
-            if (!isLocked) {
-                player?.let { p ->
-                    if (p.isPlaying) p.pause() else p.play()
-                }
-            }
-        }
-    }
+    // OBSOLETE: // updatePlayPauseIcon removed - Compose handles icons
+    // toggleAspectRatio(), showPlayerSettingsDialog() deleted - duplicates of functions in setupComposeControls
 
     private fun toggleMute() {
         player?.let {
             isMuted = !isMuted
             it.volume = if (isMuted) 0f else 1f
-            updateMuteIcon()
+            // Icon updated automatically by Compose controls
         }
     }
 
-    private fun updateMuteIcon() {
-        btnMute?.setImageResource(if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up)
+    private fun setupComposeControls() {
+        binding.playerControlsCompose.apply {
+            setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+            setContent {
+                AppTheme {
+                    val isPlaying by remember { 
+                        derivedStateOf { player?.isPlaying == true }
+                    }
+                    
+                    val currentPosition by produceState(initialValue = 0L) {
+                        while (true) {
+                            value = player?.currentPosition ?: 0L
+                            delay(100)
+                        }
+                    }
+                    
+                    val duration = player?.duration ?: 0L
+                    val bufferedPosition = player?.bufferedPosition ?: 0L
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    
+                    PlayerControls(
+                        state = controlsState,
+                        isPlaying = isPlaying,
+                        isMuted = isMuted,
+                        currentPosition = currentPosition,
+                        duration = duration,
+                        bufferedPosition = bufferedPosition,
+                        channelName = contentName,
+                        showPipButton = isPipSupported,
+                        showAspectRatioButton = true,
+                        isLandscape = isLandscape,
+                        onBackClick = { finish() },
+                        onPipClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                wasLockedBeforePip = controlsState.isLocked
+                                enterPictureInPictureMode(createPipParams())
+                            }
+                        },
+                        onSettingsClick = { showSettingsDialog() },
+                        onMuteClick = { toggleMute() },
+                        onLockClick = { locked -> },
+                        onPlayPauseClick = {
+                            player?.let {
+                                if (it.isPlaying) it.pause() else it.play()
+                            }
+                        },
+                        onSeek = { position ->
+                            player?.seekTo(position)
+                        },
+                        onRewindClick = {
+                            player?.let {
+                                val newPosition = it.currentPosition - skipMs
+                                it.seekTo(if (newPosition < 0) 0 else newPosition)
+                            }
+                        },
+                        onForwardClick = {
+                            player?.let {
+                                val newPosition = it.currentPosition + skipMs
+                                if (it.isCurrentWindowLive && it.duration != C.TIME_UNSET && newPosition >= it.duration) {
+                                    it.seekTo(it.duration)
+                                } else {
+                                    it.seekTo(newPosition)
+                                }
+                            }
+                        },
+                        onAspectRatioClick = { cycleAspectRatio() },
+                        onFullscreenClick = { toggleFullscreen() }
+                    )
+                }
+            }
+        }
     }
 
-    private fun toggleAspectRatio() {
+    private fun cycleAspectRatio() {
         currentResizeMode = when (currentResizeMode) {
-            AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-            else -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
         binding.playerView.resizeMode = currentResizeMode
     }
 
-    private fun showPlayerSettingsDialog() {
+    private fun showSettingsDialog() {
         val exoPlayer = player ?: return
         try {
             val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(this, exoPlayer)
@@ -1678,33 +1574,28 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     private fun showUnlockButton() {
         binding.unlockButton.visibility = View.VISIBLE
-        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
-        mainHandler.postDelayed(hideUnlockButtonRunnable, 3000)
+        binding.unlockButton.setOnClickListener { toggleLock() }
+        binding.unlockButton.postDelayed({
+            if (controlsState.isLocked) hideUnlockButton()
+        }, 3000)
     }
 
     private fun hideUnlockButton() {
-        mainHandler.removeCallbacks(hideUnlockButtonRunnable)
         binding.unlockButton.visibility = View.GONE
     }
 
     private fun toggleLock() {
-        isLocked = !isLocked
-        if (isLocked) {
+        controlsState.isLocked = !controlsState.isLocked
+        if (controlsState.isLocked) {
             binding.playerView.useController = false
-            binding.playerView.hideController()
-            binding.lockOverlay.apply {
-                visibility = View.VISIBLE
-                isClickable = true
-                isFocusable = true
-                setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            }
+            binding.lockOverlay.visibility = View.VISIBLE
             showUnlockButton()
-            btnLock?.setImageResource(R.drawable.ic_lock_closed)
+            // Lock icon updated by Compose controls
         } else {
             binding.playerView.useController = true
             binding.lockOverlay.visibility = View.GONE
             hideUnlockButton()
-            btnLock?.setImageResource(R.drawable.ic_lock_open)
+            // Lock icon updated by Compose controls
             binding.playerView.showController()
         }
     }
