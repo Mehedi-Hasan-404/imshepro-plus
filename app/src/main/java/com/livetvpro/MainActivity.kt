@@ -54,12 +54,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Ensure status bar is always visible and layout respects it (BEFORE setContentView)
+        WindowCompat.setDecorFitsSystemWindows(window, true)
+        
         themeManager.applyTheme()
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Ensure status bar is always visible in MainActivity
-        WindowCompat.setDecorFitsSystemWindows(window, true)
+        // Explicitly show status bar
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
         
