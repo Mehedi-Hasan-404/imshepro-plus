@@ -2,207 +2,267 @@ name: Build Release APK
 
 on:
   push:
-    branches: ["main", "develop"]
+    branches: [ main, master ]
   pull_request:
-    branches: ["main"]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
   build-release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          cache: 'gradle'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept Android SDK licenses
-        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
-
-      - name: Install Android NDK
-        run: |
-          echo "Installing NDK 25.1.8937393..."
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --sdk_root=$ANDROID_HOME "ndk;25.1.8937393"
-          echo "NDK installed successfully"
-          ls -la $ANDROID_HOME/ndk/
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Create placeholder launcher icons
-        run: |
-          mkdir -p app/src/main/res/mipmap-mdpi
-          mkdir -p app/src/main/res/mipmap-hdpi
-          mkdir -p app/src/main/res/mipmap-xhdpi
-          mkdir -p app/src/main/res/mipmap-xxhdpi
-          mkdir -p app/src/main/res/mipmap-xxxhdpi
+    - name: 🔄 Checkout Repository
+      uses: actions/checkout@v4
+    
+    - name: ☕ Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    
+    - name: 🔐 Setup Android SDK
+      uses: android-actions/setup-android@v3
+    
+    - name: 📝 Grant Execute Permission for Gradlew
+      run: chmod +x gradlew
+    
+    - name: 🔧 Create google-services.json from secrets
+      run: |
+        echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
+        echo "✅ Created google-services.json"
+    
+    - name: 🔑 Decode Keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
+        echo "✅ Keystore decoded"
+        ls -lh release-keystore.jks
+    
+    - name: 🎨 Generate Launcher Icons (if needed)
+      run: |
+        echo "Checking for launcher icons..."
+        
+        # Check if ic_launcher.xml exists
+        if [ ! -f "app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" ]; then
+          echo "⚠️ Adaptive icons not found, will use existing PNG icons"
+        else
+          echo "✅ Launcher icons found"
+        fi
+        
+        # List all mipmap directories
+        echo "Current mipmap directories:"
+        ls -la app/src/main/res/ | grep mipmap || echo "No mipmap directories found"
+        
+        # Verify icons exist in at least one density
+        if [ -f "app/src/main/res/mipmap-xxxhdpi/ic_launcher.png" ] || \
+           [ -f "app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" ]; then
+          echo "✅ High-res launcher icon found"
+        else
+          echo "⚠️ Warning: High-res launcher icon missing"
+          echo "   Build will continue with existing icons"
+        fi
+    
+    - name: 📋 Validate AndroidManifest.xml
+      run: |
+        echo "Validating AndroidManifest.xml..."
+        
+        # Check if manifest exists
+        if [ -f "app/src/main/AndroidManifest.xml" ]; then
+          echo "✅ AndroidManifest.xml found"
           
-          for dpi in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            cat > app/src/main/res/mipmap-$dpi/ic_launcher.xml << 'ICON_EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp"
-              android:height="108dp"
-              android:viewportWidth="108"
-              android:viewportHeight="108">
-              <path android:fillColor="#EF4444"
-                  android:pathData="M0,0h108v108h-108z"/>
-              <path android:fillColor="#FFFFFF"
-                  android:pathData="M32,32h44v44h-44z"/>
-          </vector>
-          ICON_EOF
-            cp app/src/main/res/mipmap-$dpi/ic_launcher.xml app/src/main/res/mipmap-$dpi/ic_launcher_round.xml
-          done
-          echo "✅ Created placeholder launcher icons"
-
-      - name: Create google-services.json from secrets
-        run: |
-          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > app/google-services.json
-          echo "✅ Created google-services.json from secrets"
-
-      - name: Decode Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > release-keystore.jks
-          echo "✅ Keystore decoded successfully"
-          ls -lh release-keystore.jks
-
-      - name: Verify build prerequisites
-        run: |
-          echo "=== Verifying build setup ==="
-          echo "Checking google-services.json..."
-          ls -lh app/google-services.json
-          echo "Checking keystore..."
-          ls -lh release-keystore.jks
-          echo "Checking gradlew..."
-          ls -lh gradlew
-          echo "✅ All prerequisites verified"
-
-      - name: Build Release APK (Multi-ABI)
-        env:
-          KEYSTORE_FILE: ${{ github.workspace }}/release-keystore.jks
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
-          echo "🔨 Building all ABI variants..."
-          ./gradlew assembleRelease --stacktrace
-          echo "✅ Build completed successfully!"
-
-      - name: List build outputs
-        if: always()
-        run: |
-          echo "=== APK files found ==="
-          find app/build/outputs -name "*.apk" -type f -exec ls -lh {} \;
+          # Check for launcher icon reference
+          if grep -q "android:icon=\"@mipmap/ic_launcher\"" app/src/main/AndroidManifest.xml; then
+            echo "✅ Launcher icon reference found in manifest"
+          else
+            echo "⚠️ Warning: No launcher icon reference in manifest"
+          fi
+          
+          # Check for round icon reference (adaptive icons)
+          if grep -q "android:roundIcon" app/src/main/AndroidManifest.xml; then
+            echo "✅ Round icon reference found (adaptive icons)"
+          fi
+          
+          # Show application tag
+          echo "Application configuration:"
+          grep -A5 "<application" app/src/main/AndroidManifest.xml | head -6
+        else
+          echo "❌ AndroidManifest.xml not found!"
+          exit 1
+        fi
+    
+    - name: 🧹 Deep Clean Build Artifacts
+      run: |
+        echo "Performing deep clean to remove all cached files..."
+        ./gradlew clean || true
+        rm -rf .gradle
+        rm -rf app/build
+        rm -rf build
+        rm -rf app/.cxx
+        rm -rf ~/.gradle/caches/
+        echo "✅ Clean completed - all caches removed"
+    
+    - name: 🔍 Pre-build Diagnostics
+      run: |
+        echo "=== Build Environment Info ==="
+        echo "Java version:"
+        java -version
+        echo ""
+        echo "Gradle version:"
+        ./gradlew --version
+        echo ""
+        echo "Android SDK location:"
+        echo $ANDROID_HOME
+        echo ""
+        echo "Available disk space:"
+        df -h
+        echo ""
+        echo "Memory:"
+        free -h
+    
+    - name: 📦 Download Dependencies
+      run: |
+        echo "Downloading and caching dependencies..."
+        ./gradlew dependencies --no-daemon || true
+        echo "✅ Dependencies downloaded"
+    
+    - name: 🔨 Build Release APK
+      run: |
+        echo "🔨 Building all ABI variants..."
+        ./gradlew assembleRelease \
+          --stacktrace \
+          --no-daemon \
+          --no-build-cache \
+          --rerun-tasks \
+          --warning-mode all \
+          2>&1 | tee build.log
+        
+        echo "✅ Build completed!"
+      env:
+        KEYSTORE_FILE: ${{ github.workspace }}/release-keystore.jks
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+    
+    - name: 📊 Build Summary
+      if: always()
+      run: |
+        echo "=== BUILD SUMMARY ==="
+        
+        if [ -d "app/build/outputs/apk/release" ]; then
+          echo "✅ APK output directory exists"
+          
           echo ""
-          echo "=== APK Summary ==="
-          find app/build/outputs/apk/release -name "*.apk" -type f | while read apk; do
-            size=$(du -h "$apk" | cut -f1)
-            name=$(basename "$apk")
-            echo "$name - $size"
+          echo "=== Generated APKs ==="
+          find app/build/outputs/apk/release -name "*.apk" -exec ls -lh {} \; | while read line; do
+            echo "  📱 $line"
           done
-
-      - name: Upload arm64-v8a APK
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: app-arm64-v8a-release
-          path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
-          retention-days: 14
-
-      - name: Upload armeabi-v7a APK
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: app-armeabi-v7a-release
-          path: app/build/outputs/apk/release/app-armeabi-v7a-release.apk
-          retention-days: 14
-
-      - name: Upload x86_64 APK
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: app-x86_64-release
-          path: app/build/outputs/apk/release/app-x86_64-release.apk
-          retention-days: 14
-
-      - name: Upload x86 APK
-        uses: actions/upload-artifact@v4
-        if: success()
-        with:
-          name: app-x86-release
-          path: app/build/outputs/apk/release/app-x86-release.apk
-          retention-days: 14
-
-      - name: Upload Universal APK
-        uses: actions/upload-artifact@v4
-        if: success()
-        continue-on-error: true  # Don't fail if universal APK doesn't exist
-        with:
-          name: app-universal-release
-          path: app/build/outputs/apk/release/app-universal-release.apk
-          retention-days: 14
-
-      - name: Upload build reports on failure
-        uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: build-reports
-          path: |
-            app/build/reports/
-            app/build/outputs/logs/
-          retention-days: 7
-
-      - name: Build Summary
-        if: success()
-        run: |
-          echo "## 🎉 Build Successful!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📱 APK Variants Created:" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Architecture | Size | Device Type |" >> $GITHUB_STEP_SUMMARY
-          echo "|--------------|------|-------------|" >> $GITHUB_STEP_SUMMARY
           
-          if [ -f "app/build/outputs/apk/release/app-arm64-v8a-release.apk" ]; then
-            size=$(du -h "app/build/outputs/apk/release/app-arm64-v8a-release.apk" | cut -f1)
-            echo "| arm64-v8a | $size | Modern phones, tablets |" >> $GITHUB_STEP_SUMMARY
+          echo ""
+          echo "=== APK Sizes ==="
+          find app/build/outputs/apk/release -name "*.apk" -exec du -h {} \;
+          
+          echo ""
+          echo "=== Total APKs Count ==="
+          APK_COUNT=$(find app/build/outputs/apk/release -name "*.apk" | wc -l)
+          echo "  📊 Total: $APK_COUNT APK files"
+        else
+          echo "❌ APK output directory not found"
+          echo "Build may have failed. Check build.log"
+        fi
+    
+    - name: 🔍 Upload Build Log
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-log
+        path: build.log
+        retention-days: 7
+    
+    - name: ⬆️ Upload Universal APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-universal-release
+        path: app/build/outputs/apk/release/app-universal-release.apk
+        if-no-files-found: warn
+    
+    - name: ⬆️ Upload ARM64 APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-arm64-v8a-release
+        path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
+        if-no-files-found: warn
+    
+    - name: ⬆️ Upload ARMv7 APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-armeabi-v7a-release
+        path: app/build/outputs/apk/release/app-armeabi-v7a-release.apk
+        if-no-files-found: warn
+    
+    - name: ⬆️ Upload x86_64 APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-x86_64-release
+        path: app/build/outputs/apk/release/app-x86_64-release.apk
+        if-no-files-found: warn
+    
+    - name: ⬆️ Upload x86 APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: app-x86-release
+        path: app/build/outputs/apk/release/app-x86-release.apk
+        if-no-files-found: warn
+    
+    - name: ⬆️ Upload All APKs (Backup)
+      uses: actions/upload-artifact@v4
+      with:
+        name: all-release-apks
+        path: app/build/outputs/apk/release/*.apk
+        if-no-files-found: error
+    
+    - name: 📊 Generate APK Info
+      if: success()
+      run: |
+        echo "# 🎉 Build Successful!" > apk-info.md
+        echo "" >> apk-info.md
+        echo "## 📱 Generated APKs" >> apk-info.md
+        echo "" >> apk-info.md
+        
+        for apk in app/build/outputs/apk/release/*.apk; do
+          if [ -f "$apk" ]; then
+            filename=$(basename "$apk")
+            size=$(du -h "$apk" | cut -f1)
+            echo "- **$filename** - Size: $size" >> apk-info.md
           fi
-          
-          if [ -f "app/build/outputs/apk/release/app-armeabi-v7a-release.apk" ]; then
-            size=$(du -h "app/build/outputs/apk/release/app-armeabi-v7a-release.apk" | cut -f1)
-            echo "| armeabi-v7a | $size | Older phones, budget devices |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ -f "app/build/outputs/apk/release/app-x86_64-release.apk" ]; then
-            size=$(du -h "app/build/outputs/apk/release/app-x86_64-release.apk" | cut -f1)
-            echo "| x86_64 | $size | Emulators, Android TV, Chromebooks |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ -f "app/build/outputs/apk/release/app-x86-release.apk" ]; then
-            size=$(du -h "app/build/outputs/apk/release/app-x86-release.apk" | cut -f1)
-            echo "| x86 | $size | Older emulators, legacy devices |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          if [ -f "app/build/outputs/apk/release/app-universal-release.apk" ]; then
-            size=$(du -h "app/build/outputs/apk/release/app-universal-release.apk" | cut -f1)
-            echo "| **Universal** | **$size** | **All devices (all ABIs)** |" >> $GITHUB_STEP_SUMMARY
-          fi
-          
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🌐 Supported Platforms:" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Android Phones (all versions)" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Android Tablets" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Android TV / Fire TV" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Foldable Devices" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Chromebooks" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Android Emulators" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Windows 11 WSA" >> $GITHUB_STEP_SUMMARY
+        done
+        
+        echo "" >> apk-info.md
+        echo "## 📋 Build Info" >> apk-info.md
+        echo "- Commit: \`${{ github.sha }}\`" >> apk-info.md
+        echo "- Branch: \`${{ github.ref_name }}\`" >> apk-info.md
+        echo "- Build Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> apk-info.md
+        echo "- Workflow Run: #${{ github.run_number }}" >> apk-info.md
+        
+        cat apk-info.md
+    
+    - name: 📄 Upload Build Info
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-info
+        path: apk-info.md
+        retention-days: 30
+    
+    - name: ✅ Build Status
+      if: success()
+      run: |
+        echo "════════════════════════════════════════════════════════════════"
+        echo "✅ BUILD SUCCESSFUL!"
+        echo "════════════════════════════════════════════════════════════════"
+        echo ""
+        echo "🎉 All APKs have been built and uploaded successfully!"
+        echo ""
+        echo "📥 Download artifacts from the Actions tab:"
+        echo "   https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        echo ""
+        echo "════════════════════════════════════════════════════════════════"
