@@ -185,6 +185,10 @@ class PlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
+        // Set FIT mode immediately at the very start
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -213,6 +217,12 @@ class PlayerActivity : AppCompatActivity() {
         applyOrientationSettings(isLandscape)
         
         binding.playerView.useController = false
+        
+        // Explicitly set resize mode to FIT at start
+        if (!isLandscape) {
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
         
         if (!isLandscape) {
             binding.relatedLoadingProgress.visibility = View.VISIBLE
@@ -598,19 +608,13 @@ class PlayerActivity : AppCompatActivity() {
         
         if (wasLockedBeforePip) {
             controlsState.isLocked = true
-            binding.playerView.useController = false
-            // Lock overlay removed - now managed by Compose PlayerControls
             wasLockedBeforePip = false
         } else {
             controlsState.isLocked = false
-            binding.playerView.useController = true
-            
-            binding.playerView.postDelayed({
-                if (!isInPipMode && !controlsState.isLocked) {
-                    binding.playerView.showController()
-                }
-            }, 150)
         }
+        
+        // Always keep PlayerView controller disabled - we use Compose controls
+        binding.playerView.useController = false
     }
 
     @SuppressLint("NewApi")
@@ -626,8 +630,11 @@ class PlayerActivity : AppCompatActivity() {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
                 AppTheme {
-                    val isPlaying by remember { 
-                        derivedStateOf { player?.isPlaying == true }
+                    val isPlaying by produceState(initialValue = false, player) {
+                        while (true) {
+                            value = player?.isPlaying == true
+                            delay(100)
+                        }
                     }
                     
                     val currentPosition by produceState(initialValue = 0L) {
@@ -640,6 +647,15 @@ class PlayerActivity : AppCompatActivity() {
                     val duration = player?.duration ?: 0L
                     val bufferedPosition = player?.bufferedPosition ?: 0L
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    
+                    // Auto-hide controls when playback starts
+                    val scope = rememberCoroutineScope()
+                    LaunchedEffect(isPlaying) {
+                        if (isPlaying && controlsState.isVisible && !controlsState.isLocked) {
+                            delay(5000) // Wait 5 seconds
+                            controlsState.hide()
+                        }
+                    }
                     
                     // Track pipRect for smooth PiP transitions
                     DisposableEffect(Unit) {
@@ -680,7 +696,14 @@ class PlayerActivity : AppCompatActivity() {
                         onLockClick = { locked -> },
                         onPlayPauseClick = {
                             player?.let {
-                                if (it.isPlaying) it.pause() else it.play()
+                                val hasError = binding.errorView.visibility == View.VISIBLE
+                                val hasEnded = it.playbackState == Player.STATE_ENDED
+                                
+                                if (hasError || hasEnded) {
+                                    retryPlayback()
+                                } else {
+                                    if (it.isPlaying) it.pause() else it.play()
+                                }
                             }
                         },
                         onSeek = { position ->
@@ -702,7 +725,12 @@ class PlayerActivity : AppCompatActivity() {
                                 }
                             }
                         },
-                        onAspectRatioClick = { cycleAspectRatio() },
+                        onAspectRatioClick = { 
+                            // Only allow aspect ratio change in landscape or network streams
+                            if (isLandscape || contentType == ContentType.NETWORK_STREAM) {
+                                cycleAspectRatio()
+                            }
+                        },
                         onFullscreenClick = { toggleFullscreen() }
                     )
                 }
@@ -896,7 +924,7 @@ class PlayerActivity : AppCompatActivity() {
         portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         portraitLinksRecycler.adapter = linkChipAdapter
 
-        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
         val landscapeLinkAdapter = LinkChipAdapter { link, position ->
@@ -926,10 +954,11 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateLinksForOrientation(isLandscape: Boolean) {
-        val landscapeLinksRecycler = binding.playerView.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         
         if (allEventLinks.size > 1) {
             if (isLandscape) {
+                // Show links inside player overlay
                 binding.linksSection.visibility = View.GONE
                 landscapeLinksRecycler?.visibility = View.VISIBLE
                 
@@ -939,6 +968,7 @@ class PlayerActivity : AppCompatActivity() {
                     landscapeAdapter.setSelectedPosition(currentLinkIndex)
                 }
             } else {
+                // Show links below player
                 binding.linksSection.visibility = View.VISIBLE
                 landscapeLinksRecycler?.visibility = View.GONE
                 
@@ -1275,6 +1305,15 @@ class PlayerActivity : AppCompatActivity() {
                 .build().also { exo ->
                     binding.playerView.player = exo
                     
+                    // Force FIT mode for portrait, use currentResizeMode for landscape
+                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    if (!isLandscape) {
+                        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                    } else {
+                        binding.playerView.resizeMode = currentResizeMode
+                    }
+                    
                     binding.playerView.hideController()
                     
                     val uri = android.net.Uri.parse(streamInfo.url)
@@ -1296,6 +1335,12 @@ class PlayerActivity : AppCompatActivity() {
                                 Player.STATE_READY -> {
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
+                                    
+                                    // Force resize mode in portrait
+                                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                                    if (!isLandscape && binding.playerView.resizeMode != currentResizeMode) {
+                                        binding.playerView.resizeMode = currentResizeMode
+                                    }
 
                                     updatePipParams()
                                 }
@@ -1542,10 +1587,13 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
-        params.height = 0 // 0dp means "Match Constraint"
+        params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+        params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.dimensionRatio = "H,16:9"
         
+        params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+        params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+        params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
         params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
         
         binding.playerContainer.layoutParams = params
