@@ -97,7 +97,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private var isMuted = false
     private val skipMs = 10_000L
     private var userRequestedPip = false
-    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -441,9 +441,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
             containerParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
             containerParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             
-            // Use FIT mode in portrait to fill the 16:9 container properly
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            // Use ZOOM mode in portrait so video fills the 16:9 container without black bars
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
         }
         
         binding.playerContainer.layoutParams = containerParams
