@@ -3,8 +3,10 @@ package com.livetvpro.ui.player.compose
 import android.content.res.Configuration
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -14,13 +16,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,7 +89,7 @@ class PlayerControlsState(
 }
 
 /**
- * Main player controls composable
+ * Main player controls composable - matches the original XML design
  */
 @Composable
 fun PlayerControls(
@@ -126,7 +132,7 @@ fun PlayerControls(
                 )
             }
     ) {
-        // Lock overlay and unlock button
+        // Lock overlay and unlock button (matching original XML)
         AnimatedVisibility(
             visible = state.isLocked,
             enter = fadeIn(),
@@ -135,7 +141,7 @@ fun PlayerControls(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
+                    .background(Color(0x80000000)) // #80000000 from XML
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -147,12 +153,14 @@ fun PlayerControls(
                     onClick = { state.unlock(scope) },
                     modifier = Modifier
                         .align(Alignment.TopStart)
-                        .padding(4.dp)
+                        .padding(start = 4.dp, top = 4.dp)
+                        .size(40.dp)
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_lock_closed),
-                        contentDescription = "Unlock",
-                        tint = Color.White
+                        contentDescription = "Unlock controls",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
@@ -219,7 +227,7 @@ private fun PlayerControlsContent(
     onInteraction: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Top gradient
+        // Top gradient overlay (matching XML)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -235,7 +243,7 @@ private fun PlayerControlsContent(
                 )
         )
         
-        // Bottom gradient
+        // Bottom gradient overlay (matching XML)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -251,20 +259,23 @@ private fun PlayerControlsContent(
                 )
         )
         
-        // Top bar
+        // Top bar controls (matching XML layout exactly)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
-                .padding(horizontal = 4.dp, vertical = 0.dp),
+                .padding(start = 4.dp, end = 4.dp, top = 0.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Back button
             PlayerIconButton(
                 onClick = onBackClick,
                 iconRes = R.drawable.ic_arrow_back,
-                contentDescription = "Back"
+                contentDescription = "Back",
+                size = 40
             )
             
+            // Channel name
             Text(
                 text = channelName,
                 color = Color.White,
@@ -277,84 +288,95 @@ private fun PlayerControlsContent(
                     .padding(start = 12.dp)
             )
             
+            // PiP button
             if (showPipButton) {
                 PlayerIconButton(
                     onClick = onPipClick,
                     iconRes = R.drawable.ic_pip,
-                    contentDescription = "Picture in Picture"
+                    contentDescription = "Picture in Picture",
+                    size = 40
                 )
             }
             
+            // Settings button
             PlayerIconButton(
                 onClick = onSettingsClick,
                 iconRes = R.drawable.ic_settings,
-                contentDescription = "Settings"
+                contentDescription = "Settings",
+                size = 40
             )
             
+            // Mute button
             PlayerIconButton(
                 onClick = onMuteClick,
                 iconRes = if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
-                contentDescription = if (isMuted) "Unmute" else "Mute"
+                contentDescription = "Mute",
+                size = 40
             )
             
+            // Lock button
             PlayerIconButton(
                 onClick = onLockClick,
                 iconRes = R.drawable.ic_lock_open,
                 contentDescription = "Lock controls",
+                size = 40,
                 modifier = Modifier.padding(start = 4.dp)
             )
         }
         
-        // Bottom controls
+        // Bottom controls (matching XML structure)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 8.dp)
+                .padding(start = 8.dp, end = 8.dp, bottom = 0.dp)
         ) {
-            // Progress bar
-            PlayerProgressBar(
+            // Progress bar section (using ExoPlayer-like TimeBar)
+            ExoPlayerTimeBar(
                 currentPosition = currentPosition,
                 duration = duration,
                 bufferedPosition = bufferedPosition,
                 onSeek = { 
                     onSeek(it)
                     onInteraction()
-                }
+                },
+                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
             )
             
-            // Bottom buttons: Aspect Ratio | Rewind | Play/Pause | Forward | Fullscreen
+            // Playback control buttons (matching XML layout: AspectRatio | Rewind | Play/Pause | Forward | Fullscreen)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp, top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                    .padding(bottom = 8.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Aspect Ratio
+                // Aspect Ratio button (40dp, left side)
                 if (showAspectRatioButton) {
                     PlayerIconButton(
                         onClick = onAspectRatioClick,
                         iconRes = R.drawable.ic_aspect_ratio,
                         contentDescription = "Aspect ratio",
-                        size = 36
+                        size = 40,
+                        modifier = Modifier.padding(end = 12.dp)
                     )
                 } else {
-                    Spacer(modifier = Modifier.size(36.dp))
+                    Spacer(modifier = Modifier.width(52.dp))
                 }
                 
-                // Rewind
+                // Rewind button (48dp)
                 PlayerIconButton(
                     onClick = {
                         onRewindClick()
                         onInteraction()
                     },
                     iconRes = R.drawable.ic_skip_backward,
-                    contentDescription = "Rewind",
-                    size = 40
+                    contentDescription = "Rewind 10 seconds",
+                    size = 48,
+                    modifier = Modifier.padding(end = 16.dp)
                 )
                 
-                // Play/Pause (larger)
+                // Play/Pause button (64dp - largest)
                 PlayerIconButton(
                     onClick = {
                         onPlayPauseClick()
@@ -362,26 +384,28 @@ private fun PlayerControlsContent(
                     },
                     iconRes = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
                     contentDescription = if (isPlaying) "Pause" else "Play",
-                    size = 56
+                    size = 64,
+                    modifier = Modifier.padding(end = 16.dp)
                 )
                 
-                // Forward
+                // Forward button (48dp)
                 PlayerIconButton(
                     onClick = {
                         onForwardClick()
                         onInteraction()
                     },
                     iconRes = R.drawable.ic_skip_forward,
-                    contentDescription = "Forward",
-                    size = 40
+                    contentDescription = "Forward 10 seconds",
+                    size = 48,
+                    modifier = Modifier.padding(end = 12.dp)
                 )
                 
-                // Fullscreen
+                // Fullscreen button (40dp, right side)
                 PlayerIconButton(
                     onClick = onFullscreenClick,
                     iconRes = if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen,
                     contentDescription = "Toggle fullscreen",
-                    size = 36
+                    size = 40
                 )
             }
         }
@@ -405,13 +429,17 @@ private fun PlayerIconButton(
             painter = painterResource(iconRes),
             contentDescription = contentDescription,
             tint = tint,
-            modifier = Modifier.size((size * 0.6f).dp)
+            modifier = Modifier.size((size * 0.6f).toInt().dp)
         )
     }
 }
 
+/**
+ * ExoPlayer-style TimeBar that closely matches DefaultTimeBar appearance
+ * This replaces the Material3 Slider with a custom implementation
+ */
 @Composable
-private fun PlayerProgressBar(
+private fun ExoPlayerTimeBar(
     currentPosition: Long,
     duration: Long,
     bufferedPosition: Long,
@@ -421,40 +449,136 @@ private fun PlayerProgressBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .height(wrap_content),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
     ) {
+        // Position text
         Text(
             text = formatTime(currentPosition),
             color = Color.White,
             fontSize = 12.sp,
             modifier = Modifier.width(48.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
         )
         
-        var sliderValue by remember(currentPosition) { 
-            mutableFloatStateOf(currentPosition.toFloat()) 
-        }
-        
-        Slider(
-            value = sliderValue,
-            onValueChange = { sliderValue = it },
-            onValueChangeFinished = { onSeek(sliderValue.toLong()) },
-            valueRange = 0f..duration.toFloat().coerceAtLeast(1f),
-            modifier = Modifier.weight(1f),
-            colors = SliderDefaults.colors(
-                thumbColor = Color.White,
-                activeTrackColor = Color.Red,
-                inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-            )
+        // Custom TimeBar
+        CustomTimeBar(
+            currentPosition = currentPosition,
+            duration = duration,
+            bufferedPosition = bufferedPosition,
+            onSeek = onSeek,
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 8.dp)
+                .height(20.dp)
         )
         
+        // Duration text
         Text(
             text = formatTime(duration),
             color = Color.White,
             fontSize = 12.sp,
             modifier = Modifier.width(48.dp),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/**
+ * Custom TimeBar that looks like ExoPlayer's DefaultTimeBar
+ */
+@Composable
+private fun CustomTimeBar(
+    currentPosition: Long,
+    duration: Long,
+    bufferedPosition: Long,
+    onSeek: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var isDragging by remember { mutableStateOf(false) }
+    var dragPosition by remember { mutableFloatStateOf(0f) }
+    
+    val progress = if (duration > 0) {
+        (currentPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    
+    val bufferedProgress = if (duration > 0) {
+        (bufferedPosition.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+    } else 0f
+    
+    val density = LocalDensity.current
+    
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        dragPosition = offset.x / size.width
+                    },
+                    onDrag = { change, _ ->
+                        dragPosition = (change.position.x / size.width).coerceIn(0f, 1f)
+                    },
+                    onDragEnd = {
+                        isDragging = false
+                        val seekPosition = (dragPosition * duration).toLong()
+                        onSeek(seekPosition)
+                    }
+                )
+            }
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    val tapPosition = (offset.x / size.width).coerceIn(0f, 1f)
+                    val seekPosition = (tapPosition * duration).toLong()
+                    onSeek(seekPosition)
+                }
+            }
+    ) {
+        val barHeight = 4.dp.toPx()
+        val scrubberRadius = 6.dp.toPx()
+        val centerY = size.height / 2f
+        
+        // Draw unplayed track (light gray/white with transparency)
+        drawLine(
+            color = Color.White.copy(alpha = 0.3f),
+            start = Offset(0f, centerY),
+            end = Offset(size.width, centerY),
+            strokeWidth = barHeight,
+            cap = StrokeCap.Round
+        )
+        
+        // Draw buffered track (slightly lighter)
+        val bufferedWidth = size.width * bufferedProgress
+        if (bufferedWidth > 0) {
+            drawLine(
+                color = Color.White.copy(alpha = 0.5f),
+                start = Offset(0f, centerY),
+                end = Offset(bufferedWidth, centerY),
+                strokeWidth = barHeight,
+                cap = StrokeCap.Round
+            )
+        }
+        
+        // Draw played track (red, like YouTube/ExoPlayer default)
+        val currentProgress = if (isDragging) dragPosition else progress
+        val playedWidth = size.width * currentProgress
+        if (playedWidth > 0) {
+            drawLine(
+                color = Color(0xFFFF0000), // Bright red like ExoPlayer
+                start = Offset(0f, centerY),
+                end = Offset(playedWidth, centerY),
+                strokeWidth = barHeight,
+                cap = StrokeCap.Round
+            )
+        }
+        
+        // Draw scrubber (white circle)
+        drawCircle(
+            color = Color.White,
+            radius = scrubberRadius,
+            center = Offset(playedWidth, centerY)
         )
     }
 }
