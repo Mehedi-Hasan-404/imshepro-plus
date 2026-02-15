@@ -428,8 +428,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         adjustLayoutForOrientation(isLandscape)
         updateLinksForOrientation(isLandscape)
         
-        btnFullscreen?.setImageResource(
-            if (isLandscape) R.drawable.ic_fullscreen_exit 
+        // Fullscreen button now handled by Compose PlayerControls R.drawable.ic_fullscreen_exit 
             else R.drawable.ic_fullscreen
         )
     }
@@ -536,8 +535,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     private fun enterPipUIMode() {
         binding.playerView.useController = false 
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
+        // Lock overlay removed - now managed by Compose PlayerControls
+        // Unlock button removed - now managed by Compose
         binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         binding.playerView.hideController()
         
@@ -574,17 +573,17 @@ class FloatingPlayerActivity : AppCompatActivity() {
         }
         
         if (wasLockedBeforePip) {
-            isLocked = true
+            controlsState.isLocked = true
             binding.playerView.useController = false
-            binding.lockOverlay.visibility = View.VISIBLE
+            // Lock overlay removed - now managed by Compose PlayerControls
             showUnlockButton()
             wasLockedBeforePip = false
         } else {
-            isLocked = false
+            controlsState.isLocked = false
             binding.playerView.useController = true
             
             binding.playerView.postDelayed({
-                if (!isInPipMode && !isLocked) {
+                if (!isInPipMode && !controlsState.isLocked) {
                     binding.playerView.showController()
                 }
             }, 150)
@@ -1079,7 +1078,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 
                 PlayerHolder.clearReferences()
                 
-                bindControllerViews()
+                // bindControllerViews() // REMOVED: Compose handles view binding
                 configurePlayerInteractions()
                 setupLockOverlay()
                 
@@ -1491,14 +1490,18 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         duration = duration,
                         bufferedPosition = bufferedPosition,
                         channelName = contentName,
-                        showPipButton = isPipSupported,
+                        showPipButton = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            isPipSupported()
+                        } else {
+                            false
+                        },
                         showAspectRatioButton = true,
                         isLandscape = isLandscape,
                         onBackClick = { finish() },
                         onPipClick = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                 wasLockedBeforePip = controlsState.isLocked
-                                enterPictureInPictureMode(createPipParams())
+                                enterPictureInPictureMode(updatePipParams(enter = false))
                             }
                         },
                         onSettingsClick = { showSettingsDialog() },
@@ -1563,37 +1566,33 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupLockOverlay() {
-        binding.unlockButton.background = resources.getDrawable(R.drawable.ripple_square_white, null)
-        binding.unlockButton.setOnClickListener { toggleLock() }
-        binding.lockOverlay.setOnClickListener {
-            if (binding.unlockButton.visibility == View.VISIBLE) hideUnlockButton() else showUnlockButton()
-        }
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
+        // Lock overlay functionality now handled by Compose PlayerControls
+        // The controlsState manages the lock state
+    }
+        // Lock overlay removed - now managed by Compose PlayerControls
+        // Unlock button removed - now managed by Compose
     }
 
     private fun showUnlockButton() {
-        binding.unlockButton.visibility = View.VISIBLE
-        binding.unlockButton.setOnClickListener { toggleLock() }
-        binding.unlockButton.postDelayed({
-            if (controlsState.isLocked) hideUnlockButton()
-        }, 3000)
+        // Unlock button now managed by Compose PlayerControls
+        // Tapping the screen when locked shows the unlock button automatically
+    }, 3000)
     }
 
     private fun hideUnlockButton() {
-        binding.unlockButton.visibility = View.GONE
+        // Unlock button now managed by Compose PlayerControls
     }
 
     private fun toggleLock() {
         controlsState.isLocked = !controlsState.isLocked
         if (controlsState.isLocked) {
             binding.playerView.useController = false
-            binding.lockOverlay.visibility = View.VISIBLE
+            // Lock overlay removed - now managed by Compose PlayerControls
             showUnlockButton()
             // Lock icon updated by Compose controls
         } else {
             binding.playerView.useController = true
-            binding.lockOverlay.visibility = View.GONE
+            // Lock overlay removed - now managed by Compose PlayerControls
             hideUnlockButton()
             // Lock icon updated by Compose controls
             binding.playerView.showController()
@@ -1668,15 +1667,25 @@ class FloatingPlayerActivity : AppCompatActivity() {
         }
 
         binding.playerView.useController = false
-        binding.lockOverlay.visibility = View.GONE
-        binding.unlockButton.visibility = View.GONE
+        // Lock overlay removed - now managed by Compose PlayerControls
+        // Unlock button removed - now managed by Compose
 
         setSubtitleTextSizePiP()
 
         updatePipParams(enter = true)
     }
 
-    private fun updatePipParams(enter: Boolean = false) {
+    
+    @RequiresApi(Build.VERSION_CODES.O)
+    private fun isPipSupported(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+        } else {
+            false
+        }
+    }
+
+    private fun updatePipParams(enter: Boolean = false): PictureInPictureParams? {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         
         try {
