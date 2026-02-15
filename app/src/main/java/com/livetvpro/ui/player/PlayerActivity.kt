@@ -83,7 +83,6 @@ class PlayerActivity : AppCompatActivity() {
         private const val CONTROL_TYPE_FORWARD = 4
     }
 
-
     private lateinit var binding: ActivityPlayerBinding
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -119,7 +118,6 @@ class PlayerActivity : AppCompatActivity() {
             packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
         }
     }
-
 
     private var contentType: ContentType = ContentType.CHANNEL
     private var channelData: Channel? = null
@@ -1010,7 +1008,7 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         // tvChannelName no longer exists - using Compose controls
-        // tvChannelName?.text = contentName
+        // Removed: tvChannelName? property assignment contentName
         
         setupPlayer()
         setupLinksUI()
@@ -1049,7 +1047,7 @@ class PlayerActivity : AppCompatActivity() {
             }
             
             // tvChannelName no longer exists - using Compose controls
-            // tvChannelName?.text = contentName
+            // Removed: tvChannelName? property assignment contentName
             
             setupPlayer()
             setupLinksUI()
@@ -1298,8 +1296,7 @@ class PlayerActivity : AppCompatActivity() {
                                     updatePlayPauseIcon(exo.playWhenReady)
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
-                                    
-                                    
+
                                     updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
@@ -1373,11 +1370,9 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-    
     private fun showError(message: String) {
         binding.progressBar.visibility = View.GONE
-        
-        
+
         binding.errorText.apply {
             text = message
             typeface = try {
@@ -1507,8 +1502,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-
-
     // OBSOLETE: Old ExoPlayer control binding removed - using Compose controls now
     // bindPlayerControlViews() and setupControlListeners() deleted
     // handlePlayPauseClick() deleted - handled in Compose onPlayPauseClick
@@ -1608,7 +1601,6 @@ class PlayerActivity : AppCompatActivity() {
         val subtitleView = binding.playerView.subtitleView ?: return
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
-
 
     @SuppressLint("NewApi")
     private fun enterPipMode() {
@@ -1937,7 +1929,6 @@ class PlayerActivity : AppCompatActivity() {
     // showPlayerSettingsDialog() deleted - duplicate of showSettingsDialog()
     // toggleAspectRatio() deleted - duplicate of cycleAspectRatio()
 
-
     private fun unregisterPipReceiver() {
         try {
             pipReceiver?.let {
@@ -1949,8 +1940,6 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
-
-
     @RequiresApi(Build.VERSION_CODES.O)
     private fun isPipSupported(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1959,5 +1948,3 @@ class PlayerActivity : AppCompatActivity() {
             false
         }
     }
-
-}
