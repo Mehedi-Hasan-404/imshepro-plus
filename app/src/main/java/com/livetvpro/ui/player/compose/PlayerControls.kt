@@ -39,7 +39,7 @@ class PlayerControlsState(
         private set
     
     var isLocked by mutableStateOf(false)
-        private set
+        // Made publicly settable for compatibility with PlayerActivity
     
     private var hideJob: kotlinx.coroutines.Job? = null
     
@@ -305,43 +305,6 @@ private fun PlayerControlsContent(
             )
         }
         
-        // Center playback buttons
-        Row(
-            modifier = Modifier.align(Alignment.Center),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            PlayerIconButton(
-                onClick = {
-                    onRewindClick()
-                    onInteraction()
-                },
-                iconRes = R.drawable.ic_skip_backward,
-                contentDescription = "Rewind",
-                size = 48.dp
-            )
-            
-            PlayerIconButton(
-                onClick = {
-                    onPlayPauseClick()
-                    onInteraction()
-                },
-                iconRes = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
-                contentDescription = if (isPlaying) "Pause" else "Play",
-                size = 64.dp
-            )
-            
-            PlayerIconButton(
-                onClick = {
-                    onForwardClick()
-                    onInteraction()
-                },
-                iconRes = R.drawable.ic_skip_forward,
-                contentDescription = "Forward",
-                size = 48.dp
-            )
-        }
-        
         // Bottom controls
         Column(
             modifier = Modifier
@@ -360,29 +323,65 @@ private fun PlayerControlsContent(
                 }
             )
             
-            // Bottom buttons
+            // Bottom buttons: Aspect Ratio | Rewind | Play/Pause | Forward | Fullscreen
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.Center,
+                    .padding(bottom = 8.dp, top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Aspect Ratio
                 if (showAspectRatioButton) {
                     PlayerIconButton(
                         onClick = onAspectRatioClick,
                         iconRes = R.drawable.ic_aspect_ratio,
                         contentDescription = "Aspect ratio",
-                        modifier = Modifier.padding(end = 12.dp)
+                        size = 36
                     )
+                } else {
+                    Spacer(modifier = Modifier.size(36.dp))
                 }
                 
-                Spacer(modifier = Modifier.weight(1f))
+                // Rewind
+                PlayerIconButton(
+                    onClick = {
+                        onRewindClick()
+                        onInteraction()
+                    },
+                    iconRes = R.drawable.ic_skip_backward,
+                    contentDescription = "Rewind",
+                    size = 40
+                )
                 
+                // Play/Pause (larger)
+                PlayerIconButton(
+                    onClick = {
+                        onPlayPauseClick()
+                        onInteraction()
+                    },
+                    iconRes = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play,
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    size = 56
+                )
+                
+                // Forward
+                PlayerIconButton(
+                    onClick = {
+                        onForwardClick()
+                        onInteraction()
+                    },
+                    iconRes = R.drawable.ic_skip_forward,
+                    contentDescription = "Forward",
+                    size = 40
+                )
+                
+                // Fullscreen
                 PlayerIconButton(
                     onClick = onFullscreenClick,
                     iconRes = if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen,
-                    contentDescription = "Toggle fullscreen"
+                    contentDescription = "Toggle fullscreen",
+                    size = 36
                 )
             }
         }
