@@ -125,32 +125,51 @@ fun PlayerControls(
             .pointerInput(Unit) {
                 detectTapGestures(
                     onTap = {
-                        if (!state.isLocked) {
+                        if (state.isLocked) {
+                            // When locked, tapping toggles lock overlay visibility
+                            state.toggle(scope)
+                        } else {
+                            // When unlocked, tapping toggles controls
                             state.toggle(scope)
                         }
                     }
                 )
             }
     ) {
-        // Lock overlay and unlock button (matching original XML)
+        // Lock overlay - only shows when locked AND controls are visible
         AnimatedVisibility(
-            visible = state.isLocked,
-            enter = fadeIn(),
-            exit = fadeOut()
+            visible = state.isLocked && state.isVisible,
+            enter = fadeIn(
+                animationSpec = tween(
+                    durationMillis = 250,
+                    easing = FastOutSlowInEasing
+                )
+            ),
+            exit = fadeOut(
+                animationSpec = tween(
+                    durationMillis = 250,
+                    easing = FastOutSlowInEasing
+                )
+            )
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0x80000000)) // #80000000 from XML
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
-                        state.unlock(scope)
+                        // Tapping anywhere toggles visibility
+                        state.toggle(scope)
                     }
             ) {
+                // Completely transparent - only unlock button visible
+                // Unlock button
                 IconButton(
-                    onClick = { state.unlock(scope) },
+                    onClick = { 
+                        state.unlock(scope)
+                        onLockClick(false)
+                    },
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(start = 4.dp, top = 4.dp)
@@ -166,11 +185,21 @@ fun PlayerControls(
             }
         }
         
-        // Main controls
+        // Main controls - ExoPlayer's exact animation (250ms alpha fade)
         AnimatedVisibility(
             visible = state.isVisible && !state.isLocked,
-            enter = fadeIn() + slideInVertically(),
-            exit = fadeOut() + slideOutVertically()
+            enter = fadeIn(
+                animationSpec = tween(
+                    durationMillis = 250,
+                    easing = FastOutSlowInEasing
+                )
+            ),
+            exit = fadeOut(
+                animationSpec = tween(
+                    durationMillis = 250,
+                    easing = FastOutSlowInEasing
+                )
+            )
         ) {
             PlayerControlsContent(
                 isPlaying = isPlaying,
@@ -329,7 +358,7 @@ private fun PlayerControlsContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(start = 8.dp, end = 8.dp, bottom = 0.dp)
+                .padding(start = 8.dp, end = 8.dp, bottom = 4.dp)
         ) {
             // Progress bar section (using ExoPlayer-like TimeBar)
             ExoPlayerTimeBar(
@@ -340,14 +369,14 @@ private fun PlayerControlsContent(
                     onSeek(it)
                     onInteraction()
                 },
-                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
             )
             
             // Playback control buttons (matching XML layout: AspectRatio | Rewind | Play/Pause | Forward | Fullscreen)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp),
+                    .padding(bottom = 8.dp, top = 0.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -449,7 +478,7 @@ private fun ExoPlayerTimeBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(wrap_content),
+            .wrapContentHeight(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
@@ -457,8 +486,11 @@ private fun ExoPlayerTimeBar(
         Text(
             text = formatTime(currentPosition),
             color = Color.White,
-            fontSize = 12.sp,
-            modifier = Modifier.width(48.dp),
+            fontSize = 14.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily(
+                androidx.compose.ui.text.font.Font(R.font.bergen_sans)
+            ),
+            modifier = Modifier.width(52.dp),
             textAlign = TextAlign.Center
         )
         
@@ -478,8 +510,11 @@ private fun ExoPlayerTimeBar(
         Text(
             text = formatTime(duration),
             color = Color.White,
-            fontSize = 12.sp,
-            modifier = Modifier.width(48.dp),
+            fontSize = 14.sp,
+            fontFamily = androidx.compose.ui.text.font.FontFamily(
+                androidx.compose.ui.text.font.Font(R.font.bergen_sans)
+            ),
+            modifier = Modifier.width(52.dp),
             textAlign = TextAlign.Center
         )
     }
@@ -584,14 +619,8 @@ private fun CustomTimeBar(
 }
 
 private fun formatTime(timeMs: Long): String {
-    val totalSeconds = timeMs / 1000
-    val hours = totalSeconds / 3600
-    val minutes = (totalSeconds % 3600) / 60
-    val seconds = totalSeconds % 60
-    
-    return if (hours > 0) {
-        String.format("%d:%02d:%02d", hours, minutes, seconds)
-    } else {
-        String.format("%d:%02d", minutes, seconds)
-    }
+    // Use ExoPlayer's default time formatter
+    val formatter = StringBuilder()
+    val formatter2 = java.util.Formatter(formatter, java.util.Locale.getDefault())
+    return androidx.media3.common.util.Util.getStringForTime(formatter, formatter2, timeMs)
 }
