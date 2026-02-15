@@ -97,7 +97,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private var isMuted = false
     private val skipMs = 10_000L
     private var userRequestedPip = false
-    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -200,9 +200,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
         binding = ActivityPlayerBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Set FIT mode immediately at the very start
-        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+        // Set FIXED_WIDTH mode immediately at the very start
+        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
         
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
@@ -1597,9 +1597,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     private fun cycleAspectRatio() {
         currentResizeMode = when (currentResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH -> AspectRatioFrameLayout.RESIZE_MODE_FIT
             AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
         }
         binding.playerView.resizeMode = currentResizeMode
     }
