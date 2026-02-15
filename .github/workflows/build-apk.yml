@@ -20,72 +20,72 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        cache: 'gradle'
     
     - name: Grant Execute Permission for Gradlew
       run: chmod +x gradlew
     
-    - name: Deep Clean Build Artifacts
+    - name: 🧹 CRITICAL - Deep Clean Build Artifacts
       run: |
-        echo "Performing deep clean to remove KAPT artifacts..."
+        echo "Performing deep clean to remove all cached files..."
         ./gradlew clean
         rm -rf .gradle
         rm -rf app/build
         rm -rf build
         rm -rf app/.cxx
-        echo "Clean completed successfully"
+        rm -rf ~/.gradle/caches/
+        echo "✅ Clean completed - all caches removed"
     
-    - name: Build All ABI Variants
+    - name: 🔨 Build Release APK
       run: |
         echo "Building all ABI variants..."
-        ./gradlew assembleRelease --stacktrace --no-daemon --no-build-cache
+        ./gradlew assembleRelease --stacktrace --no-daemon --no-build-cache --rerun-tasks
       env:
         KEYSTORE_FILE: ${{ secrets.KEYSTORE_FILE }}
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
     
-    - name: List Generated APKs
+    - name: 📦 List Generated APKs
       run: |
-        echo "Generated APK files:"
-        ls -lh app/build/outputs/apk/release/
+        echo "=== APK files found ==="
+        find app/build/outputs/apk/release -name "*.apk" -exec ls -lh {} \;
     
-    - name: Upload Universal APK
+    - name: ⬆️ Upload Universal APK
       uses: actions/upload-artifact@v4
       with:
         name: app-universal-release
         path: app/build/outputs/apk/release/app-universal-release.apk
         if-no-files-found: warn
     
-    - name: Upload ARM64 APK
+    - name: ⬆️ Upload ARM64 APK
       uses: actions/upload-artifact@v4
       with:
         name: app-arm64-v8a-release
         path: app/build/outputs/apk/release/app-arm64-v8a-release.apk
         if-no-files-found: warn
     
-    - name: Upload ARMv7 APK
+    - name: ⬆️ Upload ARMv7 APK
       uses: actions/upload-artifact@v4
       with:
         name: app-armeabi-v7a-release
         path: app/build/outputs/apk/release/app-armeabi-v7a-release.apk
         if-no-files-found: warn
     
-    - name: Upload x86_64 APK
+    - name: ⬆️ Upload x86_64 APK
       uses: actions/upload-artifact@v4
       with:
         name: app-x86_64-release
         path: app/build/outputs/apk/release/app-x86_64-release.apk
         if-no-files-found: warn
     
-    - name: Upload x86 APK
+    - name: ⬆️ Upload x86 APK
       uses: actions/upload-artifact@v4
       with:
         name: app-x86-release
         path: app/build/outputs/apk/release/app-x86-release.apk
         if-no-files-found: warn
     
-    - name: Upload All APKs (Single Archive)
+    - name: ⬆️ Upload All APKs
       uses: actions/upload-artifact@v4
       with:
         name: all-release-apks
