@@ -475,8 +475,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
             
             binding.playerView.controllerAutoShow = true
             binding.playerView.controllerShowTimeoutMs = 3000
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
             
         } else {
             
@@ -494,14 +492,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 
                 binding.playerContainer.setPadding(0, 0, 0, 0)
                 binding.playerContainer.layoutParams = params
-                
-                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             } else {
                 exitFullscreen()
-                
-                binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
             
             binding.playerView.controllerAutoShow = true
@@ -1509,6 +1501,14 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         if (isPlaying && controlsState.isVisible && !controlsState.isLocked) {
                             delay(5000) // Wait 5 seconds
                             controlsState.hide()
+                        }
+                    }
+                    
+                    // Sync link chips visibility with controls in landscape
+                    LaunchedEffect(controlsState.isVisible, isLandscape) {
+                        if (isLandscape) {
+                            val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
+                            landscapeLinksRecycler?.visibility = if (controlsState.isVisible) View.VISIBLE else View.GONE
                         }
                     }
                     
