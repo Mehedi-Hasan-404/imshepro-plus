@@ -99,7 +99,7 @@ class PlayerActivity : AppCompatActivity() {
     private var isInPipMode = false
     private var isMuted = false
     private val skipMs = 10_000L
-    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -408,9 +408,9 @@ class PlayerActivity : AppCompatActivity() {
             containerParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
             containerParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
             
-            // Use FIT mode in portrait (same as network stream)
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+            // Use ZOOM mode in portrait so video fills the 16:9 container without black bars
+            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
         }
         
         binding.playerContainer.layoutParams = containerParams
@@ -449,21 +449,23 @@ class PlayerActivity : AppCompatActivity() {
             
         } else {
             
-            // Apply the same full-screen container layout for all content types in portrait
-            // This allows video to fill width while maintaining aspect ratio (top/bottom bars, no side bars)
-            val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-            params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            params.topMargin = 0
-            params.bottomMargin = 0
-            params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-            params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-            params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-            params.dimensionRatio = null
-            
-            binding.playerContainer.setPadding(0, 0, 0, 0)
-            binding.playerContainer.layoutParams = params
+            if (contentType == ContentType.NETWORK_STREAM) {
+                val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
+                params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+                params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+                params.topMargin = 0
+                params.bottomMargin = 0
+                params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                params.dimensionRatio = null
+                
+                binding.playerContainer.setPadding(0, 0, 0, 0)
+                binding.playerContainer.layoutParams = params
+            } else {
+                exitFullscreen()
+            }
             
             binding.playerView.controllerAutoShow = false
             binding.playerView.controllerShowTimeoutMs = 5000
@@ -1312,7 +1314,7 @@ class PlayerActivity : AppCompatActivity() {
                 .build().also { exo ->
                     binding.playerView.player = exo
                     
-                    // Use FIT mode for portrait (same as network stream), use currentResizeMode for landscape
+                    // Force FIT mode for portrait, use currentResizeMode for landscape
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                     if (!isLandscape) {
                         binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
