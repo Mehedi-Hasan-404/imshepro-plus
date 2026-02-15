@@ -428,9 +428,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         adjustLayoutForOrientation(isLandscape)
         updateLinksForOrientation(isLandscape)
         
-        // Fullscreen button now handled by Compose PlayerControls R.drawable.ic_fullscreen_exit 
-            else R.drawable.ic_fullscreen
-        )
+        
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
@@ -595,7 +593,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         super.onUserLeaveHint()
     }
 
-    
     private fun parseIntent() {
         val isNetworkStream = intent.getBooleanExtra("IS_NETWORK_STREAM", false)
         
@@ -1246,8 +1243,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                                     // updatePlayPauseIcon removed - Compose handles icons
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
-                                    
-                                    
+
                                     updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
@@ -1318,7 +1314,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         }
     }
 
-    
     private fun showError(message: String) {
         binding.progressBar.visibility = View.GONE
         
@@ -1675,7 +1670,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         updatePipParams(enter = true)
     }
 
-    
     @RequiresApi(Build.VERSION_CODES.O)
     private fun isPipSupported(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1895,5 +1889,3 @@ class FloatingPlayerActivity : AppCompatActivity() {
         } catch (e: Exception) {
             super.finish()
         }
-    }
-}
