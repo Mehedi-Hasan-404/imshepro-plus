@@ -358,7 +358,7 @@ private fun PlayerControlsContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .padding(start = 8.dp, end = 8.dp, bottom = 4.dp)
+                .padding(start = 8.dp, end = 8.dp, bottom = 0.dp)
         ) {
             // Progress bar section (using ExoPlayer-like TimeBar)
             ExoPlayerTimeBar(
