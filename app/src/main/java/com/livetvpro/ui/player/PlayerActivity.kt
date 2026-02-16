@@ -666,11 +666,13 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
                     
-                    // Sync link chips visibility with controls in landscape
-                    LaunchedEffect(controlsState.isVisible, isLandscape) {
+                    // Sync link chips visibility with controls in landscape.
+                    // Chips show only when controls are visible AND not locked.
+                    LaunchedEffect(controlsState.isVisible, controlsState.isLocked, isLandscape) {
                         if (isLandscape) {
                             val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
-                            landscapeLinksRecycler?.visibility = if (controlsState.isVisible) View.VISIBLE else View.GONE
+                            val chipsVisible = controlsState.isVisible && !controlsState.isLocked
+                            landscapeLinksRecycler?.visibility = if (chipsVisible) View.VISIBLE else View.GONE
                         }
                     }
                     
@@ -990,23 +992,23 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun updateLinksForOrientation(isLandscape: Boolean) {
         val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
-        
+
         if (allEventLinks.size > 1) {
             if (isLandscape) {
-                // Show links inside player overlay
                 binding.linksSection.visibility = View.GONE
-                landscapeLinksRecycler?.visibility = View.VISIBLE
-                
+                // Respect controls state: chips only visible when controls are shown and not locked
+                val chipsVisible = controlsState.isVisible && !controlsState.isLocked
+                landscapeLinksRecycler?.visibility = if (chipsVisible) View.VISIBLE else View.GONE
+
                 val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
                 if (landscapeAdapter != null) {
                     landscapeAdapter.submitList(allEventLinks)
                     landscapeAdapter.setSelectedPosition(currentLinkIndex)
                 }
             } else {
-                // Show links below player
                 binding.linksSection.visibility = View.VISIBLE
                 landscapeLinksRecycler?.visibility = View.GONE
-                
+
                 linkChipAdapter.submitList(allEventLinks)
                 linkChipAdapter.setSelectedPosition(currentLinkIndex)
             }
