@@ -3,7 +3,6 @@ package com.livetvpro.ui.categories
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -73,7 +72,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
                 toolbarTitle?.text = viewModel.categoryName
             }
         } catch (e: Exception) {
-            Log.e("CategoryChannels", "Error setting toolbar title", e)
         }
 
         setupTabLayout()
