@@ -90,6 +90,7 @@ class PlayerControlsState(
 
 /**
  * Main player controls composable - matches the original XML design
+ * FIXED: Now properly allows link chips in landscape mode to be clickable
  */
 @Composable
 fun PlayerControls(
@@ -118,13 +119,25 @@ fun PlayerControls(
 ) {
     val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    
+    // Calculate the exclusion zone for link chips in landscape mode
+    // This is approximately the height of the top bar (48dp) + links recycler (60dp) + padding
+    val linkChipExclusionHeight = with(density) { 120.dp.toPx() }
     
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
+            .pointerInput(state.isVisible, state.isLocked, isLandscape) {
                 detectTapGestures(
-                    onTap = {
+                    onTap = { offset ->
+                        // FIXED: In landscape mode, don't intercept taps in the top area where link chips are
+                        if (isLandscape && offset.y < linkChipExclusionHeight) {
+                            // This tap is in the link chips area - don't consume it
+                            // Let it pass through to the XML RecyclerView below
+                            return@detectTapGestures
+                        }
+                        
                         if (state.isLocked) {
                             // When locked, tapping toggles lock overlay visibility
                             state.toggle(scope)
@@ -256,7 +269,7 @@ private fun PlayerControlsContent(
     onInteraction: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Top gradient overlay (matching XML)
+        // Top gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -272,7 +285,7 @@ private fun PlayerControlsContent(
                 )
         )
         
-        // Bottom gradient overlay (matching XML)
+        // Bottom gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -288,13 +301,14 @@ private fun PlayerControlsContent(
                 )
         )
         
-        // Top bar controls (matching XML layout exactly)
+        // Top bar with controls (back, channel name, pip, settings, mute, lock)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .padding(start = 4.dp, end = 4.dp, top = 0.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
         ) {
             // Back button
             PlayerIconButton(
@@ -317,7 +331,7 @@ private fun PlayerControlsContent(
                     .padding(start = 12.dp)
             )
             
-            // PiP button
+            // PIP button
             if (showPipButton) {
                 PlayerIconButton(
                     onClick = onPipClick,
@@ -329,7 +343,10 @@ private fun PlayerControlsContent(
             
             // Settings button
             PlayerIconButton(
-                onClick = onSettingsClick,
+                onClick = {
+                    onSettingsClick()
+                    onInteraction()
+                },
                 iconRes = R.drawable.ic_settings,
                 contentDescription = "Settings",
                 size = 40
@@ -337,9 +354,12 @@ private fun PlayerControlsContent(
             
             // Mute button
             PlayerIconButton(
-                onClick = onMuteClick,
+                onClick = {
+                    onMuteClick()
+                    onInteraction()
+                },
                 iconRes = if (isMuted) R.drawable.ic_volume_off else R.drawable.ic_volume_up,
-                contentDescription = "Mute",
+                contentDescription = if (isMuted) "Unmute" else "Mute",
                 size = 40
             )
             
@@ -353,37 +373,39 @@ private fun PlayerControlsContent(
             )
         }
         
-        // Bottom controls (matching XML structure)
+        // Bottom bar with playback controls
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .padding(start = 8.dp, end = 8.dp, bottom = 0.dp)
         ) {
-            // Progress bar section (using ExoPlayer-like TimeBar)
+            // Time bar with position and duration
             ExoPlayerTimeBar(
                 currentPosition = currentPosition,
                 duration = duration,
                 bufferedPosition = bufferedPosition,
-                onSeek = { 
-                    onSeek(it)
-                    onInteraction()
-                },
-                modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                onSeek = onSeek,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp)
             )
             
-            // Playback control buttons (matching XML layout: AspectRatio | Rewind | Play/Pause | Forward | Fullscreen)
+            // Playback control buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 8.dp, top = 0.dp),
+                    .padding(bottom = 8.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Aspect Ratio button (40dp, left side)
+                // Aspect ratio button (40dp, left side)
                 if (showAspectRatioButton) {
                     PlayerIconButton(
-                        onClick = onAspectRatioClick,
+                        onClick = {
+                            onAspectRatioClick()
+                            onInteraction()
+                        },
                         iconRes = R.drawable.ic_aspect_ratio,
                         contentDescription = "Aspect ratio",
                         size = 40,
