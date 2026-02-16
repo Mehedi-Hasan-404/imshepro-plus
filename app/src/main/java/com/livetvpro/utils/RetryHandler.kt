@@ -90,10 +90,10 @@ interface IRetryViewModel {
 abstract class RetryViewModel : ViewModel(), IRetryViewModel {
     
     private val _isLoading = MutableLiveData<Boolean>(false)
-    val isLoading: LiveData<Boolean> = _isLoading
+    override val isLoading: LiveData<Boolean> = _isLoading
     
     private val _error = MutableLiveData<String?>(null)
-    val error: LiveData<String?> = _error
+    override val error: LiveData<String?> = _error
     
     // Tracks if data has been successfully loaded at least once
     private var hasLoadedOnce = false
@@ -181,7 +181,7 @@ abstract class RetryViewModel : ViewModel(), IRetryViewModel {
     /**
      * Retry method - resets state and reloads data
      */
-    fun retry() {
+    override fun retry() {
         resetForRetry()
         loadData()
     }
@@ -190,14 +190,14 @@ abstract class RetryViewModel : ViewModel(), IRetryViewModel {
      * Refresh method - reloads data without resetting state
      * Used for pull-to-refresh and refresh icon
      */
-    fun refresh() {
+    override fun refresh() {
         loadData()
     }
     
     /**
      * Call from Fragment's onResume()
      */
-    fun onResume() {
+    override fun onResume() {
         if (shouldReloadOnResume()) {
             loadData()
         }
@@ -210,10 +210,10 @@ abstract class RetryViewModel : ViewModel(), IRetryViewModel {
 abstract class AndroidRetryViewModel(application: Application) : AndroidViewModel(application), IRetryViewModel {
     
     private val _isLoading = MutableLiveData<Boolean>(false)
-    val isLoading: LiveData<Boolean> = _isLoading
+    override val isLoading: LiveData<Boolean> = _isLoading
     
     private val _error = MutableLiveData<String?>(null)
-    val error: LiveData<String?> = _error
+    override val error: LiveData<String?> = _error
     
     // Tracks if data has been successfully loaded at least once
     private var hasLoadedOnce = false
@@ -301,7 +301,7 @@ abstract class AndroidRetryViewModel(application: Application) : AndroidViewMode
     /**
      * Retry method - resets state and reloads data
      */
-    fun retry() {
+    override fun retry() {
         resetForRetry()
         loadData()
     }
@@ -310,14 +310,14 @@ abstract class AndroidRetryViewModel(application: Application) : AndroidViewMode
      * Refresh method - reloads data without resetting state
      * Used for pull-to-refresh and refresh icon
      */
-    fun refresh() {
+    override fun refresh() {
         loadData()
     }
     
     /**
      * Call from Fragment's onResume()
      */
-    fun onResume() {
+    override fun onResume() {
         if (shouldReloadOnResume()) {
             loadData()
         }
