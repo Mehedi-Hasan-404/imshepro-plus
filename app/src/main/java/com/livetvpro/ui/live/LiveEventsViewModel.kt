@@ -2,12 +2,12 @@ package com.livetvpro.ui.live
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.livetvpro.data.models.EventCategory
 import com.livetvpro.data.models.EventStatus
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.data.repository.LiveEventRepository
+import com.livetvpro.utils.RetryViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import timber.log.Timber
@@ -16,7 +16,7 @@ import javax.inject.Inject
 @HiltViewModel
 class LiveEventsViewModel @Inject constructor(
     private val liveEventRepository: LiveEventRepository
-) : ViewModel() {
+) : RetryViewModel() {
 
     private val _events = MutableLiveData<List<LiveEvent>>()
     val events: LiveData<List<LiveEvent>> = _events
@@ -27,29 +27,26 @@ class LiveEventsViewModel @Inject constructor(
     private val _filteredEvents = MutableLiveData<List<LiveEvent>>()
     val filteredEvents: LiveData<List<LiveEvent>> = _filteredEvents
 
-    private val _isLoading = MutableLiveData<Boolean>()
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _error = MutableLiveData<String?>()
-    val error: LiveData<String?> = _error
-
     init {
+        loadData()
+    }
+
+    override fun loadData() {
         loadEvents()
     }
 
-    fun loadEvents() {
+    private fun loadEvents() {
         viewModelScope.launch {
             try {
-                _isLoading.value = true
-                _error.value = null
+                startLoading()
                 val events = liveEventRepository.getLiveEvents()
                 _events.value = events
                 Timber.d("Loaded ${events.size} live events")
+                finishLoading(dataIsEmpty = events.isEmpty())
             } catch (e: Exception) {
                 Timber.e(e, "Error loading live events")
-                _error.value = "Failed to load events: ${e.message}"
-            } finally {
-                _isLoading.value = false
+                _events.value = emptyList()
+                finishLoading(dataIsEmpty = true, error = e)
             }
         }
     }
@@ -72,14 +69,12 @@ class LiveEventsViewModel @Inject constructor(
 
         var filtered = allEvents
 
-        // Filter by category first
         if (categoryId != "evt_cat_all") {
             filtered = filtered.filter { event ->
                 event.eventCategoryId == categoryId
             }
         }
 
-        // Then filter by status
         filtered = when (status) {
             EventStatus.LIVE -> {
                 filtered.filter { event ->
@@ -97,7 +92,6 @@ class LiveEventsViewModel @Inject constructor(
                 }.sortedByDescending { it.startTime }
             }
             null -> {
-                // All events - sort by: Live first, then Upcoming, then Recent
                 filtered.sortedWith(
                     compareBy<LiveEvent> { event ->
                         when {
