@@ -8,7 +8,6 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.recyclerview.widget.GridLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -23,6 +22,9 @@ import com.livetvpro.databinding.FragmentCategoryChannelsBinding
 import com.livetvpro.ui.adapters.ChannelAdapter
 import com.livetvpro.ui.player.PlayerActivity
 import com.livetvpro.utils.NativeListenerManager
+import com.livetvpro.utils.RetryViewModel
+import com.livetvpro.utils.RetryHandler
+import com.livetvpro.utils.Refreshable
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,24 +37,18 @@ import javax.inject.Inject
 class SportsViewModel @Inject constructor(
     private val repository: CategoryRepository,
     private val favoritesRepository: FavoritesRepository
-) : ViewModel() {
+) : RetryViewModel() {
 
     private val _channels = MutableLiveData<List<Channel>>()
     private val _filteredChannels = MutableLiveData<List<Channel>>()
     val filteredChannels: LiveData<List<Channel>> = _filteredChannels
-
-    private val _isLoading = MutableLiveData<Boolean>()
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _error = MutableLiveData<String?>()
-    val error: LiveData<String?> = _error
 
     private val _favoriteStatusCache = MutableStateFlow<Set<String>>(emptySet())
 
     private var currentQuery: String = ""
 
     init {
-        loadSports()
+        loadData()
         loadFavoriteCache()
     }
 
@@ -64,21 +60,21 @@ class SportsViewModel @Inject constructor(
         }
     }
 
-    fun loadSports() {
+    override fun loadData() {
         viewModelScope.launch {
             repository.getSports()
                 .onStart {
-                    _isLoading.value = true
-                    _error.value = null
+                    startLoading()
                 }
                 .catch { e ->
-                    _isLoading.value = false
-                    _error.value = e.message ?: "Failed to load sports"
+                    _channels.value = emptyList()
+                    applyFilter()
+                    finishLoading(dataIsEmpty = true, error = e)
                 }
                 .collect { sports ->
-                    _isLoading.value = false
                     _channels.value = sports
                     applyFilter()
+                    finishLoading(dataIsEmpty = sports.isEmpty())
                 }
         }
     }
@@ -163,14 +159,10 @@ class SportsViewModel @Inject constructor(
     fun isFavorite(channelId: String): Boolean {
         return _favoriteStatusCache.value.contains(channelId)
     }
-
-    fun retry() {
-        loadSports()
-    }
 }
 
 @AndroidEntryPoint
-class SportsFragment : Fragment(), SearchableFragment {
+class SportsFragment : Fragment(), SearchableFragment, Refreshable {
 
     private var _binding: FragmentCategoryChannelsBinding? = null
     private val binding get() = _binding!!
@@ -180,8 +172,14 @@ class SportsFragment : Fragment(), SearchableFragment {
     @Inject
     lateinit var listenerManager: NativeListenerManager
 
+    // Implement SearchableFragment for search functionality
     override fun onSearchQuery(query: String) {
         viewModel.searchSports(query)
+    }
+    
+    // Implement Refreshable for toolbar refresh icon
+    override fun refreshData() {
+        viewModel.refresh()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -192,7 +190,13 @@ class SportsFragment : Fragment(), SearchableFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
-        observeViewModel()
+        setupRetryHandling()
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Handle background resume with lifecycle-aware loading
+        viewModel.onResume()
     }
 
     private fun setupRecyclerView() {
@@ -247,30 +251,29 @@ class SportsFragment : Fragment(), SearchableFragment {
             .show()
     }
 
-    private fun observeViewModel() {
+    private fun setupRetryHandling() {
+        // Setup retry handler WITH pull-to-refresh support
+        // This single call handles:
+        // - Red retry button on errors
+        // - Short error messages
+        // - Pull-to-refresh gesture
+        // - Loading indicators
+        // - Error view visibility
+        RetryHandler.setupWithRefresh(
+            lifecycleOwner = viewLifecycleOwner,
+            viewModel = viewModel,
+            swipeRefresh = binding.swipeRefresh,  // Pull-to-refresh enabled!
+            errorView = binding.errorView,
+            errorText = binding.errorText,
+            retryButton = binding.retryButton,
+            contentView = binding.recyclerViewChannels,
+            progressBar = binding.progressBar,
+            emptyView = binding.emptyView
+        )
+        
+        // Observe filtered channels to update adapter
         viewModel.filteredChannels.observe(viewLifecycleOwner) { channels ->
             channelAdapter.submitList(channels)
-            binding.emptyView.visibility = if (channels.isEmpty()) View.VISIBLE else View.GONE
-            binding.recyclerViewChannels.visibility = if (channels.isEmpty()) View.GONE else View.VISIBLE
-        }
-
-        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-        }
-
-        viewModel.error.observe(viewLifecycleOwner) { error ->
-            if (error != null) {
-                binding.errorView.visibility = View.VISIBLE
-                binding.errorText.text = error
-                binding.recyclerViewChannels.visibility = View.GONE
-            } else {
-                binding.errorView.visibility = View.GONE
-                binding.recyclerViewChannels.visibility = View.VISIBLE
-            }
-        }
-        
-        binding.retryButton.setOnClickListener {
-            viewModel.retry()
         }
     }
 
