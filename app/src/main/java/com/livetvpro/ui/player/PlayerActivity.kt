@@ -1393,6 +1393,23 @@ class PlayerActivity : AppCompatActivity() {
                         mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
                     }
                     
+                    if (streamInfo.drmScheme != null) {
+                        val drmUuid = when (streamInfo.drmScheme) {
+                            "widevine" -> C.WIDEVINE_UUID
+                            "playready" -> C.PLAYREADY_UUID
+                            "clearkey" -> java.util.UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
+                            else -> C.WIDEVINE_UUID
+                        }
+                        
+                        val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(drmUuid)
+                        
+                        if (streamInfo.drmLicenseUrl != null) {
+                            drmConfigBuilder.setLicenseUri(streamInfo.drmLicenseUrl)
+                        }
+                        
+                        mediaItemBuilder.setDrmConfiguration(drmConfigBuilder.build())
+                    }
+                    
                     val mediaItem = mediaItemBuilder.build()
                     exo.setMediaItem(mediaItem)
                     exo.prepare()
