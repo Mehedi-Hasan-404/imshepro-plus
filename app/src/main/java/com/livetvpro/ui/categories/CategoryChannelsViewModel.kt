@@ -16,7 +16,7 @@ import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import com.livetvpro.data.repository.PlaylistRepository
 import com.livetvpro.utils.M3uParser
-import com.livetvpro.utils.ErrorHandler
+import com.livetvpro.utils.ErrorMessageConverter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -108,7 +108,7 @@ class CategoryChannelsViewModel @Inject constructor(
                     loadPlaylistChannels(playlist)
                 } else {
                     // It's a regular category
-                    val channels = channelRepository.getChannelsByCategoryId(categoryId)
+                    val channels = channelRepository.getChannelsByCategory(categoryId)
                     _channels.value = channels
                     extractAndSetGroups(channels)
                     
@@ -125,7 +125,7 @@ class CategoryChannelsViewModel @Inject constructor(
             } catch (e: Exception) {
                 // Only show error if we haven't loaded before
                 if (!hasLoadedOnce) {
-                    _error.value = ErrorHandler.getShortErrorMessage(e)
+                    _error.value = ErrorMessageConverter.getShortErrorMessage(e)
                 }
             } finally {
                 _isLoading.value = false
@@ -135,20 +135,21 @@ class CategoryChannelsViewModel @Inject constructor(
 
     private suspend fun loadPlaylistChannels(playlist: com.livetvpro.data.models.Playlist) {
         try {
-            val channels = if (playlist.uri.startsWith("content://") || playlist.uri.startsWith("file://")) {
+            val playlistSource = if (playlist.isFile) playlist.filePath else playlist.url
+            val channels = if (playlistSource.startsWith("content://") || playlistSource.startsWith("file://")) {
                 // Local file
-                val uri = Uri.parse(playlist.uri)
+                val uri = Uri.parse(playlistSource)
                 val inputStream = application.contentResolver.openInputStream(uri)
                 val content = inputStream?.bufferedReader()?.use { it.readText() } ?: ""
-                M3uParser.parse(content, playlist.name)
+                M3uParser.parse(content, playlist.title)
             } else {
                 // Remote URL
                 withContext(Dispatchers.IO) {
                     val client = OkHttpClient()
-                    val request = Request.Builder().url(playlist.uri).build()
+                    val request = Request.Builder().url(playlistSource).build()
                     val response = client.newCall(request).execute()
                     val content = response.body?.string() ?: ""
-                    M3uParser.parse(content, playlist.name)
+                    M3uParser.parse(content, playlist.title)
                 }
             }
             
@@ -167,7 +168,7 @@ class CategoryChannelsViewModel @Inject constructor(
         } catch (e: Exception) {
             // Only show error if we haven't loaded before
             if (!hasLoadedOnce) {
-                _error.value = ErrorHandler.getShortErrorMessage(e)
+                _error.value = ErrorMessageConverter.getShortErrorMessage(e)
             }
         }
     }
