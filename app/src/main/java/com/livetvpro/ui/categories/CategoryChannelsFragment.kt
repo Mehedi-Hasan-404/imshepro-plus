@@ -27,13 +27,15 @@ import com.livetvpro.ui.adapters.CategoryGroupDialogAdapter
 import com.livetvpro.ui.adapters.ChannelAdapter
 import com.livetvpro.ui.player.PlayerActivity
 import com.livetvpro.utils.NativeListenerManager
+import com.livetvpro.utils.RetryHandler
+import com.livetvpro.utils.Refreshable
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class CategoryChannelsFragment : Fragment(), SearchableFragment {
+class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
 
     private var _binding: FragmentCategoryChannelsBinding? = null
     private val binding get() = _binding!!
@@ -48,6 +50,11 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
     override fun onSearchQuery(query: String) {
         viewModel.searchChannels(query)
+    }
+    
+    // Implement Refreshable for toolbar refresh icon
+    override fun refreshData() {
+        currentCategoryId?.let { viewModel.loadChannels(it) }
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -71,6 +78,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
 
         setupTabLayout()
         setupRecyclerView()
+        setupRetryHandling()
         observeViewModel()
 
         binding.groupsIcon.setOnClickListener {
@@ -136,6 +144,21 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
             adapter = channelAdapter
             itemAnimator = null 
         }
+    }
+    
+    private fun setupRetryHandling() {
+        // Setup retry handler WITH pull-to-refresh support
+        RetryHandler.setupWithRefresh(
+            lifecycleOwner = viewLifecycleOwner,
+            viewModel = viewModel,
+            swipeRefresh = binding.swipeRefresh,  // Pull-to-refresh enabled!
+            errorView = binding.errorView,
+            errorText = binding.errorText,
+            retryButton = binding.retryButton,
+            contentView = binding.recyclerViewChannels,
+            progressBar = binding.progressBar,
+            emptyView = binding.emptyView
+        )
     }
 
     private fun showLinkSelectionDialog(channel: Channel) {
@@ -221,17 +244,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
     private fun observeViewModel() {
         viewModel.filteredChannels.observe(viewLifecycleOwner) { channels ->
             channelAdapter.submitList(channels)
-            updateUiState(channels.isEmpty(), viewModel.isLoading.value ?: false)
-        }
-        
-        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            updateUiState(viewModel.filteredChannels.value?.isEmpty() ?: true, isLoading)
-        }
-        
-        viewModel.error.observe(viewLifecycleOwner) { error ->
-            binding.errorView.visibility = if (error != null) View.VISIBLE else View.GONE
-            if (error != null) binding.errorText.text = error
         }
         
         viewModel.categoryGroups.observe(viewLifecycleOwner) { groups ->
@@ -275,16 +287,9 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment {
         }
     }
 
-    private fun updateUiState(isListEmpty: Boolean, isLoading: Boolean) {
-        if (isLoading) {
-            binding.emptyView.visibility = View.GONE
-        } else {
-            binding.emptyView.visibility = if (isListEmpty) View.VISIBLE else View.GONE
-        }
-    }
-
     override fun onResume() {
         super.onResume()
+        viewModel.onResume()
     }
 
     override fun onDestroyView() {
