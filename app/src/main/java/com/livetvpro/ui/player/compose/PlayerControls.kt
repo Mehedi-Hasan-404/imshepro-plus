@@ -121,10 +121,12 @@ fun PlayerControls(
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
     
-    // Calculate the exclusion zone for link chips in landscape mode
-    // This is approximately the height of the top bar (48dp) + links recycler (60dp) + padding
-    // Increased to 180dp for better coverage
-    val linkChipExclusionHeight = with(density) { 180.dp.toPx() }
+    // Smart exclusion zone: Only exclude the link chips area, NOT the top bar
+    // Top bar (0-52dp): Contains Compose buttons (back, pip, settings, etc.) - NO exclusion needed
+    // Link chips (52-122dp): Contains RecyclerView - NEEDS exclusion for touch pass-through
+    // Video area (122dp+): Empty space for toggling controls - NO exclusion needed
+    val topBarHeight = with(density) { 52.dp.toPx() }
+    val linkChipsHeight = with(density) { 70.dp.toPx() }
     
     Box(
         modifier = modifier
@@ -132,11 +134,14 @@ fun PlayerControls(
             .pointerInput(state.isVisible, state.isLocked, isLandscape) {
                 detectTapGestures(
                     onTap = { offset ->
-                        // FIXED: In landscape mode, don't intercept taps in the top area where link chips are
-                        if (isLandscape && offset.y < linkChipExclusionHeight) {
-                            // This tap is in the link chips area - don't consume it
-                            // Let it pass through to the XML RecyclerView below
-                            return@detectTapGestures
+                        // FIXED: Only exclude link chips area (between top bar and video)
+                        if (isLandscape) {
+                            val isInLinkChipsArea = offset.y >= topBarHeight && 
+                                                   offset.y < (topBarHeight + linkChipsHeight)
+                            if (isInLinkChipsArea) {
+                                // This tap is in the link chips area - don't consume it
+                                return@detectTapGestures
+                            }
                         }
                         
                         if (state.isLocked) {
