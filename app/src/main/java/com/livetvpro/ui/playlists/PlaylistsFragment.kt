@@ -179,9 +179,9 @@ class PlaylistsFragment : Fragment() {
         onClick: () -> Unit
     ): LinearLayout {
         val marginBottom = if (isTopItem) {
-            resources.getDimensionPixelSize(R.dimen.fab_margin) + 160 // Higher position
+            resources.getDimensionPixelSize(R.dimen.fab_margin) + 180 // Top item spacing
         } else {
-            resources.getDimensionPixelSize(R.dimen.fab_margin) + 80 // Lower position
+            resources.getDimensionPixelSize(R.dimen.fab_margin) + 90 // Bottom item spacing
         }
         
         return LinearLayout(context).apply {
@@ -202,40 +202,41 @@ class PlaylistsFragment : Fragment() {
             scaleY = 0f
             visibility = View.GONE
             
-            // Label card
-            val labelCard = MaterialCardView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    marginEnd = 16
-                }
-                cardElevation = 4f
-                radius = 24f
-                setCardBackgroundColor(0xFF8B6914.toInt()) // Brown/golden
-                
-                addView(TextView(context).apply {
-                    text = labelText
-                    textSize = 14f
-                    setTextColor(0xFFFFFFFF.toInt())
-                    setPadding(24, 12, 24, 12)
-                })
-            }
-            addView(labelCard)
-            
-            // FAB button
+            // FAB button FIRST (on the left)
             val fab = FloatingActionButton(context).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
-                )
-                size = FloatingActionButton.SIZE_MINI
+                ).apply {
+                    marginEnd = 24 // Space between FAB and label
+                }
+                // Use normal size, not mini
+                size = FloatingActionButton.SIZE_NORMAL
                 setImageResource(iconRes)
                 backgroundTintList = android.content.res.ColorStateList.valueOf(0xFFFFB74D.toInt())
                 imageTintList = android.content.res.ColorStateList.valueOf(0xFF5D4037.toInt())
                 setOnClickListener { onClick() }
             }
             addView(fab)
+            
+            // Label card SECOND (on the right)
+            val labelCard = MaterialCardView(context).apply {
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                cardElevation = 6f
+                radius = 28f // More rounded
+                setCardBackgroundColor(0xFF8B6914.toInt()) // Brown/golden
+                
+                addView(TextView(context).apply {
+                    text = labelText
+                    textSize = 16f // Slightly larger text
+                    setTextColor(0xFFFFFFFF.toInt())
+                    setPadding(32, 16, 32, 16) // More padding for bigger label
+                })
+            }
+            addView(labelCard)
         }
     }
     
