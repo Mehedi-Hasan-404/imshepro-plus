@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.toAndroidRect
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.view.WindowManager
@@ -943,6 +944,14 @@ class PlayerActivity : AppCompatActivity() {
 
         val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+        
+        // FIX: Make RecyclerView wrap_content (fit to chips only, no extra space)
+        landscapeLinksRecycler?.post {
+            landscapeLinksRecycler.layoutParams = landscapeLinksRecycler.layoutParams?.apply {
+                width = ViewGroup.LayoutParams.WRAP_CONTENT
+            }
+            landscapeLinksRecycler.requestLayout()
+        }
 
         val landscapeLinkAdapter = LinkChipAdapter { link, position ->
             switchToLink(link, position)
