@@ -101,6 +101,10 @@ class PlayerActivity : AppCompatActivity() {
     private var isMuted = false
     private val skipMs = 10_000L
     
+    // Network streams use orientation-based resize mode
+    private var networkPortraitResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private var networkLandscapeResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+    
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
     private var pipRect: Rect? = null
@@ -195,6 +199,7 @@ class PlayerActivity : AppCompatActivity() {
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
         setupWindowInsets()
+        applyResizeModeForOrientation(isLandscape)
         
         if (!isLandscape) {
             exitFullscreen()
@@ -380,6 +385,7 @@ class PlayerActivity : AppCompatActivity() {
     adjustPlayerContainerForOrientation(isLandscape)
     setupWindowFlags(isLandscape)
     setupSystemUI(isLandscape)
+    applyResizeModeForOrientation(isLandscape)
     applyOrientationSettings(isLandscape)
     setSubtitleTextSize()
     
@@ -408,6 +414,15 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         binding.playerContainer.layoutParams = containerParams
+    }
+
+    /** Applies orientation-based resize mode ONLY for network streams. */
+    private fun applyResizeModeForOrientation(isLandscape: Boolean) {
+        if (contentType == ContentType.NETWORK_STREAM) {
+            binding.playerView.resizeMode =
+                if (isLandscape) networkLandscapeResizeMode else networkPortraitResizeMode
+        }
+        // For CHANNEL and EVENT, XML resize_mode="fill" is used (like Floating Player Service)
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
@@ -751,6 +766,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun cycleAspectRatio() {
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val current = binding.playerView.resizeMode
         val next = when (current) {
             AspectRatioFrameLayout.RESIZE_MODE_FIT   -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
@@ -758,6 +774,13 @@ class PlayerActivity : AppCompatActivity() {
             AspectRatioFrameLayout.RESIZE_MODE_FILL  -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
             else                                     -> AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
+        
+        // Update network stream mode variables if applicable
+        if (contentType == ContentType.NETWORK_STREAM) {
+            if (isLandscape) networkLandscapeResizeMode = next 
+            else networkPortraitResizeMode = next
+        }
+        
         binding.playerView.resizeMode = next
     }
 
@@ -1335,6 +1358,9 @@ class PlayerActivity : AppCompatActivity() {
                 .setSeekForwardIncrementMs(skipMs)
                 .build().also { exo ->
                     binding.playerView.player = exo
+                    applyResizeModeForOrientation(
+                        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    )
                     
                     binding.playerView.hideController()
                     
