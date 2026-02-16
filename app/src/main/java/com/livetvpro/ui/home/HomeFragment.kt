@@ -35,7 +35,6 @@ class HomeFragment : Fragment(), SearchableFragment, Refreshable {
         viewModel.searchCategories(query)
     }
     
-    // Implement Refreshable interface for toolbar refresh icon
     override fun refreshData() {
         viewModel.refresh()
     }
@@ -53,7 +52,6 @@ class HomeFragment : Fragment(), SearchableFragment, Refreshable {
     
     override fun onResume() {
         super.onResume()
-        // Let RetryViewModel handle resume logic
         viewModel.onResume()
     }
 
