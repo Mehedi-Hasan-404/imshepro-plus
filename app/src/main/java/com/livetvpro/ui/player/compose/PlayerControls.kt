@@ -528,8 +528,9 @@ private fun ExoPlayerTimeBar(
             fontFamily = androidx.compose.ui.text.font.FontFamily(
                 androidx.compose.ui.text.font.Font(R.font.bergen_sans)
             ),
-            modifier = Modifier.width(52.dp),
-            textAlign = TextAlign.Center
+            modifier = Modifier.widthIn(min = 60.dp),
+            textAlign = TextAlign.End,
+            maxLines = 1
         )
         
         // Custom TimeBar
@@ -552,8 +553,9 @@ private fun ExoPlayerTimeBar(
             fontFamily = androidx.compose.ui.text.font.FontFamily(
                 androidx.compose.ui.text.font.Font(R.font.bergen_sans)
             ),
-            modifier = Modifier.width(52.dp),
-            textAlign = TextAlign.Center
+            modifier = Modifier.widthIn(min = 60.dp),
+            textAlign = TextAlign.Start,
+            maxLines = 1
         )
     }
 }
