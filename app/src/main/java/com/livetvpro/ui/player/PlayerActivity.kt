@@ -751,14 +751,13 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun cycleAspectRatio() {
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val next = when (if (isLandscape) landscapeResizeMode else portraitResizeMode) {
+        val current = binding.playerView.resizeMode
+        val next = when (current) {
             AspectRatioFrameLayout.RESIZE_MODE_FIT   -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             AspectRatioFrameLayout.RESIZE_MODE_ZOOM  -> AspectRatioFrameLayout.RESIZE_MODE_FILL
             AspectRatioFrameLayout.RESIZE_MODE_FILL  -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
             else                                     -> AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
-        if (isLandscape) landscapeResizeMode = next else portraitResizeMode = next
         binding.playerView.resizeMode = next
     }
 
