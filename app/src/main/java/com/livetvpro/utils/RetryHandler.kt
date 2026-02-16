@@ -5,6 +5,7 @@ import android.widget.TextView
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.ViewModel
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
 /**
@@ -73,7 +74,7 @@ interface Refreshable {
  * - Pull-to-refresh
  * - Toolbar refresh icon
  */
-abstract class RetryViewModel {
+abstract class RetryViewModel : ViewModel() {
     
     private val _isLoading = MutableLiveData<Boolean>(false)
     val isLoading: LiveData<Boolean> = _isLoading
