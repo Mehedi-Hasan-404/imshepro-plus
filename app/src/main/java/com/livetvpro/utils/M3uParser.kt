@@ -447,61 +447,48 @@ object M3uParser {
             if (trimmedLine.startsWith("#EXTM3U")) continue
 
             when {
-                // Parse KODIPROP DRM license type (Widevine, ClearKey, PlayReady)
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_type=") -> {
                     val rawScheme = trimmedLine.substringAfter("=").trim().lowercase()
                     currentDrmScheme = normalizeDrmScheme(rawScheme)
-                    android.util.Log.d("M3uParser", "KODIPROP: Found DRM scheme: $currentDrmScheme")
                 }
                 
-                // Parse KODIPROP license key/URL
                 trimmedLine.startsWith("#KODIPROP:inputstream.adaptive.license_key=") -> {
                     val keyValue = trimmedLine.substringAfter("=").trim()
                     
                     when {
-                        // License server URL (most common for Widevine)
                         keyValue.startsWith("http://", ignoreCase = true) || 
                         keyValue.startsWith("https://", ignoreCase = true) -> {
-                            currentDrmKeyId = keyValue  // Store URL in keyId field
-                            currentDrmKey = keyValue    // Also store in key field for compatibility
-                            android.util.Log.d("M3uParser", "KODIPROP: Found license URL: $keyValue")
+                            currentDrmKeyId = keyValue
+                            currentDrmKey = keyValue
                         }
-                        // Key ID:Key pair format (hex format like "keyid:key")
                         keyValue.contains(":") && !keyValue.startsWith("{") -> {
                             val parts = keyValue.split(":", limit = 2)
                             if (parts.size == 2) {
                                 currentDrmKeyId = parts[0].trim()
                                 currentDrmKey = parts[1].trim()
-                                android.util.Log.d("M3uParser", "KODIPROP: Found key pair format")
                             }
                         }
-                        // JWK (JSON Web Key) format
                         keyValue.startsWith("{") -> {
                             val (keyId, key) = parseJWKToKeyIdPair(keyValue)
                             if (keyId != null && key != null) {
                                 currentDrmKeyId = keyId
                                 currentDrmKey = key
-                                android.util.Log.d("M3uParser", "KODIPROP: Parsed JWK format")
                             }
                         }
                     }
                 }
                 
-                // Parse KODIPROP user agent (if specified)
                 trimmedLine.startsWith("#KODIPROP:") && trimmedLine.contains("user-agent=", ignoreCase = true) -> {
                     val uaMatch = Regex("#KODIPROP:.*user-agent=([^\\s|]+)", RegexOption.IGNORE_CASE).find(trimmedLine)
                     if (uaMatch != null) {
                         currentUserAgent = uaMatch.groupValues[1].trim()
-                        android.util.Log.d("M3uParser", "KODIPROP: Found user agent")
                     }
                 }
                 
-                // Parse KODIPROP referer (if specified)
                 trimmedLine.startsWith("#KODIPROP:") && trimmedLine.contains("referer=", ignoreCase = true) -> {
                     val refMatch = Regex("#KODIPROP:.*referer=([^\\s|]+)", RegexOption.IGNORE_CASE).find(trimmedLine)
                     if (refMatch != null) {
                         currentHeaders["Referer"] = refMatch.groupValues[1].trim()
-                        android.util.Log.d("M3uParser", "KODIPROP: Found referer")
                     }
                 }
                 
@@ -558,16 +545,6 @@ object M3uParser {
                         val finalDrmKeyId = inlineDrmInfo.second ?: currentDrmKeyId
                         val finalDrmKey = inlineDrmInfo.third ?: currentDrmKey
                         
-                        // Log DRM info for debugging
-                        if (finalDrmScheme != null) {
-                            android.util.Log.d("M3uParser", "Channel '$currentName' has DRM: $finalDrmScheme")
-                            if (finalDrmKeyId?.startsWith("http") == true) {
-                                android.util.Log.d("M3uParser", "  License URL: $finalDrmKeyId")
-                            } else if (finalDrmKeyId != null) {
-                                android.util.Log.d("M3uParser", "  Key ID: ${finalDrmKeyId.take(20)}...")
-                            }
-                        }
-                        
                         channels.add(M3uChannel(
                             name = currentName,
                             logoUrl = currentLogo,
@@ -580,7 +557,6 @@ object M3uParser {
                             drmKey = finalDrmKey
                         ))
                         
-                        // Reset DRM parameters for next entry
                         currentDrmScheme = null
                         currentDrmKeyId = null
                         currentDrmKey = null
