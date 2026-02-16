@@ -125,6 +125,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
+        
+        // UPDATED: Metadata keys for random channel loading
+        private const val EXTRA_CATEGORY_ID = "extra_category_id"
+        private const val EXTRA_SELECTED_GROUP = "extra_selected_group"
         private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
         private const val EXTRA_CONTROL_TYPE = "control_type"
         private const val CONTROL_TYPE_PLAY = 1
@@ -132,7 +136,13 @@ class FloatingPlayerActivity : AppCompatActivity() {
         private const val CONTROL_TYPE_REWIND = 3
         private const val CONTROL_TYPE_FORWARD = 4
 
-        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1) {
+        fun startWithChannel(
+            context: Context, 
+            channel: Channel, 
+            linkIndex: Int = -1,
+            categoryId: String? = null,
+            selectedGroup: String? = null
+        ) {
             val intent = Intent(context, FloatingPlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
@@ -862,7 +872,15 @@ class FloatingPlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+                    // UPDATED: Get metadata from intent
+                    val categoryId = intent.getStringExtra(EXTRA_CATEGORY_ID)
+                    val selectedGroup = intent.getStringExtra(EXTRA_SELECTED_GROUP)
+                    
+                    viewModel.loadRandomRelatedChannels(
+                        categoryId = categoryId ?: channel.categoryId,
+                        currentChannelId = channel.id,
+                        groupFilter = selectedGroup
+                    )
                 }
             }
             ContentType.EVENT -> {
