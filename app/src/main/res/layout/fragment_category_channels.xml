@@ -1,131 +1,151 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout 
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto" 
-    android:layout_width="match_parent" 
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/swipe_refresh"
+    android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Groups Header with TabLayout (Only visible when groups exist) -->
-    <LinearLayout
-        android:id="@+id/groups_header"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:background="?attr/colorSurface"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent">
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
 
-        <!-- Group Icon Button (Menu icon) -->
-        <ImageView
-            android:id="@+id/groups_icon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginStart="4dp"
-            android:padding="12dp"
-            android:src="@drawable/ic_category"
-            android:contentDescription="Groups"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="?android:attr/textColorSecondary" />
-
-        <!-- TabLayout for Groups -->
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tab_layout_groups"
+        <!-- Groups Header with TabLayout (Only visible when groups exist) -->
+        <LinearLayout
+            android:id="@+id/groups_header"
             android:layout_width="0dp"
-            android:layout_height="48dp"
-            android:layout_weight="1"
-            android:background="@android:color/transparent"
-            app:tabMode="scrollable"
-            app:tabGravity="start"
-            app:tabIndicatorColor="#EF4444"
-            app:tabIndicatorHeight="3dp"
-            app:tabSelectedTextColor="#EF4444"
-            app:tabTextColor="#888888"
-            app:tabTextAppearance="@style/TabTextAppearance"
-            app:tabRippleColor="#40EF4444"
-            app:tabIndicatorFullWidth="false"
-            app:tabPaddingStart="16dp"
-            app:tabPaddingEnd="16dp"
-            app:tabMinWidth="60dp" />
-    </LinearLayout>
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="?attr/colorSurface"
+            android:visibility="gone"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent">
 
-    <!-- Divider (Only visible when groups exist) -->
-    <View
-        android:id="@+id/header_divider"
-        android:layout_width="0dp"
-        android:layout_height="1dp"
-        android:background="?android:attr/dividerHorizontal"
-        android:alpha="0.2"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/groups_header"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+            <!-- Group Icon Button (Menu icon) -->
+            <ImageView
+                android:id="@+id/groups_icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="4dp"
+                android:padding="12dp"
+                android:src="@drawable/ic_category"
+                android:contentDescription="Groups"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                app:tint="?android:attr/textColorSecondary" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_view_channels" 
-        android:layout_width="0dp" 
-        android:layout_height="0dp"
-        android:padding="4dp"
-        android:clipToPadding="false"
-        app:layout_constraintTop_toBottomOf="@id/header_divider" 
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent" 
-        app:layout_constraintEnd_toEndOf="parent" />
+            <!-- TabLayout for Groups -->
+            <com.google.android.material.tabs.TabLayout
+                android:id="@+id/tab_layout_groups"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                app:tabMode="scrollable"
+                app:tabGravity="start"
+                app:tabIndicatorColor="#EF4444"
+                app:tabIndicatorHeight="3dp"
+                app:tabSelectedTextColor="#EF4444"
+                app:tabTextColor="#888888"
+                app:tabTextAppearance="@style/TabTextAppearance"
+                app:tabRippleColor="#40EF4444"
+                app:tabIndicatorFullWidth="false"
+                app:tabPaddingStart="16dp"
+                app:tabPaddingEnd="16dp"
+                app:tabMinWidth="60dp" />
+        </LinearLayout>
 
-    <ProgressBar 
-        android:id="@+id/progress_bar" 
-        android:layout_width="wrap_content" 
-        android:layout_height="wrap_content"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="@id/recycler_view_channels" 
-        app:layout_constraintBottom_toBottomOf="@id/recycler_view_channels" 
-        app:layout_constraintStart_toStartOf="parent" 
-        app:layout_constraintEnd_toEndOf="parent" />
+        <!-- Divider (Only visible when groups exist) -->
+        <View
+            android:id="@+id/header_divider"
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:background="?android:attr/dividerHorizontal"
+            android:alpha="0.2"
+            android:visibility="gone"
+            app:layout_constraintTop_toBottomOf="@id/groups_header"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
-    <TextView 
-        android:id="@+id/empty_view" 
-        android:layout_width="wrap_content" 
-        android:layout_height="wrap_content" 
-        android:text="No channels available" 
-        android:visibility="gone"
-        android:textSize="16sp"
-        android:textColor="?android:attr/textColorSecondary"
-        app:layout_constraintTop_toTopOf="@id/recycler_view_channels" 
-        app:layout_constraintBottom_toBottomOf="@id/recycler_view_channels" 
-        app:layout_constraintStart_toStartOf="parent" 
-        app:layout_constraintEnd_toEndOf="parent"/>
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view_channels"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:padding="4dp"
+            android:clipToPadding="false"
+            app:layout_constraintTop_toBottomOf="@id/header_divider"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
-    <LinearLayout
-        android:id="@+id/error_view"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        <ProgressBar
+            android:id="@+id/progress_bar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:layout_constraintTop_toTopOf="@id/recycler_view_channels"
+            app:layout_constraintBottom_toBottomOf="@id/recycler_view_channels"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent" />
 
         <TextView
-            android:id="@+id/error_text"
+            android:id="@+id/empty_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Error loading channels"
+            android:text="No channels available"
+            android:visibility="gone"
             android:textSize="16sp"
             android:textColor="?android:attr/textColorSecondary"
-            android:padding="16dp"
-            android:gravity="center" />
+            app:layout_constraintTop_toTopOf="@id/recycler_view_channels"
+            app:layout_constraintBottom_toBottomOf="@id/recycler_view_channels"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"/>
 
-        <Button
-            android:id="@+id/retry_button"
+        <!-- Error View with Red Retry Button -->
+        <LinearLayout
+            android:id="@+id/error_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:text="Retry"
-            android:visibility="gone" />
-    </LinearLayout>
+            android:gravity="center"
+            android:orientation="vertical"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent">
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+            <TextView
+                android:id="@+id/error_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Connection error"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="?android:attr/textColorPrimary"
+                android:padding="16dp"
+                android:gravity="center" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/retry_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="RETRY"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:backgroundTint="#EF4444"
+                app:cornerRadius="8dp"
+                android:paddingStart="32dp"
+                android:paddingEnd="32dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:elevation="2dp"
+                app:rippleColor="#40FFFFFF"
+                style="@style/Widget.MaterialComponents.Button" />
+        </LinearLayout>
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
