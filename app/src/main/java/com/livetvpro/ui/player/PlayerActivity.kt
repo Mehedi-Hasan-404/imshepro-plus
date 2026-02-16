@@ -100,8 +100,6 @@ class PlayerActivity : AppCompatActivity() {
     private var isInPipMode = false
     private var isMuted = false
     private val skipMs = 10_000L
-    private var portraitResizeMode  = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    private var landscapeResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -410,13 +408,6 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         binding.playerContainer.layoutParams = containerParams
-        applyResizeModeForOrientation(isLandscape)
-    }
-
-    /** Applies the correct resize mode for the given orientation. */
-    private fun applyResizeModeForOrientation(isLandscape: Boolean) {
-        binding.playerView.resizeMode =
-            if (isLandscape) landscapeResizeMode else portraitResizeMode
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
@@ -1345,9 +1336,6 @@ class PlayerActivity : AppCompatActivity() {
                 .setSeekForwardIncrementMs(skipMs)
                 .build().also { exo ->
                     binding.playerView.player = exo
-                    applyResizeModeForOrientation(
-                        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                    )
                     
                     binding.playerView.hideController()
                     
@@ -1584,12 +1572,6 @@ class PlayerActivity : AppCompatActivity() {
             it.volume = if (isMuted) 0f else 1f
             // Icon updated automatically by Compose controls observing isMuted state
         }
-    }
-
-    private fun applyResizeMode() {
-        applyResizeModeForOrientation(
-            resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        )
     }
 
     private fun configurePlayerInteractions() {
