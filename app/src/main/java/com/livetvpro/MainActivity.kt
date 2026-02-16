@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.animation.AccelerateDecelerateInterpolator
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -45,7 +47,10 @@ class MainActivity : AppCompatActivity() {
     private var isSearchVisible = false
     private var lastSelectedView: View? = null 
     
-    private val indicator by lazy { binding.bottomNavIndicator } 
+    private val indicator by lazy { binding.bottomNavIndicator }
+    
+    // Track if refresh icon should be visible
+    private var showRefreshIcon = false
 
     companion object {
         private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
@@ -108,6 +113,38 @@ class MainActivity : AppCompatActivity() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
     }
+    
+    // ========== REFRESH ICON SUPPORT ==========
+    
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+    
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        // Show/hide refresh icon based on current page
+        menu.findItem(R.id.action_refresh)?.isVisible = showRefreshIcon
+        return super.onPrepareOptionsMenu(menu)
+    }
+    
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_refresh -> {
+                // Get the current fragment and refresh if it implements Refreshable
+                val navHostFragment = supportFragmentManager
+                    .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+                val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
+                
+                if (currentFragment is com.livetvpro.utils.Refreshable) {
+                    currentFragment.refreshData()
+                }
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
+    }
+    
+    // ========== END REFRESH ICON SUPPORT ==========
 
     private fun setupDrawer() {
         drawerToggle = ActionBarDrawerToggle(
@@ -209,6 +246,20 @@ class MainActivity : AppCompatActivity() {
                 R.id.playlistsFragment -> "Playlists"
                 else -> "Live TV Pro"
             }
+            
+            // ========== REFRESH ICON VISIBILITY ==========
+            // Show refresh icon on main pages that support refresh
+            showRefreshIcon = when (destination.id) {
+                R.id.homeFragment,
+                R.id.liveEventsFragment,
+                R.id.sportsFragment,
+                R.id.categoryChannelsFragment,
+                R.id.playlistsFragment,
+                R.id.favoritesFragment -> true
+                else -> false
+            }
+            invalidateOptionsMenu()  // Refresh the menu to show/hide icon
+            // ========== END REFRESH ICON VISIBILITY ==========
             
             val isTopLevel = destination.id in topLevelDestinations
             val isNetworkStream = destination.id == R.id.networkStreamFragment
