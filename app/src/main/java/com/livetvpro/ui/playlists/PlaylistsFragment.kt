@@ -40,16 +40,11 @@ class PlaylistsFragment : Fragment() {
     private val viewModel: PlaylistsViewModel by viewModels()
     private lateinit var playlistAdapter: PlaylistAdapter
 
+    // FAB Speed Dial State
     private var isFabExpanded = false
     private var scrimView: View? = null
     private var fabFileContainer: LinearLayout? = null
     private var fabUrlContainer: LinearLayout? = null
-    
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
-        super.onConfigurationChanged(newConfig)
-        val columnCount = resources.getInteger(R.integer.grid_column_count)
-        (binding.recyclerViewPlaylists.layoutManager as? androidx.recyclerview.widget.GridLayoutManager)?.spanCount = columnCount
-    }
 
     private val filePickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -77,6 +72,7 @@ class PlaylistsFragment : Fragment() {
             val toolbarTitle = requireActivity().findViewById<TextView>(R.id.toolbar_title)
             toolbarTitle?.text = "Playlists"
         } catch (e: Exception) {
+            // Toolbar not available
         }
 
         setupRecyclerView()
@@ -103,10 +99,8 @@ class PlaylistsFragment : Fragment() {
             }
         )
 
-        val columnCount = resources.getInteger(R.integer.grid_column_count)
-
         binding.recyclerViewPlaylists.apply {
-            layoutManager = androidx.recyclerview.widget.GridLayoutManager(context, columnCount)
+            layoutManager = LinearLayoutManager(context)
             adapter = playlistAdapter
         }
     }
@@ -115,6 +109,7 @@ class PlaylistsFragment : Fragment() {
         val rootLayout = binding.root as ConstraintLayout
         val context = requireContext()
         
+        // Create scrim (dark overlay)
         scrimView = View(context).apply {
             id = View.generateViewId()
             layoutParams = ConstraintLayout.LayoutParams(
@@ -135,6 +130,7 @@ class PlaylistsFragment : Fragment() {
         }
         rootLayout.addView(scrimView, 0)
         
+        // Create FAB with label for "Add Playlist File"
         fabFileContainer = createFabWithLabel(
             context,
             rootLayout,
@@ -147,6 +143,7 @@ class PlaylistsFragment : Fragment() {
         }
         rootLayout.addView(fabFileContainer)
         
+        // Create FAB with label for "Add Playlist URL"
         fabUrlContainer = createFabWithLabel(
             context,
             rootLayout,
@@ -159,6 +156,7 @@ class PlaylistsFragment : Fragment() {
         }
         rootLayout.addView(fabUrlContainer)
         
+        // Main FAB click listener
         binding.fabAddPlaylist.setOnClickListener {
             if (isFabExpanded) {
                 collapseFab()
@@ -167,6 +165,7 @@ class PlaylistsFragment : Fragment() {
             }
         }
         
+        // Change main FAB color to brown/golden
         binding.fabAddPlaylist.backgroundTintList = 
             android.content.res.ColorStateList.valueOf(0xFF8B6914.toInt())
     }
@@ -203,13 +202,15 @@ class PlaylistsFragment : Fragment() {
             scaleY = 0f
             visibility = View.GONE
             
+            // FAB button FIRST (on the left)
             val fab = FloatingActionButton(context).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 ).apply {
-                    marginEnd = 24
+                    marginEnd = 24 // Space between FAB and label
                 }
+                // Use normal size, not mini
                 size = FloatingActionButton.SIZE_NORMAL
                 setImageResource(iconRes)
                 backgroundTintList = android.content.res.ColorStateList.valueOf(0xFFFFB74D.toInt())
@@ -218,6 +219,7 @@ class PlaylistsFragment : Fragment() {
             }
             addView(fab)
             
+            // Label card SECOND (on the right)
             val labelCard = MaterialCardView(context).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -241,28 +243,31 @@ class PlaylistsFragment : Fragment() {
     private fun expandFab() {
         isFabExpanded = true
         
+        // Show scrim with fade in (faster)
         scrimView?.apply {
             visibility = View.VISIBLE
             animate()
                 .alpha(1f)
-                .setDuration(150)
+                .setDuration(150) // Faster: 150ms instead of 200ms
                 .start()
         }
         
+        // Rotate main FAB to X (45 degrees) - faster
         binding.fabAddPlaylist.animate()
             .rotation(45f)
-            .setDuration(200)
+            .setDuration(200) // Faster: 200ms instead of 300ms
             .setInterpolator(AccelerateDecelerateInterpolator())
             .start()
         
+        // Show and animate sub FABs (faster, no delay)
         fabFileContainer?.apply {
             visibility = View.VISIBLE
             animate()
                 .alpha(1f)
                 .scaleX(1f)
                 .scaleY(1f)
-                .setDuration(200)
-                .setStartDelay(0)
+                .setDuration(200) // Faster: 200ms instead of 300ms
+                .setStartDelay(0) // No delay
                 .setInterpolator(AccelerateDecelerateInterpolator())
                 .start()
         }
@@ -273,8 +278,8 @@ class PlaylistsFragment : Fragment() {
                 .alpha(1f)
                 .scaleX(1f)
                 .scaleY(1f)
-                .setDuration(200)
-                .setStartDelay(0)
+                .setDuration(200) // Faster: 200ms instead of 300ms
+                .setStartDelay(0) // No delay
                 .setInterpolator(AccelerateDecelerateInterpolator())
                 .start()
         }
@@ -283,25 +288,28 @@ class PlaylistsFragment : Fragment() {
     private fun collapseFab() {
         isFabExpanded = false
         
+        // Hide scrim with fade out (faster)
         scrimView?.animate()
             ?.alpha(0f)
-            ?.setDuration(150)
+            ?.setDuration(150) // Faster
             ?.withEndAction {
                 scrimView?.visibility = View.GONE
             }
             ?.start()
         
+        // Rotate main FAB back to + (faster)
         binding.fabAddPlaylist.animate()
             .rotation(0f)
-            .setDuration(200)
+            .setDuration(200) // Faster
             .setInterpolator(AccelerateDecelerateInterpolator())
             .start()
         
+        // Hide and animate sub FABs (faster)
         fabFileContainer?.animate()
             ?.alpha(0f)
             ?.scaleX(0f)
             ?.scaleY(0f)
-            ?.setDuration(150)
+            ?.setDuration(150) // Faster
             ?.withEndAction {
                 fabFileContainer?.visibility = View.GONE
             }
@@ -311,7 +319,7 @@ class PlaylistsFragment : Fragment() {
             ?.alpha(0f)
             ?.scaleX(0f)
             ?.scaleY(0f)
-            ?.setDuration(150)
+            ?.setDuration(150) // Faster
             ?.withEndAction {
                 fabUrlContainer?.visibility = View.GONE
             }
@@ -389,6 +397,7 @@ class PlaylistsFragment : Fragment() {
                             Intent.FLAG_GRANT_READ_URI_PERMISSION
                         )
                     } catch (e: Exception) {
+                        // Permission may already be granted
                     }
                     viewModel.addPlaylist(title, "", true, fileUri.toString())
                 } else {
