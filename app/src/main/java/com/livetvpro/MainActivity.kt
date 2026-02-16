@@ -49,7 +49,6 @@ class MainActivity : AppCompatActivity() {
     
     private val indicator by lazy { binding.bottomNavIndicator }
     
-    // Track if refresh icon should be visible
     private var showRefreshIcon = false
 
     companion object {
@@ -59,14 +58,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Set status bar to black
         window.statusBarColor = android.graphics.Color.BLACK
         
         themeManager.applyTheme()
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         
-        // Handle status bar and insets based on orientation
         handleStatusBarForOrientation()
         
         setupToolbar()
@@ -80,23 +77,19 @@ class MainActivity : AppCompatActivity() {
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
         if (isLandscape) {
-            // Landscape: Immersive fullscreen with cutout support
             WindowCompat.setDecorFitsSystemWindows(window, false)
             windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
             windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             
-            // Support display cutouts in landscape
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes.layoutInDisplayCutoutMode = 
                     android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
         } else {
-            // Portrait: Show status bar with proper padding
             WindowCompat.setDecorFitsSystemWindows(window, true)
             windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
             windowInsetsController.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
             
-            // Reset cutout mode in portrait
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 window.attributes.layoutInDisplayCutoutMode = 
                     android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
@@ -114,15 +107,12 @@ class MainActivity : AppCompatActivity() {
         supportActionBar?.setDisplayShowTitleEnabled(false)
     }
     
-    // ========== REFRESH ICON SUPPORT ==========
-    
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
     }
     
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        // Show/hide refresh icon based on current page
         menu.findItem(R.id.action_refresh)?.isVisible = showRefreshIcon
         return super.onPrepareOptionsMenu(menu)
     }
@@ -130,7 +120,6 @@ class MainActivity : AppCompatActivity() {
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_refresh -> {
-                // Get the current fragment and refresh if it implements Refreshable
                 val navHostFragment = supportFragmentManager
                     .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
                 val currentFragment = navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
@@ -143,8 +132,6 @@ class MainActivity : AppCompatActivity() {
             else -> super.onOptionsItemSelected(item)
         }
     }
-    
-    // ========== END REFRESH ICON SUPPORT ==========
 
     private fun setupDrawer() {
         drawerToggle = ActionBarDrawerToggle(
@@ -200,10 +187,8 @@ class MainActivity : AppCompatActivity() {
                     true
                 }
                 R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment -> {
-                    // Close drawer first, then navigate
                     binding.drawerLayout.closeDrawer(GravityCompat.START)
                     
-                    // Navigate after drawer closes to ensure proper icon animation
                     binding.drawerLayout.postDelayed({
                         navController.navigate(menuItem.itemId)
                     }, 250)
@@ -247,8 +232,6 @@ class MainActivity : AppCompatActivity() {
                 else -> "Live TV Pro"
             }
             
-            // ========== REFRESH ICON VISIBILITY ==========
-            // Show refresh icon on main pages that support refresh
             showRefreshIcon = when (destination.id) {
                 R.id.homeFragment,
                 R.id.liveEventsFragment,
@@ -258,13 +241,11 @@ class MainActivity : AppCompatActivity() {
                 R.id.favoritesFragment -> true
                 else -> false
             }
-            invalidateOptionsMenu()  // Refresh the menu to show/hide icon
-            // ========== END REFRESH ICON VISIBILITY ==========
+            invalidateOptionsMenu()
             
             val isTopLevel = destination.id in topLevelDestinations
             val isNetworkStream = destination.id == R.id.networkStreamFragment
             
-            // Hide search and favorites for Network Stream only
             if (isNetworkStream) {
                 binding.btnSearch.visibility = View.GONE
                 binding.btnFavorites.visibility = View.GONE
@@ -274,7 +255,6 @@ class MainActivity : AppCompatActivity() {
             }
             
             if (isTopLevel) {
-                // Home, Live, Sports: Show hamburger
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED)
                 
                 drawerToggle?.isDrawerIndicatorEnabled = true
@@ -294,13 +274,10 @@ class MainActivity : AppCompatActivity() {
                 animateBottomNavItem(currentView)
 
             } else {
-                // All child pages (Network Stream, Contact, Category, Favorites): Show back arrow with animation
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
                 
-                // Keep drawer indicator enabled but animate to back arrow
                 drawerToggle?.isDrawerIndicatorEnabled = true
                 
-                // Force animation to back arrow
                 binding.toolbar.post {
                     animateNavigationIcon(1f)
                 }
@@ -335,7 +312,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun showFloatingPlayerDialog() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            // Show permission explanation dialog
             AlertDialog.Builder(this)
                 .setTitle("Permission Required")
                 .setMessage("Floating Player requires permission to draw over other apps. Please enable it in the next screen.")
@@ -349,7 +325,6 @@ class MainActivity : AppCompatActivity() {
                 .setNegativeButton("Cancel", null)
                 .show()
         } else {
-            // Show floating player settings dialog
             FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
         }
     }
@@ -358,7 +333,6 @@ class MainActivity : AppCompatActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQUEST_CODE_OVERLAY_PERMISSION) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-                // Permission granted, show dialog
                 FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
             }
         }
