@@ -172,14 +172,18 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
     @Inject
     lateinit var listenerManager: NativeListenerManager
 
-    // Implement SearchableFragment for search functionality
     override fun onSearchQuery(query: String) {
         viewModel.searchSports(query)
     }
     
-    // Implement Refreshable for toolbar refresh icon
     override fun refreshData() {
         viewModel.refresh()
+    }
+    
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val columnCount = resources.getInteger(com.livetvpro.R.integer.grid_column_count)
+        (binding.recyclerViewChannels.layoutManager as? GridLayoutManager)?.spanCount = columnCount
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -195,7 +199,6 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
     
     override fun onResume() {
         super.onResume()
-        // Handle background resume with lifecycle-aware loading
         viewModel.onResume()
     }
 
