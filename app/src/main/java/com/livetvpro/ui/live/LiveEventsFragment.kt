@@ -179,7 +179,6 @@ class LiveEventsFragment : Fragment(), Refreshable {
     override fun onResume() {
         super.onResume()
         startDynamicUpdates()
-        viewModel.onResume()
     }
 
     override fun onPause() {
