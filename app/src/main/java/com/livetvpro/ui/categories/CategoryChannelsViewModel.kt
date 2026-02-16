@@ -88,6 +88,10 @@ class CategoryChannelsViewModel @Inject constructor(
         lastLoadedCategoryId?.let { loadChannels(it) }
     }
 
+    override fun shouldReloadOnResume(): Boolean {
+        return false
+    }
+
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
             startLoading()
