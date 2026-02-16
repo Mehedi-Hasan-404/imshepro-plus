@@ -1,15 +1,6 @@
 package com.livetvpro.ui.player
 
-import android.app.Application
-
-import android.net.Urii
-import android.util.Logm
-import com.livetvpro.data.repository.PlaylistRepositoryp
-import com.livetvpro.utils.M3uParsero
-import kotlinx.coroutines.Dispatchersr
-import kotlinx.coroutines.withContextt
-import okhttp3.OkHttpClient 
-import okhttp3.Requestandroidx.lifecycle.LiveData
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,6 +15,17 @@ import com.livetvpro.data.repository.NativeDataRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+import android.app.Application
+import android.net.Uri
+import android.util.Log
+import com.livetvpro.data.repository.PlaylistRepository
+import com.livetvpro.utils.M3uParser
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
@@ -74,6 +76,27 @@ class PlayerViewModel @Inject constructor(
                 favoritesRepository.removeFavorite(channel.id)
                 _isFavorite.value = false
             } else {
+                val favoriteLinks = channel.links?.map { channelLink ->
+                    ChannelLink(
+                        quality = channelLink.quality,
+                        url = channelLink.url
+                    )
+                }
+                
+                val favorite = FavoriteChannel(
+                    id = channel.id,
+                    name = channel.name,
+                    logoUrl = channel.logoUrl,
+                    streamUrl = channel.streamUrl,
+                    categoryId = channel.categoryId,
+                    categoryName = channel.categoryName,
+                    links = favoriteLinks
+                )
+                favoritesRepository.addFavorite(favorite)
+                _isFavorite.value = true
+            }
+        }
+    }
 
     /**
      * UPDATED: Load 9 random related channels (or less if fewer available)
@@ -127,27 +150,6 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-                val favoriteLinks = channel.links?.map { channelLink ->
-                    ChannelLink(
-                        quality = channelLink.quality,
-                        url = channelLink.url
-                    )
-                }
-                
-                val favorite = FavoriteChannel(
-                    id = channel.id,
-                    name = channel.name,
-                    logoUrl = channel.logoUrl,
-                    streamUrl = channel.streamUrl,
-                    categoryId = channel.categoryId,
-                    categoryName = channel.categoryName,
-                    links = favoriteLinks
-                )
-                favoritesRepository.addFavorite(favorite)
-                _isFavorite.value = true
-            }
-        }
-    }
 
     fun loadRelatedChannels(categoryId: String, currentChannelId: String) {
         viewModelScope.launch {
