@@ -38,6 +38,12 @@ class HomeFragment : Fragment(), SearchableFragment, Refreshable {
     override fun refreshData() {
         viewModel.refresh()
     }
+    
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val columnCount = resources.getInteger(R.integer.grid_column_count)
+        (binding.recyclerViewCategories.layoutManager as? GridLayoutManager)?.spanCount = columnCount
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
