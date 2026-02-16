@@ -119,31 +119,19 @@ fun PlayerControls(
 ) {
     val scope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
-    val density = LocalDensity.current
     
-    // Smart exclusion zone: Only exclude the link chips area, NOT the top bar
-    // Top bar (0-52dp): Contains Compose buttons (back, pip, settings, etc.) - NO exclusion needed
-    // Link chips (52-122dp): Contains RecyclerView - NEEDS exclusion for touch pass-through
-    // Video area (122dp+): Empty space for toggling controls - NO exclusion needed
-    val topBarHeight = with(density) { 52.dp.toPx() }
-    val linkChipsHeight = with(density) { 70.dp.toPx() }
+    // NO EXCLUSION ZONE NEEDED!
+    // Link chips RecyclerView is now positioned on the right side with maxWidth
+    // It doesn't overlap with top control buttons anymore
+    // All touch events can be handled normally
     
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(state.isVisible, state.isLocked, isLandscape) {
+            .pointerInput(state.isVisible, state.isLocked) {
                 detectTapGestures(
-                    onTap = { offset ->
-                        // FIXED: Only exclude link chips area (between top bar and video)
-                        if (isLandscape) {
-                            val isInLinkChipsArea = offset.y >= topBarHeight && 
-                                                   offset.y < (topBarHeight + linkChipsHeight)
-                            if (isInLinkChipsArea) {
-                                // This tap is in the link chips area - don't consume it
-                                return@detectTapGestures
-                            }
-                        }
-                        
+                    onTap = {
+                        // No exclusion needed - RecyclerView is out of the way!
                         if (state.isLocked) {
                             // When locked, tapping toggles lock overlay visibility
                             state.toggle(scope)
