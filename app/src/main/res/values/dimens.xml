@@ -9,6 +9,7 @@
     <dimen name="subtitle_bottom_margin_landscape">48dp</dimen>
     
     <!-- ========== ADDED: FAB Speed Dial Margins ========== -->
+    <dimen name="fab_margin">16dp</dimen>
     <dimen name="fab_margin_bottom_file">140dp</dimen>
     <dimen name="fab_margin_bottom_url">220dp</dimen>
     <!-- ========== END ADDED ========== -->
