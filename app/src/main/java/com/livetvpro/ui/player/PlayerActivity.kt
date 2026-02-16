@@ -133,6 +133,7 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
+        private const val EXTRA_RELATED_CHANNELS = "extra_related_channels"
         
         // UPDATED: Metadata keys for random channel loading
         private const val EXTRA_CATEGORY_ID = "extra_category_id"
