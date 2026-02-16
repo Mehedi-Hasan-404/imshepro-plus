@@ -1,7 +1,6 @@
 package com.livetvpro.data.repository
 
 import android.content.Context
-import android.widget.Toast
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.remoteconfig.ktx.remoteConfig
 import com.google.firebase.remoteconfig.ktx.remoteConfigSettings
@@ -42,7 +41,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Native JNI functions - these names must match the C++ function signatures exactly
     private external fun nativeValidateIntegrity(): Boolean
     private external fun nativeGetConfigKey(): String
     private external fun nativeStoreConfigUrl(configUrl: String)
@@ -55,7 +53,6 @@ class NativeDataRepository @Inject constructor(
     private external fun nativeGetEventCategories(): String
     private external fun nativeGetSports(): String
 
-    // Safe wrapper for integrity validation
     private fun checkIntegrityAndEnabled(): Boolean {
         return try {
             if (!isNativeLibraryLoaded) return true
@@ -65,7 +62,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for getting remote config key
     private fun getRemoteConfigKey(): String {
         return try {
             if (!isNativeLibraryLoaded) return "data_file_url"
@@ -75,7 +71,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for storing config URL
     private fun storeConfigUrl(url: String) {
         try {
             if (!isNativeLibraryLoaded) return
@@ -84,7 +79,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for retrieving data URL
     private fun retrieveDataUrl(): String {
         return try {
             if (!isNativeLibraryLoaded) return ""
@@ -94,7 +88,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for storing JSON data
     private fun storeJsonData(jsonData: String): Boolean {
         return try {
             if (!isNativeLibraryLoaded) return false
@@ -104,7 +97,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for retrieving categories
     private fun retrieveCategoriesJson(): String {
         return try {
             if (!isNativeLibraryLoaded) return "[]"
@@ -114,7 +106,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for retrieving channels
     private fun retrieveChannelsJson(): String {
         return try {
             if (!isNativeLibraryLoaded) return "[]"
@@ -124,7 +115,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for retrieving live events
     private fun retrieveLiveEventsJson(): String {
         return try {
             if (!isNativeLibraryLoaded) return "[]"
@@ -134,7 +124,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for checking if data is loaded
     private fun checkDataLoaded(): Boolean {
         return try {
             if (!isNativeLibraryLoaded) return false
@@ -144,7 +133,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for retrieving event categories
     private fun retrieveEventCategoriesJson(): String {
         return try {
             if (!isNativeLibraryLoaded) return "[]"
@@ -154,7 +142,6 @@ class NativeDataRepository @Inject constructor(
         }
     }
 
-    // Safe wrapper for retrieving sports
     private fun retrieveSportsJson(): String {
         return try {
             if (!isNativeLibraryLoaded) return "[]"
@@ -209,18 +196,12 @@ class NativeDataRepository @Inject constructor(
                 
                 val dataUrl = retrieveDataUrl()
                 if (dataUrl.isBlank()) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(context, "Configuration URL not found", Toast.LENGTH_LONG).show()
-                    }
                     return@withContext false
                 }
                 
                 val request = Request.Builder().url(dataUrl).build()
                 httpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Server error: ${response.code}", Toast.LENGTH_LONG).show()
-                        }
                         return@withContext false
                     }
                     
@@ -231,21 +212,12 @@ class NativeDataRepository @Inject constructor(
                     
                     val success = storeJsonData(responseBody)
                     if (success) {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Data loaded successfully", Toast.LENGTH_SHORT).show()
-                        }
                         return@withContext true
                     } else {
-                        withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Failed to process data", Toast.LENGTH_LONG).show()
-                        }
                         return@withContext false
                     }
                 }
             } catch (error: Exception) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "Network error: ${error.message}", Toast.LENGTH_LONG).show()
-                }
                 return@withContext false
             }
         }
