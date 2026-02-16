@@ -298,7 +298,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
 
     override fun onResume() {
         super.onResume()
-        viewModel.onResume()
     }
 
     override fun onDestroyView() {
