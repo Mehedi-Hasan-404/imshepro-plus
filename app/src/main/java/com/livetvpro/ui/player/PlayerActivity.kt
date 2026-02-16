@@ -100,7 +100,8 @@ class PlayerActivity : AppCompatActivity() {
     private var isInPipMode = false
     private var isMuted = false
     private val skipMs = 10_000L
-    private var currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
+    private var portraitResizeMode  = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private var landscapeResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -397,24 +398,25 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun adjustPlayerContainerForOrientation(isLandscape: Boolean) {
         val containerParams = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        
+
         if (isLandscape) {
-            // Landscape: Remove ratio, make height match_parent (fill screen)
             containerParams.dimensionRatio = null
             containerParams.height = ConstraintLayout.LayoutParams.MATCH_PARENT
             containerParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
         } else {
-            // Portrait: Use 16:9 ratio, wrap content height
             containerParams.dimensionRatio = "H,16:9"
             containerParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
             containerParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-            
-            // Use ZOOM mode in portrait so video fills the 16:9 container without black bars
-            binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
         }
-        
+
         binding.playerContainer.layoutParams = containerParams
+        applyResizeModeForOrientation(isLandscape)
+    }
+
+    /** Applies the correct resize mode for the given orientation. */
+    private fun applyResizeModeForOrientation(isLandscape: Boolean) {
+        binding.playerView.resizeMode =
+            if (isLandscape) landscapeResizeMode else portraitResizeMode
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
@@ -758,13 +760,15 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun cycleAspectRatio() {
-        currentResizeMode = when (currentResizeMode) {
-            AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-            AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
-            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> AspectRatioFrameLayout.RESIZE_MODE_FILL
-            else -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val next = when (if (isLandscape) landscapeResizeMode else portraitResizeMode) {
+            AspectRatioFrameLayout.RESIZE_MODE_FIT   -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM  -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            AspectRatioFrameLayout.RESIZE_MODE_FILL  -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+            else                                     -> AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
-        binding.playerView.resizeMode = currentResizeMode
+        if (isLandscape) landscapeResizeMode = next else portraitResizeMode = next
+        binding.playerView.resizeMode = next
     }
 
     private fun showSettingsDialog() {
@@ -1341,15 +1345,9 @@ class PlayerActivity : AppCompatActivity() {
                 .setSeekForwardIncrementMs(skipMs)
                 .build().also { exo ->
                     binding.playerView.player = exo
-                    
-                    // Force FIT mode for portrait, use currentResizeMode for landscape
-                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                    if (!isLandscape) {
-                        binding.playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        currentResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    } else {
-                        binding.playerView.resizeMode = currentResizeMode
-                    }
+                    applyResizeModeForOrientation(
+                        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    )
                     
                     binding.playerView.hideController()
                     
@@ -1372,13 +1370,6 @@ class PlayerActivity : AppCompatActivity() {
                                 Player.STATE_READY -> {
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
-                                    
-                                    // Force resize mode in portrait
-                                    val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                                    if (!isLandscape && binding.playerView.resizeMode != currentResizeMode) {
-                                        binding.playerView.resizeMode = currentResizeMode
-                                    }
-
                                     updatePipParams()
                                 }
                                 Player.STATE_BUFFERING -> {
@@ -1596,7 +1587,9 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun applyResizeMode() {
-        binding.playerView.resizeMode = currentResizeMode
+        applyResizeModeForOrientation(
+            resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        )
     }
 
     private fun configurePlayerInteractions() {
