@@ -1,7 +1,6 @@
 package com.livetvpro.ui
 
 import android.animation.AnimatorInflater
-import android.animation.AnimatorSet
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
@@ -33,7 +32,6 @@ class SplashActivity : AppCompatActivity() {
     private lateinit var bar5: View
     private lateinit var errorText: TextView
     private lateinit var retryButton: MaterialButton
-    private lateinit var skipButton: TextView
     private lateinit var versionText: TextView
 
     private val barAnimators = mutableListOf<android.animation.Animator>()
@@ -50,13 +48,11 @@ class SplashActivity : AppCompatActivity() {
         bar5 = findViewById(R.id.bar5)
         errorText = findViewById(R.id.error_text)
         retryButton = findViewById(R.id.retry_button)
-        skipButton = findViewById(R.id.skip_button)
         versionText = findViewById(R.id.version_text)
 
         versionText.text = "VERSION ${BuildConfig.VERSION_NAME}"
 
         retryButton.setOnClickListener { startFetch() }
-        skipButton.setOnClickListener { navigateToMain() }
 
         startFetch()
     }
@@ -87,7 +83,6 @@ class SplashActivity : AppCompatActivity() {
         signalLoader.visibility = View.VISIBLE
         errorText.visibility = View.GONE
         retryButton.visibility = View.GONE
-        skipButton.visibility = View.GONE
         startBarAnimations()
     }
 
@@ -97,7 +92,6 @@ class SplashActivity : AppCompatActivity() {
         errorText.text = message
         errorText.visibility = View.VISIBLE
         retryButton.visibility = View.VISIBLE
-        skipButton.visibility = View.VISIBLE
     }
 
     private fun startBarAnimations() {
