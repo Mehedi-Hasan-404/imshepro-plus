@@ -8,7 +8,6 @@ import com.livetvpro.data.repository.CategoryRepository
 import com.livetvpro.utils.RetryViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
-import timber.log.Timber
 import javax.inject.Inject
 
 @HiltViewModel
@@ -25,32 +24,21 @@ class HomeViewModel @Inject constructor(
     private var currentSearchQuery = ""
 
     init {
-        Timber.d("HomeViewModel initialized")
         loadData()
     }
 
     override fun loadData() {
         viewModelScope.launch {
             try {
-                Timber.d("Starting to load categories...")
                 startLoading()
                 
                 val categories = categoryRepository.getCategories()
-                Timber.d("Loaded ${categories.size} categories from repository")
                 
                 _categories.value = categories
                 searchCategories(currentSearchQuery)
                 
                 finishLoading(dataIsEmpty = categories.isEmpty())
-                
-                if (categories.isEmpty()) {
-                    Timber.w("No categories found in API/Firestore")
-                } else {
-                    Timber.d("Successfully loaded ${categories.size} categories")
-                }
             } catch (e: Exception) {
-                Timber.e(e, "Error loading categories")
-                
                 _categories.value = emptyList()
                 _filteredCategories.value = emptyList()
                 
@@ -73,7 +61,6 @@ class HomeViewModel @Inject constructor(
                 }
             }
         } catch (e: Exception) {
-            Timber.e(e, "Error searching categories")
         }
     }
 }
