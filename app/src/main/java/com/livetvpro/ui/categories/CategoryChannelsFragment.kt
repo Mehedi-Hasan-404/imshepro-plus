@@ -147,15 +147,12 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
     }
     
     private fun setupRetryHandling() {
-        // Setup retry handler WITH pull-to-refresh support
-        RetryHandler.setupWithRefresh(
+        RetryHandler.setupGlobal(
             lifecycleOwner = viewLifecycleOwner,
             viewModel = viewModel,
-            swipeRefresh = binding.swipeRefresh,  // Pull-to-refresh enabled!
-            errorView = binding.errorView,
-            errorText = binding.errorText,
-            retryButton = binding.retryButton,
+            activity = requireActivity() as androidx.appcompat.app.AppCompatActivity,
             contentView = binding.recyclerViewChannels,
+            swipeRefresh = binding.swipeRefresh,
             progressBar = binding.progressBar,
             emptyView = binding.emptyView
         )
