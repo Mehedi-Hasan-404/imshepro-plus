@@ -141,7 +141,8 @@ class CategoryChannelsViewModel @Inject constructor(
                 val uri = Uri.parse(playlistSource)
                 val inputStream = application.contentResolver.openInputStream(uri)
                 val content = inputStream?.bufferedReader()?.use { it.readText() } ?: ""
-                M3uParser.parse(content, playlist.title)
+                val m3uChannels = M3uParser.parseM3uContent(content)
+                M3uParser.convertToChannels(m3uChannels, playlist.id, playlist.title)
             } else {
                 // Remote URL
                 withContext(Dispatchers.IO) {
@@ -149,7 +150,8 @@ class CategoryChannelsViewModel @Inject constructor(
                     val request = Request.Builder().url(playlistSource).build()
                     val response = client.newCall(request).execute()
                     val content = response.body?.string() ?: ""
-                    M3uParser.parse(content, playlist.title)
+                    val m3uChannels = M3uParser.parseM3uContent(content)
+                    M3uParser.convertToChannels(m3uChannels, playlist.id, playlist.title)
                 }
             }
             
