@@ -6,7 +6,6 @@
     android:layout_height="match_parent"
     android:background="?attr/android:colorBackground">
 
-    <!-- ✅ Event Categories (Horizontal Scroll with Circular Logos) -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/category_recycler"
         android:layout_width="0dp"
@@ -21,7 +20,6 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
-    <!-- Status Filter Chips -->
     <com.google.android.material.chip.ChipGroup
         android:id="@+id/chip_group" 
         android:layout_width="0dp" 
@@ -78,31 +76,34 @@
             android:textColor="@color/chip_text_color" />
     </com.google.android.material.chip.ChipGroup>
 
-    <!-- Events List -->
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recycler_view_events" 
-        android:layout_width="0dp" 
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipe_refresh"
+        android:layout_width="0dp"
         android:layout_height="0dp"
-        android:layout_marginTop="4dp"
-        android:paddingBottom="8dp"
-        android:clipToPadding="false"
-        app:layout_constraintTop_toBottomOf="@id/chip_group" 
-        app:layout_constraintBottom_toBottomOf="parent" 
-        app:layout_constraintStart_toStartOf="parent" 
-        app:layout_constraintEnd_toEndOf="parent"/>
+        app:layout_constraintTop_toBottomOf="@id/chip_group"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-    <!-- Loading -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view_events" 
+            android:layout_width="match_parent" 
+            android:layout_height="match_parent"
+            android:layout_marginTop="4dp"
+            android:paddingBottom="8dp"
+            android:clipToPadding="false" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
+
     <ProgressBar 
         android:id="@+id/progress_bar" 
         android:layout_width="wrap_content" 
         android:layout_height="wrap_content"
         android:visibility="gone"
-        app:layout_constraintTop_toTopOf="@id/recycler_view_events" 
-        app:layout_constraintBottom_toBottomOf="@id/recycler_view_events" 
+        app:layout_constraintTop_toBottomOf="@id/chip_group" 
+        app:layout_constraintBottom_toBottomOf="parent" 
         app:layout_constraintStart_toStartOf="parent" 
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Empty State -->
     <TextView 
         android:id="@+id/empty_view" 
         android:layout_width="wrap_content" 
@@ -111,12 +112,11 @@
         android:visibility="gone"
         android:textSize="16sp"
         android:textColor="?android:attr/textColorSecondary"
-        app:layout_constraintTop_toTopOf="@id/recycler_view_events" 
-        app:layout_constraintBottom_toBottomOf="@id/recycler_view_events" 
+        app:layout_constraintTop_toBottomOf="@id/chip_group" 
+        app:layout_constraintBottom_toBottomOf="parent" 
         app:layout_constraintStart_toStartOf="parent" 
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <!-- Error State -->
     <LinearLayout
         android:id="@+id/error_view"
         android:layout_width="wrap_content"
@@ -127,7 +127,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toBottomOf="@id/chip_group">
 
         <TextView
             android:id="@+id/error_text"
@@ -135,7 +135,17 @@
             android:layout_height="wrap_content"
             android:text="Error loading events"
             android:textSize="16sp"
-            android:textColor="?android:attr/textColorSecondary" />
+            android:textColor="?android:attr/textColorSecondary"
+            android:layout_marginBottom="16dp" />
+
+        <Button
+            android:id="@+id/retry_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Retry"
+            android:backgroundTint="@android:color/holo_red_dark"
+            android:textColor="@android:color/white"
+            style="@style/Widget.Material3.Button" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
