@@ -117,35 +117,4 @@
         app:layout_constraintStart_toStartOf="parent" 
         app:layout_constraintEnd_toEndOf="parent"/>
 
-    <LinearLayout
-        android:id="@+id/error_view"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="vertical"
-        android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/chip_group">
-
-        <TextView
-            android:id="@+id/error_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Error loading events"
-            android:textSize="16sp"
-            android:textColor="?android:attr/textColorSecondary"
-            android:layout_marginBottom="16dp" />
-
-        <Button
-            android:id="@+id/retry_button"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Retry"
-            android:backgroundTint="@android:color/holo_red_dark"
-            android:textColor="@android:color/white"
-            style="@style/Widget.Material3.Button" />
-    </LinearLayout>
-
 </androidx.constraintlayout.widget.ConstraintLayout>
