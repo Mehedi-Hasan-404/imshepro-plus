@@ -47,6 +47,10 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    override fun shouldReloadOnResume(): Boolean {
+        return false
+    }
+
     fun searchCategories(query: String) {
         try {
             currentSearchQuery = query
