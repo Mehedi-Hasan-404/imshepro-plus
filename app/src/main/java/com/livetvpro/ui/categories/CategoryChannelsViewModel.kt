@@ -191,7 +191,7 @@ class CategoryChannelsViewModel @Inject constructor(
     }
 
     private fun extractGroupFromChannel(channel: Channel): String? {
-        return channel.group?.takeIf { it.isNotBlank() }
+        return channel.groupTitle?.takeIf { it.isNotBlank() }
     }
 
     fun searchChannels(query: String) {
