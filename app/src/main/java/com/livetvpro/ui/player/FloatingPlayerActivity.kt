@@ -779,18 +779,21 @@ class FloatingPlayerActivity : AppCompatActivity() {
         val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
-        // Align chips to the left, starting at the same vertical line as the back button.
-        // Set width to WRAP_CONTENT so the RecyclerView is only as wide as its chips.
-        // Because the parent LinearLayout (exo_top_container) stacks children vertically
-        // from start, a wrap_content child will naturally sit at the start (left) edge.
+        // The RecyclerView is inside player_container (ConstraintLayout) with width="0dp"
+        // pinned start+end = full width, which is why chips appear centered.
+        // Fix: WRAP_CONTENT + remove endToEnd constraint so the view only takes the
+        // width of its chips and naturally sits at the start edge.
+        // paddingStart aligns chips with title text:
+        //   Compose bar paddingStart(4dp) + back button(40dp) + title marginStart(12dp) = 56dp.
         landscapeLinksRecycler?.let { rv ->
-            val params = rv.layoutParams
-            params?.width = ViewGroup.LayoutParams.WRAP_CONTENT
-            rv.layoutParams = params
-            // Align with the title's left edge: top bar paddingStart(4dp) + back button(40dp)
-            // + channel name marginStart(12dp) = 56dp total.
-            val startPadding = (56 * resources.displayMetrics.density).toInt()
-            rv.setPaddingRelative(startPadding, rv.paddingTop, rv.paddingEnd, rv.paddingBottom)
+            val params = rv.layoutParams as? ConstraintLayout.LayoutParams
+            if (params != null) {
+                params.width = ConstraintLayout.LayoutParams.WRAP_CONTENT
+                params.endToEnd = ConstraintLayout.LayoutParams.UNSET
+                rv.layoutParams = params
+            }
+            val startPx = (56 * resources.displayMetrics.density).toInt()
+            rv.setPaddingRelative(startPx, rv.paddingTop, rv.paddingEnd, rv.paddingBottom)
         }
 
         val landscapeLinkAdapter = LinkChipAdapter { link, position ->
