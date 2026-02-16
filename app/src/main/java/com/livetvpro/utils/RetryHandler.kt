@@ -1,7 +1,9 @@
 package com.livetvpro.utils
 
+import android.app.Application
 import android.view.View
 import android.widget.TextView
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -75,6 +77,126 @@ interface Refreshable {
  * - Toolbar refresh icon
  */
 abstract class RetryViewModel : ViewModel() {
+    
+    private val _isLoading = MutableLiveData<Boolean>(false)
+    val isLoading: LiveData<Boolean> = _isLoading
+    
+    private val _error = MutableLiveData<String?>(null)
+    val error: LiveData<String?> = _error
+    
+    // Tracks if data has been successfully loaded at least once
+    private var hasLoadedOnce = false
+    
+    /**
+     * Call this when starting to load data
+     */
+    protected fun startLoading() {
+        _isLoading.value = true
+        _error.value = null
+    }
+    
+    /**
+     * Call this when data loading is complete
+     * 
+     * @param dataIsEmpty Whether the loaded data is empty
+     * @param error The error that occurred (if any)
+     */
+    protected fun finishLoading(dataIsEmpty: Boolean, error: Throwable? = null) {
+        _isLoading.value = false
+        
+        if (error != null) {
+            // Only show error if we haven't loaded data before
+            if (!hasLoadedOnce) {
+                _error.value = ErrorMessageConverter.getShortErrorMessage(error)
+            }
+        } else {
+            // Data loaded successfully
+            if (!dataIsEmpty) {
+                hasLoadedOnce = true
+                _error.value = null
+            } else {
+                // Data is empty
+                // Only show error if we haven't loaded before
+                if (!hasLoadedOnce) {
+                    _error.value = "No data"
+                }
+            }
+        }
+    }
+    
+    /**
+     * Call this when user manually retries
+     * Resets the loaded state to allow error display
+     */
+    protected fun resetForRetry() {
+        hasLoadedOnce = false
+        _error.value = null
+    }
+    
+    /**
+     * Call this when fragment resumes
+     * Returns true if data should be reloaded
+     */
+    protected fun shouldReloadOnResume(): Boolean {
+        return hasLoadedOnce
+    }
+    
+    /**
+     * Call this to manually set an error message
+     */
+    protected fun setError(message: String) {
+        _error.value = message
+    }
+    
+    /**
+     * Call this to clear error
+     */
+    protected fun clearError() {
+        _error.value = null
+    }
+    
+    /**
+     * Check if data has been loaded at least once
+     */
+    protected fun hasLoadedData(): Boolean {
+        return hasLoadedOnce
+    }
+    
+    /**
+     * Abstract method - implement your data loading logic here
+     */
+    abstract fun loadData()
+    
+    /**
+     * Retry method - resets state and reloads data
+     */
+    fun retry() {
+        resetForRetry()
+        loadData()
+    }
+    
+    /**
+     * Refresh method - reloads data without resetting state
+     * Used for pull-to-refresh and refresh icon
+     */
+    fun refresh() {
+        loadData()
+    }
+    
+    /**
+     * Call from Fragment's onResume()
+     */
+    fun onResume() {
+        if (shouldReloadOnResume()) {
+            loadData()
+        }
+    }
+}
+
+/**
+ * AndroidViewModel version of RetryViewModel for ViewModels that need Application context
+ */
+abstract class AndroidRetryViewModel(application: Application) : AndroidViewModel(application) {
     
     private val _isLoading = MutableLiveData<Boolean>(false)
     val isLoading: LiveData<Boolean> = _isLoading
