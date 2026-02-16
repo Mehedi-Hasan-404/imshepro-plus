@@ -133,7 +133,11 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
-        private const val EXTRA_RELATED_CHANNELS = "extra_related_channels"
+        
+        // UPDATED: Metadata keys for random channel loading
+        private const val EXTRA_CATEGORY_ID = "extra_category_id"
+        private const val EXTRA_SELECTED_GROUP = "extra_selected_group"
+        
         
         // Media control constants
         private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
@@ -151,13 +155,22 @@ class PlayerActivity : AppCompatActivity() {
         private const val PIP_FR = 3  // Fast Rewind
         private const val PIP_FF = 4  // Fast Forward
 
-        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1, relatedChannels: ArrayList<Channel>? = null) {
+        fun startWithChannel(
+            context: Context, 
+            channel: Channel, 
+            linkIndex: Int = -1, 
+            relatedChannels: ArrayList<Channel>? = null,  // Kept for backward compatibility
+            categoryId: String? = null,
+            selectedGroup: String? = null
+        ) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
-                relatedChannels?.let {
-                    putParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, it)
-                }
+                
+                // UPDATED: Pass metadata instead of full channel list
+                categoryId?.let { putExtra(EXTRA_CATEGORY_ID, it) }
+                selectedGroup?.let { putExtra(EXTRA_SELECTED_GROUP, it) }
+                
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
             context.startActivity(intent)
@@ -1039,19 +1052,16 @@ class PlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    val passedRelatedChannels: List<Channel>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, Channel::class.java)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS)
-                    }
+                    // UPDATED: Get metadata from intent instead of full channel list
+                    val categoryId = intent.getStringExtra(EXTRA_CATEGORY_ID)
+                    val selectedGroup = intent.getStringExtra(EXTRA_SELECTED_GROUP)
                     
-                    if (passedRelatedChannels != null && passedRelatedChannels.isNotEmpty()) {
-                        val filteredChannels = passedRelatedChannels.filter { it.id != channel.id }
-                        viewModel.setRelatedChannels(filteredChannels)
-                    } else {
-                        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
-                    }
+                    // Load 9 random channels using the metadata
+                    viewModel.loadRandomRelatedChannels(
+                        categoryId = categoryId ?: channel.categoryId,
+                        currentChannelId = channel.id,
+                        groupFilter = selectedGroup
+                    )
                 }
             }
             ContentType.EVENT -> {
@@ -1060,6 +1070,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             ContentType.NETWORK_STREAM -> {
+                // No related content
             }
         }
     }
@@ -1100,7 +1111,16 @@ class PlayerActivity : AppCompatActivity() {
         
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
-        viewModel.loadRelatedChannels(newChannel.categoryId, newChannel.id)
+        
+        // UPDATED: Reload random related channels
+        val categoryId = intent.getStringExtra(EXTRA_CATEGORY_ID)
+        val selectedGroup = intent.getStringExtra(EXTRA_SELECTED_GROUP)
+        
+        viewModel.loadRandomRelatedChannels(
+            categoryId = categoryId ?: newChannel.categoryId,
+            currentChannelId = newChannel.id,
+            groupFilter = selectedGroup
+        )
     }
 
     private fun switchToEvent(relatedChannel: Channel) {
