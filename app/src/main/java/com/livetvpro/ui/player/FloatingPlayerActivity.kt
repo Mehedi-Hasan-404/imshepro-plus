@@ -22,9 +22,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.ImageButton
-import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
@@ -780,26 +778,19 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
         val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
-        
-        // FIX: Make RecyclerView wrap_content and align to START (left, with title)
-        landscapeLinksRecycler?.post {
-            val params = landscapeLinksRecycler.layoutParams
-            
-            // Set width to wrap_content (fit chips only)
+
+        // Align chips to the left, starting at the same vertical line as the back button.
+        // Set width to WRAP_CONTENT so the RecyclerView is only as wide as its chips.
+        // Because the parent LinearLayout (exo_top_container) stacks children vertically
+        // from start, a wrap_content child will naturally sit at the start (left) edge.
+        landscapeLinksRecycler?.let { rv ->
+            val params = rv.layoutParams
             params?.width = ViewGroup.LayoutParams.WRAP_CONTENT
-            
-            // Set gravity to START (left align with title)
-            when (params) {
-                is FrameLayout.LayoutParams -> {
-                    params.gravity = android.view.Gravity.START
-                }
-                is LinearLayout.LayoutParams -> {
-                    params.gravity = android.view.Gravity.START
-                }
-            }
-            
-            landscapeLinksRecycler.layoutParams = params
-            landscapeLinksRecycler.requestLayout()
+            rv.layoutParams = params
+            // Match the same start padding as the top bar (4dp) so chips line up with
+            // the left edge of the back button.
+            val startPadding = (4 * resources.displayMetrics.density).toInt()
+            rv.setPaddingRelative(startPadding, rv.paddingTop, rv.paddingEnd, rv.paddingBottom)
         }
 
         val landscapeLinkAdapter = LinkChipAdapter { link, position ->
