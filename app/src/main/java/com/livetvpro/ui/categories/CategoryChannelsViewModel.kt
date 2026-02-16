@@ -2,7 +2,6 @@ package com.livetvpro.ui.categories
 
 import android.app.Application
 import android.net.Uri
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
@@ -16,7 +15,7 @@ import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import com.livetvpro.data.repository.PlaylistRepository
 import com.livetvpro.utils.M3uParser
-import com.livetvpro.utils.ErrorMessageConverter
+import com.livetvpro.utils.AndroidRetryViewModel
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,13 +28,13 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CategoryChannelsViewModel @Inject constructor(
-    private val application: Application,
+    application: Application,
     private val channelRepository: ChannelRepository,
     private val categoryRepository: CategoryRepository,
     private val favoritesRepository: FavoritesRepository,
     private val playlistRepository: PlaylistRepository,
     private val savedStateHandle: SavedStateHandle
-) : AndroidViewModel(application) {
+) : AndroidRetryViewModel(application) {
 
     private val _channels = MutableStateFlow<List<Channel>>(emptyList())
     private val _searchQuery = MutableStateFlow("")
@@ -45,20 +44,12 @@ class CategoryChannelsViewModel @Inject constructor(
     
     val categoryName: String = savedStateHandle.get<String>("categoryName") ?: "Channels"
 
-    private val _isLoading = MutableLiveData<Boolean>(false)
-    val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _error = MutableLiveData<String?>(null)
-    val error: LiveData<String?> = _error
-
     private val _categoryGroups = MutableLiveData<List<String>>(emptyList())
     val categoryGroups: LiveData<List<String>> = _categoryGroups
     
     private val _currentGroup = MutableLiveData<String>("All")
     val currentGroup: LiveData<String> = _currentGroup
     
-    // Lifecycle tracking
-    private var hasLoadedOnce = false
     private var lastLoadedCategoryId: String? = null
 
     val filteredChannels: LiveData<List<Channel>> = combine(
@@ -93,42 +84,31 @@ class CategoryChannelsViewModel @Inject constructor(
         }
     }
 
+    override fun loadData() {
+        lastLoadedCategoryId?.let { loadChannels(it) }
+    }
+
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
-            _isLoading.value = true
-            _error.value = null
+            startLoading()
             lastLoadedCategoryId = categoryId
             
             try {
-                // Check if it's a playlist ID
                 val playlist = playlistRepository.getPlaylistById(categoryId)
                 
                 if (playlist != null) {
-                    // It's a playlist - load playlist channels
                     loadPlaylistChannels(playlist)
                 } else {
-                    // It's a regular category
                     val channels = channelRepository.getChannelsByCategory(categoryId)
                     _channels.value = channels
                     extractAndSetGroups(channels)
                     
-                    // Only show error if we haven't loaded data before
-                    if (channels.isEmpty() && !hasLoadedOnce) {
-                        _error.value = "No channels"
-                    } else {
-                        if (channels.isNotEmpty()) {
-                            hasLoadedOnce = true
-                        }
-                        _error.value = null
-                    }
+                    finishLoading(dataIsEmpty = channels.isEmpty())
                 }
             } catch (e: Exception) {
-                // Only show error if we haven't loaded before
-                if (!hasLoadedOnce) {
-                    _error.value = ErrorMessageConverter.getShortErrorMessage(e)
-                }
-            } finally {
-                _isLoading.value = false
+                _channels.value = emptyList()
+                
+                finishLoading(dataIsEmpty = true, error = e)
             }
         }
     }
@@ -137,14 +117,12 @@ class CategoryChannelsViewModel @Inject constructor(
         try {
             val playlistSource = if (playlist.isFile) playlist.filePath else playlist.url
             val channels = if (playlistSource.startsWith("content://") || playlistSource.startsWith("file://")) {
-                // Local file
                 val uri = Uri.parse(playlistSource)
-                val inputStream = application.contentResolver.openInputStream(uri)
+                val inputStream = getApplication<Application>().contentResolver.openInputStream(uri)
                 val content = inputStream?.bufferedReader()?.use { it.readText() } ?: ""
                 val m3uChannels = M3uParser.parseM3uContent(content)
                 M3uParser.convertToChannels(m3uChannels, playlist.id, playlist.title)
             } else {
-                // Remote URL
                 withContext(Dispatchers.IO) {
                     val client = OkHttpClient()
                     val request = Request.Builder().url(playlistSource).build()
@@ -158,20 +136,11 @@ class CategoryChannelsViewModel @Inject constructor(
             _channels.value = channels
             extractAndSetGroups(channels)
             
-            // Only show error if we haven't loaded data before
-            if (channels.isEmpty() && !hasLoadedOnce) {
-                _error.value = "No channels"
-            } else {
-                if (channels.isNotEmpty()) {
-                    hasLoadedOnce = true
-                }
-                _error.value = null
-            }
+            finishLoading(dataIsEmpty = channels.isEmpty())
         } catch (e: Exception) {
-            // Only show error if we haven't loaded before
-            if (!hasLoadedOnce) {
-                _error.value = ErrorMessageConverter.getShortErrorMessage(e)
-            }
+            _channels.value = emptyList()
+            
+            finishLoading(dataIsEmpty = true, error = e)
         }
     }
 
@@ -265,18 +234,5 @@ class CategoryChannelsViewModel @Inject constructor(
 
     fun isFavorite(channelId: String): Boolean {
         return _favoriteStatusCache.value.contains(channelId)
-    }
-
-    fun retry() {
-        hasLoadedOnce = false  // Reset to allow error display
-        _error.value = null
-        lastLoadedCategoryId?.let { loadChannels(it) }
-    }
-    
-    fun onResume() {
-        // Refresh data if already loaded once
-        if (hasLoadedOnce) {
-            lastLoadedCategoryId?.let { loadChannels(it) }
-        }
     }
 }
