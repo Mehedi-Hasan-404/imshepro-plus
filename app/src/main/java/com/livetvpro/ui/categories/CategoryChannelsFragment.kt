@@ -51,7 +51,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
         viewModel.searchChannels(query)
     }
     
-    // Implement Refreshable for toolbar refresh icon
     override fun refreshData() {
         currentCategoryId?.let { viewModel.loadChannels(it) }
     }
@@ -118,7 +117,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
                 if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
                     showLinkSelectionDialog(channel)
                 } else {
-                    // Pass the current filtered channels as related channels (excluding the current one)
                     val relatedChannels = ArrayList(viewModel.filteredChannels.value?.filter { it.id != channel.id } ?: emptyList())
                     PlayerActivity.startWithChannel(requireContext(), channel, relatedChannels = relatedChannels)
                 }
@@ -165,7 +163,6 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
                 val modifiedChannel = channel.copy(streamUrl = selectedLink.url)
-                // Pass related channels here too
                 val relatedChannels = ArrayList(viewModel.filteredChannels.value?.filter { it.id != channel.id } ?: emptyList())
                 PlayerActivity.startWithChannel(requireContext(), modifiedChannel, which, relatedChannels)
                 dialog.dismiss()
