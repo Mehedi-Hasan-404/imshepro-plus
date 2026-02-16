@@ -22,7 +22,9 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.widget.FrameLayout
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.viewModels
 import androidx.annotation.RequiresApi
@@ -779,11 +781,24 @@ class FloatingPlayerActivity : AppCompatActivity() {
         val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         
-        // FIX: Make RecyclerView wrap_content (fit to chips only, no extra space)
+        // FIX: Make RecyclerView wrap_content and align to START (left, with title)
         landscapeLinksRecycler?.post {
-            landscapeLinksRecycler.layoutParams = landscapeLinksRecycler.layoutParams?.apply {
-                width = ViewGroup.LayoutParams.WRAP_CONTENT
+            val params = landscapeLinksRecycler.layoutParams
+            
+            // Set width to wrap_content (fit chips only)
+            params?.width = ViewGroup.LayoutParams.WRAP_CONTENT
+            
+            // Set gravity to START (left align with title)
+            when (params) {
+                is FrameLayout.LayoutParams -> {
+                    params.gravity = android.view.Gravity.START
+                }
+                is LinearLayout.LayoutParams -> {
+                    params.gravity = android.view.Gravity.START
+                }
             }
+            
+            landscapeLinksRecycler.layoutParams = params
             landscapeLinksRecycler.requestLayout()
         }
 
