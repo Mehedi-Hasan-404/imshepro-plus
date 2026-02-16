@@ -77,14 +77,12 @@ class LiveEventsFragment : Fragment(), Refreshable {
     }
 
     private fun setupRetryHandling() {
-        RetryHandler.setupWithRefresh(
+        RetryHandler.setupGlobal(
             lifecycleOwner = viewLifecycleOwner,
             viewModel = viewModel,
-            swipeRefresh = binding.swipeRefresh,
-            errorView = binding.errorView,
-            errorText = binding.errorText,
-            retryButton = binding.retryButton,
+            activity = requireActivity() as androidx.appcompat.app.AppCompatActivity,
             contentView = binding.recyclerViewEvents,
+            swipeRefresh = binding.swipeRefresh,
             progressBar = binding.progressBar,
             emptyView = binding.emptyView
         )
