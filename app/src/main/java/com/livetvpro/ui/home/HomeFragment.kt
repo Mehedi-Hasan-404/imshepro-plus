@@ -15,11 +15,13 @@ import com.livetvpro.data.models.ListenerConfig
 import com.livetvpro.databinding.FragmentHomeBinding
 import com.livetvpro.ui.adapters.CategoryAdapter
 import com.livetvpro.utils.NativeListenerManager
+import com.livetvpro.utils.RetryHandler
+import com.livetvpro.utils.Refreshable
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class HomeFragment : Fragment(), SearchableFragment {
+class HomeFragment : Fragment(), SearchableFragment, Refreshable {
 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
@@ -32,6 +34,11 @@ class HomeFragment : Fragment(), SearchableFragment {
     override fun onSearchQuery(query: String) {
         viewModel.searchCategories(query)
     }
+    
+    // Implement Refreshable interface for toolbar refresh icon
+    override fun refreshData() {
+        viewModel.refresh()
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
@@ -41,24 +48,26 @@ class HomeFragment : Fragment(), SearchableFragment {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         setupRecyclerView()
-        observeViewModel()
-        setupSwipeRefresh()
+        setupRetryHandling()
+    }
+    
+    override fun onResume() {
+        super.onResume()
+        // Let RetryViewModel handle resume logic
+        viewModel.onResume()
     }
 
     private fun setupRecyclerView() {
         categoryAdapter = CategoryAdapter { category ->
-            // Check if should show direct link for this category (first time only)
             val shouldBlock = listenerManager.onPageInteraction(
                 pageType = ListenerConfig.PAGE_HOME,
-                uniqueId = category.id  // Use category ID to track first time per category
+                uniqueId = category.id
             )
             
             if (shouldBlock) {
-                // Direct link shown, don't navigate
                 return@CategoryAdapter
             }
             
-            // Navigate to category channels
             val bundle = bundleOf(
                 "categoryId" to category.id,
                 "categoryName" to category.name
@@ -66,7 +75,6 @@ class HomeFragment : Fragment(), SearchableFragment {
             findNavController().navigate(R.id.action_home_to_category, bundle)
         }
 
-        // Get responsive column count from resources
         val columnCount = resources.getInteger(R.integer.grid_column_count)
 
         binding.recyclerViewCategories.apply {
@@ -76,31 +84,25 @@ class HomeFragment : Fragment(), SearchableFragment {
         }
     }
 
-    private fun observeViewModel() {
+    private fun setupRetryHandling() {
+        // Setup retry handler WITH pull-to-refresh support
+        RetryHandler.setupWithRefresh(
+            lifecycleOwner = viewLifecycleOwner,
+            viewModel = viewModel,
+            swipeRefresh = binding.swipeRefresh,  // ← Pull-to-refresh enabled!
+            errorView = binding.errorView,
+            errorText = binding.errorText,
+            retryButton = binding.retryButton,
+            contentView = binding.recyclerViewCategories,
+            progressBar = binding.progressBar,
+            emptyView = binding.emptyView
+        )
+        
+        // Observe categories to update adapter
         viewModel.filteredCategories.observe(viewLifecycleOwner) { categories ->
             categoryAdapter.submitList(categories)
             binding.emptyView.visibility = if (categories.isEmpty()) View.VISIBLE else View.GONE
-            binding.recyclerViewCategories.visibility = if (categories.isEmpty()) View.GONE else View.VISIBLE
         }
-        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-            binding.swipeRefresh.isRefreshing = isLoading
-        }
-        viewModel.error.observe(viewLifecycleOwner) { error ->
-            if (error != null) {
-                binding.errorView.visibility = View.VISIBLE
-                binding.errorText.text = error
-                binding.recyclerViewCategories.visibility = View.GONE
-            } else {
-                binding.errorView.visibility = View.GONE
-                binding.recyclerViewCategories.visibility = View.VISIBLE
-            }
-        }
-    }
-
-    private fun setupSwipeRefresh() {
-        binding.swipeRefresh.setOnRefreshListener { viewModel.loadCategories() }
-        binding.retryButton.setOnClickListener { viewModel.retry() }
     }
 
     override fun onDestroyView() {
