@@ -98,8 +98,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private var isMuted = false
     private val skipMs = 10_000L
     private var userRequestedPip = false
-    private var portraitResizeMode  = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    private var landscapeResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
     
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
@@ -443,13 +441,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         }
 
         binding.playerContainer.layoutParams = containerParams
-        applyResizeModeForOrientation(isLandscape)
-    }
-
-    /** Applies the correct resize mode for the given orientation. */
-    private fun applyResizeModeForOrientation(isLandscape: Boolean) {
-        binding.playerView.resizeMode =
-            if (isLandscape) landscapeResizeMode else portraitResizeMode
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
@@ -1242,9 +1233,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 .setSeekForwardIncrementMs(skipMs)
                 .build().also { exo ->
                     binding.playerView.player = exo
-                    applyResizeModeForOrientation(
-                        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                    )
                     
                     binding.playerView.hideController()
                     
