@@ -21,11 +21,13 @@ import com.livetvpro.ui.adapters.EventCategoryAdapter
 import com.livetvpro.ui.adapters.LiveEventAdapter
 import com.livetvpro.ui.player.PlayerActivity
 import com.livetvpro.utils.NativeListenerManager
+import com.livetvpro.utils.RetryHandler
+import com.livetvpro.utils.Refreshable
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
-class LiveEventsFragment : Fragment() {
+class LiveEventsFragment : Fragment(), Refreshable {
 
     private var _binding: FragmentLiveEventsBinding? = null
     private val binding get() = _binding!!
@@ -42,14 +44,16 @@ class LiveEventsFragment : Fragment() {
     private var selectedCategoryId: String = "evt_cat_all"
     private var selectedStatusFilter: EventStatus? = null
 
-    // Handler for dynamic updates
     private val updateHandler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
         override fun run() {
-            // Refresh the event list every second
             viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
             updateHandler.postDelayed(this, 1000)
         }
+    }
+
+    override fun refreshData() {
+        viewModel.refresh()
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -63,14 +67,27 @@ class LiveEventsFragment : Fragment() {
         setupCategoryRecycler()
         setupEventRecycler()
         setupStatusFilters()
+        setupRetryHandling()
         observeViewModel()
         
-        // Load data - Start with "All" filter
         viewModel.loadEventCategories()
         viewModel.filterEvents(null, "evt_cat_all")
         
-        // Start dynamic updates
         startDynamicUpdates()
+    }
+
+    private fun setupRetryHandling() {
+        RetryHandler.setupWithRefresh(
+            lifecycleOwner = viewLifecycleOwner,
+            viewModel = viewModel,
+            swipeRefresh = binding.swipeRefresh,
+            errorView = binding.errorView,
+            errorText = binding.errorText,
+            retryButton = binding.retryButton,
+            contentView = binding.recyclerViewEvents,
+            progressBar = binding.progressBar,
+            emptyView = binding.emptyView
+        )
     }
 
     private fun startDynamicUpdates() {
@@ -109,8 +126,6 @@ class LiveEventsFragment : Fragment() {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Select Stream")
             .setItems(linkLabels) { dialog, which ->
-                // ✅ FIX: Pass the full event object containing all links.
-                // Pass the selected index 'which' so player knows what to start with.
                 PlayerActivity.startWithEvent(requireContext(), event, which)
                 dialog.dismiss()
             }
@@ -142,7 +157,6 @@ class LiveEventsFragment : Fragment() {
         binding.chipUpcoming.setOnClickListener(clickListener)
         binding.chipRecent.setOnClickListener(clickListener)
         
-        // Set initial selection to "All"
         binding.chipAll.isChecked = true
         selectedStatusFilter = null
     }
@@ -161,23 +175,13 @@ class LiveEventsFragment : Fragment() {
         
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
             eventAdapter.updateData(events)
-            binding.emptyView.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
-            binding.recyclerViewEvents.visibility = if (events.isEmpty()) View.GONE else View.VISIBLE
-        }
-        
-        viewModel.isLoading.observe(viewLifecycleOwner) { isLoading ->
-            binding.progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
-        }
-        
-        viewModel.error.observe(viewLifecycleOwner) { error ->
-            binding.errorView.visibility = if (error != null) View.VISIBLE else View.GONE
-            if (error != null) binding.errorText.text = error
         }
     }
 
     override fun onResume() {
         super.onResume()
         startDynamicUpdates()
+        viewModel.onResume()
     }
 
     override fun onPause() {
