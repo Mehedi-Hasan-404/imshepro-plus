@@ -123,7 +123,8 @@ fun PlayerControls(
     
     // Calculate the exclusion zone for link chips in landscape mode
     // This is approximately the height of the top bar (48dp) + links recycler (60dp) + padding
-    val linkChipExclusionHeight = with(density) { 120.dp.toPx() }
+    // Increased to 180dp for better coverage
+    val linkChipExclusionHeight = with(density) { 180.dp.toPx() }
     
     Box(
         modifier = modifier
