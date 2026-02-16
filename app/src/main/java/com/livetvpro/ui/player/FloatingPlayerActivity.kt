@@ -787,9 +787,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
             val params = rv.layoutParams
             params?.width = ViewGroup.LayoutParams.WRAP_CONTENT
             rv.layoutParams = params
-            // Match the same start padding as the top bar (4dp) so chips line up with
-            // the left edge of the back button.
-            val startPadding = (4 * resources.displayMetrics.density).toInt()
+            // Align with the title's left edge: top bar paddingStart(4dp) + back button(40dp)
+            // + channel name marginStart(12dp) = 56dp total.
+            val startPadding = (56 * resources.displayMetrics.density).toInt()
             rv.setPaddingRelative(startPadding, rv.paddingTop, rv.paddingEnd, rv.paddingBottom)
         }
 
