@@ -43,48 +43,69 @@ class PlayerControlsState(
 ) {
     var isVisible by mutableStateOf(initialVisible)
         private set
-    
+
     var isLocked by mutableStateOf(false)
         // Made publicly settable for compatibility with PlayerActivity
-    
+
+    // When locked, tracks whether the lock-icon overlay is currently visible.
+    // Tapping the screen toggles it; it auto-hides after autoHideDelay.
+    var isLockOverlayVisible by mutableStateOf(false)
+        private set
+
     private var hideJob: kotlinx.coroutines.Job? = null
-    
+    private var lockOverlayHideJob: kotlinx.coroutines.Job? = null
+
     fun show(coroutineScope: kotlinx.coroutines.CoroutineScope) {
         hideJob?.cancel()
         isVisible = true
-        
-        // Auto-hide after delay if not locked
         if (!isLocked) {
             hideJob = coroutineScope.launch {
                 delay(autoHideDelay)
-                hide()
+                isVisible = false
             }
         }
     }
-    
+
     fun hide() {
         if (!isLocked) {
             hideJob?.cancel()
             isVisible = false
         }
     }
-    
+
     fun toggle(coroutineScope: kotlinx.coroutines.CoroutineScope) {
-        if (isVisible) {
-            hide()
+        if (isLocked) {
+            // Tapping while locked toggles only the lock-icon overlay
+            toggleLockOverlay(coroutineScope)
         } else {
-            show(coroutineScope)
+            if (isVisible) hide() else show(coroutineScope)
         }
     }
-    
+
     fun lock() {
         isLocked = true
-        hide()
+        // Forcibly hide main controls (bypass the isLocked guard in hide())
+        hideJob?.cancel()
+        isVisible = false
+        isLockOverlayVisible = false
     }
-    
+
     fun unlock(coroutineScope: kotlinx.coroutines.CoroutineScope) {
+        lockOverlayHideJob?.cancel()
         isLocked = false
+        isLockOverlayVisible = false
         show(coroutineScope)
+    }
+
+    private fun toggleLockOverlay(coroutineScope: kotlinx.coroutines.CoroutineScope) {
+        lockOverlayHideJob?.cancel()
+        isLockOverlayVisible = !isLockOverlayVisible
+        if (isLockOverlayVisible) {
+            lockOverlayHideJob = coroutineScope.launch {
+                delay(autoHideDelay)
+                isLockOverlayVisible = false
+            }
+        }
     }
 }
 
@@ -143,9 +164,10 @@ fun PlayerControls(
                 )
             }
     ) {
-        // Lock overlay - only shows when locked AND controls are visible
+        // Lock overlay — shown/hidden independently via isLockOverlayVisible
+        // (toggled by tapping the screen while locked; auto-hides after delay)
         AnimatedVisibility(
-            visible = state.isLocked && state.isVisible,
+            visible = state.isLockOverlayVisible,
             enter = fadeIn(
                 animationSpec = tween(
                     durationMillis = 250,
