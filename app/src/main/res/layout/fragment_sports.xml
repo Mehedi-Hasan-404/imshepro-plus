@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.swiperefreshlayout.widget.SwipeRefreshLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/swipeRefresh"
+    android:id="@+id/swipe_refresh"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -11,20 +12,9 @@
         android:layout_height="match_parent"
         android:background="?attr/colorSurface">
 
-        <!-- Sports RecyclerView -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerViewSports"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:clipToPadding="false"
-            android:paddingVertical="8dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:listitem="@layout/item_sport" />
-
         <!-- Progress Bar -->
         <ProgressBar
-            android:id="@+id/progressBar"
+            android:id="@+id/progress_bar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:visibility="gone"
@@ -33,9 +23,19 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <!-- Main RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recycler_view_channels"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:clipToPadding="false"
+            android:padding="4dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
         <!-- Empty View -->
         <LinearLayout
-            android:id="@+id/emptyView"
+            android:id="@+id/empty_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
@@ -65,9 +65,9 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Error View -->
+        <!-- Error View with Red Retry Button -->
         <LinearLayout
-            android:id="@+id/errorView"
+            android:id="@+id/error_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center"
@@ -79,32 +79,35 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent">
 
-            <ImageView
-                android:layout_width="120dp"
-                android:layout_height="120dp"
-                android:alpha="0.5"
-                android:src="@drawable/ic_channel_placeholder"
-                android:tint="?attr/colorOnSurface" />
-
             <TextView
-                android:id="@+id/errorText"
+                android:id="@+id/error_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
                 android:fontFamily="@font/bergen_sans"
                 android:gravity="center"
-                android:text="Failed to load sports"
+                android:text="Connection error"
                 android:textColor="?attr/colorOnSurface"
-                android:textSize="16sp"
+                android:textSize="18sp"
                 android:textStyle="bold" />
 
             <com.google.android.material.button.MaterialButton
-                android:id="@+id/retryButton"
+                android:id="@+id/retry_button"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/retry"
-                app:cornerRadius="8dp" />
+                android:layout_marginTop="20dp"
+                android:text="RETRY"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
+                android:visibility="gone"
+                app:backgroundTint="#EF4444"
+                app:cornerRadius="8dp"
+                android:paddingStart="36dp"
+                android:paddingEnd="36dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
+                android:elevation="2dp"
+                app:rippleColor="#40FFFFFF"
+                style="@style/Widget.MaterialComponents.Button" />
         </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
