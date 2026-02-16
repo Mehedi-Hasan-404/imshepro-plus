@@ -29,7 +29,6 @@ class LiveTVProApplication : Application() {
             try {
                 System.loadLibrary("native-lib")
             } catch (e: UnsatisfiedLinkError) {
-                e.printStackTrace()
             }
         }
     }
@@ -45,7 +44,6 @@ class LiveTVProApplication : Application() {
             try {
                 dataRepository.fetchRemoteConfig()
             } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
