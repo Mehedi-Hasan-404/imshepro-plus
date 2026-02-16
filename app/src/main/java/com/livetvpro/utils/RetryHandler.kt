@@ -65,6 +65,17 @@ interface Refreshable {
 }
 
 /**
+ * Interface for ViewModels with retry functionality
+ */
+interface IRetryViewModel {
+    val isLoading: LiveData<Boolean>
+    val error: LiveData<String?>
+    fun retry()
+    fun refresh()
+    fun onResume()
+}
+
+/**
  * Base ViewModel with retry functionality and lifecycle awareness.
  * 
  * Prevents retry screen from showing when:
@@ -76,7 +87,7 @@ interface Refreshable {
  * - Pull-to-refresh
  * - Toolbar refresh icon
  */
-abstract class RetryViewModel : ViewModel() {
+abstract class RetryViewModel : ViewModel(), IRetryViewModel {
     
     private val _isLoading = MutableLiveData<Boolean>(false)
     val isLoading: LiveData<Boolean> = _isLoading
@@ -196,7 +207,7 @@ abstract class RetryViewModel : ViewModel() {
 /**
  * AndroidViewModel version of RetryViewModel for ViewModels that need Application context
  */
-abstract class AndroidRetryViewModel(application: Application) : AndroidViewModel(application) {
+abstract class AndroidRetryViewModel(application: Application) : AndroidViewModel(application), IRetryViewModel {
     
     private val _isLoading = MutableLiveData<Boolean>(false)
     val isLoading: LiveData<Boolean> = _isLoading
@@ -322,7 +333,7 @@ object RetryHandler {
      * Setup retry handling WITH pull-to-refresh support
      * 
      * @param lifecycleOwner The fragment's lifecycle owner
-     * @param viewModel The ViewModel extending RetryViewModel
+     * @param viewModel The ViewModel implementing IRetryViewModel
      * @param swipeRefresh The SwipeRefreshLayout (optional, pass null if not available)
      * @param errorView The error view container
      * @param errorText The TextView showing error message
@@ -333,7 +344,7 @@ object RetryHandler {
      */
     fun setupWithRefresh(
         lifecycleOwner: LifecycleOwner,
-        viewModel: RetryViewModel,
+        viewModel: IRetryViewModel,
         swipeRefresh: SwipeRefreshLayout?,
         errorView: View,
         errorText: TextView,
@@ -384,7 +395,7 @@ object RetryHandler {
      */
     fun setup(
         lifecycleOwner: LifecycleOwner,
-        viewModel: RetryViewModel,
+        viewModel: IRetryViewModel,
         errorView: View,
         errorText: TextView,
         retryButton: View,
