@@ -16,6 +16,7 @@ import com.livetvpro.data.repository.ChannelRepository
 import com.livetvpro.data.repository.FavoritesRepository
 import com.livetvpro.data.repository.PlaylistRepository
 import com.livetvpro.utils.M3uParser
+import com.livetvpro.utils.ErrorHandler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,6 +56,10 @@ class CategoryChannelsViewModel @Inject constructor(
     
     private val _currentGroup = MutableLiveData<String>("All")
     val currentGroup: LiveData<String> = _currentGroup
+    
+    // Lifecycle tracking
+    private var hasLoadedOnce = false
+    private var lastLoadedCategoryId: String? = null
 
     val filteredChannels: LiveData<List<Channel>> = combine(
         _channels, 
@@ -91,6 +96,9 @@ class CategoryChannelsViewModel @Inject constructor(
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
             _isLoading.value = true
+            _error.value = null
+            lastLoadedCategoryId = categoryId
+            
             try {
                 // Check if it's a playlist ID
                 val playlist = playlistRepository.getPlaylistById(categoryId)
@@ -99,129 +107,97 @@ class CategoryChannelsViewModel @Inject constructor(
                     // It's a playlist - load playlist channels
                     loadPlaylistChannels(playlist)
                 } else {
-                    // It's a regular category - use existing logic
-                    loadCategoryChannels(categoryId)
+                    // It's a regular category
+                    val channels = channelRepository.getChannelsByCategoryId(categoryId)
+                    _channels.value = channels
+                    extractAndSetGroups(channels)
+                    
+                    // Only show error if we haven't loaded data before
+                    if (channels.isEmpty() && !hasLoadedOnce) {
+                        _error.value = "No channels"
+                    } else {
+                        if (channels.isNotEmpty()) {
+                            hasLoadedOnce = true
+                        }
+                        _error.value = null
+                    }
                 }
             } catch (e: Exception) {
-                _error.value = e.message
+                // Only show error if we haven't loaded before
+                if (!hasLoadedOnce) {
+                    _error.value = ErrorHandler.getShortErrorMessage(e)
+                }
+            } finally {
                 _isLoading.value = false
             }
         }
     }
-    
+
     private suspend fun loadPlaylistChannels(playlist: com.livetvpro.data.models.Playlist) {
         try {
-            // Get the M3U content
-            val m3uContent = if (playlist.isFile) {
-                // Read from file URI
-                readFileContent(playlist.filePath)
+            val channels = if (playlist.uri.startsWith("content://") || playlist.uri.startsWith("file://")) {
+                // Local file
+                val uri = Uri.parse(playlist.uri)
+                val inputStream = application.contentResolver.openInputStream(uri)
+                val content = inputStream?.bufferedReader()?.use { it.readText() } ?: ""
+                M3uParser.parse(content, playlist.name)
             } else {
-                // Fetch from URL
-                fetchUrlContent(playlist.url)
+                // Remote URL
+                withContext(Dispatchers.IO) {
+                    val client = OkHttpClient()
+                    val request = Request.Builder().url(playlist.uri).build()
+                    val response = client.newCall(request).execute()
+                    val content = response.body?.string() ?: ""
+                    M3uParser.parse(content, playlist.name)
+                }
             }
-
-            // Parse M3U content using your existing M3uParser
-            val m3uChannels = M3uParser.parseM3uContent(m3uContent)
-            
-            // Convert M3uChannel to Channel objects
-            val channels = M3uParser.convertToChannels(
-                m3uChannels = m3uChannels,
-                categoryId = playlist.id,
-                categoryName = playlist.title
-            )
             
             _channels.value = channels
+            extractAndSetGroups(channels)
             
-            // Extract unique groups for the tab layout
-            extractCategoryGroups(channels)
-            
-        } catch (e: Exception) {
-            _error.value = "Failed to load playlist: ${e.message}"
-        } finally {
-            _isLoading.value = false
-        }
-    }
-    
-    private suspend fun readFileContent(uriString: String): String {
-        return withContext(Dispatchers.IO) {
-            try {
-                val uri = Uri.parse(uriString)
-                application.contentResolver.openInputStream(uri)?.use { inputStream ->
-                    inputStream.bufferedReader().use { it.readText() }
-                } ?: throw Exception("Could not read file")
-            } catch (e: Exception) {
-                throw Exception("Failed to read file: ${e.message}")
-            }
-        }
-    }
-    
-    private suspend fun fetchUrlContent(url: String): String {
-        return withContext(Dispatchers.IO) {
-            try {
-                val client = OkHttpClient.Builder()
-                    .followRedirects(true)
-                    .followSslRedirects(true)
-                    .build()
-                    
-                val request = Request.Builder()
-                    .url(url)
-                    .build()
-                
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        throw Exception("Failed to fetch playlist: HTTP ${response.code}")
-                    }
-                    response.body?.string() ?: throw Exception("Empty response")
+            // Only show error if we haven't loaded data before
+            if (channels.isEmpty() && !hasLoadedOnce) {
+                _error.value = "No channels"
+            } else {
+                if (channels.isNotEmpty()) {
+                    hasLoadedOnce = true
                 }
-            } catch (e: Exception) {
-                throw Exception("Failed to fetch URL: ${e.message}")
+                _error.value = null
+            }
+        } catch (e: Exception) {
+            // Only show error if we haven't loaded before
+            if (!hasLoadedOnce) {
+                _error.value = ErrorHandler.getShortErrorMessage(e)
             }
         }
     }
-    
-    private suspend fun loadCategoryChannels(categoryId: String) {
-        try {
-            val result = channelRepository.getChannelsByCategory(categoryId)
-            _channels.value = result
-            
-            extractCategoryGroups(result)
-        } finally {
-            _isLoading.value = false
-        }
-    }
-    
-    private fun extractCategoryGroups(channels: List<Channel>) {
-        val groups = mutableSetOf<String>()
+
+    private fun extractAndSetGroups(channels: List<Channel>) {
+        val groupsSet = channels
+            .mapNotNull { extractGroupFromChannel(it) }
+            .toSet()
+            .sorted()
         
-        channels.forEach { channel ->
-            val group = extractGroupFromChannel(channel)
-            if (group.isNotEmpty()) {
-                groups.add(group)
-            }
-        }
-        
-        val groupList = if (groups.isNotEmpty()) {
-            mutableListOf("All").apply {
-                addAll(groups.sorted())
-            }
+        val groupsList = if (groupsSet.isNotEmpty()) {
+            listOf("All") + groupsSet
         } else {
             emptyList()
         }
         
-        _categoryGroups.value = groupList
+        _categoryGroups.value = groupsList
     }
-    
-    private fun extractGroupFromChannel(channel: Channel): String {
-        return channel.groupTitle
-    }
-    
-    fun selectGroup(group: String) {
-        _selectedGroup.value = group
-        _currentGroup.value = group
+
+    private fun extractGroupFromChannel(channel: Channel): String? {
+        return channel.group?.takeIf { it.isNotBlank() }
     }
 
     fun searchChannels(query: String) {
         _searchQuery.value = query
+    }
+
+    fun selectGroup(group: String) {
+        _selectedGroup.value = group
+        _currentGroup.value = group
     }
 
     fun toggleFavorite(channel: Channel) {
@@ -229,17 +205,32 @@ class CategoryChannelsViewModel @Inject constructor(
             val favoriteLinks = channel.links?.map { channelLink ->
                 ChannelLink(
                     quality = channelLink.quality,
-                    url = channelLink.url
+                    url = channelLink.url,
+                    cookie = channelLink.cookie,
+                    referer = channelLink.referer,
+                    origin = channelLink.origin,
+                    userAgent = channelLink.userAgent,
+                    drmScheme = channelLink.drmScheme,
+                    drmLicenseUrl = channelLink.drmLicenseUrl
                 )
+            }
+            
+            val streamUrlToSave = when {
+                channel.streamUrl.isNotEmpty() -> channel.streamUrl
+                !favoriteLinks.isNullOrEmpty() -> {
+                    val firstLink = favoriteLinks.first()
+                    buildStreamUrlFromLink(firstLink)
+                }
+                else -> ""
             }
             
             val favoriteChannel = FavoriteChannel(
                 id = channel.id,
                 name = channel.name,
                 logoUrl = channel.logoUrl,
-                streamUrl = channel.streamUrl,
+                streamUrl = streamUrlToSave,
                 categoryId = channel.categoryId,
-                categoryName = channel.categoryName,
+                categoryName = categoryName,
                 links = favoriteLinks
             )
             
@@ -250,8 +241,39 @@ class CategoryChannelsViewModel @Inject constructor(
             }
         }
     }
+    
+    private fun buildStreamUrlFromLink(link: ChannelLink): String {
+        val parts = mutableListOf<String>()
+        parts.add(link.url)
+        
+        link.referer?.let { if (it.isNotEmpty()) parts.add("referer=$it") }
+        link.cookie?.let { if (it.isNotEmpty()) parts.add("cookie=$it") }
+        link.origin?.let { if (it.isNotEmpty()) parts.add("origin=$it") }
+        link.userAgent?.let { if (it.isNotEmpty()) parts.add("User-Agent=$it") }
+        link.drmScheme?.let { if (it.isNotEmpty()) parts.add("drmScheme=$it") }
+        link.drmLicenseUrl?.let { if (it.isNotEmpty()) parts.add("drmLicense=$it") }
+        
+        return if (parts.size > 1) {
+            parts.joinToString("|")
+        } else {
+            parts[0]
+        }
+    }
 
     fun isFavorite(channelId: String): Boolean {
         return _favoriteStatusCache.value.contains(channelId)
+    }
+
+    fun retry() {
+        hasLoadedOnce = false  // Reset to allow error display
+        _error.value = null
+        lastLoadedCategoryId?.let { loadChannels(it) }
+    }
+    
+    fun onResume() {
+        // Refresh data if already loaded once
+        if (hasLoadedOnce) {
+            lastLoadedCategoryId?.let { loadChannels(it) }
+        }
     }
 }
