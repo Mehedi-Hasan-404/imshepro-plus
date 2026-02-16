@@ -1,5 +1,6 @@
 package com.livetvpro.ui.playlists
 
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -7,16 +8,19 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.os.bundleOf
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.livetvpro.R
 import com.livetvpro.data.models.Playlist
 import com.livetvpro.databinding.FragmentPlaylistsBinding
@@ -31,6 +35,13 @@ class PlaylistsFragment : Fragment() {
 
     private val viewModel: PlaylistsViewModel by viewModels()
     private lateinit var playlistAdapter: PlaylistAdapter
+
+    // ========== ADDED: FAB Speed Dial State ==========
+    private var isFabExpanded = false
+    private var scrimView: View? = null
+    private var fabAddFile: FloatingActionButton? = null
+    private var fabAddUrl: FloatingActionButton? = null
+    // ========== END ADDED ==========
 
     private val filePickerLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -62,15 +73,13 @@ class PlaylistsFragment : Fragment() {
         }
 
         setupRecyclerView()
-        setupFab()
+        setupAnimatedFab()  // ← Changed from setupFab()
         observeViewModel()
     }
 
     private fun setupRecyclerView() {
         playlistAdapter = PlaylistAdapter(
             onPlaylistClick = { playlist ->
-                // Navigate to CategoryChannelsFragment with playlist ID and name
-                // This will reuse the existing CategoryChannelsFragment to show playlist channels
                 findNavController().navigate(
                     R.id.action_playlists_to_category,
                     bundleOf(
@@ -93,11 +102,181 @@ class PlaylistsFragment : Fragment() {
         }
     }
 
-    private fun setupFab() {
+    // ========== CHANGED: New animated FAB setup ==========
+    private fun setupAnimatedFab() {
+        val rootLayout = binding.root as ConstraintLayout
+        
+        // Create scrim (dark overlay)
+        scrimView = View(requireContext()).apply {
+            id = View.generateViewId()
+            layoutParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.MATCH_PARENT,
+                ConstraintLayout.LayoutParams.MATCH_PARENT
+            ).apply {
+                topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+            }
+            setBackgroundColor(0x80000000.toInt()) // Semi-transparent black
+            alpha = 0f
+            visibility = View.GONE
+            setOnClickListener {
+                collapseFab()
+            }
+        }
+        rootLayout.addView(scrimView, 0)
+        
+        // Create FAB for "Add Playlist File"
+        fabAddFile = FloatingActionButton(requireContext()).apply {
+            id = View.generateViewId()
+            layoutParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.WRAP_CONTENT,
+                ConstraintLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomToBottom = binding.fabAddPlaylist.id
+                endToEnd = binding.fabAddPlaylist.id
+                bottomMargin = resources.getDimensionPixelSize(R.dimen.fab_margin_bottom_file)
+            }
+            setImageResource(R.drawable.ic_folder)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(0xFFFFB74D.toInt())
+            imageTintList = android.content.res.ColorStateList.valueOf(0xFF5D4037.toInt())
+            alpha = 0f
+            scaleX = 0f
+            scaleY = 0f
+            visibility = View.GONE
+            setOnClickListener {
+                collapseFab()
+                openFilePicker()
+            }
+        }
+        rootLayout.addView(fabAddFile)
+        
+        // Create FAB for "Add Playlist URL"
+        fabAddUrl = FloatingActionButton(requireContext()).apply {
+            id = View.generateViewId()
+            layoutParams = ConstraintLayout.LayoutParams(
+                ConstraintLayout.LayoutParams.WRAP_CONTENT,
+                ConstraintLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomToBottom = binding.fabAddPlaylist.id
+                endToEnd = binding.fabAddPlaylist.id
+                bottomMargin = resources.getDimensionPixelSize(R.dimen.fab_margin_bottom_url)
+            }
+            setImageResource(R.drawable.ic_link)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(0xFFFFB74D.toInt())
+            imageTintList = android.content.res.ColorStateList.valueOf(0xFF5D4037.toInt())
+            alpha = 0f
+            scaleX = 0f
+            scaleY = 0f
+            visibility = View.GONE
+            setOnClickListener {
+                collapseFab()
+                showAddPlaylistDialog(isFile = false)
+            }
+        }
+        rootLayout.addView(fabAddUrl)
+        
+        // Main FAB click listener
         binding.fabAddPlaylist.setOnClickListener {
-            showAddOptionsDialog()
+            if (isFabExpanded) {
+                collapseFab()
+            } else {
+                expandFab()
+            }
+        }
+        
+        // Change main FAB color to brown/golden
+        binding.fabAddPlaylist.backgroundTintList = 
+            android.content.res.ColorStateList.valueOf(0xFF8B6914.toInt())
+    }
+    
+    private fun expandFab() {
+        isFabExpanded = true
+        
+        // Show scrim with fade in
+        scrimView?.apply {
+            visibility = View.VISIBLE
+            animate()
+                .alpha(1f)
+                .setDuration(200)
+                .start()
+        }
+        
+        // Rotate main FAB to X (45 degrees)
+        binding.fabAddPlaylist.animate()
+            .rotation(45f)
+            .setDuration(300)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
+        
+        // Show and animate sub FABs
+        fabAddFile?.apply {
+            visibility = View.VISIBLE
+            animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(300)
+                .setStartDelay(50)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .start()
+        }
+        
+        fabAddUrl?.apply {
+            visibility = View.VISIBLE
+            animate()
+                .alpha(1f)
+                .scaleX(1f)
+                .scaleY(1f)
+                .setDuration(300)
+                .setStartDelay(100)
+                .setInterpolator(AccelerateDecelerateInterpolator())
+                .start()
         }
     }
+    
+    private fun collapseFab() {
+        isFabExpanded = false
+        
+        // Hide scrim with fade out
+        scrimView?.animate()
+            ?.alpha(0f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                scrimView?.visibility = View.GONE
+            }
+            ?.start()
+        
+        // Rotate main FAB back to +
+        binding.fabAddPlaylist.animate()
+            .rotation(0f)
+            .setDuration(300)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .start()
+        
+        // Hide and animate sub FABs
+        fabAddFile?.animate()
+            ?.alpha(0f)
+            ?.scaleX(0f)
+            ?.scaleY(0f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                fabAddFile?.visibility = View.GONE
+            }
+            ?.start()
+        
+        fabAddUrl?.animate()
+            ?.alpha(0f)
+            ?.scaleX(0f)
+            ?.scaleY(0f)
+            ?.setDuration(200)
+            ?.withEndAction {
+                fabAddUrl?.visibility = View.GONE
+            }
+            ?.start()
+    }
+    // ========== END CHANGED ==========
 
     private fun observeViewModel() {
         viewModel.playlists.observe(viewLifecycleOwner) { playlists ->
@@ -120,19 +299,6 @@ class PlaylistsFragment : Fragment() {
     private fun updateEmptyState(isEmpty: Boolean) {
         binding.emptyView.visibility = if (isEmpty) View.VISIBLE else View.GONE
         binding.recyclerViewPlaylists.visibility = if (isEmpty) View.GONE else View.VISIBLE
-    }
-
-    private fun showAddOptionsDialog() {
-        val options = arrayOf("Add URL", "Choose File")
-        MaterialAlertDialogBuilder(requireContext())
-            .setItems(options) { dialog, which ->
-                when (which) {
-                    0 -> showAddPlaylistDialog(isFile = false)
-                    1 -> openFilePicker()
-                }
-                dialog.dismiss()
-            }
-            .show()
     }
 
     private fun openFilePicker() {
@@ -177,7 +343,6 @@ class PlaylistsFragment : Fragment() {
                 }
 
                 if (isFile && fileUri != null) {
-                    // Take persistable URI permission
                     try {
                         requireContext().contentResolver.takePersistableUriPermission(
                             fileUri,
