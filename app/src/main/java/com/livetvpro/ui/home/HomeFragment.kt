@@ -58,7 +58,6 @@ class HomeFragment : Fragment(), SearchableFragment, Refreshable {
     
     override fun onResume() {
         super.onResume()
-        viewModel.onResume()
     }
 
     private fun setupRecyclerView() {
