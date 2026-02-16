@@ -665,6 +665,14 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
                     
+                    // Sync link chips visibility with controls in landscape
+                    LaunchedEffect(controlsState.isVisible, isLandscape) {
+                        if (isLandscape) {
+                            val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
+                            landscapeLinksRecycler?.visibility = if (controlsState.isVisible) View.VISIBLE else View.GONE
+                        }
+                    }
+                    
                     // Track pipRect for smooth PiP transitions
                     DisposableEffect(Unit) {
                         val listener = ViewTreeObserver.OnGlobalLayoutListener {
