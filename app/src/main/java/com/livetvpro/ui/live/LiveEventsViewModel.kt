@@ -35,6 +35,10 @@ class LiveEventsViewModel @Inject constructor(
         loadEvents()
     }
 
+    override fun shouldReloadOnResume(): Boolean {
+        return false
+    }
+
     private fun loadEvents() {
         viewModelScope.launch {
             try {
