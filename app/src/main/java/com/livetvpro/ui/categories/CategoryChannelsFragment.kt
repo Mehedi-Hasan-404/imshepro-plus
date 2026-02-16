@@ -54,6 +54,12 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
     override fun refreshData() {
         currentCategoryId?.let { viewModel.loadChannels(it) }
     }
+    
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val columnCount = resources.getInteger(R.integer.grid_column_count)
+        (binding.recyclerViewChannels.layoutManager as? GridLayoutManager)?.spanCount = columnCount
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentCategoryChannelsBinding.inflate(inflater, container, false)
