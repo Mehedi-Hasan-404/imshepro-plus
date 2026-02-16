@@ -1,16 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Player Channel Dimensions -->
     <dimen name="player_channel_stroke_width">1dp</dimen>
     <dimen name="player_channel_logo_stroke_width">2dp</dimen>
-    
-    <!-- Subtitle bottom margins for different orientations -->
     <dimen name="subtitle_bottom_margin_portrait">96dp</dimen>
     <dimen name="subtitle_bottom_margin_landscape">48dp</dimen>
-    
-    <!-- ========== ADDED: FAB Speed Dial Margins ========== -->
     <dimen name="fab_margin">16dp</dimen>
     <dimen name="fab_margin_bottom_file">140dp</dimen>
     <dimen name="fab_margin_bottom_url">220dp</dimen>
-    <!-- ========== END ADDED ========== -->
 </resources>
