@@ -212,13 +212,45 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Sync tab highlight when destination changes
+        // Sync tab highlight + hamburger/back icon when destination changes (mirrors phone logic)
         navController.addOnDestinationChangedListener { _, destination, _ ->
             val activeDestId = when (destination.id) {
                 R.id.categoryChannelsFragment -> R.id.homeFragment
                 else -> destination.id
             }
             selectTab(activeDestId)
+
+            val isTopLevel = destination.id in topLevelDestinations
+
+            if (isTopLevel) {
+                drawerLayout?.setDrawerLockMode(
+                    androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED
+                )
+                drawerToggle?.isDrawerIndicatorEnabled = true
+                animateNavigationIcon(0f)
+                tvToolbar?.setNavigationOnClickListener {
+                    if (drawerLayout?.isDrawerOpen(GravityCompat.START) == true) {
+                        drawerLayout.closeDrawer(GravityCompat.START)
+                    } else {
+                        drawerLayout?.openDrawer(GravityCompat.START)
+                    }
+                }
+            } else {
+                drawerLayout?.setDrawerLockMode(
+                    androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED
+                )
+                drawerToggle?.isDrawerIndicatorEnabled = true
+                tvToolbar?.post {
+                    animateNavigationIcon(1f)
+                }
+                tvToolbar?.setNavigationOnClickListener {
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+
+            if (isSearchVisible) {
+                hideTvSearch()
+            }
         }
 
         // Select start tab on launch
