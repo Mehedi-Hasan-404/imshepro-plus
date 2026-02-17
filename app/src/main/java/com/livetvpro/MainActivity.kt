@@ -134,6 +134,24 @@ class MainActivity : AppCompatActivity() {
             R.id.navigation_view
         )
 
+        // Use the toolbar in the TV top bar with ActionBarDrawerToggle —
+        // same as phone, Android draws the hamburger icon automatically
+        val tvToolbar = binding.root.findViewById<com.google.android.material.appbar.MaterialToolbar>(
+            R.id.toolbar
+        )
+        setSupportActionBar(tvToolbar)
+        drawerToggle = ActionBarDrawerToggle(
+            this,
+            drawerLayout,
+            tvToolbar,
+            R.string.navigation_drawer_open,
+            R.string.navigation_drawer_close
+        ).apply {
+            isDrawerIndicatorEnabled = true
+            syncState()
+        }
+        drawerToggle?.let { drawerLayout?.addDrawerListener(it) }
+
         // Map tab view IDs → destination IDs
         val tabDestinations = mapOf(
             R.id.tv_tab_live      to R.id.liveEventsFragment,
@@ -165,12 +183,6 @@ class MainActivity : AppCompatActivity() {
                 navigate(destId)
             }
         }
-
-        // Avatar opens the drawer (like the profile avatar in Google TV)
-        binding.root.findViewById<android.widget.ImageView>(R.id.tv_avatar)
-            ?.setOnClickListener {
-                drawerLayout?.openDrawer(GravityCompat.START)
-            }
 
         // Wire NavigationView item selection (same logic as phone)
         val topLevelDestinations = setOf(
