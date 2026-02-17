@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
+        const val EXTRA_IS_FIRE_TV = "extra_is_fire_tv"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -61,7 +62,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Detect TV via resource qualifier (values-television/booleans.xml)
-        isTvDevice = resources.getBoolean(R.bool.is_tv_device)
+        // OR via Fire TV launcher package detected in SplashActivity
+        val isFireTv = intent.getBooleanExtra(EXTRA_IS_FIRE_TV, false)
+        isTvDevice = resources.getBoolean(R.bool.is_tv_device) || isFireTv
 
         if (isTvDevice) {
             // TV: full-screen, no status bar chrome needed
