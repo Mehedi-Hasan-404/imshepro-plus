@@ -2,7 +2,7 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/nav_graph"
-    app:startDestination="@id/homeFragment">
+    app:startDestination="@id/liveEventsFragment">
 
     <fragment
         android:id="@+id/homeFragment"
@@ -47,7 +47,7 @@
         <action
             android:id="@+id/action_category_to_home"
             app:destination="@id/homeFragment"
-            app:popUpTo="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
             app:popUpToInclusive="false" />
     </fragment>
 
@@ -58,7 +58,7 @@
         <action
             android:id="@+id/action_favorites_to_home"
             app:destination="@id/homeFragment"
-            app:popUpTo="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
             app:popUpToInclusive="false" />
         <action
             android:id="@+id/action_favorites_to_live"
@@ -78,7 +78,7 @@
         <action
             android:id="@+id/action_live_to_home"
             app:destination="@id/homeFragment"
-            app:popUpTo="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
             app:popUpToInclusive="false" />
         <action
             android:id="@+id/action_live_to_sports"
@@ -92,7 +92,7 @@
         <action
             android:id="@+id/action_sports_to_home"
             app:destination="@id/homeFragment"
-            app:popUpTo="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
             app:popUpToInclusive="false" />
         <action
             android:id="@+id/action_sports_to_favorites"
@@ -109,7 +109,7 @@
         <action
             android:id="@+id/action_contact_to_home"
             app:destination="@id/homeFragment"
-            app:popUpTo="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
             app:popUpToInclusive="false" />
         <action
             android:id="@+id/action_contact_to_favorites"
@@ -126,7 +126,7 @@
         <action
             android:id="@+id/action_network_stream_to_home"
             app:destination="@id/homeFragment"
-            app:popUpTo="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
             app:popUpToInclusive="false" />
     </fragment>
 
@@ -137,7 +137,7 @@
         <action
             android:id="@+id/action_playlists_to_home"
             app:destination="@id/homeFragment"
-            app:popUpTo="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
             app:popUpToInclusive="false" />
         <action
             android:id="@+id/action_playlists_to_category"
