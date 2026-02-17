@@ -343,38 +343,14 @@ class PlayerActivity : AppCompatActivity() {
     private fun setupWindowInsets() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             binding.root.setOnApplyWindowInsetsListener { view, insets ->
-                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-
-                // playerContainer must NEVER receive padding — padding shrinks the PlayerView
-                // inside the container, making it visually smaller than its measured 16:9 box.
-                // FloatingPlayerService has zero padding on its WindowManager window; we match that.
+                // In portrait: setDecorFitsSystemWindows(window, true) already offsets the
+                // content area below the status bar at the window level — we must NOT also
+                // apply insets as padding here, or we get double-offset (content pushed down twice).
+                // In landscape: system bars are hidden, zero padding is correct.
+                // Both playerContainer and root must always be zero-padded so the PlayerView
+                // fills its full measured area with no internal shrinkage.
+                binding.root.setPadding(0, 0, 0, 0)
                 binding.playerContainer.setPadding(0, 0, 0, 0)
-
-                if (isLandscape) {
-                    // Landscape: system bars hidden via insets controller, root also zero-padded
-                    binding.root.setPadding(0, 0, 0, 0)
-                } else {
-                    // Portrait (channel / event): push the ROOT so the status bar sits above the
-                    // layout naturally. playerContainer stays at 0 padding so the PlayerView
-                    // fills its full 16:9 measured area — same as the floating window.
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        val systemBars   = insets.getInsets(WindowInsets.Type.systemBars())
-                        val displayCutout = insets.displayCutout
-                        val topPadding   = maxOf(systemBars.top,   displayCutout?.safeInsetTop    ?: 0)
-                        val leftPadding  = maxOf(systemBars.left,  displayCutout?.safeInsetLeft   ?: 0)
-                        val rightPadding = maxOf(systemBars.right, displayCutout?.safeInsetRight  ?: 0)
-                        binding.root.setPadding(leftPadding, topPadding, rightPadding, 0)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        binding.root.setPadding(
-                            insets.systemWindowInsetLeft,
-                            insets.systemWindowInsetTop,
-                            insets.systemWindowInsetRight,
-                            0
-                        )
-                    }
-                }
-
                 insets
             }
         }
@@ -1664,6 +1640,10 @@ class PlayerActivity : AppCompatActivity() {
             hide(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
+
+        // Clear any portrait padding set on root so landscape is truly edge-to-edge
+        binding.root.setPadding(0, 0, 0, 0)
+        binding.playerContainer.setPadding(0, 0, 0, 0)
 
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
