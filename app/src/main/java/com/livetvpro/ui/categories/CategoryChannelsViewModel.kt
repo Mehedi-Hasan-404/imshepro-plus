@@ -88,9 +88,11 @@ class CategoryChannelsViewModel @Inject constructor(
         lastLoadedCategoryId?.let { loadChannels(it) }
     }
 
-    override fun shouldReloadOnResume(): Boolean {
-        return false
-    }
+    // FIXED: Removed the override - this property is final in the parent class
+    // If you need custom reload behavior, use a different approach
+    // override fun shouldReloadOnResume(): Boolean {
+    //     return false
+    // }
 
     fun loadChannels(categoryId: String) {
         viewModelScope.launch {
