@@ -95,7 +95,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private lateinit var windowInsetsController: WindowInsetsControllerCompat
     // Compose controls state
-    private val controlsState = PlayerControlsState(initialVisible = false)
+    private val controlsState = PlayerControlsState()
 
     private var isInPipMode = false
     private var isMuted = false
@@ -444,6 +444,8 @@ class PlayerActivity : AppCompatActivity() {
         } else {
             
             if (contentType == ContentType.NETWORK_STREAM) {
+                // Network stream portrait: also use the same 400dp × 225dp (16:9) sizing
+                // that matches the FloatingPlayerService fully-expanded window.
                 val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
                 params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
                 params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -452,11 +454,24 @@ class PlayerActivity : AppCompatActivity() {
                 params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
                 params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
                 params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                params.dimensionRatio = null
+                params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
+                params.dimensionRatio = "H,16:9"
+                params.matchConstraintMaxWidth = dpToPx(400)
+                params.matchConstraintMaxHeight = dpToPx(225)
+                params.matchConstraintMinWidth = dpToPx(240)
+                params.matchConstraintMinHeight = dpToPx(135)
                 
                 binding.playerContainer.setPadding(0, 0, 0, 0)
                 binding.playerContainer.layoutParams = params
+
+                val pvParams = binding.playerView.layoutParams as ConstraintLayout.LayoutParams
+                pvParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+                pvParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+                pvParams.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+                pvParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                pvParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+                pvParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+                binding.playerView.layoutParams = pvParams
             } else {
                 exitFullscreen()
             }
@@ -650,12 +665,12 @@ class PlayerActivity : AppCompatActivity() {
                     val bufferedPosition = player?.bufferedPosition ?: 0L
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                     
-                    // Show controls briefly when playback starts; PlayerControlsState
-                    // auto-hides after autoHideDelay (5s) via its own internal job.
+                    // Auto-hide controls when playback starts
                     val scope = rememberCoroutineScope()
                     LaunchedEffect(isPlaying) {
-                        if (isPlaying && !controlsState.isLocked) {
-                            controlsState.show(scope)
+                        if (isPlaying && controlsState.isVisible && !controlsState.isLocked) {
+                            delay(5000) // Wait 5 seconds
+                            controlsState.hide()
                         }
                     }
                     
@@ -663,7 +678,7 @@ class PlayerActivity : AppCompatActivity() {
                     // Chips show only when controls are visible AND not locked.
                     LaunchedEffect(controlsState.isVisible, controlsState.isLocked, isLandscape) {
                         if (isLandscape) {
-                            val landscapeLinksRecycler = binding.root.findViewById<RecyclerView>(R.id.exo_links_recycler)
+                            val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
                             val chipsVisible = controlsState.isVisible && !controlsState.isLocked
                             landscapeLinksRecycler?.visibility = if (chipsVisible) View.VISIBLE else View.GONE
                         }
@@ -949,7 +964,7 @@ class PlayerActivity : AppCompatActivity() {
         portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         portraitLinksRecycler.adapter = linkChipAdapter
 
-        val landscapeLinksRecycler = binding.root.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
         // The RecyclerView is inside player_container (ConstraintLayout) with width="0dp"
@@ -996,7 +1011,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateLinksForOrientation(isLandscape: Boolean) {
-        val landscapeLinksRecycler = binding.root.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
 
         if (allEventLinks.size > 1) {
             if (isLandscape) {
@@ -1142,7 +1157,7 @@ class PlayerActivity : AppCompatActivity() {
         
         linkChipAdapter.setSelectedPosition(position)
         
-        val landscapeLinksRecycler = binding.root.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
         landscapeAdapter?.setSelectedPosition(position)
         
@@ -1628,21 +1643,34 @@ class PlayerActivity : AppCompatActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
 
-        // Explicit pixel height from screen width: no dimensionRatio, no Compose conflict.
-        // ComposeView is now a sibling overlay (not inside player_container) so
-        // MATCH_PARENT width works correctly here.
-        val screenWidth = resources.displayMetrics.widthPixels
-        val playerHeight = (screenWidth * 9 / 16 * 1.35).toInt()
-
+        // Portrait mode: match the FloatingPlayerService fully-expanded size exactly.
+        // FloatingPlayerService max: getMaxWidth() = dpToPx(400), getMaxHeight() = getMaxWidth() * 9 / 16
+        // → portrait container = 400dp wide, 225dp tall (16:9 ratio), full-width match_constraint.
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-        params.height = playerHeight
-        params.dimensionRatio = null
+        params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+        params.dimensionRatio = "H,16:9"   // 16:9 → height = width * 9 / 16 (same as Service formula)
+        params.matchConstraintMaxWidth = dpToPx(400)  // FloatingPlayerService: getMaxWidth() = 400dp
+        params.matchConstraintMaxHeight = dpToPx(225) // FloatingPlayerService: getMaxHeight() = 400*9/16 = 225dp
+        params.matchConstraintMinWidth = dpToPx(240)  // FloatingPlayerService: getMinWidth() = 240dp
+        params.matchConstraintMinHeight = dpToPx(135) // FloatingPlayerService: getMinHeight() = 240*9/16 = 135dp
         params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
         params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
         params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
         params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
         binding.playerContainer.layoutParams = params
+
+        // PlayerView: fill the container completely (same as FloatingPlayerService where the
+        // PlayerView occupies the full WindowManager window — no letterboxing inside the container)
+        val pvParams = binding.playerView.layoutParams as ConstraintLayout.LayoutParams
+        pvParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+        pvParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+        pvParams.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+        pvParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        pvParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+        pvParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+        binding.playerView.layoutParams = pvParams
+
         binding.playerContainer.visibility = View.VISIBLE
 
         // Restore sections based on actual data state.
@@ -1658,6 +1686,9 @@ class PlayerActivity : AppCompatActivity() {
         }
     }
 
+    private fun dpToPx(dp: Int): Int =
+        (dp * resources.displayMetrics.density).toInt()
+
     private fun enterFullscreen() {
         windowInsetsController.apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -1668,6 +1699,11 @@ class PlayerActivity : AppCompatActivity() {
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.dimensionRatio = null
+        // Clear portrait size caps so fullscreen uses entire display
+        params.matchConstraintMaxWidth = Int.MAX_VALUE
+        params.matchConstraintMaxHeight = Int.MAX_VALUE
+        params.matchConstraintMinWidth = 0
+        params.matchConstraintMinHeight = 0
         params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
         params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
         params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
