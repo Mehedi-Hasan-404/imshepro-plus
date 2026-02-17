@@ -170,19 +170,18 @@
             android:background="@drawable/bottom_nav_glass_background"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="4dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent">
 
+            <!-- iOS-style pill indicator - fixed height -->
             <View
                 android:id="@+id/bottom_nav_indicator"
                 android:layout_width="0dp"
-                android:layout_height="match_parent"
+                android:layout_height="56dp"
                 android:layout_gravity="center_vertical|start"
-                android:layout_marginTop="6dp"
-                android:layout_marginBottom="6dp"
                 android:background="@drawable/bottom_nav_indicator_background" />
 
             <com.google.android.material.bottomnavigation.BottomNavigationView
@@ -190,11 +189,12 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@android:color/transparent"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp"
+                android:minHeight="56dp"
                 app:itemIconTint="@color/bottom_nav_colors" 
                 app:itemTextColor="@color/bottom_nav_colors" 
                 app:itemIconSize="24dp"
+                app:itemPaddingTop="8dp"
+                app:itemPaddingBottom="8dp"
                 app:itemTextAppearanceActive="@style/BottomNavTextActive"
                 app:itemTextAppearanceInactive="@style/BottomNavTextInactive"
                 app:labelVisibilityMode="labeled"
