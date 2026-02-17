@@ -256,9 +256,9 @@ class MainActivity : AppCompatActivity() {
         // Select start tab on launch
         selectTab(navController.graph.startDestinationId)
 
-        // Wire search button
+        // Wire search button: toggles the search bar open / closed
         binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search)
-            ?.setOnClickListener { showTvSearch() }
+            ?.setOnClickListener { if (isSearchVisible) hideTvSearch() else showTvSearch() }
 
         // Wire search view
         val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
@@ -279,7 +279,11 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        tvClearBtn?.setOnClickListener { tvSearchView?.setQuery("", false) }
+        // Cross icon: clears text only — does NOT close the search bar
+        tvClearBtn?.setOnClickListener {
+            tvSearchView?.setQuery("", false)
+            tvSearchView?.requestFocus()
+        }
     }
 
     private fun showTvSearch() {
