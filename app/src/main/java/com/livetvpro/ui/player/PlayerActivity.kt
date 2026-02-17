@@ -1632,7 +1632,7 @@ class PlayerActivity : AppCompatActivity() {
         // ComposeView is now a sibling overlay (not inside player_container) so
         // MATCH_PARENT width works correctly here.
         val screenWidth = resources.displayMetrics.widthPixels
-        val playerHeight = screenWidth * 9 / 16
+        val playerHeight = (screenWidth * 9 / 16 * 1.35).toInt()
 
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
