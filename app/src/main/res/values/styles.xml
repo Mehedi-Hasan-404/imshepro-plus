@@ -40,7 +40,7 @@
     </style>
     
     <!-- Material 3 Navigation Bar Active Indicator (Pill Shape) -->
-    <style name="NavigationBarActiveIndicator" parent="Widget.Material3.NavigationBarView.ActiveIndicator">
+    <style name="NavigationBarActiveIndicator">
         <item name="android:color">@color/navigation_indicator_color</item>
         <item name="shapeAppearance">@style/NavigationBarActiveIndicatorShape</item>
         <item name="android:width">64dp</item>
