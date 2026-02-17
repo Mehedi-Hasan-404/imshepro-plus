@@ -115,7 +115,7 @@
             android:layout_width="0dp"
             android:layout_height="0dp"
             app:defaultNavHost="true"
-            app:layout_constraintBottom_toTopOf="@id/bottom_nav_container" 
+            app:layout_constraintBottom_toTopOf="@id/bottom_navigation" 
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/app_bar_layout"
@@ -131,7 +131,7 @@
             android:visibility="gone"
             android:elevation="8dp"
             app:layout_constraintTop_toBottomOf="@id/app_bar_layout"
-            app:layout_constraintBottom_toTopOf="@id/bottom_nav_container"
+            app:layout_constraintBottom_toTopOf="@id/bottom_navigation"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
@@ -163,45 +163,21 @@
 
         </LinearLayout>
 
-        <FrameLayout
-            android:id="@+id/bottom_nav_container"
+        <com.google.android.material.navigationbar.NavigationBarView
+            android:id="@+id/bottom_navigation"
+            style="@style/Widget.Material3.NavigationBar"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_margin="16dp"
             android:background="@drawable/bottom_nav_glass_background"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp"
+            app:itemActiveIndicatorStyle="@style/NavigationBarActiveIndicator"
+            app:itemIconTint="@color/bottom_nav_colors"
+            app:itemTextColor="@color/bottom_nav_colors"
+            app:labelVisibilityMode="labeled"
+            app:menu="@menu/bottom_nav_menu"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent">
-
-            <!-- iOS-style pill indicator - fixed height -->
-            <View
-                android:id="@+id/bottom_nav_indicator"
-                android:layout_width="0dp"
-                android:layout_height="56dp"
-                android:layout_gravity="center_vertical|start"
-                android:background="@drawable/bottom_nav_indicator_background" />
-
-            <com.google.android.material.bottomnavigation.BottomNavigationView
-                android:id="@+id/bottom_navigation"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@android:color/transparent"
-                android:minHeight="56dp"
-                app:itemIconTint="@color/bottom_nav_colors" 
-                app:itemTextColor="@color/bottom_nav_colors" 
-                app:itemIconSize="24dp"
-                app:itemPaddingTop="8dp"
-                app:itemPaddingBottom="8dp"
-                app:itemTextAppearanceActive="@style/BottomNavTextActive"
-                app:itemTextAppearanceInactive="@style/BottomNavTextInactive"
-                app:labelVisibilityMode="labeled"
-                app:menu="@menu/bottom_nav_menu"
-                app:elevation="0dp"
-                />
-        </FrameLayout>
+            app:layout_constraintStart_toStartOf="parent" />
 
 
     </androidx.constraintlayout.widget.ConstraintLayout>
