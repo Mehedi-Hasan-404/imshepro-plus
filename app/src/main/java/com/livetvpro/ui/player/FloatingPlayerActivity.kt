@@ -426,31 +426,48 @@ class FloatingPlayerActivity : AppCompatActivity() {
     applyOrientationSettings(isLandscape)
     setSubtitleTextSize()
     
-    // FIX: Show controls when rotating to landscape to prevent blank screen
-    if (isLandscape) {
-        controlsState.show(lifecycleScope)
-    }
-    
     if (wasControllerVisible && !isBuffering) {
         binding.playerView.postDelayed({
             if (player?.playbackState != Player.STATE_BUFFERING) {
                 binding.playerView.showController()
             }
-        }, 100)
+        }, 150)
     } else if (isBuffering) {
         binding.playerView.hideController()
     }
 
+    // FIX: Comprehensive visibility and layout fix for landscape rotation
     binding.root.post {
-        // FIX: Ensure all player views are visible and properly laid out
+        // Force all player-related views to be VISIBLE
+        binding.root.visibility = View.VISIBLE
         binding.playerContainer.visibility = View.VISIBLE
         binding.playerView.visibility = View.VISIBLE
         binding.playerControlsCompose.visibility = View.VISIBLE
         
+        // Force layout recalculation
         binding.root.requestLayout()
         binding.playerContainer.requestLayout()
         binding.playerView.requestLayout()
         binding.playerControlsCompose.requestLayout()
+        
+        // Re-attach player to ensure surface is connected
+        player?.let { exoPlayer ->
+            binding.playerView.player = null
+            binding.playerView.player = exoPlayer
+        }
+        
+        // Show controls after layout is complete (with a small delay to ensure everything is rendered)
+        if (isLandscape) {
+            binding.root.postDelayed({
+                try {
+                    controlsState.show(lifecycleScope)
+                    // Also force playerView to invalidate its surface
+                    binding.playerView.invalidate()
+                } catch (e: Exception) {
+                    // Ignore if controls can't be shown
+                }
+            }, 150)
+        }
     }
 }
 
