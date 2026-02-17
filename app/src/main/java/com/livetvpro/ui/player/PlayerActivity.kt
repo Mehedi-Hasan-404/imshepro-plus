@@ -135,11 +135,6 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
         private const val EXTRA_RELATED_CHANNELS = "extra_related_channels"
         
-        // UPDATED: Metadata keys for random channel loading
-        private const val EXTRA_CATEGORY_ID = "extra_category_id"
-        private const val EXTRA_SELECTED_GROUP = "extra_selected_group"
-        
-        
         // Media control constants
         private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
         private const val EXTRA_CONTROL_TYPE = "control_type"
@@ -156,22 +151,13 @@ class PlayerActivity : AppCompatActivity() {
         private const val PIP_FR = 3  // Fast Rewind
         private const val PIP_FF = 4  // Fast Forward
 
-        fun startWithChannel(
-            context: Context, 
-            channel: Channel, 
-            linkIndex: Int = -1, 
-            relatedChannels: ArrayList<Channel>? = null,  // Kept for backward compatibility
-            categoryId: String? = null,
-            selectedGroup: String? = null
-        ) {
+        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1, relatedChannels: ArrayList<Channel>? = null) {
             val intent = Intent(context, PlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
-                
-                // UPDATED: Pass metadata instead of full channel list
-                categoryId?.let { putExtra(EXTRA_CATEGORY_ID, it) }
-                selectedGroup?.let { putExtra(EXTRA_SELECTED_GROUP, it) }
-                
+                relatedChannels?.let {
+                    putParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, it)
+                }
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
             context.startActivity(intent)
@@ -407,38 +393,10 @@ class PlayerActivity : AppCompatActivity() {
         binding.playerView.hideController()
     }
 
-    // FIX: Comprehensive visibility and layout fix for landscape rotation
     binding.root.post {
-        // Force all player-related views to be VISIBLE
-        binding.root.visibility = View.VISIBLE
-        binding.playerContainer.visibility = View.VISIBLE
-        binding.playerView.visibility = View.VISIBLE
-        binding.playerControlsCompose.visibility = View.VISIBLE
-        
-        // Re-attach player to ensure surface is connected
-        player?.let { exoPlayer ->
-            binding.playerView.player = null
-            binding.playerView.player = exoPlayer
-        }
-        
-        // Force layout recalculation
         binding.root.requestLayout()
         binding.playerContainer.requestLayout()
         binding.playerView.requestLayout()
-        binding.playerControlsCompose.requestLayout()
-        
-        // Show controls after layout is complete (with a small delay to ensure everything is rendered)
-        if (isLandscape) {
-            binding.root.postDelayed({
-                try {
-                    controlsState.show(lifecycleScope)
-                    // Also force playerView to invalidate its surface
-                    binding.playerView.invalidate()
-                } catch (e: Exception) {
-                    // Ignore if controls can't be shown
-                }
-            }, 150)
-        }
     }
 }
 
@@ -1081,16 +1039,19 @@ class PlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    // UPDATED: Get metadata from intent instead of full channel list
-                    val categoryId = intent.getStringExtra(EXTRA_CATEGORY_ID)
-                    val selectedGroup = intent.getStringExtra(EXTRA_SELECTED_GROUP)
+                    val passedRelatedChannels: List<Channel>? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS, Channel::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableArrayListExtra(EXTRA_RELATED_CHANNELS)
+                    }
                     
-                    // Load 9 random channels using the metadata
-                    viewModel.loadRandomRelatedChannels(
-                        categoryId = categoryId ?: channel.categoryId,
-                        currentChannelId = channel.id,
-                        groupFilter = selectedGroup
-                    )
+                    if (passedRelatedChannels != null && passedRelatedChannels.isNotEmpty()) {
+                        val filteredChannels = passedRelatedChannels.filter { it.id != channel.id }
+                        viewModel.setRelatedChannels(filteredChannels)
+                    } else {
+                        viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+                    }
                 }
             }
             ContentType.EVENT -> {
@@ -1099,7 +1060,6 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
             ContentType.NETWORK_STREAM -> {
-                // No related content
             }
         }
     }
@@ -1140,16 +1100,7 @@ class PlayerActivity : AppCompatActivity() {
         
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
-        
-        // UPDATED: Reload random related channels
-        val categoryId = intent.getStringExtra(EXTRA_CATEGORY_ID)
-        val selectedGroup = intent.getStringExtra(EXTRA_SELECTED_GROUP)
-        
-        viewModel.loadRandomRelatedChannels(
-            categoryId = categoryId ?: newChannel.categoryId,
-            currentChannelId = newChannel.id,
-            groupFilter = selectedGroup
-        )
+        viewModel.loadRelatedChannels(newChannel.categoryId, newChannel.id)
     }
 
     private fun switchToEvent(relatedChannel: Channel) {
@@ -1421,7 +1372,8 @@ class PlayerActivity : AppCompatActivity() {
                         mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
                     }
                     
-                    if (streamInfo.drmScheme != null) {
+                    // FIX: Add DRM configuration to MediaItem if DRM is used
+                    if (streamInfo.drmScheme != null && streamInfo.drmLicenseUrl != null) {
                         val drmUuid = when (streamInfo.drmScheme) {
                             "widevine" -> C.WIDEVINE_UUID
                             "playready" -> C.PLAYREADY_UUID
@@ -1430,10 +1382,7 @@ class PlayerActivity : AppCompatActivity() {
                         }
                         
                         val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(drmUuid)
-                        
-                        if (streamInfo.drmLicenseUrl != null) {
-                            drmConfigBuilder.setLicenseUri(streamInfo.drmLicenseUrl)
-                        }
+                            .setLicenseUri(streamInfo.drmLicenseUrl)
                         
                         mediaItemBuilder.setDrmConfiguration(drmConfigBuilder.build())
                     }
