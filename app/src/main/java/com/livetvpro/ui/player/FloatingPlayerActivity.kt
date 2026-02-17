@@ -110,6 +110,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private var contentId: String = ""
     private var contentName: String = ""
     private var streamUrl: String = ""
+    private var intentCategoryId: String? = null
+    private var intentSelectedGroup: String? = null
     
     private var savedPlaybackPosition: Long = -1L
 
@@ -127,11 +129,15 @@ class FloatingPlayerActivity : AppCompatActivity() {
         private const val CONTROL_TYPE_PAUSE = 2
         private const val CONTROL_TYPE_REWIND = 3
         private const val CONTROL_TYPE_FORWARD = 4
+        private const val EXTRA_CATEGORY_ID = "extra_category_id"
+        private const val EXTRA_SELECTED_GROUP = "extra_selected_group"
 
-        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1) {
+        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1, categoryId: String? = null, selectedGroup: String? = null) {
             val intent = Intent(context, FloatingPlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
+                categoryId?.let { putExtra(EXTRA_CATEGORY_ID, it) }
+                selectedGroup?.let { putExtra(EXTRA_SELECTED_GROUP, it) }
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
             context.startActivity(intent)
@@ -284,8 +290,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
             
             if (freshChannel != null && contentType == ContentType.CHANNEL) {
                 channelData = freshChannel
-                if (freshChannel.categoryId.isNotEmpty()) {
-                    viewModel.loadRelatedChannels(freshChannel.categoryId, freshChannel.id)
+                val categoryId = intentCategoryId?.takeIf { it.isNotEmpty() } ?: freshChannel.categoryId
+                if (categoryId.isNotEmpty()) {
+                    viewModel.loadRelatedChannels(categoryId, freshChannel.id)
                 }
             }
         }
@@ -672,6 +679,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
         val passedLinkIndex = intent.getIntExtra(EXTRA_SELECTED_LINK_INDEX, -1)
 
+        intentCategoryId = intent.getStringExtra(EXTRA_CATEGORY_ID)
+        intentSelectedGroup = intent.getStringExtra(EXTRA_SELECTED_GROUP)
+
         if (eventData != null) {
             contentType = ContentType.EVENT
             val event = eventData!!
@@ -847,7 +857,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
+                    val categoryId = intentCategoryId?.takeIf { it.isNotEmpty() } ?: channel.categoryId
+                    viewModel.loadRelatedChannels(categoryId, channel.id)
                 }
             }
             ContentType.EVENT -> {
@@ -893,7 +904,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
-        viewModel.loadRelatedChannels(newChannel.categoryId, newChannel.id)
+        val categoryId = intentCategoryId?.takeIf { it.isNotEmpty() } ?: newChannel.categoryId
+        viewModel.loadRelatedChannels(categoryId, newChannel.id)
     }
 
     private fun switchToEvent(relatedChannel: Channel) {
