@@ -191,14 +191,26 @@ fun PlayerControls(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) {
-                        // Tapping anywhere toggles visibility
                         state.toggle(scope)
                     }
             ) {
-                // Completely transparent - only unlock button visible
+                // Radial gradient centred on the unlock button (top-start corner)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.radialGradient(
+                                colors = listOf(
+                                    Color.Black.copy(alpha = 0.55f),
+                                    Color.Transparent
+                                ),
+                                radius = 320f
+                            )
+                        )
+                )
                 // Unlock button
                 IconButton(
-                    onClick = { 
+                    onClick = {
                         state.unlock(scope)
                         onLockClick(false)
                     },
