@@ -19,6 +19,8 @@
         <item name="android:statusBarColor">#000000</item>
         <item name="android:navigationBarColor">@color/surface_dark</item>
         <item name="android:windowLightStatusBar">false</item>
+        <!-- API 35: opt out of forced edge-to-edge so statusBarColor is respected -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     </style>
 
     <!-- LIGHT THEME -->
@@ -44,6 +46,8 @@
         <item name="android:statusBarColor">#FAFAFA</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
         <item name="android:windowLightStatusBar">true</item>
+        <!-- API 35: opt out of forced edge-to-edge -->
+        <item name="android:windowOptOutEdgeToEdgeEnforcement">true</item>
     </style>
 
     <!-- FULLSCREEN THEME -->
