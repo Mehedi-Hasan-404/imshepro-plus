@@ -149,24 +149,18 @@ fun PlayerControls(
     Box(
         modifier = modifier
             .fillMaxSize()
-    ) {
-        // Background tap layer — sits BEHIND all controls so button clicks are never stolen.
-        // pointerInput + detectTapGestures on a parent consumes events before children;
-        // using a separate background Box that is drawn first (lower z-order) avoids this.
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) {
-                    if (state.isLocked) {
-                        state.toggle(scope)
-                    } else {
-                        state.toggle(scope)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = {
+                        if (state.isLocked) {
+                            state.toggle(scope)
+                        } else {
+                            state.toggle(scope)
+                        }
                     }
-                }
-        )
+                )
+            }
+    ) {
         // Lock overlay — shown/hidden independently via isLockOverlayVisible
         // (toggled by tapping the screen while locked; auto-hides after delay)
         AnimatedVisibility(
@@ -187,30 +181,19 @@ fun PlayerControls(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        state.toggle(scope)
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = {
+                                // Tapping anywhere toggles visibility
+                                state.toggle(scope)
+                            }
+                        )
                     }
             ) {
-                // Radial gradient centred on the unlock button (top-start corner)
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    Color.Black.copy(alpha = 0.55f),
-                                    Color.Transparent
-                                ),
-                                radius = 320f
-                            )
-                        )
-                )
+                // Completely transparent - only unlock button visible
                 // Unlock button
                 IconButton(
-                    onClick = {
+                    onClick = { 
                         state.unlock(scope)
                         onLockClick(false)
                     },
