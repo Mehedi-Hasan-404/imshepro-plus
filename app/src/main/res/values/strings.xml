@@ -5,7 +5,7 @@
 
     <!-- Navigation -->
     <string name="nav_home">Categories</string>
-    <string name="nav_live">Live</string>
+    <string name="nav_live">Live Events</string>
     <string name="nav_contact">Contact</string>
     <string name="nav_sports">Sports</string>
     <string name="nav_favorites">Favorites</string>
