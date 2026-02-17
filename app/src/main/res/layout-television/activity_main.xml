@@ -41,19 +41,13 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent">
 
-            <!-- Avatar — tapping it opens the drawer (like the profile icon in Google TV) -->
-            <ImageView
-                android:id="@+id/tv_avatar"
-                android:layout_width="36dp"
-                android:layout_height="36dp"
-                android:layout_marginEnd="16dp"
-                android:src="@mipmap/ic_launcher_round"
-                android:scaleType="centerCrop"
-                android:background="@drawable/circular_logo_background"
-                android:clipToOutline="true"
-                android:focusable="true"
-                android:clickable="true"
-                android:contentDescription="Open menu" />
+            <!-- Toolbar — ActionBarDrawerToggle attaches here to draw the hamburger automatically -->
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:background="@android:color/transparent"
+                app:navigationContentDescription="Open menu" />
 
             <!-- Horizontal tab strip -->
             <HorizontalScrollView
@@ -265,16 +259,6 @@
                 app:rippleColor="#40FFFFFF" />
 
         </LinearLayout>
-
-        <!-- Stub: toolbar (gone — TV uses top bar instead) -->
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:visibility="gone"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
 
         <!-- Stub: toolbar title (gone on TV) -->
         <TextView
