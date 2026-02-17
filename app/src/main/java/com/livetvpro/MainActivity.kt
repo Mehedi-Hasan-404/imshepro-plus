@@ -343,8 +343,9 @@ class MainActivity : AppCompatActivity() {
         val initialView = binding.bottomNavigation.findViewById<View>(initialItemId)
 
         if (initialView != null) {
-            val initialX = initialView.x + initialView.width * 0.25f
-            val initialWidth = initialView.width * 0.5f
+            // iOS-style pill covers 85% of item width, centered
+            val initialX = initialView.x + initialView.width * 0.075f
+            val initialWidth = initialView.width * 0.85f
             
             indicator.translationX = initialX
             indicator.layoutParams.width = initialWidth.toInt()
@@ -356,8 +357,9 @@ class MainActivity : AppCompatActivity() {
     private fun animateBottomNavItem(newSelectedView: View?) {
         if (newSelectedView == null || lastSelectedView == newSelectedView) return
         
-        val duration = 300L 
+        val duration = 400L  // Slightly longer for smoother iOS feel
         
+        // Don't scale items - iOS style keeps them fixed
         lastSelectedView?.animate()
             ?.scaleX(1.0f)
             ?.scaleY(1.0f)
@@ -365,18 +367,20 @@ class MainActivity : AppCompatActivity() {
             ?.setDuration(duration)
             ?.start()
         
+        // Keep selected item at normal scale
         newSelectedView.animate()
-            .scaleX(1.1f)
-            .scaleY(1.1f)
-            .translationY(-8f)
+            .scaleX(1.0f)
+            .scaleY(1.0f)
+            .translationY(0f)
             .setDuration(duration)
             .setInterpolator(AccelerateDecelerateInterpolator())
             .start()
         
         val startX = indicator.translationX
         val startWidth = indicator.layoutParams.width
-        val endX = newSelectedView.x + newSelectedView.width * 0.25f
-        val endWidth = newSelectedView.width * 0.5f
+        // iOS-style pill covers 85% of item width
+        val endX = newSelectedView.x + newSelectedView.width * 0.075f
+        val endWidth = newSelectedView.width * 0.85f
         
         val xAnimator = ValueAnimator.ofFloat(startX, endX)
         xAnimator.addUpdateListener { animator ->
