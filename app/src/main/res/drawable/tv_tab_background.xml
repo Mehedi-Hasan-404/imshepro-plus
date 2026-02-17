@@ -1,10 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-    TV tab background: mirrors Google TV's "For you" selected pill style.
-    selected   → white rounded pill with dark text
-    focused    → subtle white overlay for D-pad/remote focus ring
-    unselected → transparent
--->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Selected state: white pill -->
