@@ -205,26 +205,21 @@ class PlayerActivity : AppCompatActivity() {
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
         setupWindowInsets()
-        applyResizeModeForOrientation(isLandscape)
-        
-        if (!isLandscape) {
-            exitFullscreen()
-        }
-        
+
         parseIntent()
 
         if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
             viewModel.refreshChannelData(contentId)
         }
 
-        // Adjust player container for orientation
-        adjustPlayerContainerForOrientation(isLandscape)
+        // Apply orientation ONCE - enterFullscreen/exitFullscreen inside handle container params
+        applyResizeModeForOrientation(isLandscape)
+        applyOrientationSettings(isLandscape)
 
         setupComposeControls()
         setupRelatedChannels()
         setupLinksUI()
-        configurePlayerInteractions()        
-        applyOrientationSettings(isLandscape)
+        configurePlayerInteractions()
         
         binding.playerView.useController = false
         
@@ -388,7 +383,6 @@ class PlayerActivity : AppCompatActivity() {
     
     val isLandscape = newConfig.orientation == Configuration.ORIENTATION_LANDSCAPE
     
-    adjustPlayerContainerForOrientation(isLandscape)
     setupWindowFlags(isLandscape)
     setupSystemUI(isLandscape)
     applyResizeModeForOrientation(isLandscape)
@@ -406,23 +400,6 @@ class PlayerActivity : AppCompatActivity() {
     }
 }
 
-    private fun adjustPlayerContainerForOrientation(isLandscape: Boolean) {
-        val containerParams = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-
-        if (isLandscape) {
-            containerParams.dimensionRatio = null
-            containerParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            containerParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-        } else {
-            // MATCH_CONSTRAINT (0dp) is required for dimensionRatio to work -
-            // WRAP_CONTENT breaks the ratio and makes the player shrink
-            containerParams.dimensionRatio = "H,16:9"
-            containerParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            containerParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-        }
-
-        binding.playerContainer.layoutParams = containerParams
-    }
 
     /** Applies orientation-based resize mode ONLY for network streams. */
     private fun applyResizeModeForOrientation(isLandscape: Boolean) {
