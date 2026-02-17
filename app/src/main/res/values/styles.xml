@@ -38,4 +38,18 @@
         <item name="android:letterSpacing">0.01</item>
         <item name="fontFamily">sans-serif</item>
     </style>
+    
+    <!-- Material 3 Navigation Bar Active Indicator (Pill Shape) -->
+    <style name="NavigationBarActiveIndicator" parent="Widget.Material3.NavigationBarView.ActiveIndicator">
+        <item name="android:color">@color/navigation_indicator_color</item>
+        <item name="shapeAppearance">@style/NavigationBarActiveIndicatorShape</item>
+        <item name="android:width">64dp</item>
+        <item name="android:height">32dp</item>
+        <item name="marginHorizontal">12dp</item>
+    </style>
+    
+    <!-- Pill shape for the indicator -->
+    <style name="NavigationBarActiveIndicatorShape" parent="ShapeAppearance.Material3.Corner.Full">
+        <item name="cornerSize">50%</item>
+    </style>
 </resources>
