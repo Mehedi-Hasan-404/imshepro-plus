@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black"
-    android:fitsSystemWindows="false">
+    android:fitsSystemWindows="true">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/player_container"
@@ -14,14 +14,9 @@
         app:layout_constraintDimensionRatio="H,16:9"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        android:minWidth="240dp"
-        android:minHeight="135dp"
-        android:maxWidth="400dp"
-        android:maxHeight="225dp">
+        app:layout_constraintTop_toTopOf="parent">
 
         <!-- ExoPlayer without built-in controls -->
-        <!-- Width/height fill playerContainer exactly (matches FloatingPlayerService max: 400dp x 225dp, 16:9) -->
         <androidx.media3.ui.PlayerView
             android:id="@+id/player_view"
             android:layout_width="0dp"
