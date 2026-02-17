@@ -290,7 +290,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
             for (i in 0 until binding.tabLayoutGroups.tabCount) {
                 val tab = binding.tabLayoutGroups.getTabAt(i)
                 val tabView = tab?.view
-                val tabTextView = tabView?.findViewById<TextView>(com.google.android.material.R.id.text)
+                val tabTextView = tabView?.findViewById<TextView>(android.R.id.text1)
                 tabTextView?.typeface = resources.getFont(R.font.bergen_sans)
             }
         }
