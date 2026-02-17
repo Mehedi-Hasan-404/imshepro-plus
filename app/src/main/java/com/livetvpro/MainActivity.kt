@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // Detect TV via resource qualifier (values-television/booleans.xml)
-        // OR via Fire TV launcher package detected in SplashActivity
+        // OR via TV launcher intent category passed from SplashActivity
         val isFireTv = intent.getBooleanExtra(EXTRA_IS_FIRE_TV, false)
         isTvDevice = resources.getBoolean(R.bool.is_tv_device) || isFireTv
 
