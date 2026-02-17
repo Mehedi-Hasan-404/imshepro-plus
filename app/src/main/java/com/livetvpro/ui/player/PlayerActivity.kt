@@ -343,13 +343,23 @@ class PlayerActivity : AppCompatActivity() {
     private fun setupWindowInsets() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             binding.root.setOnApplyWindowInsetsListener { view, insets ->
-                // In portrait: setDecorFitsSystemWindows(window, true) already offsets the
-                // content area below the status bar at the window level — we must NOT also
-                // apply insets as padding here, or we get double-offset (content pushed down twice).
-                // In landscape: system bars are hidden, zero padding is correct.
-                // Both playerContainer and root must always be zero-padded so the PlayerView
-                // fills its full measured area with no internal shrinkage.
-                binding.root.setPadding(0, 0, 0, 0)
+                val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+                // Use topMargin on playerContainer (not padding) to respect the status bar in
+                // portrait. Margin positions the container below the status bar without shrinking
+                // the PlayerView inside it. In landscape, system bars are hidden so margin = 0.
+                val params = binding.playerContainer.layoutParams as androidx.constraintlayout.widget.ConstraintLayout.LayoutParams
+                if (!isLandscape) {
+                    val topInset = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        insets.getInsets(WindowInsets.Type.systemBars()).top
+                    } else {
+                        @Suppress("DEPRECATION") insets.systemWindowInsetTop
+                    }
+                    params.topMargin = topInset
+                } else {
+                    params.topMargin = 0
+                }
+                binding.playerContainer.layoutParams = params
                 binding.playerContainer.setPadding(0, 0, 0, 0)
                 insets
             }
@@ -979,6 +989,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateLinksForOrientation(isLandscape: Boolean) {
+        if (!::linkChipAdapter.isInitialized) return
         val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
 
         if (allEventLinks.size > 1) {
@@ -1122,13 +1133,15 @@ class PlayerActivity : AppCompatActivity() {
     private fun switchToLink(link: LiveEventLink, position: Int) {
         currentLinkIndex = position
         streamUrl = buildStreamUrl(link)
-        
-        linkChipAdapter.setSelectedPosition(position)
-        
+
+        if (::linkChipAdapter.isInitialized) {
+            linkChipAdapter.setSelectedPosition(position)
+        }
+
         val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
         val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
         landscapeAdapter?.setSelectedPosition(position)
-        
+
         releasePlayer()
         setupPlayer()
     }
@@ -1641,13 +1654,14 @@ class PlayerActivity : AppCompatActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        // Clear any portrait padding set on root so landscape is truly edge-to-edge
+        // Clear portrait topMargin and padding so landscape is truly edge-to-edge
         binding.root.setPadding(0, 0, 0, 0)
         binding.playerContainer.setPadding(0, 0, 0, 0)
 
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+        params.topMargin = 0
         params.dimensionRatio = null
         params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
         params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
