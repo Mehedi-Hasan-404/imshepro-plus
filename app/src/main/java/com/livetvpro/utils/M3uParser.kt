@@ -1077,11 +1077,20 @@ object M3uParser {
         if (m3u.drmScheme != null) {
             parts.add("drmScheme=${m3u.drmScheme}")
             
-            if (m3u.drmKeyId != null && m3u.drmKey != null) {
-                if (m3u.drmKeyId.startsWith("http://", ignoreCase = true) || 
-                    m3u.drmKeyId.startsWith("https://", ignoreCase = true)) {
+            // Handle different DRM key formats
+            when {
+                // Case 1: License URL is in drmKey (Widevine/PlayReady)
+                m3u.drmKey != null && (m3u.drmKey.startsWith("http://", ignoreCase = true) || 
+                    m3u.drmKey.startsWith("https://", ignoreCase = true)) -> {
+                    parts.add("drmLicense=${m3u.drmKey}")
+                }
+                // Case 2: Old format - License URL in drmKeyId
+                m3u.drmKeyId != null && (m3u.drmKeyId.startsWith("http://", ignoreCase = true) || 
+                    m3u.drmKeyId.startsWith("https://", ignoreCase = true)) -> {
                     parts.add("drmLicense=${m3u.drmKeyId}")
-                } else {
+                }
+                // Case 3: ClearKey format - keyId:key
+                m3u.drmKeyId != null && m3u.drmKey != null -> {
                     parts.add("drmLicense=${m3u.drmKeyId}:${m3u.drmKey}")
                 }
             }
