@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Tab text color:
+    selected   → #111111 (dark, readable on the white pill)
+    unselected → #FFFFFF with 70% alpha
+-->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:color="#111111" />
+    <item android:state_focused="true" android:state_selected="true" android:color="#111111" />
+    <item android:color="#B3FFFFFF" />
+</selector>
