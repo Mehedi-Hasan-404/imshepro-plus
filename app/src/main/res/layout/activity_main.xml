@@ -165,7 +165,6 @@
 
         <com.google.android.material.navigationbar.NavigationBarView
             android:id="@+id/bottom_navigation"
-            style="@style/Widget.Material3.NavigationBar"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_margin="16dp"
