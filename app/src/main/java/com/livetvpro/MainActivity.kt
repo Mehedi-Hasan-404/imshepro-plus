@@ -343,9 +343,9 @@ class MainActivity : AppCompatActivity() {
         val initialView = binding.bottomNavigation.findViewById<View>(initialItemId)
 
         if (initialView != null) {
-            // iOS-style pill covers 85% of item width, centered
-            val initialX = initialView.x + initialView.width * 0.075f
-            val initialWidth = initialView.width * 0.85f
+            // Match reference image - pill covers ~90% of item width, perfectly centered
+            val initialX = initialView.x + initialView.width * 0.05f
+            val initialWidth = initialView.width * 0.90f
             
             indicator.translationX = initialX
             indicator.layoutParams.width = initialWidth.toInt()
@@ -378,9 +378,9 @@ class MainActivity : AppCompatActivity() {
         
         val startX = indicator.translationX
         val startWidth = indicator.layoutParams.width
-        // iOS-style pill covers 85% of item width
-        val endX = newSelectedView.x + newSelectedView.width * 0.075f
-        val endWidth = newSelectedView.width * 0.85f
+        // Match reference - 90% width coverage
+        val endX = newSelectedView.x + newSelectedView.width * 0.05f
+        val endWidth = newSelectedView.width * 0.90f
         
         val xAnimator = ValueAnimator.ofFloat(startX, endX)
         xAnimator.addUpdateListener { animator ->
