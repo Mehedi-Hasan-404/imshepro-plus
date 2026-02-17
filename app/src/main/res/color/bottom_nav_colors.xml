@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Active/selected state - bright white with slight glow -->
-    <item android:color="#FFFFFFFF" android:state_checked="true"/>
-    <!-- Inactive state - semi-transparent white for glass effect -->
-    <item android:color="#99FFFFFF" android:state_checked="false"/>
+    <!-- Active/selected state - bright cyan like iOS -->
+    <item android:color="#00D9FF" android:state_checked="true"/>
+    <!-- Inactive state - muted white/gray for glass effect -->
+    <item android:color="#80FFFFFF" android:state_checked="false"/>
 </selector>
