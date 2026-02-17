@@ -403,14 +403,25 @@ class PlayerActivity : AppCompatActivity() {
     applyOrientationSettings(isLandscape)
     setSubtitleTextSize()
     
+    // FIX: Show controls when rotating to landscape to prevent blank screen
+    if (isLandscape) {
+        controlsState.show(lifecycleScope)
+    }
+    
     if (player?.playbackState == Player.STATE_BUFFERING) {
         binding.playerView.hideController()
     }
 
     binding.root.post {
+        // FIX: Ensure all player views are visible and properly laid out
+        binding.playerContainer.visibility = View.VISIBLE
+        binding.playerView.visibility = View.VISIBLE
+        binding.playerControlsCompose.visibility = View.VISIBLE
+        
         binding.root.requestLayout()
         binding.playerContainer.requestLayout()
         binding.playerView.requestLayout()
+        binding.playerControlsCompose.requestLayout()
     }
 }
 
