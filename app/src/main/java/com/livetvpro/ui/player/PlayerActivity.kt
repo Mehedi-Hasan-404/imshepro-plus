@@ -95,7 +95,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private lateinit var windowInsetsController: WindowInsetsControllerCompat
     // Compose controls state
-    private val controlsState = PlayerControlsState()
+    private val controlsState = PlayerControlsState(initialVisible = false)
 
     private var isInPipMode = false
     private var isMuted = false
@@ -650,12 +650,12 @@ class PlayerActivity : AppCompatActivity() {
                     val bufferedPosition = player?.bufferedPosition ?: 0L
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                     
-                    // Auto-hide controls when playback starts
+                    // Show controls briefly when playback starts; PlayerControlsState
+                    // auto-hides after autoHideDelay (5s) via its own internal job.
                     val scope = rememberCoroutineScope()
                     LaunchedEffect(isPlaying) {
-                        if (isPlaying && controlsState.isVisible && !controlsState.isLocked) {
-                            delay(5000) // Wait 5 seconds
-                            controlsState.hide()
+                        if (isPlaying && !controlsState.isLocked) {
+                            controlsState.show(scope)
                         }
                     }
                     
@@ -1628,10 +1628,15 @@ class PlayerActivity : AppCompatActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
 
+        // Calculate explicit pixel height from actual screen width (like the Compose/ExoPlayer
+        // sample pattern) — avoids dimensionRatio fighting with Compose measurement.
+        val screenWidth = resources.displayMetrics.widthPixels
+        val playerHeight = screenWidth * 9 / 16
+
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-        params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-        params.dimensionRatio = "H,16:9"
+        params.height = playerHeight
+        params.dimensionRatio = null
         params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
         params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
         params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
