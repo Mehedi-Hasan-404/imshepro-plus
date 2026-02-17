@@ -53,7 +53,7 @@
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="search">Search</string>
-    <string name="search_channels">Search channels…</string>
+    <string name="search_channels">Search something...</string>
     
     <!-- Messages -->
     <string name="enable_floating_player_message">Please enable Floating Player from sidebar</string>
