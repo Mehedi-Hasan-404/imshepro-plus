@@ -456,15 +456,11 @@ object M3uParser {
                     val keyValue = trimmedLine.substringAfter("=").trim()
                     
                     when {
-                        // If it's a URL, it's a license server URL (for Widevine/PlayReady)
                         keyValue.startsWith("http://", ignoreCase = true) || 
                         keyValue.startsWith("https://", ignoreCase = true) -> {
-                            // This is a license server URL, store it in drmKey (which becomes drmLicenseUrl)
-                            currentDrmKey = keyValue
-                            // Don't set currentDrmKeyId for URL-based licenses
-                            currentDrmKeyId = null
+                            currentDrmKeyId = keyValue
+                            currentDrmKey = "LICENSE_URL"
                         }
-                        // For ClearKey: keyId:key format
                         keyValue.contains(":") && !keyValue.startsWith("{") -> {
                             val parts = keyValue.split(":", limit = 2)
                             if (parts.size == 2) {
@@ -472,7 +468,6 @@ object M3uParser {
                                 currentDrmKey = parts[1].trim()
                             }
                         }
-                        // For ClearKey: JWK format
                         keyValue.startsWith("{") -> {
                             val (keyId, key) = parseJWKToKeyIdPair(keyValue)
                             if (keyId != null && key != null) {
@@ -480,20 +475,6 @@ object M3uParser {
                                 currentDrmKey = key
                             }
                         }
-                    }
-                }
-                
-                trimmedLine.startsWith("#KODIPROP:") && trimmedLine.contains("user-agent=", ignoreCase = true) -> {
-                    val uaMatch = Regex("#KODIPROP:.*user-agent=([^\\s|]+)", RegexOption.IGNORE_CASE).find(trimmedLine)
-                    if (uaMatch != null) {
-                        currentUserAgent = uaMatch.groupValues[1].trim()
-                    }
-                }
-                
-                trimmedLine.startsWith("#KODIPROP:") && trimmedLine.contains("referer=", ignoreCase = true) -> {
-                    val refMatch = Regex("#KODIPROP:.*referer=([^\\s|]+)", RegexOption.IGNORE_CASE).find(trimmedLine)
-                    if (refMatch != null) {
-                        currentHeaders["Referer"] = refMatch.groupValues[1].trim()
                     }
                 }
                 
@@ -1077,20 +1058,11 @@ object M3uParser {
         if (m3u.drmScheme != null) {
             parts.add("drmScheme=${m3u.drmScheme}")
             
-            // Handle different DRM key formats
-            when {
-                // Case 1: License URL is in drmKey (Widevine/PlayReady)
-                m3u.drmKey != null && (m3u.drmKey.startsWith("http://", ignoreCase = true) || 
-                    m3u.drmKey.startsWith("https://", ignoreCase = true)) -> {
-                    parts.add("drmLicense=${m3u.drmKey}")
-                }
-                // Case 2: Old format - License URL in drmKeyId
-                m3u.drmKeyId != null && (m3u.drmKeyId.startsWith("http://", ignoreCase = true) || 
-                    m3u.drmKeyId.startsWith("https://", ignoreCase = true)) -> {
+            if (m3u.drmKeyId != null && m3u.drmKey != null) {
+                if (m3u.drmKeyId.startsWith("http://", ignoreCase = true) || 
+                    m3u.drmKeyId.startsWith("https://", ignoreCase = true)) {
                     parts.add("drmLicense=${m3u.drmKeyId}")
-                }
-                // Case 3: ClearKey format - keyId:key
-                m3u.drmKeyId != null && m3u.drmKey != null -> {
+                } else {
                     parts.add("drmLicense=${m3u.drmKeyId}:${m3u.drmKey}")
                 }
             }
