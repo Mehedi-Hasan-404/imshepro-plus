@@ -46,6 +46,9 @@ class MainActivity : AppCompatActivity() {
     private var isSearchVisible = false
     private var showRefreshIcon = false
 
+    /** True when running on Android TV / Google TV. Set from values-television/booleans.xml */
+    private var isTvDevice = false
+
     companion object {
         private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
     }
@@ -57,12 +60,22 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        handleStatusBarForOrientation()
+        // Detect TV via resource qualifier (values-television/booleans.xml)
+        isTvDevice = resources.getBoolean(R.bool.is_tv_device)
 
-        setupToolbar()
-        setupDrawer()
-        setupNavigation()
-        setupSearch()
+        if (isTvDevice) {
+            // TV: full-screen, no status bar chrome needed
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+            insetsController.hide(WindowInsetsCompat.Type.statusBars())
+            setupTvNavigation()
+        } else {
+            handleStatusBarForOrientation()
+            setupToolbar()
+            setupDrawer()
+            setupNavigation()
+            setupSearch()
+        }
     }
 
     private fun handleStatusBarForOrientation() {
@@ -99,8 +112,150 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         drawerToggle?.onConfigurationChanged(newConfig)
-        handleStatusBarForOrientation()
+        if (!isTvDevice) handleStatusBarForOrientation()
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    //  TV NAVIGATION  (Google TV-style top tab bar)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private fun setupTvNavigation() {
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment ?: return
+        val navController = navHostFragment.navController
+
+        val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
+            R.id.drawer_layout
+        )
+        val navigationView = binding.root.findViewById<com.google.android.material.navigation.NavigationView>(
+            R.id.navigation_view
+        )
+
+        // Map tab view IDs → destination IDs
+        val tabDestinations = mapOf(
+            R.id.tv_tab_live      to R.id.liveEventsFragment,
+            R.id.tv_tab_home      to R.id.homeFragment,
+            R.id.tv_tab_sports    to R.id.sportsFragment,
+            R.id.tv_tab_favorites to R.id.favoritesFragment
+        )
+
+        fun selectTab(selectedDestId: Int) {
+            tabDestinations.forEach { (viewId, destId) ->
+                val tab = binding.root.findViewById<android.widget.TextView>(viewId) ?: return@forEach
+                tab.isSelected = destId == selectedDestId
+            }
+        }
+
+        fun navigate(destinationId: Int) {
+            val currentId = navController.currentDestination?.id ?: return
+            if (currentId == destinationId) return
+            val navOptions = NavOptions.Builder()
+                .setPopUpTo(navController.graph.startDestinationId, false)
+                .setLaunchSingleTop(true)
+                .build()
+            navController.navigate(destinationId, null, navOptions)
+        }
+
+        // Wire tab click listeners
+        tabDestinations.forEach { (viewId, destId) ->
+            binding.root.findViewById<android.widget.TextView>(viewId)?.setOnClickListener {
+                navigate(destId)
+            }
+        }
+
+        // Avatar opens the drawer (like the profile avatar in Google TV)
+        binding.root.findViewById<android.widget.ImageView>(R.id.tv_avatar)
+            ?.setOnClickListener {
+                drawerLayout?.openDrawer(GravityCompat.START)
+            }
+
+        // Wire NavigationView item selection (same logic as phone)
+        val topLevelDestinations = setOf(
+            R.id.homeFragment,
+            R.id.liveEventsFragment,
+            R.id.sportsFragment
+        )
+        navigationView?.setNavigationItemSelectedListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.floating_player_settings -> {
+                    showFloatingPlayerDialog()
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    true
+                }
+                R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    drawerLayout?.postDelayed({
+                        navController.navigate(menuItem.itemId)
+                    }, 250)
+                    true
+                }
+                else -> {
+                    if (menuItem.itemId in topLevelDestinations) navigate(menuItem.itemId)
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    true
+                }
+            }
+        }
+
+        // Sync tab highlight when destination changes
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            val activeDestId = when (destination.id) {
+                R.id.categoryChannelsFragment -> R.id.homeFragment
+                else -> destination.id
+            }
+            selectTab(activeDestId)
+        }
+
+        // Select start tab on launch
+        selectTab(navController.graph.startDestinationId)
+
+        // Wire search button
+        binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search)
+            ?.setOnClickListener { showTvSearch() }
+
+        // Wire search view
+        val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
+        val tvClearBtn = binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)
+
+        tvSearchView?.setOnQueryTextListener(object :
+            androidx.appcompat.widget.SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?) = true
+            override fun onQueryTextChange(newText: String?): Boolean {
+                newText?.let { query ->
+                    val nhf = supportFragmentManager
+                        .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+                    val frag = nhf?.childFragmentManager?.fragments?.firstOrNull()
+                    if (frag is SearchableFragment) frag.onSearchQuery(query)
+                    tvClearBtn?.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
+                }
+                return true
+            }
+        })
+
+        tvClearBtn?.setOnClickListener { tvSearchView?.setQuery("", false) }
+    }
+
+    private fun showTvSearch() {
+        isSearchVisible = true
+        val tvSearchBar = binding.root.findViewById<android.view.View>(R.id.tv_search_bar)
+        tvSearchBar?.visibility = View.VISIBLE
+        val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
+        tvSearchView?.isIconified = false
+        tvSearchView?.requestFocus()
+    }
+
+    private fun hideTvSearch() {
+        isSearchVisible = false
+        val tvSearchBar = binding.root.findViewById<android.view.View>(R.id.tv_search_bar)
+        tvSearchBar?.visibility = View.GONE
+        val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
+        tvSearchView?.setQuery("", false)
+        tvSearchView?.clearFocus()
+        binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)
+            ?.visibility = View.GONE
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
@@ -108,11 +263,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        // TV has no options menu / toolbar overflow
+        if (isTvDevice) return false
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        if (isTvDevice) return false
         menu.findItem(R.id.action_refresh)?.isVisible = showRefreshIcon
         return super.onPrepareOptionsMenu(menu)
     }
@@ -134,9 +292,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupDrawer() {
+        val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
+            R.id.drawer_layout
+        ) ?: return
+
         drawerToggle = ActionBarDrawerToggle(
             this,
-            binding.drawerLayout,
+            drawerLayout,
             binding.toolbar,
             R.string.navigation_drawer_open,
             R.string.navigation_drawer_close
@@ -146,9 +308,7 @@ class MainActivity : AppCompatActivity() {
             syncState()
         }
 
-        drawerToggle?.let {
-            binding.drawerLayout.addDrawerListener(it)
-        }
+        drawerToggle?.let { drawerLayout.addDrawerListener(it) }
     }
 
     private fun setupNavigation() {
@@ -156,6 +316,14 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment ?: return
 
         val navController = navHostFragment.navController
+
+        // Null-safe references — these views only exist in the phone layout
+        val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
+            R.id.drawer_layout
+        )
+        val navigationView = binding.root.findViewById<com.google.android.material.navigation.NavigationView>(
+            R.id.navigation_view
+        )
 
         val topLevelDestinations = setOf(
             R.id.homeFragment,
@@ -177,16 +345,16 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.navigationView.setNavigationItemSelectedListener { menuItem ->
+        navigationView?.setNavigationItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.floating_player_settings -> {
                     showFloatingPlayerDialog()
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    drawerLayout?.closeDrawer(GravityCompat.START)
                     true
                 }
                 R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment -> {
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                    binding.drawerLayout.postDelayed({
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    drawerLayout?.postDelayed({
                         navController.navigate(menuItem.itemId)
                     }, 250)
                     true
@@ -195,7 +363,7 @@ class MainActivity : AppCompatActivity() {
                     if (menuItem.itemId in topLevelDestinations) {
                         navigateTopLevel(menuItem.itemId)
                     }
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    drawerLayout?.closeDrawer(GravityCompat.START)
                     true
                 }
             }
@@ -245,21 +413,21 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (isTopLevel) {
-                binding.drawerLayout.setDrawerLockMode(
+                drawerLayout?.setDrawerLockMode(
                     androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED
                 )
                 drawerToggle?.isDrawerIndicatorEnabled = true
                 animateNavigationIcon(0f)
                 binding.toolbar.setNavigationOnClickListener {
-                    if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                        binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    if (drawerLayout?.isDrawerOpen(GravityCompat.START) == true) {
+                        drawerLayout.closeDrawer(GravityCompat.START)
                     } else {
-                        binding.drawerLayout.openDrawer(GravityCompat.START)
+                        drawerLayout?.openDrawer(GravityCompat.START)
                     }
                 }
                 binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
             } else {
-                binding.drawerLayout.setDrawerLockMode(
+                drawerLayout?.setDrawerLockMode(
                     androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED
                 )
                 drawerToggle?.isDrawerIndicatorEnabled = true
@@ -417,10 +585,14 @@ class MainActivity : AppCompatActivity() {
 
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
+        val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
+            R.id.drawer_layout
+        )
         when {
-            isSearchVisible -> hideSearch()
-            binding.drawerLayout.isDrawerOpen(GravityCompat.START) ->
-                binding.drawerLayout.closeDrawer(GravityCompat.START)
+            drawerLayout?.isDrawerOpen(GravityCompat.START) == true ->
+                drawerLayout.closeDrawer(GravityCompat.START)
+            isTvDevice && isSearchVisible -> hideTvSearch()
+            !isTvDevice && isSearchVisible -> hideSearch()
             else -> {
                 @Suppress("DEPRECATION")
                 super.onBackPressed()
