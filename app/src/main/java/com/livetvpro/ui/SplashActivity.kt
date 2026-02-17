@@ -118,8 +118,23 @@ class SplashActivity : AppCompatActivity() {
         listOf(bar1, bar2, bar3, bar4, bar5).forEach { it.scaleY = 1f }
     }
 
+    private fun isFireTvDevice(): Boolean {
+        return try {
+            packageManager.getPackageInfo(
+                "com.amazon.tv.leanbacklauncher",
+                android.content.pm.PackageManager.GET_ACTIVITIES
+            )
+            true
+        } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+
     private fun navigateToMain() {
-        startActivity(Intent(this, MainActivity::class.java))
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra(MainActivity.EXTRA_IS_FIRE_TV, isFireTvDevice())
+        }
+        startActivity(intent)
         finish()
     }
 }
