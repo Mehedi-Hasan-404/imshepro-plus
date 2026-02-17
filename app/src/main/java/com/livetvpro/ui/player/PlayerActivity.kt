@@ -663,7 +663,7 @@ class PlayerActivity : AppCompatActivity() {
                     // Chips show only when controls are visible AND not locked.
                     LaunchedEffect(controlsState.isVisible, controlsState.isLocked, isLandscape) {
                         if (isLandscape) {
-                            val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
+                            val landscapeLinksRecycler = binding.root.findViewById<RecyclerView>(R.id.exo_links_recycler)
                             val chipsVisible = controlsState.isVisible && !controlsState.isLocked
                             landscapeLinksRecycler?.visibility = if (chipsVisible) View.VISIBLE else View.GONE
                         }
@@ -949,7 +949,7 @@ class PlayerActivity : AppCompatActivity() {
         portraitLinksRecycler.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
         portraitLinksRecycler.adapter = linkChipAdapter
 
-        val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeLinksRecycler = binding.root.findViewById<RecyclerView>(R.id.exo_links_recycler)
         landscapeLinksRecycler?.layoutManager = LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
 
         // The RecyclerView is inside player_container (ConstraintLayout) with width="0dp"
@@ -996,7 +996,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun updateLinksForOrientation(isLandscape: Boolean) {
-        val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeLinksRecycler = binding.root.findViewById<RecyclerView>(R.id.exo_links_recycler)
 
         if (allEventLinks.size > 1) {
             if (isLandscape) {
@@ -1142,7 +1142,7 @@ class PlayerActivity : AppCompatActivity() {
         
         linkChipAdapter.setSelectedPosition(position)
         
-        val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
+        val landscapeLinksRecycler = binding.root.findViewById<RecyclerView>(R.id.exo_links_recycler)
         val landscapeAdapter = landscapeLinksRecycler?.adapter as? LinkChipAdapter
         landscapeAdapter?.setSelectedPosition(position)
         
@@ -1628,8 +1628,9 @@ class PlayerActivity : AppCompatActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
 
-        // Calculate explicit pixel height from actual screen width (like the Compose/ExoPlayer
-        // sample pattern) — avoids dimensionRatio fighting with Compose measurement.
+        // Explicit pixel height from screen width: no dimensionRatio, no Compose conflict.
+        // ComposeView is now a sibling overlay (not inside player_container) so
+        // MATCH_PARENT width works correctly here.
         val screenWidth = resources.displayMetrics.widthPixels
         val playerHeight = screenWidth * 9 / 16
 
