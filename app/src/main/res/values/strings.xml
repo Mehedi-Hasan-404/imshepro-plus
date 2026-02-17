@@ -4,7 +4,7 @@
     <string name="app_name">Live TV Pro</string>
 
     <!-- Navigation -->
-    <string name="nav_home">Home</string>
+    <string name="nav_home">Categories</string>
     <string name="nav_live">Live</string>
     <string name="nav_contact">Contact</string>
     <string name="nav_sports">Sports</string>
