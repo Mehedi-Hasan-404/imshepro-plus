@@ -99,10 +99,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private val skipMs = 10_000L
     private var userRequestedPip = false
     
-    // Network streams use orientation-based resize mode
-    private var networkPortraitResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-    private var networkLandscapeResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
-    
     private var pipReceiver: BroadcastReceiver? = null
     private var wasLockedBeforePip = false
 
@@ -125,10 +121,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         private const val EXTRA_CHANNEL = "extra_channel"
         private const val EXTRA_EVENT = "extra_event"
         private const val EXTRA_SELECTED_LINK_INDEX = "extra_selected_link_index"
-        
-        // UPDATED: Metadata keys for random channel loading
-        private const val EXTRA_CATEGORY_ID = "extra_category_id"
-        private const val EXTRA_SELECTED_GROUP = "extra_selected_group"
         private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
         private const val EXTRA_CONTROL_TYPE = "control_type"
         private const val CONTROL_TYPE_PLAY = 1
@@ -136,13 +128,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         private const val CONTROL_TYPE_REWIND = 3
         private const val CONTROL_TYPE_FORWARD = 4
 
-        fun startWithChannel(
-            context: Context, 
-            channel: Channel, 
-            linkIndex: Int = -1,
-            categoryId: String? = null,
-            selectedGroup: String? = null
-        ) {
+        fun startWithChannel(context: Context, channel: Channel, linkIndex: Int = -1) {
             val intent = Intent(context, FloatingPlayerActivity::class.java).apply {
                 putExtra(EXTRA_CHANNEL, channel as Parcelable)
                 putExtra(EXTRA_SELECTED_LINK_INDEX, linkIndex)
@@ -224,7 +210,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
         setupWindowInsets()
-        applyResizeModeForOrientation(isLandscape)
         
         if (!isLandscape) {
             exitFullscreen()
@@ -422,7 +407,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
     adjustPlayerContainerForOrientation(isLandscape)
     setupWindowFlags(isLandscape)
     setupSystemUI(isLandscape)
-    applyResizeModeForOrientation(isLandscape)
     applyOrientationSettings(isLandscape)
     setSubtitleTextSize()
     
@@ -431,43 +415,15 @@ class FloatingPlayerActivity : AppCompatActivity() {
             if (player?.playbackState != Player.STATE_BUFFERING) {
                 binding.playerView.showController()
             }
-        }, 150)
+        }, 100)
     } else if (isBuffering) {
         binding.playerView.hideController()
     }
 
-    // FIX: Comprehensive visibility and layout fix for landscape rotation
     binding.root.post {
-        // Force all player-related views to be VISIBLE
-        binding.root.visibility = View.VISIBLE
-        binding.playerContainer.visibility = View.VISIBLE
-        binding.playerView.visibility = View.VISIBLE
-        binding.playerControlsCompose.visibility = View.VISIBLE
-        
-        // Force layout recalculation
         binding.root.requestLayout()
         binding.playerContainer.requestLayout()
         binding.playerView.requestLayout()
-        binding.playerControlsCompose.requestLayout()
-        
-        // Re-attach player to ensure surface is connected
-        player?.let { exoPlayer ->
-            binding.playerView.player = null
-            binding.playerView.player = exoPlayer
-        }
-        
-        // Show controls after layout is complete (with a small delay to ensure everything is rendered)
-        if (isLandscape) {
-            binding.root.postDelayed({
-                try {
-                    controlsState.show(lifecycleScope)
-                    // Also force playerView to invalidate its surface
-                    binding.playerView.invalidate()
-                } catch (e: Exception) {
-                    // Ignore if controls can't be shown
-                }
-            }, 150)
-        }
     }
 }
 
@@ -485,15 +441,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         }
 
         binding.playerContainer.layoutParams = containerParams
-    }
-
-    /** Applies orientation-based resize mode ONLY for network streams. */
-    private fun applyResizeModeForOrientation(isLandscape: Boolean) {
-        if (contentType == ContentType.NETWORK_STREAM) {
-            binding.playerView.resizeMode =
-                if (isLandscape) networkLandscapeResizeMode else networkPortraitResizeMode
-        }
-        // For CHANNEL and EVENT, XML resize_mode="fill" is used (like Floating Player Service)
     }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
@@ -900,15 +847,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
-                    // UPDATED: Get metadata from intent
-                    val categoryId = intent.getStringExtra(EXTRA_CATEGORY_ID)
-                    val selectedGroup = intent.getStringExtra(EXTRA_SELECTED_GROUP)
-                    
-                    viewModel.loadRandomRelatedChannels(
-                        categoryId = categoryId ?: channel.categoryId,
-                        currentChannelId = channel.id,
-                        groupFilter = selectedGroup
-                    )
+                    viewModel.loadRelatedChannels(channel.categoryId, channel.id)
                 }
             }
             ContentType.EVENT -> {
@@ -1294,9 +1233,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 .setSeekForwardIncrementMs(skipMs)
                 .build().also { exo ->
                     binding.playerView.player = exo
-                    applyResizeModeForOrientation(
-                        resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                    )
                     
                     binding.playerView.hideController()
                     
@@ -1308,7 +1244,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         mediaItemBuilder.setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
                     }
                     
-                    if (streamInfo.drmScheme != null) {
+                    // FIX: Add DRM configuration to MediaItem if DRM is used
+                    if (streamInfo.drmScheme != null && streamInfo.drmLicenseUrl != null) {
                         val drmUuid = when (streamInfo.drmScheme) {
                             "widevine" -> C.WIDEVINE_UUID
                             "playready" -> C.PLAYREADY_UUID
@@ -1317,10 +1254,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         }
                         
                         val drmConfigBuilder = MediaItem.DrmConfiguration.Builder(drmUuid)
-                        
-                        if (streamInfo.drmLicenseUrl != null) {
-                            drmConfigBuilder.setLicenseUri(streamInfo.drmLicenseUrl)
-                        }
+                            .setLicenseUri(streamInfo.drmLicenseUrl)
                         
                         mediaItemBuilder.setDrmConfiguration(drmConfigBuilder.build())
                     }
@@ -1699,7 +1633,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 
     private fun cycleAspectRatio() {
-        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val current = binding.playerView.resizeMode
         val next = when (current) {
             AspectRatioFrameLayout.RESIZE_MODE_FIT   -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
@@ -1707,13 +1640,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
             AspectRatioFrameLayout.RESIZE_MODE_FILL  -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
             else                                     -> AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
-        
-        // Update network stream mode variables if applicable
-        if (contentType == ContentType.NETWORK_STREAM) {
-            if (isLandscape) networkLandscapeResizeMode = next 
-            else networkPortraitResizeMode = next
-        }
-        
         binding.playerView.resizeMode = next
     }
 
