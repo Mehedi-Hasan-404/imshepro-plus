@@ -83,7 +83,7 @@
                         android:background="@android:color/transparent"
                         android:visibility="gone"
                         app:iconifiedByDefault="false"
-                        app:queryHint="Search channels..."
+                        app:queryHint="Search something..."
                         app:searchIcon="@null"
                         app:closeIcon="@null"
                         app:queryBackground="@android:color/transparent"
