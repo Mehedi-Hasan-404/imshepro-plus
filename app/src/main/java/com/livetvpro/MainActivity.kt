@@ -1,25 +1,35 @@
 package com.livetvpro
 
+import android.animation.ValueAnimator
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.Menu
 import android.view.MenuItem
 import android.view.View
-import android.widget.Toast
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.GravityCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.navigation.NavOptions
 import androidx.navigation.fragment.NavHostFragment
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.local.ThemeManager
 import com.livetvpro.databinding.ActivityMainBinding
 import com.livetvpro.ui.player.dialogs.FloatingPlayerDialog
+import com.livetvpro.utils.Refreshable
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 import javax.inject.Inject
+
+interface SearchableFragment {
+    fun onSearchQuery(query: String)
+}
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -33,7 +43,8 @@ class MainActivity : AppCompatActivity() {
     lateinit var themeManager: ThemeManager
 
     private var drawerToggle: ActionBarDrawerToggle? = null
-    private var currentSearchQuery: String = ""
+    private var isSearchVisible = false
+    private var showRefreshIcon = false
 
     companion object {
         private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
@@ -42,230 +53,232 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        try {
-            Timber.d("MainActivity onCreate started")
+        window.statusBarColor = android.graphics.Color.BLACK
 
-            themeManager.applyTheme()
+        themeManager.applyTheme()
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-            binding = ActivityMainBinding.inflate(layoutInflater)
-            setContentView(binding.root)
+        handleStatusBarForOrientation()
 
-            window.statusBarColor = android.graphics.Color.BLACK
+        setupToolbar()
+        setupDrawer()
+        setupNavigation()
+        setupSearch()
+    }
 
-            setupToolbar()
-            setupNavigation()
-            setupDrawer()
-            setupSearch()
+    private fun handleStatusBarForOrientation() {
+        val isLandscape = resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
 
-            Timber.d("MainActivity onCreate completed successfully")
-        } catch (e: Exception) {
-            Timber.e(e, "FATAL: Error in MainActivity onCreate")
-            e.printStackTrace()
-            Toast.makeText(this, "Error starting app: ${e.message}", Toast.LENGTH_LONG).show()
+        if (isLandscape) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
+            windowInsetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode =
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        } else {
+            WindowCompat.setDecorFitsSystemWindows(window, true)
+            windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
+            windowInsetsController.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                window.attributes.layoutInDisplayCutoutMode =
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT
+            }
         }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        drawerToggle?.onConfigurationChanged(newConfig)
+        handleStatusBarForOrientation()
     }
 
     private fun setupToolbar() {
-        try {
-            setSupportActionBar(binding.toolbar)
-            supportActionBar?.setDisplayShowTitleEnabled(false)
-            supportActionBar?.setDisplayHomeAsUpEnabled(true)
-            Timber.d("Toolbar setup complete")
-        } catch (e: Exception) {
-            Timber.e(e, "Error setting up toolbar")
-            throw e
-        }
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
     }
 
-    private fun setupNavigation() {
-        try {
-            Timber.d("Setting up navigation")
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
 
-            val navHostFragment = supportFragmentManager
-                .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+    override fun onPrepareOptionsMenu(menu: Menu): Boolean {
+        menu.findItem(R.id.action_refresh)?.isVisible = showRefreshIcon
+        return super.onPrepareOptionsMenu(menu)
+    }
 
-            if (navHostFragment == null) {
-                Timber.e("NavHostFragment not found!")
-                Toast.makeText(this, "Navigation error - Fragment not found", Toast.LENGTH_LONG).show()
-                return
-            }
-
-            val navController = navHostFragment.navController
-
-            val topLevelDestinations = setOf(
-                R.id.homeFragment,
-                R.id.liveEventsFragment,
-                R.id.sportsFragment
-            )
-
-            // Drawer navigation
-            binding.navigationView.setNavigationItemSelectedListener { menuItem ->
-                when (menuItem.itemId) {
-                    R.id.homeFragment -> {
-                        if (navController.currentDestination?.id != R.id.homeFragment) {
-                            if (!navController.popBackStack(R.id.homeFragment, false)) {
-                                navController.navigate(R.id.homeFragment)
-                            }
-                        }
-                    }
-                    R.id.liveEventsFragment -> {
-                        if (navController.currentDestination?.id != R.id.liveEventsFragment) {
-                            navController.navigate(R.id.liveEventsFragment)
-                        }
-                    }
-                    R.id.sportsFragment -> {
-                        if (navController.currentDestination?.id != R.id.sportsFragment) {
-                            navController.navigate(R.id.sportsFragment)
-                        }
-                    }
-                    R.id.contactFragment -> {
-                        if (navController.currentDestination?.id != R.id.contactFragment) {
-                            navController.navigate(R.id.contactFragment)
-                        }
-                    }
-                    R.id.networkStreamFragment -> {
-                        if (navController.currentDestination?.id != R.id.networkStreamFragment) {
-                            navController.navigate(R.id.networkStreamFragment)
-                        }
-                    }
-                    R.id.playlistsFragment -> {
-                        if (navController.currentDestination?.id != R.id.playlistsFragment) {
-                            navController.navigate(R.id.playlistsFragment)
-                        }
-                    }
-                    R.id.floating_player_settings -> {
-                        showFloatingPlayerDialog()
-                    }
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_refresh -> {
+                val navHostFragment = supportFragmentManager
+                    .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+                val currentFragment =
+                    navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
+                if (currentFragment is Refreshable) {
+                    currentFragment.refreshData()
                 }
-                binding.drawerLayout.closeDrawer(GravityCompat.START)
                 true
             }
-
-            // Bottom navigation
-            binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
-                when (menuItem.itemId) {
-                    R.id.homeFragment -> {
-                        if (navController.currentDestination?.id != R.id.homeFragment) {
-                            if (!navController.popBackStack(R.id.homeFragment, false)) {
-                                navController.navigate(R.id.homeFragment)
-                            }
-                        }
-                        true
-                    }
-                    R.id.liveEventsFragment -> {
-                        if (navController.currentDestination?.id != R.id.liveEventsFragment) {
-                            navController.navigate(R.id.liveEventsFragment)
-                        }
-                        true
-                    }
-                    R.id.sportsFragment -> {
-                        if (navController.currentDestination?.id != R.id.sportsFragment) {
-                            navController.navigate(R.id.sportsFragment)
-                        }
-                        true
-                    }
-                    else -> false
-                }
-            }
-
-            // Destination change listener
-            navController.addOnDestinationChangedListener { _, destination, _ ->
-                binding.toolbarTitle.text = when (destination.id) {
-                    R.id.homeFragment -> "Categories"
-                    R.id.categoryChannelsFragment -> "Channels"
-                    R.id.liveEventsFragment -> "Live Events"
-                    R.id.favoritesFragment -> "Favorites"
-                    R.id.sportsFragment -> "Sports"
-                    R.id.contactFragment -> "Contact"
-                    R.id.networkStreamFragment -> "Network Stream"
-                    R.id.playlistsFragment -> "Playlists"
-                    else -> "Live TV Pro"
-                }
-
-                val isTopLevel = destination.id in topLevelDestinations
-                val isNetworkStream = destination.id == R.id.networkStreamFragment
-
-                if (isTopLevel) {
-                    drawerToggle?.isDrawerIndicatorEnabled = true
-                    supportActionBar?.setDisplayHomeAsUpEnabled(true)
-                    drawerToggle?.syncState()
-                    binding.drawerLayout.setDrawerLockMode(
-                        androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED
-                    )
-                    binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
-                } else {
-                    drawerToggle?.isDrawerIndicatorEnabled = false
-                    supportActionBar?.setDisplayHomeAsUpEnabled(true)
-                    supportActionBar?.setHomeAsUpIndicator(R.drawable.ic_arrow_back)
-                    binding.drawerLayout.setDrawerLockMode(
-                        androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED
-                    )
-                    binding.toolbar.setNavigationOnClickListener {
-                        navController.navigateUp()
-                    }
-                }
-
-                binding.btnFavorites.visibility = if (isNetworkStream) View.GONE else View.VISIBLE
-
-                if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
-                }
-            }
-
-            // Favorites button
-            binding.btnFavorites.setOnClickListener {
-                if (navController.currentDestination?.id != R.id.favoritesFragment) {
-                    navController.navigate(R.id.favoritesFragment)
-                }
-            }
-
-            Timber.d("Navigation setup complete")
-        } catch (e: Exception) {
-            Timber.e(e, "Error setting up navigation")
-            Toast.makeText(this, "Navigation setup failed: ${e.message}", Toast.LENGTH_LONG).show()
+            else -> super.onOptionsItemSelected(item)
         }
     }
 
     private fun setupDrawer() {
-        try {
-            drawerToggle = ActionBarDrawerToggle(
-                this,
-                binding.drawerLayout,
-                binding.toolbar,
-                R.string.navigation_drawer_open,
-                R.string.navigation_drawer_close
-            ).apply {
-                isDrawerIndicatorEnabled = true
-                syncState()
-            }
+        drawerToggle = ActionBarDrawerToggle(
+            this,
+            binding.drawerLayout,
+            binding.toolbar,
+            R.string.navigation_drawer_open,
+            R.string.navigation_drawer_close
+        ).apply {
+            isDrawerIndicatorEnabled = true
+            isDrawerSlideAnimationEnabled = true
+            syncState()
+        }
 
-            drawerToggle?.let {
-                binding.drawerLayout.addDrawerListener(it)
-            }
-
-            Timber.d("Drawer setup complete")
-        } catch (e: Exception) {
-            Timber.e(e, "Error setting up drawer")
-            Toast.makeText(this, "Drawer setup failed: ${e.message}", Toast.LENGTH_SHORT).show()
+        drawerToggle?.let {
+            binding.drawerLayout.addDrawerListener(it)
         }
     }
 
-    private fun setupSearch() {
-        try {
-            binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean {
-                    currentSearchQuery = query ?: ""
-                    return true
-                }
+    private fun setupNavigation() {
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment ?: return
 
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    currentSearchQuery = newText ?: ""
-                    return true
+        val navController = navHostFragment.navController
+
+        val topLevelDestinations = setOf(
+            R.id.homeFragment,
+            R.id.liveEventsFragment,
+            R.id.sportsFragment
+        )
+
+        val graphStartDestinationId = navController.graph.startDestinationId
+
+        val navigateTopLevel = { destinationId: Int ->
+            val currentId = navController.currentDestination?.id ?: graphStartDestinationId
+            if (currentId != destinationId) {
+                val navOptions = NavOptions.Builder()
+                    .setPopUpTo(currentId, true)
+                    .setLaunchSingleTop(true)
+                    .setRestoreState(true)
+                    .build()
+                navController.navigate(destinationId, null, navOptions)
+            }
+        }
+
+        binding.navigationView.setNavigationItemSelectedListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.floating_player_settings -> {
+                    showFloatingPlayerDialog()
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    true
                 }
-            })
-            Timber.d("Search setup complete")
-        } catch (e: Exception) {
-            Timber.e(e, "Error setting up search")
+                R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment -> {
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    binding.drawerLayout.postDelayed({
+                        navController.navigate(menuItem.itemId)
+                    }, 250)
+                    true
+                }
+                else -> {
+                    if (menuItem.itemId in topLevelDestinations) {
+                        navigateTopLevel(menuItem.itemId)
+                    }
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    true
+                }
+            }
+        }
+
+        binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
+            if (menuItem.itemId in topLevelDestinations) {
+                navigateTopLevel(menuItem.itemId)
+                return@setOnItemSelectedListener true
+            }
+            return@setOnItemSelectedListener false
+        }
+
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            binding.toolbarTitle.text = when (destination.id) {
+                R.id.homeFragment -> "Categories"
+                R.id.categoryChannelsFragment -> "Channels"
+                R.id.liveEventsFragment -> "Live Events"
+                R.id.favoritesFragment -> "Favorites"
+                R.id.sportsFragment -> "Sports"
+                R.id.contactFragment -> "Contact"
+                R.id.networkStreamFragment -> "Network Stream"
+                R.id.playlistsFragment -> "Playlists"
+                else -> "Live TV Pro"
+            }
+
+            showRefreshIcon = when (destination.id) {
+                R.id.homeFragment,
+                R.id.liveEventsFragment,
+                R.id.sportsFragment,
+                R.id.categoryChannelsFragment,
+                R.id.playlistsFragment,
+                R.id.favoritesFragment -> true
+                else -> false
+            }
+            invalidateOptionsMenu()
+
+            val isTopLevel = destination.id in topLevelDestinations
+            val isNetworkStream = destination.id == R.id.networkStreamFragment
+
+            if (isNetworkStream) {
+                binding.btnSearch.visibility = View.GONE
+                binding.btnFavorites.visibility = View.GONE
+            } else {
+                binding.btnSearch.visibility = View.VISIBLE
+                binding.btnFavorites.visibility = View.VISIBLE
+            }
+
+            if (isTopLevel) {
+                binding.drawerLayout.setDrawerLockMode(
+                    androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_UNLOCKED
+                )
+                drawerToggle?.isDrawerIndicatorEnabled = true
+                animateNavigationIcon(0f)
+                binding.toolbar.setNavigationOnClickListener {
+                    if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                        binding.drawerLayout.closeDrawer(GravityCompat.START)
+                    } else {
+                        binding.drawerLayout.openDrawer(GravityCompat.START)
+                    }
+                }
+                binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
+            } else {
+                binding.drawerLayout.setDrawerLockMode(
+                    androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED
+                )
+                drawerToggle?.isDrawerIndicatorEnabled = true
+                binding.toolbar.post {
+                    animateNavigationIcon(1f)
+                }
+                binding.toolbar.setNavigationOnClickListener {
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+
+            if (isSearchVisible) {
+                hideSearch()
+            }
+        }
+
+        binding.btnFavorites.setOnClickListener {
+            if (navController.currentDestination?.id != R.id.favoritesFragment) {
+                navController.navigate(R.id.favoritesFragment)
+            }
         }
     }
 
@@ -289,42 +302,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        if (drawerToggle?.isDrawerIndicatorEnabled == true) {
-            if (drawerToggle?.onOptionsItemSelected(item) == true) {
-                return true
-            }
-        }
-        return super.onOptionsItemSelected(item)
-    }
-
-    override fun onSupportNavigateUp(): Boolean {
-        val navHostFragment = supportFragmentManager
-            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
-        val navController = navHostFragment?.navController
-        return navController?.navigateUp() ?: false || super.onSupportNavigateUp()
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-            binding.drawerLayout.closeDrawer(GravityCompat.START)
-        } else {
-            @Suppress("DEPRECATION")
-            super.onBackPressed()
-        }
-    }
-
-    override fun onPostCreate(savedInstanceState: Bundle?) {
-        super.onPostCreate(savedInstanceState)
-        drawerToggle?.syncState()
-    }
-
-    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
-        super.onConfigurationChanged(newConfig)
-        drawerToggle?.onConfigurationChanged(newConfig)
-    }
-
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         @Suppress("DEPRECATION")
@@ -336,5 +313,117 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    fun getSearchQuery(): String = currentSearchQuery
+    private fun setupSearch() {
+        binding.btnSearch.setOnClickListener {
+            showSearch()
+        }
+
+        binding.searchView.setOnQueryTextListener(object :
+            androidx.appcompat.widget.SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                return true
+            }
+
+            override fun onQueryTextChange(newText: String?): Boolean {
+                newText?.let { query ->
+                    val navHostFragment = supportFragmentManager
+                        .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+                    val currentFragment =
+                        navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
+                    if (currentFragment is SearchableFragment) {
+                        currentFragment.onSearchQuery(query)
+                    }
+                    binding.btnSearchClear.visibility =
+                        if (query.isNotEmpty()) View.VISIBLE else View.GONE
+                }
+                return true
+            }
+        })
+
+        binding.btnSearchClear.setOnClickListener {
+            binding.searchView.setQuery("", false)
+        }
+    }
+
+    private fun showSearch() {
+        isSearchVisible = true
+        binding.toolbarTitle.visibility = View.GONE
+        binding.btnSearch.visibility = View.GONE
+        binding.btnFavorites.visibility = View.GONE
+        binding.searchView.visibility = View.VISIBLE
+        binding.searchView.isIconified = false
+        binding.searchView.requestFocus()
+        animateNavigationIcon(1f)
+        binding.toolbar.setNavigationOnClickListener {
+            hideSearch()
+        }
+    }
+
+    private fun hideSearch() {
+        isSearchVisible = false
+        binding.toolbarTitle.visibility = View.VISIBLE
+        binding.btnSearch.visibility = View.VISIBLE
+        binding.btnFavorites.visibility = View.VISIBLE
+        binding.searchView.visibility = View.GONE
+        binding.btnSearchClear.visibility = View.GONE
+        binding.searchView.setQuery("", false)
+        binding.searchView.clearFocus()
+
+        val navHostFragment = supportFragmentManager
+            .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+        val currentId = navHostFragment?.navController?.currentDestination?.id
+        val topLevelDestinations = setOf(
+            R.id.homeFragment,
+            R.id.liveEventsFragment,
+            R.id.sportsFragment
+        )
+        val isTopLevel = currentId in topLevelDestinations
+
+        animateNavigationIcon(if (isTopLevel) 0f else 1f)
+
+        if (isTopLevel) {
+            binding.toolbar.setNavigationOnClickListener {
+                if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
+                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+                } else {
+                    binding.drawerLayout.openDrawer(GravityCompat.START)
+                }
+            }
+        } else {
+            binding.toolbar.setNavigationOnClickListener {
+                onBackPressedDispatcher.onBackPressed()
+            }
+        }
+    }
+
+    private fun animateNavigationIcon(endPosition: Float) {
+        val startPosition = drawerToggle?.drawerArrowDrawable?.progress ?: 0f
+        if (startPosition == endPosition) return
+        val animator = ValueAnimator.ofFloat(startPosition, endPosition)
+        animator.addUpdateListener { valueAnimator ->
+            val slideOffset = valueAnimator.animatedValue as Float
+            drawerToggle?.drawerArrowDrawable?.progress = slideOffset
+        }
+        animator.interpolator = android.view.animation.DecelerateInterpolator()
+        animator.duration = 300
+        animator.start()
+    }
+
+    override fun onPostCreate(savedInstanceState: Bundle?) {
+        super.onPostCreate(savedInstanceState)
+        drawerToggle?.syncState()
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        when {
+            isSearchVisible -> hideSearch()
+            binding.drawerLayout.isDrawerOpen(GravityCompat.START) ->
+                binding.drawerLayout.closeDrawer(GravityCompat.START)
+            else -> {
+                @Suppress("DEPRECATION")
+                super.onBackPressed()
+            }
+        }
+    }
 }
