@@ -456,11 +456,15 @@ object M3uParser {
                     val keyValue = trimmedLine.substringAfter("=").trim()
                     
                     when {
+                        // If it's a URL, it's a license server URL (for Widevine/PlayReady)
                         keyValue.startsWith("http://", ignoreCase = true) || 
                         keyValue.startsWith("https://", ignoreCase = true) -> {
-                            currentDrmKeyId = keyValue
+                            // This is a license server URL, store it in drmKey (which becomes drmLicenseUrl)
                             currentDrmKey = keyValue
+                            // Don't set currentDrmKeyId for URL-based licenses
+                            currentDrmKeyId = null
                         }
+                        // For ClearKey: keyId:key format
                         keyValue.contains(":") && !keyValue.startsWith("{") -> {
                             val parts = keyValue.split(":", limit = 2)
                             if (parts.size == 2) {
@@ -468,6 +472,7 @@ object M3uParser {
                                 currentDrmKey = parts[1].trim()
                             }
                         }
+                        // For ClearKey: JWK format
                         keyValue.startsWith("{") -> {
                             val (keyId, key) = parseJWKToKeyIdPair(keyValue)
                             if (keyId != null && key != null) {
