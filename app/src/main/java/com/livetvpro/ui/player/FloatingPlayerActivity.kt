@@ -112,6 +112,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private var streamUrl: String = ""
     private var intentCategoryId: String? = null
     private var intentSelectedGroup: String? = null
+
+    // Network streams use orientation-based resize mode: fit in portrait, fill in landscape
+    private var networkPortraitResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+    private var networkLandscapeResizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
     
     private var savedPlaybackPosition: Long = -1L
 
@@ -424,8 +428,16 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private fun applyOrientationSettings(isLandscape: Boolean) {
         adjustLayoutForOrientation(isLandscape)
         updateLinksForOrientation(isLandscape)
-        
-        
+        applyResizeModeForOrientation(isLandscape)
+    }
+
+    /** Applies orientation-based resize mode ONLY for network streams. */
+    private fun applyResizeModeForOrientation(isLandscape: Boolean) {
+        if (contentType == ContentType.NETWORK_STREAM) {
+            binding.playerView.resizeMode =
+                if (isLandscape) networkLandscapeResizeMode else networkPortraitResizeMode
+        }
+        // For CHANNEL and EVENT, XML resize_mode="fill" is used
     }
 
     private fun adjustLayoutForOrientation(isLandscape: Boolean) {
@@ -1619,12 +1631,18 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 
     private fun cycleAspectRatio() {
+        val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val current = binding.playerView.resizeMode
         val next = when (current) {
             AspectRatioFrameLayout.RESIZE_MODE_FIT   -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
             AspectRatioFrameLayout.RESIZE_MODE_ZOOM  -> AspectRatioFrameLayout.RESIZE_MODE_FILL
             AspectRatioFrameLayout.RESIZE_MODE_FILL  -> AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
             else                                     -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
+        // Persist the chosen mode per orientation for network streams
+        if (contentType == ContentType.NETWORK_STREAM) {
+            if (isLandscape) networkLandscapeResizeMode = next
+            else networkPortraitResizeMode = next
         }
         binding.playerView.resizeMode = next
     }
