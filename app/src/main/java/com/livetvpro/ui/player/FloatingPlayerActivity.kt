@@ -92,7 +92,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
     private lateinit var windowInsetsController: WindowInsetsControllerCompat
     
     // Compose controls state
-    private val controlsState = PlayerControlsState()
+    private val controlsState = PlayerControlsState(initialVisible = false)
 
     private var isInPipMode = false
     private var isMuted = false
@@ -216,27 +216,21 @@ class FloatingPlayerActivity : AppCompatActivity() {
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
         setupWindowInsets()
-        
-        if (!isLandscape) {
-            exitFullscreen()
-        }
-        
+
         parseIntent()
 
         if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
             viewModel.refreshChannelData(contentId)
         }
 
-        // Adjust player container for orientation
-        adjustPlayerContainerForOrientation(isLandscape)
+        // Apply orientation ONCE - enterFullscreen/exitFullscreen inside handle container params
+        applyOrientationSettings(isLandscape)
 
         setupComposeControls()
         setupRelatedChannels()
         setupLinksUI()
         configurePlayerInteractions()
         setupLockOverlay()
-        
-        applyOrientationSettings(isLandscape)
         
         binding.playerView.useController = false
         
@@ -411,7 +405,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
     val wasControllerVisible = binding.playerView.isControllerFullyVisible
     val isBuffering = player?.playbackState == Player.STATE_BUFFERING
     
-    adjustPlayerContainerForOrientation(isLandscape)
     setupWindowFlags(isLandscape)
     setupSystemUI(isLandscape)
     applyOrientationSettings(isLandscape)
@@ -434,23 +427,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 }
 
-    private fun adjustPlayerContainerForOrientation(isLandscape: Boolean) {
-        val containerParams = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-
-        if (isLandscape) {
-            containerParams.dimensionRatio = null
-            containerParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            containerParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-        } else {
-            // MATCH_CONSTRAINT (0dp) is required for dimensionRatio to work -
-            // WRAP_CONTENT breaks the ratio and makes the player shrink
-            containerParams.dimensionRatio = "H,16:9"
-            containerParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-            containerParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-        }
-
-        binding.playerContainer.layoutParams = containerParams
-    }
 
     private fun applyOrientationSettings(isLandscape: Boolean) {
         adjustLayoutForOrientation(isLandscape)
@@ -1528,12 +1504,12 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     val bufferedPosition = player?.bufferedPosition ?: 0L
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
                     
-                    // Auto-hide controls when playback starts
+                    // Show controls briefly when playback starts; PlayerControlsState
+                    // auto-hides after autoHideDelay (5s) via its own internal job.
                     val scope = rememberCoroutineScope()
                     LaunchedEffect(isPlaying) {
-                        if (isPlaying && controlsState.isVisible && !controlsState.isLocked) {
-                            delay(5000) // Wait 5 seconds
-                            controlsState.hide()
+                        if (isPlaying && !controlsState.isLocked) {
+                            controlsState.show(scope)
                         }
                     }
                     
