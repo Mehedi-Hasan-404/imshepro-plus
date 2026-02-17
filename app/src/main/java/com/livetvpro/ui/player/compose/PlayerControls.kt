@@ -149,21 +149,24 @@ fun PlayerControls(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(state.isVisible, state.isLocked) {
-                detectTapGestures(
-                    onTap = {
-                        // No exclusion needed - RecyclerView is out of the way!
-                        if (state.isLocked) {
-                            // When locked, tapping toggles lock overlay visibility
-                            state.toggle(scope)
-                        } else {
-                            // When unlocked, tapping toggles controls
-                            state.toggle(scope)
-                        }
-                    }
-                )
-            }
     ) {
+        // Background tap layer — sits BEHIND all controls so button clicks are never stolen.
+        // pointerInput + detectTapGestures on a parent consumes events before children;
+        // using a separate background Box that is drawn first (lower z-order) avoids this.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    if (state.isLocked) {
+                        state.toggle(scope)
+                    } else {
+                        state.toggle(scope)
+                    }
+                }
+        )
         // Lock overlay — shown/hidden independently via isLockOverlayVisible
         // (toggled by tapping the screen while locked; auto-hides after delay)
         AnimatedVisibility(
