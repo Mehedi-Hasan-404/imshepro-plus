@@ -363,22 +363,29 @@ class FloatingPlayerActivity : AppCompatActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
             binding.root.setOnApplyWindowInsetsListener { view, insets ->
                 val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-                
+
+                // playerContainer must NEVER receive padding — padding shrinks the PlayerView
+                // inside the container, making it visually smaller than its measured 16:9 box.
+                // FloatingPlayerService has zero padding on its WindowManager window; we match that.
+                binding.playerContainer.setPadding(0, 0, 0, 0)
+
                 if (isLandscape) {
-                    binding.playerContainer.setPadding(0, 0, 0, 0)
+                    // Landscape: system bars hidden via insets controller, root also zero-padded
+                    binding.root.setPadding(0, 0, 0, 0)
                 } else {
+                    // Portrait (channel / event): push the ROOT so the status bar sits above the
+                    // layout naturally. playerContainer stays at 0 padding so the PlayerView
+                    // fills its full 16:9 measured area — same as the floating window.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        val systemBars = insets.getInsets(WindowInsets.Type.systemBars())
+                        val systemBars   = insets.getInsets(WindowInsets.Type.systemBars())
                         val displayCutout = insets.displayCutout
-                        
-                        val topPadding = maxOf(systemBars.top, displayCutout?.safeInsetTop ?: 0)
-                        val leftPadding = maxOf(systemBars.left, displayCutout?.safeInsetLeft ?: 0)
-                        val rightPadding = maxOf(systemBars.right, displayCutout?.safeInsetRight ?: 0)
-                        
-                        binding.playerContainer.setPadding(leftPadding, topPadding, rightPadding, 0)
+                        val topPadding   = maxOf(systemBars.top,   displayCutout?.safeInsetTop    ?: 0)
+                        val leftPadding  = maxOf(systemBars.left,  displayCutout?.safeInsetLeft   ?: 0)
+                        val rightPadding = maxOf(systemBars.right, displayCutout?.safeInsetRight  ?: 0)
+                        binding.root.setPadding(leftPadding, topPadding, rightPadding, 0)
                     } else {
                         @Suppress("DEPRECATION")
-                        binding.playerContainer.setPadding(
+                        binding.root.setPadding(
                             insets.systemWindowInsetLeft,
                             insets.systemWindowInsetTop,
                             insets.systemWindowInsetRight,
@@ -386,7 +393,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         )
                     }
                 }
-                
+
                 insets
             }
         }
@@ -458,7 +465,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         } else {
             
             if (contentType == ContentType.NETWORK_STREAM) {
-                // Network stream portrait: match FloatingPlayerService fully-expanded size (400dp × 225dp, 16:9)
                 val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
                 params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
                 params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -467,24 +473,11 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
                 params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
                 params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-                params.dimensionRatio = "H,16:9"
-                params.matchConstraintMaxWidth = dpToPx(400)
-                params.matchConstraintMaxHeight = dpToPx(225)
-                params.matchConstraintMinWidth = dpToPx(240)
-                params.matchConstraintMinHeight = dpToPx(135)
+                params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+                params.dimensionRatio = null
                 
                 binding.playerContainer.setPadding(0, 0, 0, 0)
                 binding.playerContainer.layoutParams = params
-
-                val pvParams = binding.playerView.layoutParams as ConstraintLayout.LayoutParams
-                pvParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-                pvParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-                pvParams.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-                pvParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-                pvParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-                pvParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-                binding.playerView.layoutParams = pvParams
             } else {
                 exitFullscreen()
             }
@@ -1702,34 +1695,15 @@ class FloatingPlayerActivity : AppCompatActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
 
-        // Portrait mode: match the FloatingPlayerService fully-expanded window size exactly.
-        // FloatingPlayerService: getMaxWidth() = dpToPx(400), getMaxHeight() = getMaxWidth() * 9 / 16
-        // → 400dp wide × 225dp tall, 16:9 ratio, full-width inside the screen.
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-        params.dimensionRatio = "H,16:9"   // same 9/16 formula as FloatingPlayerService
-        params.matchConstraintMaxWidth = dpToPx(400)  // FloatingPlayerService getMaxWidth() = 400dp
-        params.matchConstraintMaxHeight = dpToPx(225) // 400 * 9 / 16 = 225dp
-        params.matchConstraintMinWidth = dpToPx(240)  // FloatingPlayerService getMinWidth() = 240dp
-        params.matchConstraintMinHeight = dpToPx(135) // 240 * 9 / 16 = 135dp
+        params.dimensionRatio = "H,16:9"
         params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
         params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
         params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
         params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
         binding.playerContainer.layoutParams = params
-
-        // PlayerView: fill playerContainer completely — same as FloatingPlayerService
-        // where PlayerView occupies the entire WindowManager window with no letterboxing.
-        val pvParams = binding.playerView.layoutParams as ConstraintLayout.LayoutParams
-        pvParams.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-        pvParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
-        pvParams.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-        pvParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
-        pvParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-        pvParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-        binding.playerView.layoutParams = pvParams
-
         binding.playerContainer.visibility = View.VISIBLE
 
         // Restore sections based on actual data state.
@@ -1745,9 +1719,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
         }
     }
 
-    private fun dpToPx(dp: Int): Int =
-        (dp * resources.displayMetrics.density).toInt()
-
     private fun enterFullscreen() {
         windowInsetsController.apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -1758,15 +1729,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.dimensionRatio = null
-        // Clear portrait size caps so fullscreen uses the entire display
-        params.matchConstraintMaxWidth = Int.MAX_VALUE
-        params.matchConstraintMaxHeight = Int.MAX_VALUE
-        params.matchConstraintMinWidth = 0
-        params.matchConstraintMinHeight = 0
-        params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
-        params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-        params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
-        params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
+        
         binding.playerContainer.layoutParams = params
         
         binding.relatedChannelsSection.visibility = View.GONE
