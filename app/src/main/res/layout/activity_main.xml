@@ -167,26 +167,18 @@
             android:id="@+id/bottom_nav_container"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:background="#CC000000"
-            android:elevation="8dp"
+            android:background="@drawable/bottom_nav_glass_background"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent">
 
-            <!-- Liquid glass overlay -->
-            <View
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:background="@drawable/bottom_nav_glass_background" />
-
             <View
                 android:id="@+id/bottom_nav_indicator"
                 android:layout_width="0dp"
-                android:layout_height="5dp" 
+                android:layout_height="4dp" 
                 android:layout_gravity="top|start"
                 android:layout_marginTop="0dp" 
-                android:background="@drawable/bottom_nav_indicator_background"
-                android:elevation="1dp" />
+                android:background="@drawable/bottom_nav_indicator_background" />
 
             <com.google.android.material.bottomnavigation.BottomNavigationView
                 android:id="@+id/bottom_navigation"
