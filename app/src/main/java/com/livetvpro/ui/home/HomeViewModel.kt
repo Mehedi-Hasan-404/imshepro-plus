@@ -47,11 +47,12 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    // FIXED: Removed the override - this property is final in the parent class
-    // If you need custom reload behavior, use a different approach
-    // override fun shouldReloadOnResume(): Boolean {
-    //     return false
-    // }
+    // FIXED: Override onResume() instead to prevent auto-reload when coming back from player
+    // This prevents unnecessary reloading that would lose your scroll position and reload data
+    override fun onResume() {
+        // Do nothing - don't reload data when resuming
+        // Data is already loaded and cached in memory
+    }
 
     fun searchCategories(query: String) {
         try {
