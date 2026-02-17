@@ -1650,23 +1650,31 @@ class PlayerActivity : AppCompatActivity() {
             show(WindowInsetsCompat.Type.systemBars())
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
         }
-        
+
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
         params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.dimensionRatio = "H,16:9"
-        
         params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
         params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
         params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
         params.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
-        
         binding.playerContainer.layoutParams = params
-
-        // Don't unconditionally show sections here - observers manage their own visibility
         binding.playerContainer.visibility = View.VISIBLE
+
+        // Restore sections based on actual data state.
+        // Observers only fire once when data arrives, so we must manually
+        // restore visibility on rotation back to portrait.
+        if (allEventLinks.size > 1) {
+            binding.linksSection.visibility = View.VISIBLE
+        }
+        val hasRelated = relatedChannels.isNotEmpty() ||
+            (contentType == ContentType.EVENT && ::relatedEventsAdapter.isInitialized)
+        if (hasRelated) {
+            binding.relatedChannelsSection.visibility = View.VISIBLE
+        }
     }
-    
+
     private fun enterFullscreen() {
         windowInsetsController.apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -1674,12 +1682,15 @@ class PlayerActivity : AppCompatActivity() {
         }
 
         val params = binding.playerContainer.layoutParams as ConstraintLayout.LayoutParams
-        params.width = ConstraintLayout.LayoutParams.MATCH_PARENT
-        params.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+        params.width = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
+        params.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
         params.dimensionRatio = null
-        
+        params.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
+        params.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
+        params.topToTop = ConstraintLayout.LayoutParams.PARENT_ID
+        params.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
         binding.playerContainer.layoutParams = params
-        
+
         binding.relatedChannelsSection.visibility = View.GONE
         binding.linksSection.visibility = View.GONE
     }
