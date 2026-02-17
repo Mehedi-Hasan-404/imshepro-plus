@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 Navigation Bar Indicator Color -->
+    <color name="navigation_indicator_color">#E0E3E8</color>
+</resources>
