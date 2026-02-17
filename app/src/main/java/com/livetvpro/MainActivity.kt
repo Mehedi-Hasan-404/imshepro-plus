@@ -45,9 +45,6 @@ class MainActivity : AppCompatActivity() {
     
     private var drawerToggle: ActionBarDrawerToggle? = null
     private var isSearchVisible = false
-    private var lastSelectedView: View? = null 
-    
-    private val indicator by lazy { binding.bottomNavIndicator }
     
     private var showRefreshIcon = false
 
@@ -207,16 +204,10 @@ class MainActivity : AppCompatActivity() {
         binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
             if (menuItem.itemId in topLevelDestinations) {
                 navigateTopLevel(menuItem.itemId)
-                
-                val selectedItemView = binding.bottomNavigation.findViewById<View>(menuItem.itemId)
-                animateBottomNavItem(selectedItemView)
-                
                 return@setOnItemSelectedListener true
             }
             return@setOnItemSelectedListener false
         }
-        
-        binding.bottomNavigation.post { setupIndicator(navController.currentDestination?.id) }
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
             
@@ -269,9 +260,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 
                 binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
-                
-                val currentView = binding.bottomNavigation.findViewById<View>(destination.id)
-                animateBottomNavItem(currentView)
 
             } else {
                 binding.drawerLayout.setDrawerLockMode(androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
@@ -336,72 +324,6 @@ class MainActivity : AppCompatActivity() {
                 FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
             }
         }
-    }
-
-    private fun setupIndicator(destinationId: Int?) {
-        val initialItemId = destinationId ?: binding.bottomNavigation.menu.getItem(0).itemId 
-        val initialView = binding.bottomNavigation.findViewById<View>(initialItemId)
-
-        if (initialView != null) {
-            // Match reference image - pill covers ~90% of item width, perfectly centered
-            val initialX = initialView.x + initialView.width * 0.05f
-            val initialWidth = initialView.width * 0.90f
-            
-            indicator.translationX = initialX
-            indicator.layoutParams.width = initialWidth.toInt()
-            indicator.requestLayout()
-            indicator.alpha = 1f
-        }
-    }
-    
-    private fun animateBottomNavItem(newSelectedView: View?) {
-        if (newSelectedView == null || lastSelectedView == newSelectedView) return
-        
-        val duration = 400L  // Slightly longer for smoother iOS feel
-        
-        // Don't scale items - iOS style keeps them fixed
-        lastSelectedView?.animate()
-            ?.scaleX(1.0f)
-            ?.scaleY(1.0f)
-            ?.translationY(0f)
-            ?.setDuration(duration)
-            ?.start()
-        
-        // Keep selected item at normal scale
-        newSelectedView.animate()
-            .scaleX(1.0f)
-            .scaleY(1.0f)
-            .translationY(0f)
-            .setDuration(duration)
-            .setInterpolator(AccelerateDecelerateInterpolator())
-            .start()
-        
-        val startX = indicator.translationX
-        val startWidth = indicator.layoutParams.width
-        // Match reference - 90% width coverage
-        val endX = newSelectedView.x + newSelectedView.width * 0.05f
-        val endWidth = newSelectedView.width * 0.90f
-        
-        val xAnimator = ValueAnimator.ofFloat(startX, endX)
-        xAnimator.addUpdateListener { animator ->
-            indicator.translationX = animator.animatedValue as Float
-        }
-        xAnimator.duration = duration
-        xAnimator.interpolator = AccelerateDecelerateInterpolator()
-        
-        val widthAnimator = ValueAnimator.ofInt(startWidth, endWidth.toInt())
-        widthAnimator.addUpdateListener { animator ->
-            val params = indicator.layoutParams
-            params.width = animator.animatedValue as Int
-            indicator.layoutParams = params
-        }
-        widthAnimator.duration = duration
-        widthAnimator.interpolator = AccelerateDecelerateInterpolator()
-        
-        xAnimator.start()
-        widthAnimator.start()
-        
-        lastSelectedView = newSelectedView
     }
 
     private fun setupSearch() {
