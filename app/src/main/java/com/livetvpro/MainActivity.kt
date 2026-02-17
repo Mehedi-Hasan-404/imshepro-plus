@@ -274,16 +274,7 @@ class MainActivity : AppCompatActivity() {
                     onBackPressedDispatcher.onBackPressed()
                 }
                 
-                if (lastSelectedView != null) {
-                    lastSelectedView?.animate()
-                        ?.scaleX(1.0f)
-                        ?.scaleY(1.0f)
-                        ?.translationY(0f)
-                        ?.setDuration(150)
-                        ?.start()
-                    lastSelectedView = null
-                }
-                indicator.animate().alpha(0f).setDuration(150).start()
+
             }
             
             if (isSearchVisible) {
