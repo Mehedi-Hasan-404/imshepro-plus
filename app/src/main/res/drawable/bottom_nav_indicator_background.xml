@@ -1,43 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Outer glow/shadow -->
-    <item>
-        <shape android:shape="rectangle">
-            <solid android:color="#40FFFFFF" />
-            <corners android:radius="28dp"/>
-        </shape>
-    </item>
-    
-    <!-- Main glass pill with gradient -->
-    <item 
-        android:top="1dp"
-        android:bottom="1dp"
-        android:left="1dp"
-        android:right="1dp">
-        <shape android:shape="rectangle">
-            <gradient
-                android:angle="90"
-                android:startColor="#50FFFFFF"
-                android:centerColor="#40FFFFFF"
-                android:endColor="#30FFFFFF"
-                android:type="linear" />
-            <corners android:radius="27dp"/>
-        </shape>
-    </item>
-    
-    <!-- Inner highlight on top -->
-    <item 
-        android:top="2dp"
-        android:bottom="20dp"
-        android:left="4dp"
-        android:right="4dp">
-        <shape android:shape="rectangle">
-            <gradient
-                android:angle="90"
-                android:startColor="#60FFFFFF"
-                android:endColor="#00FFFFFF"
-                android:type="linear" />
-            <corners android:radius="25dp"/>
-        </shape>
-    </item>
-</layer-list>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- Solid dark teal background matching reference exactly -->
+    <solid android:color="#1E4A5F" />
+    <!-- Smooth rounded corners -->
+    <corners android:radius="24dp"/>
+</shape>
