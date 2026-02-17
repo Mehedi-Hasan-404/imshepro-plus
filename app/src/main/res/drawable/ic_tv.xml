@@ -1,33 +1,10 @@
-<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    
-    <!-- TV Screen with rounded corners -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M21,17H3c-1.1,0 -2,-0.9 -2,-2V8c0,-1.1 0.9,-2 2,-2h18c1.1,0 2,0.9 2,2v7c0,1.1 -0.9,2 -2,2zM3,8v7h18V8H3z"/>
-    
-    <!-- Left antenna -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M6.5,6L9,3.5L10.06,4.56L7.56,7.06z"
-        android:strokeWidth="0.5"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"/>
-    
-    <!-- Right antenna -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M17.5,6L15,3.5L13.94,4.56L16.44,7.06z"
-        android:strokeWidth="0.5"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"/>
-    
-    <!-- TV stand base (optional - comment out if not needed) -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M8,19h8v1.5H8z"/>
+    android:viewportWidth="960"
+    android:viewportHeight="960"
+    android:tint="?attr/colorControlNormal">
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M260,440L480,80L700,440L260,440ZM700,880Q625,880 572.5,827.5Q520,775 520,700Q520,625 572.5,572.5Q625,520 700,520Q775,520 827.5,572.5Q880,625 880,700Q880,775 827.5,827.5Q775,880 700,880ZM120,860L120,540L440,540L440,860L120,860ZM700,800Q742,800 771,771Q800,742 800,700Q800,658 771,629Q742,600 700,600Q658,600 629,629Q600,658 600,700Q600,742 629,771Q658,800 700,800ZM200,780L360,780L360,620L200,620L200,780ZM402,360L558,360L480,234L402,360ZM480,360L480,360L480,360ZM360,620L360,620L360,620L360,620ZM700,700Q700,700 700,700Q700,700 700,700Q700,700 700,700Q700,700 700,700Q700,700 700,700Q700,700 700,700Q700,700 700,700Q700,700 700,700Z"/>
 </vector>
