@@ -35,9 +35,11 @@ class LiveEventsViewModel @Inject constructor(
         loadEvents()
     }
 
-    override fun shouldReloadOnResume(): Boolean {
-        return false
-    }
+    // FIXED: Removed the override - this property is final in the parent class
+    // If you need custom reload behavior, use a different approach
+    // override fun shouldReloadOnResume(): Boolean {
+    //     return false
+    // }
 
     private fun loadEvents() {
         viewModelScope.launch {
