@@ -292,7 +292,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 channelData = freshChannel
                 val categoryId = intentCategoryId?.takeIf { it.isNotEmpty() } ?: freshChannel.categoryId
                 if (categoryId.isNotEmpty()) {
-                    viewModel.loadRelatedChannels(categoryId, freshChannel.id)
+                    viewModel.loadRandomRelatedChannels(categoryId, freshChannel.id, intentSelectedGroup)
                 }
             }
         }
@@ -439,11 +439,13 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
         if (isLandscape) {
             containerParams.dimensionRatio = null
-            containerParams.height = ConstraintLayout.LayoutParams.MATCH_PARENT
+            containerParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             containerParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
         } else {
+            // MATCH_CONSTRAINT (0dp) is required for dimensionRatio to work -
+            // WRAP_CONTENT breaks the ratio and makes the player shrink
             containerParams.dimensionRatio = "H,16:9"
-            containerParams.height = ConstraintLayout.LayoutParams.WRAP_CONTENT
+            containerParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             containerParams.bottomToBottom = ConstraintLayout.LayoutParams.UNSET
         }
 
@@ -858,7 +860,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
                     val categoryId = intentCategoryId?.takeIf { it.isNotEmpty() } ?: channel.categoryId
-                    viewModel.loadRelatedChannels(categoryId, channel.id)
+                    viewModel.loadRandomRelatedChannels(categoryId, channel.id, intentSelectedGroup)
                 }
             }
             ContentType.EVENT -> {
@@ -905,7 +907,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         binding.relatedLoadingProgress.visibility = View.VISIBLE
         binding.relatedChannelsRecycler.visibility = View.GONE
         val categoryId = intentCategoryId?.takeIf { it.isNotEmpty() } ?: newChannel.categoryId
-        viewModel.loadRelatedChannels(categoryId, newChannel.id)
+        viewModel.loadRandomRelatedChannels(categoryId, newChannel.id, intentSelectedGroup)
     }
 
     private fun switchToEvent(relatedChannel: Channel) {
@@ -1722,8 +1724,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         binding.playerContainer.layoutParams = params
 
-        binding.relatedChannelsSection.visibility = View.VISIBLE
-        binding.linksSection.visibility = View.VISIBLE
+        // Don't unconditionally show sections here - observers manage their own visibility
         binding.playerContainer.visibility = View.VISIBLE
     }
     
