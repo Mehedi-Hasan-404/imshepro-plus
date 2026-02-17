@@ -23,4 +23,19 @@
     <style name="Widget.Material3.TextInputLayout.OutlinedExposedDropdownMenu" parent="Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
         <!-- This provides compatibility for the OutlinedExposedDropdownMenu style -->
     </style>
+    
+    <!-- Bottom Navigation Glass Styles -->
+    <style name="BottomNavTextActive" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.02</item>
+        <item name="fontFamily">sans-serif-medium</item>
+    </style>
+    
+    <style name="BottomNavTextInactive" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:letterSpacing">0.01</item>
+        <item name="fontFamily">sans-serif</item>
+    </style>
 </resources>
