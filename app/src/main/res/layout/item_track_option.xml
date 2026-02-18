@@ -5,14 +5,13 @@
     android:layout_height="wrap_content"
     android:orientation="horizontal"
     android:paddingStart="20dp"
-    android:paddingEnd="20dp"
-    android:paddingTop="8dp"
-    android:paddingBottom="8dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="2dp"
+    android:paddingBottom="2dp"
     android:background="@drawable/ripple_item_bg"
     android:clickable="true"
     android:focusable="true"
-    android:gravity="center_vertical"
-    android:minHeight="44dp">
+    android:gravity="center_vertical">
 
     <!-- Text Container - Takes up remaining space -->
     <LinearLayout
@@ -40,11 +39,11 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- Compose radio/checkbox -->
+    <!-- Compose radio/checkbox — size constrained to strip M3's built-in 48dp touch target padding -->
     <androidx.compose.ui.platform.ComposeView
         android:id="@+id/composeToggle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
         android:layout_gravity="center_vertical"
         android:layout_marginStart="8dp" />
 
