@@ -1,22 +1,16 @@
 package com.livetvpro.ui.player.settings
 
-import android.app.Dialog
 import android.content.Context
 import android.os.Bundle
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.ImageButton
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.activity.ComponentDialog
 import androidx.media3.common.C
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.savedstate.SavedStateRegistryOwner
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.tabs.TabLayout
 import com.livetvpro.R
@@ -25,7 +19,7 @@ import timber.log.Timber
 class PlayerSettingsDialog(
     context: Context,
     private val player: ExoPlayer
-) : Dialog(context) {
+) : ComponentDialog(context) {
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var tabLayout: TabLayout
@@ -62,21 +56,6 @@ class PlayerSettingsDialog(
         requestWindowFeature(Window.FEATURE_NO_TITLE)
         setContentView(R.layout.dialog_player_settings)
 
-        // ComposeView inside a Dialog requires ViewTree owners to be set manually,
-        // otherwise it crashes with "ViewTreeLifecycleOwner not found".
-        val activity = context
-        if (activity is LifecycleOwner) {
-            window?.decorView?.let { decorView ->
-                decorView.setViewTreeLifecycleOwner(activity)
-                if (activity is ViewModelStoreOwner) {
-                    decorView.setViewTreeViewModelStoreOwner(activity)
-                }
-                if (activity is SavedStateRegistryOwner) {
-                    decorView.setViewTreeSavedStateRegistryOwner(activity)
-                }
-            }
-        }
-
         val displayMetrics = context.resources.displayMetrics
         val dialogWidth = (displayMetrics.widthPixels * 0.85).toInt()
 
@@ -87,8 +66,8 @@ class PlayerSettingsDialog(
         window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         initViews()
-        loadTracks()  
-        setupViews()  
+        loadTracks()
+        setupViews()
 
         showFirstAvailableTab()
     }
