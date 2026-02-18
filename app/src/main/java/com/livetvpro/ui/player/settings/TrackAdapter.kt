@@ -60,20 +60,22 @@ class TrackAdapter<T : TrackUiModel>(
     inner class VH(val binding: ItemTrackOptionBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        fun bind(item: T) {
-            binding.tvSecondary.visibility = View.VISIBLE
+        // State lives at VH level — persists across rebinds so M3 can animate smoothly
+        private val selectedState = mutableStateOf(false)
+        private val isRadioState = mutableStateOf(true)
+        private var currentItem: T? = null
 
+        init {
             binding.composeToggle.setViewCompositionStrategy(
                 ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool
             )
             binding.composeToggle.setContent {
-                // Hoist selection state so Compose animates on change rather than rebuilding
-                var selected by remember(item.isSelected) { mutableStateOf(item.isSelected) }
-
+                val selected by selectedState
+                val isRadio by isRadioState
                 val interactionSource = remember { MutableInteractionSource() }
 
-                if (item.isRadio) {
-                    // Animate the dot scale for a satisfying spring pop
+                if (isRadio) {
+                    // Radio: spring-bounce scale on the dot, color transition
                     val scale by animateFloatAsState(
                         targetValue = if (selected) 1f else 0f,
                         animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
@@ -87,8 +89,8 @@ class TrackAdapter<T : TrackUiModel>(
                     RadioButton(
                         selected = selected,
                         onClick = {
-                            selected = true
-                            onSelect(item)
+                            selectedState.value = true
+                            currentItem?.let { onSelect(it) }
                         },
                         interactionSource = interactionSource,
                         colors = RadioButtonDefaults.colors(
@@ -96,42 +98,42 @@ class TrackAdapter<T : TrackUiModel>(
                             unselectedColor = Color(0xFF8A8A8A)
                         ),
                         modifier = Modifier.graphicsLayer {
-                            // Subtle bounce on the whole button when selected
                             scaleX = if (selected) 1f + (scale - 1f) * 0.15f else 1f
                             scaleY = if (selected) 1f + (scale - 1f) * 0.15f else 1f
                         }
                     )
                 } else {
-                    // Animate checkmark scale for a snappy check/uncheck feel
-                    val checkScale by animateFloatAsState(
-                        targetValue = if (selected) 1f else 0.85f,
-                        animationSpec = spring(dampingRatio = 0.4f, stiffness = 700f),
-                        label = "checkbox_scale"
-                    )
+                    // Checkbox: let M3 own its checkmark draw animation fully.
+                    // Only add a gentle color transition — no graphicsLayer fighting the internal path anim.
                     val checkedColor by animateColorAsState(
                         targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
-                        animationSpec = tween(180),
+                        animationSpec = tween(150),
                         label = "checkbox_color"
                     )
                     Checkbox(
                         checked = selected,
                         onCheckedChange = { checked ->
-                            selected = checked
-                            onSelect(item)
+                            selectedState.value = checked
+                            currentItem?.let { onSelect(it) }
                         },
                         interactionSource = interactionSource,
                         colors = CheckboxDefaults.colors(
                             checkedColor = checkedColor,
                             uncheckedColor = Color(0xFF8A8A8A),
                             checkmarkColor = Color.White
-                        ),
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = checkScale
-                            scaleY = checkScale
-                        }
+                        )
                     )
                 }
             }
+        }
+
+        fun bind(item: T) {
+            currentItem = item
+            // Update stable states — triggers smooth recomposition, not a composition restart
+            selectedState.value = item.isSelected
+            isRadioState.value = item.isRadio
+
+            binding.tvSecondary.visibility = View.VISIBLE
 
             when (item) {
                 is TrackUiModel.Video -> {
@@ -210,7 +212,9 @@ class TrackAdapter<T : TrackUiModel>(
                 }
             }
 
-            binding.root.setOnClickListener { onSelect(item) }
+            // Clicks are handled by the Compose RadioButton/Checkbox directly.
+            // The root row click delegates to composeToggle to avoid double-firing.
+            binding.root.setOnClickListener { binding.composeToggle.performClick() }
         }
     }
 
