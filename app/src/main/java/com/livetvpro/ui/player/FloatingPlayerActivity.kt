@@ -234,6 +234,12 @@ class FloatingPlayerActivity : AppCompatActivity() {
         // Apply orientation ONCE - enterFullscreen/exitFullscreen inside handle container params
         applyOrientationSettings(isLandscape)
 
+        // Seed gesture volume from the actual device volume so OSD starts correct
+        val am = getSystemService(AUDIO_SERVICE) as AudioManager
+        val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+        val curVol = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+        gestureVolume = if (maxVol > 0) (curVol * 100f / maxVol).toInt() else 100
+
         setupComposeControls()
         setupRelatedChannels()
         setupLinksUI()
@@ -1630,7 +1636,14 @@ class FloatingPlayerActivity : AppCompatActivity() {
                         onFullscreenClick = { toggleFullscreen() },
                         onVolumeSwipe = { vol ->
                             gestureVolume = vol
-                            player?.volume = vol / 100f
+                            val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+                            val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                            val target = (vol / 100f * max).toInt()
+                            audioManager.setStreamVolume(
+                                AudioManager.STREAM_MUSIC,
+                                target,
+                                0 // no UI flag — our OSD replaces it
+                            )
                         },
                         onBrightnessSwipe = { bri ->
                             gestureBrightness = bri
