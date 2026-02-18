@@ -68,6 +68,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.livetvpro.ui.player.compose.PlayerControls
 import com.livetvpro.ui.player.compose.PlayerControlsState
+import com.livetvpro.ui.player.compose.GestureState
+import android.media.AudioManager
 import com.livetvpro.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 
@@ -93,6 +95,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
     
     // Compose controls state
     private val controlsState = PlayerControlsState(initialVisible = false)
+    private var gestureVolume: Int = 100      // synced with ExoPlayer on init
+    private var gestureBrightness: Int = 0    // 0 = auto
 
     private var isInPipMode = false
     private var isMuted = false
@@ -1623,7 +1627,23 @@ class FloatingPlayerActivity : AppCompatActivity() {
                                 cycleAspectRatio()
                             }
                         },
-                        onFullscreenClick = { toggleFullscreen() }
+                        onFullscreenClick = { toggleFullscreen() },
+                        onVolumeSwipe = { vol ->
+                            gestureVolume = vol
+                            player?.volume = vol / 100f
+                        },
+                        onBrightnessSwipe = { bri ->
+                            gestureBrightness = bri
+                            val lp = window.attributes
+                            lp.screenBrightness = if (bri == 0) {
+                                WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                            } else {
+                                bri / 100f
+                            }
+                            window.attributes = lp
+                        },
+                        initialVolume = gestureVolume,
+                        initialBrightness = gestureBrightness,
                     )
                 }
             }
