@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.livetvpro.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -136,16 +137,22 @@ fun PlayerControls(
     onRewindClick: () -> Unit,
     onForwardClick: () -> Unit,
     onAspectRatioClick: () -> Unit,
-    onFullscreenClick: () -> Unit
+    onFullscreenClick: () -> Unit,
+    /** Called when user swipes up/down on the RIGHT third. 0 = muted, 1‥100 = volume. */
+    onVolumeSwipe: (Int) -> Unit = {},
+    /** Called when user swipes up/down on the LEFT third. 0 = auto, 1‥100 = brightness. */
+    onBrightnessSwipe: (Int) -> Unit = {},
+    /** Starting volume percent (0‥100) so the OSD shows the right value immediately. */
+    initialVolume: Int = 100,
+    /** Starting brightness percent (0 = auto, 1‥100). */
+    initialBrightness: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
-    
-    // NO EXCLUSION ZONE NEEDED!
-    // Link chips RecyclerView is now positioned on the right side with maxWidth
-    // It doesn't overlap with top control buttons anymore
-    // All touch events can be handled normally
-    
+
+    // ── Gesture overlay state (volume + brightness) ────────────────────────
+    var gestureVolume     by remember { mutableIntStateOf(initialVolume) }
+    var gestureBrightness by remember { mutableIntStateOf(initialBrightness) }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -161,6 +168,24 @@ fun PlayerControls(
                 )
             }
     ) {
+        // ── Layer 1: Gesture overlay (volume / brightness swipe) ───────────
+        // Transparent — only shows OSD card while user is actively swiping.
+        // Sits below lock overlay and main controls so it never blocks UI taps.
+        GestureOverlay(
+            gestureState = GestureState(
+                volumePercent     = gestureVolume,
+                brightnessPercent = gestureBrightness,
+            ),
+            onVolumeChange = { v ->
+                gestureVolume = v
+                onVolumeSwipe(v)
+            },
+            onBrightnessChange = { b ->
+                gestureBrightness = b
+                onBrightnessSwipe(b)
+            },
+        )
+
         // Lock overlay — shown/hidden independently via isLockOverlayVisible
         // (toggled by tapping the screen while locked; auto-hides after delay)
         AnimatedVisibility(
