@@ -24,7 +24,6 @@
             android:id="@+id/tvPrimary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="1920 × 1080"
             android:textColor="@android:color/white"
             android:textSize="15sp"
             android:fontFamily="sans-serif-medium" />
@@ -33,7 +32,6 @@
             android:id="@+id/tvSecondary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="8.20 Mbps"
             android:textColor="#999999"
             android:textSize="13sp"
             android:layout_marginTop="2dp" />
