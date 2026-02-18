@@ -136,10 +136,12 @@ class TrackAdapter<T : TrackUiModel>(
                             }
                             
                             // Channels
-                            val channels = if (item.channels > 0) {
-                                " • ${item.channels}ch"
-                            } else {
-                                ""
+                            val channels = when (item.channels) {
+                                1 -> " • Mono"
+                                2 -> " • Stereo"
+                                6 -> " • Surround 5.1"
+                                8 -> " • Surround 7.1"
+                                else -> if (item.channels > 0) " • ${item.channels}ch" else ""
                             }
                             
                             // Bitrate
