@@ -153,72 +153,42 @@ fun PlayerControls(
     var gestureVolume     by remember { mutableIntStateOf(initialVolume) }
     var gestureBrightness by remember { mutableIntStateOf(initialBrightness) }
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onTap = {
-                        if (state.isLocked) {
-                            state.toggle(scope)
-                        } else {
-                            state.toggle(scope)
-                        }
-                    }
-                )
-            }
-    ) {
-        // ── Layer 1: Gesture overlay (volume / brightness swipe) ───────────
-        // Transparent — only shows OSD card while user is actively swiping.
-        // Sits below lock overlay and main controls so it never blocks UI taps.
-        GestureOverlay(
-            gestureState = GestureState(
-                volumePercent     = gestureVolume,
-                brightnessPercent = gestureBrightness,
-            ),
-            onVolumeChange = { v ->
-                gestureVolume = v
-                onVolumeSwipe(v)
-            },
-            onBrightnessChange = { b ->
-                gestureBrightness = b
-                onBrightnessSwipe(b)
-            },
+    // Parent Box — fills the whole player surface.
+    // Children are stacked in Z order:
+    //   1. Controls tap/toggle layer  (bottom — handles taps to show/hide UI)
+    //   2. Lock overlay               (middle)
+    //   3. Main player controls UI    (middle)
+    //   4. GestureOverlay             (TOP — always present, fully independent)
+    Box(modifier = modifier.fillMaxSize()) {
+
+        // ── Layer 1: tap handler to show/hide controls ─────────────────────
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { state.toggle(scope) }
+                    )
+                }
         )
 
-        // Lock overlay — shown/hidden independently via isLockOverlayVisible
-        // (toggled by tapping the screen while locked; auto-hides after delay)
+        // ── Layer 2: Lock overlay ──────────────────────────────────────────
         AnimatedVisibility(
             visible = state.isLockOverlayVisible,
-            enter = fadeIn(
-                animationSpec = tween(
-                    durationMillis = 250,
-                    easing = FastOutSlowInEasing
-                )
-            ),
-            exit = fadeOut(
-                animationSpec = tween(
-                    durationMillis = 250,
-                    easing = FastOutSlowInEasing
-                )
-            )
+            enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
+            exit  = fadeOut(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing))
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .pointerInput(Unit) {
                         detectTapGestures(
-                            onTap = {
-                                // Tapping anywhere toggles visibility
-                                state.toggle(scope)
-                            }
+                            onTap = { state.toggle(scope) }
                         )
                     }
             ) {
-                // Completely transparent - only unlock button visible
-                // Unlock button
                 IconButton(
-                    onClick = { 
+                    onClick = {
                         state.unlock(scope)
                         onLockClick(false)
                     },
@@ -236,22 +206,12 @@ fun PlayerControls(
                 }
             }
         }
-        
-        // Main controls - ExoPlayer's exact animation (250ms alpha fade)
+
+        // ── Layer 3: Main player controls UI ──────────────────────────────
         AnimatedVisibility(
             visible = state.isVisible && !state.isLocked,
-            enter = fadeIn(
-                animationSpec = tween(
-                    durationMillis = 250,
-                    easing = FastOutSlowInEasing
-                )
-            ),
-            exit = fadeOut(
-                animationSpec = tween(
-                    durationMillis = 250,
-                    easing = FastOutSlowInEasing
-                )
-            )
+            enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
+            exit  = fadeOut(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing))
         ) {
             PlayerControlsContent(
                 isPlaying = isPlaying,
@@ -267,7 +227,7 @@ fun PlayerControls(
                 onPipClick = onPipClick,
                 onSettingsClick = onSettingsClick,
                 onMuteClick = onMuteClick,
-                onLockClick = { 
+                onLockClick = {
                     state.lock()
                     onLockClick(true)
                 },
@@ -280,6 +240,25 @@ fun PlayerControls(
                 onInteraction = { state.show(scope) }
             )
         }
+
+        // ── Layer 4: Gesture overlay — ALWAYS ON TOP, ALWAYS VISIBLE ──────
+        // Completely independent from controls visibility and lock state.
+        // Only shows the OSD card when the user is actively swiping.
+        // Drag events are consumed here; taps fall through to Layer 1.
+        GestureOverlay(
+            gestureState = GestureState(
+                volumePercent     = gestureVolume,
+                brightnessPercent = gestureBrightness,
+            ),
+            onVolumeChange = { v ->
+                gestureVolume = v
+                onVolumeSwipe(v)
+            },
+            onBrightnessChange = { b ->
+                gestureBrightness = b
+                onBrightnessSwipe(b)
+            },
+        )
     }
 }
 
