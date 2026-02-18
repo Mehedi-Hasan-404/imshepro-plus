@@ -8,18 +8,23 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.databinding.ItemTrackOptionBinding
 
@@ -74,55 +79,60 @@ class TrackAdapter<T : TrackUiModel>(
                 val isRadio by isRadioState
                 val interactionSource = remember { MutableInteractionSource() }
 
-                if (isRadio) {
-                    // Radio: spring-bounce scale on the dot, color transition
-                    val scale by animateFloatAsState(
-                        targetValue = if (selected) 1f else 0f,
-                        animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
-                        label = "radio_scale"
-                    )
-                    val activeColor by animateColorAsState(
-                        targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
-                        animationSpec = tween(200),
-                        label = "radio_color"
-                    )
-                    RadioButton(
-                        selected = selected,
-                        onClick = {
-                            selectedState.value = true
-                            currentItem?.let { onSelect(it) }
-                        },
-                        interactionSource = interactionSource,
-                        colors = RadioButtonDefaults.colors(
-                            selectedColor = activeColor,
-                            unselectedColor = Color(0xFF8A8A8A)
-                        ),
-                        modifier = Modifier.graphicsLayer {
-                            scaleX = if (selected) 1f + (scale - 1f) * 0.15f else 1f
-                            scaleY = if (selected) 1f + (scale - 1f) * 0.15f else 1f
-                        }
-                    )
-                } else {
-                    // Checkbox: let M3 own its checkmark draw animation fully.
-                    // Only add a gentle color transition — no graphicsLayer fighting the internal path anim.
-                    val checkedColor by animateColorAsState(
-                        targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
-                        animationSpec = tween(150),
-                        label = "checkbox_color"
-                    )
-                    Checkbox(
-                        checked = selected,
-                        onCheckedChange = { checked ->
-                            selectedState.value = checked
-                            currentItem?.let { onSelect(it) }
-                        },
-                        interactionSource = interactionSource,
-                        colors = CheckboxDefaults.colors(
-                            checkedColor = checkedColor,
-                            uncheckedColor = Color(0xFF8A8A8A),
-                            checkmarkColor = Color.White
+                // Disable M3's 48dp minimum touch target — the row itself handles touch,
+                // and the ComposeView is fixed at 24dp in the layout.
+                @OptIn(ExperimentalMaterial3Api::class)
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                    if (isRadio) {
+                        val scale by animateFloatAsState(
+                            targetValue = if (selected) 1f else 0f,
+                            animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
+                            label = "radio_scale"
                         )
-                    )
+                        val activeColor by animateColorAsState(
+                            targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
+                            animationSpec = tween(200),
+                            label = "radio_color"
+                        )
+                        RadioButton(
+                            selected = selected,
+                            onClick = {
+                                selectedState.value = true
+                                currentItem?.let { onSelect(it) }
+                            },
+                            interactionSource = interactionSource,
+                            colors = RadioButtonDefaults.colors(
+                                selectedColor = activeColor,
+                                unselectedColor = Color(0xFF8A8A8A)
+                            ),
+                            modifier = Modifier
+                                .size(24.dp)
+                                .graphicsLayer {
+                                    scaleX = if (selected) 1f + (scale - 1f) * 0.15f else 1f
+                                    scaleY = if (selected) 1f + (scale - 1f) * 0.15f else 1f
+                                }
+                        )
+                    } else {
+                        val checkedColor by animateColorAsState(
+                            targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
+                            animationSpec = tween(150),
+                            label = "checkbox_color"
+                        )
+                        Checkbox(
+                            checked = selected,
+                            onCheckedChange = { checked ->
+                                selectedState.value = checked
+                                currentItem?.let { onSelect(it) }
+                            },
+                            interactionSource = interactionSource,
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = checkedColor,
+                                uncheckedColor = Color(0xFF8A8A8A),
+                                checkmarkColor = Color.White
+                            ),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
                 }
             }
         }
