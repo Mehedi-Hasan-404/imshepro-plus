@@ -3,7 +3,9 @@ package com.livetvpro.ui.player.compose
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -13,13 +15,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.livetvpro.R
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data / state
@@ -73,8 +75,6 @@ fun GestureOverlay(
     /** Sensitivity: how many pixels of drag equal 1 percent of change. */
     pixelsPerPercent: Float = 8f,
 ) {
-    val scope = rememberCoroutineScope()
-
     // ── Local gesture tracking ──────────────────────────────────────────────
     var currentVolume by remember { mutableIntStateOf(gestureState.volumePercent) }
     // 0 = AUTO, 1‥100 = manual. We use a float accumulator that can dip below 1
@@ -87,26 +87,6 @@ fun GestureOverlay(
     var showVolumeOsd by remember { mutableStateOf(false) }
     var showBrightnessOsd by remember { mutableStateOf(false) }
 
-    // Auto-hide OSD jobs
-    var volumeHideJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    var brightnessHideJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-
-    fun scheduleVolumeHide() {
-        volumeHideJob?.cancel()
-        volumeHideJob = scope.launch {
-            delay(1_500)
-            showVolumeOsd = false
-        }
-    }
-
-    fun scheduleBrightnessHide() {
-        brightnessHideJob?.cancel()
-        brightnessHideJob = scope.launch {
-            delay(1_500)
-            showBrightnessOsd = false
-        }
-    }
-
     // ── Width tracking for zone detection ──────────────────────────────────
     var totalWidth by remember { mutableFloatStateOf(0f) }
 
@@ -117,58 +97,72 @@ fun GestureOverlay(
     Box(
         modifier = modifier
             .fillMaxSize()
-            // Capture ALL touch events in this overlay; let tap events fall through
-            // when neither zone matches (we only consume drag in valid zones).
+            // Uses awaitEachGesture so we can distinguish taps from swipes manually.
+            // Taps are NOT consumed — they fall through to the controls tap layer.
+            // Only vertical drags in a gesture zone are consumed.
             .pointerInput(pixelsPerPercent) {
                 totalWidth = size.width.toFloat()
-                detectDragGestures(
-                    onDragStart = { offset ->
-                        // Reset accumulators at the start of each swipe
-                        val zone = gestureZone(offset.x, totalWidth)
-                        if (zone == GestureZone.VOLUME) {
-                            volumeAccum = 0f
-                        } else if (zone == GestureZone.BRIGHTNESS) {
-                            brightnessAccum = 0f
-                        }
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume() // consume so controls underneath don't also react
-                        val zone = gestureZone(change.position.x, totalWidth)
-                        // Negative dy = swipe up = increase; positive dy = swipe down = decrease
-                        val dy = -dragAmount.y
+                // Minimum vertical movement (px) before we claim the gesture as a swipe.
+                val slopPx = viewConfiguration.touchSlop
+                awaitEachGesture {
+                    // Wait for first finger down — don't consume it so taps still work.
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val startX = down.position.x
+                    val zone   = gestureZone(startX, totalWidth)
 
-                        when (zone) {
-                            GestureZone.VOLUME -> {
-                                volumeAccum += dy
-                                val steps = (volumeAccum / pixelsPerPercent).toInt()
-                                if (steps != 0) {
-                                    volumeAccum -= steps * pixelsPerPercent
-                                    currentVolume = (currentVolume + steps).coerceIn(0, 100)
-                                    onVolumeChange(currentVolume)
-                                    showVolumeOsd = true
-                                    scheduleVolumeHide()
-                                }
-                            }
-                            GestureZone.BRIGHTNESS -> {
-                                brightnessAccum += dy
-                                val steps = (brightnessAccum / pixelsPerPercent).toInt()
-                                if (steps != 0) {
-                                    brightnessAccum -= steps * pixelsPerPercent
-                                    // clamp to 0 (AUTO) .. 100; 0 is the AUTO state
-                                    brightnessFloat = (brightnessFloat + steps).coerceIn(0f, 100f)
-                                    currentBrightness = brightnessFloat.toInt()
-                                    onBrightnessChange(currentBrightness)
-                                    showBrightnessOsd = true
-                                    scheduleBrightnessHide()
-                                }
-                            }
-                            GestureZone.NONE -> { /* no-op */ }
+                    // If touch is in the dead-zone (middle third) do nothing.
+                    if (zone == GestureZone.NONE) return@awaitEachGesture
+
+                    // Reset the right accumulator for this zone.
+                    if (zone == GestureZone.VOLUME) volumeAccum = 0f
+                    else brightnessAccum = 0f
+
+                    var totalDy   = 0f
+                    var committed = false  // true once we've exceeded slop → this is a swipe
+
+                    drag(down.id) { change ->
+                        val dy = -change.positionChange().y   // negative = finger up = increase
+                        totalDy += dy
+
+                        // Only commit once the finger has moved past the system slop threshold.
+                        if (!committed && abs(totalDy) > slopPx) {
+                            committed = true
                         }
-                    },
-                    onDragEnd = {
-                        // accumulators reset on next drag start
+
+                        if (committed) {
+                            // Consume the event so lower layers (tap toggle) don't also react.
+                            change.consume()
+
+                            when (zone) {
+                                GestureZone.VOLUME -> {
+                                    volumeAccum += dy
+                                    val steps = (volumeAccum / pixelsPerPercent).toInt()
+                                    if (steps != 0) {
+                                        volumeAccum -= steps * pixelsPerPercent
+                                        currentVolume = (currentVolume + steps).coerceIn(0, 100)
+                                        onVolumeChange(currentVolume)
+                                        showVolumeOsd = true
+                                    }
+                                }
+                                GestureZone.BRIGHTNESS -> {
+                                    brightnessAccum += dy
+                                    val steps = (brightnessAccum / pixelsPerPercent).toInt()
+                                    if (steps != 0) {
+                                        brightnessAccum -= steps * pixelsPerPercent
+                                        brightnessFloat = (brightnessFloat + steps).coerceIn(0f, 100f)
+                                        currentBrightness = brightnessFloat.toInt()
+                                        onBrightnessChange(currentBrightness)
+                                        showBrightnessOsd = true
+                                    }
+                                }
+                                GestureZone.NONE -> { /* unreachable */ }
+                            }
+                        }
                     }
-                )
+                    // Finger lifted — hide OSD immediately
+                    showVolumeOsd = false
+                    showBrightnessOsd = false
+                }
             }
     ) {
         // ── Volume OSD (right side) ─────────────────────────────────────────
