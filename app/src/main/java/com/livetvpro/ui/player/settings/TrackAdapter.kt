@@ -3,15 +3,25 @@ package com.livetvpro.ui.player.settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.databinding.ItemTrackOptionBinding
-import timber.log.Timber
 
 class TrackAdapter<T : TrackUiModel>(
     private val onSelect: (T) -> Unit
@@ -53,30 +63,72 @@ class TrackAdapter<T : TrackUiModel>(
         fun bind(item: T) {
             binding.tvSecondary.visibility = View.VISIBLE
 
-            Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
-
             binding.composeToggle.setViewCompositionStrategy(
                 ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool
             )
             binding.composeToggle.setContent {
+                // Hoist selection state so Compose animates on change rather than rebuilding
+                var selected by remember(item.isSelected) { mutableStateOf(item.isSelected) }
+
+                val interactionSource = remember { MutableInteractionSource() }
+
                 if (item.isRadio) {
+                    // Animate the dot scale for a satisfying spring pop
+                    val scale by animateFloatAsState(
+                        targetValue = if (selected) 1f else 0f,
+                        animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f),
+                        label = "radio_scale"
+                    )
+                    val activeColor by animateColorAsState(
+                        targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
+                        animationSpec = tween(200),
+                        label = "radio_color"
+                    )
                     RadioButton(
-                        selected = item.isSelected,
-                        onClick = null,
+                        selected = selected,
+                        onClick = {
+                            selected = true
+                            onSelect(item)
+                        },
+                        interactionSource = interactionSource,
                         colors = RadioButtonDefaults.colors(
-                            selectedColor = Color(0xFFFF0000),
+                            selectedColor = activeColor,
                             unselectedColor = Color(0xFF8A8A8A)
-                        )
+                        ),
+                        modifier = Modifier.graphicsLayer {
+                            // Subtle bounce on the whole button when selected
+                            scaleX = if (selected) 1f + (scale - 1f) * 0.15f else 1f
+                            scaleY = if (selected) 1f + (scale - 1f) * 0.15f else 1f
+                        }
                     )
                 } else {
+                    // Animate checkmark scale for a snappy check/uncheck feel
+                    val checkScale by animateFloatAsState(
+                        targetValue = if (selected) 1f else 0.85f,
+                        animationSpec = spring(dampingRatio = 0.4f, stiffness = 700f),
+                        label = "checkbox_scale"
+                    )
+                    val checkedColor by animateColorAsState(
+                        targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
+                        animationSpec = tween(180),
+                        label = "checkbox_color"
+                    )
                     Checkbox(
-                        checked = item.isSelected,
-                        onCheckedChange = null,
+                        checked = selected,
+                        onCheckedChange = { checked ->
+                            selected = checked
+                            onSelect(item)
+                        },
+                        interactionSource = interactionSource,
                         colors = CheckboxDefaults.colors(
-                            checkedColor = Color(0xFFFF0000),
+                            checkedColor = checkedColor,
                             uncheckedColor = Color(0xFF8A8A8A),
                             checkmarkColor = Color.White
-                        )
+                        ),
+                        modifier = Modifier.graphicsLayer {
+                            scaleX = checkScale
+                            scaleY = checkScale
+                        }
                     )
                 }
             }
