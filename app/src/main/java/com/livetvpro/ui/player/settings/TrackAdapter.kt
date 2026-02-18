@@ -3,8 +3,13 @@ package com.livetvpro.ui.player.settings
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.recyclerview.widget.RecyclerView
-import com.livetvpro.R
 import com.livetvpro.databinding.ItemTrackOptionBinding
 import timber.log.Timber
 
@@ -20,16 +25,11 @@ class TrackAdapter<T : TrackUiModel>(
         notifyDataSetChanged()
     }
 
-    // Update selection - handles radio (single selection) behavior
-    // Used for Audio, Text, and Speed tabs
     fun updateSelection(selectedItem: T) {
         items.forEachIndexed { index, item ->
             val wasSelected = item.isSelected
-            
-            // Radio button behavior: only the clicked item is selected
             val isSelected = item == selectedItem
-            
-            // Use type-safe copying
+
             @Suppress("UNCHECKED_CAST")
             val updatedItem = when (item) {
                 is TrackUiModel.Video -> (item as TrackUiModel.Video).copy(isSelected = isSelected)
@@ -38,10 +38,9 @@ class TrackAdapter<T : TrackUiModel>(
                 is TrackUiModel.Speed -> (item as TrackUiModel.Speed).copy(isSelected = isSelected)
                 else -> item
             } as T
-            
+
             items[index] = updatedItem
-            
-            // Only refresh changed items for performance
+
             if (wasSelected != isSelected) {
                 notifyItemChanged(index)
             }
@@ -52,66 +51,54 @@ class TrackAdapter<T : TrackUiModel>(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: T) {
-            // Reset secondary text visibility for recycled views
             binding.tvSecondary.visibility = View.VISIBLE
 
-            // Get the radio button and checkbox
-            val radioButton = binding.root.findViewById<android.widget.RadioButton>(R.id.radioButton)
-            val checkBox = binding.root.findViewById<android.widget.CheckBox>(R.id.checkBox)
-            
             Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
-            
-            if (item.isRadio) {
-                // Show radio button, hide checkbox
-                radioButton.visibility = View.VISIBLE
-                checkBox.visibility = View.GONE
-                radioButton.isChecked = item.isSelected
-                Timber.d("Showing RADIO button")
-            } else {
-                // Show checkbox, hide radio button
-                radioButton.visibility = View.GONE
-                checkBox.visibility = View.VISIBLE
 
-                // Animate check/uncheck transition
-                val wasChecked = checkBox.isChecked
-                if (wasChecked != item.isSelected) {
-                    val animRes = if (item.isSelected) R.anim.checkbox_check_in else R.anim.checkbox_check_out
-                    val anim = android.view.animation.AnimationUtils.loadAnimation(binding.root.context, animRes)
-                    checkBox.startAnimation(anim)
+            binding.composeToggle.setViewCompositionStrategy(
+                ViewCompositionStrategy.DisposeOnRecycled
+            )
+            binding.composeToggle.setContent {
+                if (item.isRadio) {
+                    RadioButton(
+                        selected = item.isSelected,
+                        onClick = null,
+                        colors = RadioButtonDefaults.colors(
+                            selectedColor = Color(0xFFFF0000),
+                            unselectedColor = Color(0xFF8A8A8A)
+                        )
+                    )
+                } else {
+                    Checkbox(
+                        checked = item.isSelected,
+                        onCheckedChange = null,
+                        colors = CheckboxDefaults.colors(
+                            checkedColor = Color(0xFFFF0000),
+                            uncheckedColor = Color(0xFF8A8A8A),
+                            checkmarkColor = Color.White
+                        )
+                    )
                 }
-
-                checkBox.isChecked = item.isSelected
-                Timber.d("Showing CHECKBOX")
             }
 
             when (item) {
                 is TrackUiModel.Video -> {
                     when {
                         item.groupIndex == -2 -> {
-                            // None option
                             binding.tvPrimary.text = "None"
                             binding.tvSecondary.visibility = View.GONE
                         }
                         item.groupIndex == -1 -> {
-                            // Auto option
                             binding.tvPrimary.text = "Auto"
                             binding.tvSecondary.visibility = View.GONE
                         }
                         else -> {
-                            // Quality
                             val quality = if (item.width > 0 && item.height > 0) {
                                 "${item.width} × ${item.height}"
-                            } else {
-                                "Unknown quality"
-                            }
-                            
-                            // Bitrate
+                            } else "Unknown quality"
                             val bitrate = if (item.bitrate > 0) {
                                 "${"%.2f".format(item.bitrate / 1_000_000f)} Mbps"
-                            } else {
-                                "Unknown bitrate"
-                            }
-                            
+                            } else "Unknown bitrate"
                             binding.tvPrimary.text = "$quality • $bitrate"
                             binding.tvSecondary.visibility = View.GONE
                         }
@@ -121,24 +108,16 @@ class TrackAdapter<T : TrackUiModel>(
                 is TrackUiModel.Audio -> {
                     when {
                         item.groupIndex == -2 -> {
-                            // None option
                             binding.tvPrimary.text = "None"
                             binding.tvSecondary.text = "No audio"
                         }
                         item.groupIndex == -1 -> {
-                            // Auto option
                             binding.tvPrimary.text = "Auto"
                             binding.tvSecondary.text = "Automatic audio"
                         }
                         else -> {
-                            // Language
-                            val language = if (item.language.isNotEmpty() && item.language != "und") {
-                                item.language.uppercase()
-                            } else {
-                                "Unknown"
-                            }
-                            
-                            // Channels
+                            val language = if (item.language.isNotEmpty() && item.language != "und")
+                                item.language.uppercase() else "Unknown"
                             val channels = when (item.channels) {
                                 1 -> " • Mono"
                                 2 -> " • Stereo"
@@ -146,14 +125,8 @@ class TrackAdapter<T : TrackUiModel>(
                                 8 -> " • Surround 7.1"
                                 else -> if (item.channels > 0) " • ${item.channels}ch" else ""
                             }
-                            
-                            // Bitrate
-                            val bitrate = if (item.bitrate > 0) {
-                                "${item.bitrate / 1000} kbps"
-                            } else {
-                                "Unknown bitrate"
-                            }
-                            
+                            val bitrate = if (item.bitrate > 0) "${item.bitrate / 1000} kbps"
+                            else "Unknown bitrate"
                             binding.tvPrimary.text = "$language$channels"
                             binding.tvSecondary.text = bitrate
                         }
@@ -163,23 +136,16 @@ class TrackAdapter<T : TrackUiModel>(
                 is TrackUiModel.Text -> {
                     when {
                         item.groupIndex == -2 -> {
-                            // None option
                             binding.tvPrimary.text = "None"
                             binding.tvSecondary.text = "No subtitles"
                         }
                         item.groupIndex == -1 -> {
-                            // Auto option
                             binding.tvPrimary.text = "Auto"
                             binding.tvSecondary.text = "Automatic subtitles"
                         }
                         else -> {
-                            // Language
-                            val language = if (item.language.isNotEmpty() && item.language != "und") {
-                                item.language.uppercase()
-                            } else {
-                                "Unknown"
-                            }
-                            
+                            val language = if (item.language.isNotEmpty() && item.language != "und")
+                                item.language.uppercase() else "Unknown"
                             binding.tvPrimary.text = language
                             binding.tvSecondary.text = "Subtitles"
                         }
@@ -187,15 +153,12 @@ class TrackAdapter<T : TrackUiModel>(
                 }
 
                 is TrackUiModel.Speed -> {
-                    // SHOW ACTUAL SPEED VALUE
                     binding.tvPrimary.text = "${item.speed}x"
                     binding.tvSecondary.text = "Playback speed"
                 }
             }
 
-            binding.root.setOnClickListener { 
-                onSelect(item)
-            }
+            binding.root.setOnClickListener { onSelect(item) }
         }
     }
 
@@ -206,8 +169,7 @@ class TrackAdapter<T : TrackUiModel>(
         return VH(binding)
     }
 
-    override fun onBindViewHolder(holder: VH, position: Int) =
-        holder.bind(items[position])
+    override fun onBindViewHolder(holder: VH, position: Int) = holder.bind(items[position])
 
     override fun getItemCount() = items.size
 }
