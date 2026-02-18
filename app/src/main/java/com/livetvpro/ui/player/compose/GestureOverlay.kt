@@ -5,7 +5,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.drag
+import androidx.compose.ui.input.pointer.awaitPointerEvent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -15,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,6 +73,8 @@ fun GestureOverlay(
     onBrightnessChange: (Int) -> Unit = {},
     /** Sensitivity: how many pixels of drag equal 1 percent of change. */
     pixelsPerPercent: Float = 8f,
+    /** Called when the user taps without swiping — used to toggle player controls. */
+    onTap: () -> Unit = {},
 ) {
     // ── Local gesture tracking ──────────────────────────────────────────────
     var currentVolume by remember { mutableIntStateOf(gestureState.volumePercent) }
@@ -105,34 +106,49 @@ fun GestureOverlay(
                 // Minimum vertical movement (px) before we claim the gesture as a swipe.
                 val slopPx = viewConfiguration.touchSlop
                 awaitEachGesture {
-                    // Wait for first finger down — don't consume it so taps still work.
+                    // Wait for first finger down — not consumed so gestures compose correctly.
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val startX = down.position.x
                     val zone   = gestureZone(startX, totalWidth)
 
-                    // If touch is in the dead-zone (middle third) do nothing.
-                    if (zone == GestureZone.NONE) return@awaitEachGesture
-
                     // Reset the right accumulator for this zone.
                     if (zone == GestureZone.VOLUME) volumeAccum = 0f
-                    else brightnessAccum = 0f
+                    else if (zone == GestureZone.BRIGHTNESS) brightnessAccum = 0f
 
                     var totalDy   = 0f
-                    var committed = false  // true once we've exceeded slop → this is a swipe
+                    var committed = false  // true once finger exceeds slop → swipe
 
-                    drag(down.id) { change ->
-                        val dy = -change.positionChange().y   // negative = finger up = increase
+                    // Track every subsequent pointer event manually so we can
+                    // distinguish a tap (no slop exceeded, finger lifts quickly)
+                    // from a swipe (slop exceeded → consume + adjust value).
+                    var isUp = false
+                    while (!isUp) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                        if (!change.pressed) {
+                            // Finger lifted
+                            isUp = true
+                            if (!committed) {
+                                // Never exceeded slop → it was a tap → toggle controls
+                                onTap()
+                            } else {
+                                // Was a swipe → hide OSD immediately on lift
+                                showVolumeOsd = false
+                                showBrightnessOsd = false
+                            }
+                            break
+                        }
+
+                        val dy = -(change.position.y - change.previousPosition.y)
                         totalDy += dy
 
-                        // Only commit once the finger has moved past the system slop threshold.
                         if (!committed && abs(totalDy) > slopPx) {
                             committed = true
                         }
 
-                        if (committed) {
-                            // Consume the event so lower layers (tap toggle) don't also react.
+                        if (committed && zone != GestureZone.NONE) {
                             change.consume()
-
                             when (zone) {
                                 GestureZone.VOLUME -> {
                                     volumeAccum += dy
@@ -155,13 +171,10 @@ fun GestureOverlay(
                                         showBrightnessOsd = true
                                     }
                                 }
-                                GestureZone.NONE -> { /* unreachable */ }
+                                GestureZone.NONE -> { /* middle zone — don't consume */ }
                             }
                         }
                     }
-                    // Finger lifted — hide OSD immediately
-                    showVolumeOsd = false
-                    showBrightnessOsd = false
                 }
             }
     ) {
