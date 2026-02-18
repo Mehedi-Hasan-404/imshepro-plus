@@ -31,15 +31,12 @@ class PlayerSettingsDialog(
     private var selectedText: TrackUiModel.Text? = null
     private var selectedSpeed: Float = 1.0f
 
-    // Multi-select support for video qualities
     private var selectedVideoQualities = mutableSetOf<TrackUiModel.Video>()
 
-    // State flags for "None" and "Auto"
     private var isVideoNone = false
     private var isAudioNone = false
     private var isTextNone = false
-    
-    // If these are false and selectedX is null, it implies "Auto"
+
     private var isVideoAuto = true
     private var isAudioAuto = true
     private var isTextAuto = true
@@ -49,6 +46,7 @@ class PlayerSettingsDialog(
     private var textTracks = listOf<TrackUiModel.Text>()
 
     private var currentAdapter: TrackAdapter<*>? = null
+    private var tabListenerEnabled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,118 +57,94 @@ class PlayerSettingsDialog(
         val displayMetrics = context.resources.displayMetrics
         val dialogWidth = (displayMetrics.widthPixels * 0.85).toInt()
 
-        window?.setLayout(
-            dialogWidth,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
+        window?.setLayout(dialogWidth, ViewGroup.LayoutParams.WRAP_CONTENT)
         window?.setBackgroundDrawableResource(android.R.color.transparent)
 
         initViews()
         loadTracks()
-        setupViews()
-
+        setupTabs()
+        setupButtons()
         showFirstAvailableTab()
     }
 
     private fun initViews() {
         recyclerView = findViewById(R.id.recyclerView)
         tabLayout = findViewById(R.id.tabLayout)
-
         val btnCloseImage: ImageButton = findViewById(R.id.btnClose)
         btnCloseImage.setOnClickListener { dismiss() }
-
         btnCancel = findViewById(R.id.btnCancel)
         btnApply = findViewById(R.id.btnApply)
     }
 
     private fun loadTracks() {
         try {
-            // 1. Get current parameters to determine if we are in Auto, Manual, or Disabled mode
             val parameters = player.trackSelectionParameters
-            
-            // --- VIDEO STATE DETECTION ---
+
             val disabledVideo = parameters.disabledTrackTypes.contains(C.TRACK_TYPE_VIDEO)
-            val videoOverrides = player.currentTracks.groups.filter { 
-                it.type == C.TRACK_TYPE_VIDEO && parameters.overrides.containsKey(it.mediaTrackGroup) 
+            val videoOverrides = player.currentTracks.groups.filter {
+                it.type == C.TRACK_TYPE_VIDEO && parameters.overrides.containsKey(it.mediaTrackGroup)
             }
-            
             isVideoNone = disabledVideo
-            // It is Auto if NOT disabled AND NO overrides exist
             isVideoAuto = !disabledVideo && videoOverrides.isEmpty()
 
-            // --- AUDIO STATE DETECTION ---
             val disabledAudio = parameters.disabledTrackTypes.contains(C.TRACK_TYPE_AUDIO)
-            val audioOverrides = player.currentTracks.groups.filter { 
-                it.type == C.TRACK_TYPE_AUDIO && parameters.overrides.containsKey(it.mediaTrackGroup) 
+            val audioOverrides = player.currentTracks.groups.filter {
+                it.type == C.TRACK_TYPE_AUDIO && parameters.overrides.containsKey(it.mediaTrackGroup)
             }
-            
             isAudioNone = disabledAudio
             isAudioAuto = !disabledAudio && audioOverrides.isEmpty()
 
-            // --- TEXT STATE DETECTION ---
             val disabledText = parameters.disabledTrackTypes.contains(C.TRACK_TYPE_TEXT)
-            val textOverrides = player.currentTracks.groups.filter { 
-                it.type == C.TRACK_TYPE_TEXT && parameters.overrides.containsKey(it.mediaTrackGroup) 
+            val textOverrides = player.currentTracks.groups.filter {
+                it.type == C.TRACK_TYPE_TEXT && parameters.overrides.containsKey(it.mediaTrackGroup)
             }
-            
             isTextNone = disabledText
             isTextAuto = !disabledText && textOverrides.isEmpty()
 
-
-            // 2. Load Raw Tracks from Mapper
             videoTracks = PlayerTrackMapper.videoTracks(player)
             audioTracks = PlayerTrackMapper.audioTracks(player)
             textTracks = PlayerTrackMapper.textTracks(player)
 
-
-            // 3. Initialize selectedVideoQualities Set
             selectedVideoQualities.clear()
             if (!isVideoAuto && !isVideoNone) {
-                // Add all currently selected tracks to the set
                 selectedVideoQualities.addAll(videoTracks.filter { it.isSelected })
             }
 
-            // 4. Set Selected Objects based on State (for Audio and Text)
-            selectedAudio = if (!isAudioAuto && !isAudioNone) {
-                audioTracks.firstOrNull { it.isSelected }
-            } else null
-            
-            selectedText = if (!isTextAuto && !isTextNone) {
-                // Filter out the "Off" dummy track if it exists from the mapper
-                textTracks.filter { it.language != "Off" }.firstOrNull { it.isSelected }
-            } else null
-
-            // 5. Get Speed
+            selectedAudio = if (!isAudioAuto && !isAudioNone) audioTracks.firstOrNull { it.isSelected } else null
+            selectedText = if (!isTextAuto && !isTextNone) textTracks.filter { it.language != "Off" }.firstOrNull { it.isSelected } else null
             selectedSpeed = player.playbackParameters.speed
-            
-            Timber.d("State -> Video Auto: $isVideoAuto, None: $isVideoNone | Audio Auto: $isAudioAuto")
 
         } catch (e: Exception) {
             Timber.e(e, "Error loading tracks")
         }
     }
 
-    private fun setupViews() {
-        recyclerView.layoutManager = LinearLayoutManager(context)
+    private fun setupTabs() {
+        tabListenerEnabled = false
 
         if (videoTracks.isNotEmpty()) tabLayout.addTab(tabLayout.newTab().setText("Video"))
         if (audioTracks.isNotEmpty()) tabLayout.addTab(tabLayout.newTab().setText("Audio"))
         if (textTracks.isNotEmpty()) tabLayout.addTab(tabLayout.newTab().setText("Text"))
         tabLayout.addTab(tabLayout.newTab().setText("Speed"))
 
+        tabListenerEnabled = true
+
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab?) {
+                if (!tabListenerEnabled) return
                 when (tab?.text?.toString()) {
                     "Video" -> showVideoTracks()
                     "Audio" -> showAudioTracks()
-                    "Text" -> showTextTracks()
+                    "Text"  -> showTextTracks()
                     "Speed" -> showSpeedOptions()
                 }
             }
             override fun onTabUnselected(tab: TabLayout.Tab?) {}
             override fun onTabReselected(tab: TabLayout.Tab?) {}
         })
+    }
 
+    private fun setupButtons() {
         btnCancel.setOnClickListener { dismiss() }
         btnApply.setOnClickListener {
             applySelections()
@@ -182,82 +156,53 @@ class PlayerSettingsDialog(
         when {
             videoTracks.isNotEmpty() -> showVideoTracks()
             audioTracks.isNotEmpty() -> showAudioTracks()
-            textTracks.isNotEmpty() -> showTextTracks()
-            else -> showSpeedOptions()
+            textTracks.isNotEmpty()  -> showTextTracks()
+            else                     -> showSpeedOptions()
         }
     }
 
     private fun showVideoTracks() {
         if (videoTracks.isEmpty()) return
-        
+
         val list = mutableListOf<TrackUiModel.Video>()
 
-        // 1. Add Auto/None (Radio Buttons)
         list.add(TrackUiModel.Video(
-            groupIndex = -1,
-            trackIndex = -1,
+            groupIndex = -1, trackIndex = -1,
             width = 0, height = 0, bitrate = 0,
-            isSelected = isVideoAuto,
-            isRadio = true
+            isSelected = isVideoAuto, isRadio = true
+        ))
+        list.add(TrackUiModel.Video(
+            groupIndex = -2, trackIndex = -2,
+            width = 0, height = 0, bitrate = 0,
+            isSelected = isVideoNone, isRadio = true
         ))
 
-        list.add(TrackUiModel.Video(
-            groupIndex = -2,
-            trackIndex = -2,
-            width = 0, height = 0, bitrate = 0,
-            isSelected = isVideoNone,
-            isRadio = true
-        ))
-        
-        // 2. Add Specific Qualities (Checkbox if multiple, Radio if single)
-        val useRadioForQualities = videoTracks.size == 1
+        val useRadio = videoTracks.size == 1
         list.addAll(videoTracks.map { track ->
-            val isCurrentlyChecked = selectedVideoQualities.any {
+            val isChecked = selectedVideoQualities.any {
                 it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex
             }
-            track.copy(
-                isSelected = !isVideoAuto && !isVideoNone && isCurrentlyChecked,
-                isRadio = useRadioForQualities
-            )
+            track.copy(isSelected = !isVideoAuto && !isVideoNone && isChecked, isRadio = useRadio)
         })
 
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
             when (selected.groupIndex) {
-                -1 -> { // Auto Clicked
-                    selectedVideoQualities.clear()
-                    isVideoAuto = true
-                    isVideoNone = false
-                }
-                -2 -> { // None Clicked
-                    selectedVideoQualities.clear()
-                    isVideoAuto = false
-                    isVideoNone = true
-                }
-                else -> { // A specific Quality Checkbox Clicked
+                -1 -> { selectedVideoQualities.clear(); isVideoAuto = true; isVideoNone = false }
+                -2 -> { selectedVideoQualities.clear(); isVideoAuto = false; isVideoNone = true }
+                else -> {
                     isVideoAuto = false
                     isVideoNone = false
-                    
-                    // Toggle logic: If already in set, remove it. If not, add it.
-                    val existing = selectedVideoQualities.find { 
-                        it.groupIndex == selected.groupIndex && it.trackIndex == selected.trackIndex 
+                    val existing = selectedVideoQualities.find {
+                        it.groupIndex == selected.groupIndex && it.trackIndex == selected.trackIndex
                     }
-                    
-                    if (existing != null) {
-                        selectedVideoQualities.remove(existing)
-                    } else {
-                        selectedVideoQualities.add(selected)
-                    }
-
-                    // AUTO-SELECT AUTO: If user unchecks everything, turn Auto back on
-                    if (selectedVideoQualities.isEmpty()) {
-                        isVideoAuto = true
-                    }
+                    if (existing != null) selectedVideoQualities.remove(existing)
+                    else selectedVideoQualities.add(selected)
+                    if (selectedVideoQualities.isEmpty()) isVideoAuto = true
                 }
             }
-            // Refresh the UI list
             refreshVideoList()
         }
-        
+
         adapter.submit(list)
         recyclerView.adapter = adapter
         currentAdapter = adapter
@@ -265,53 +210,43 @@ class PlayerSettingsDialog(
 
     private fun refreshVideoList() {
         val list = mutableListOf<TrackUiModel.Video>()
-        
+
         list.add(TrackUiModel.Video(
-            groupIndex = -1,
-            trackIndex = -1,
+            groupIndex = -1, trackIndex = -1,
             width = 0, height = 0, bitrate = 0,
-            isSelected = isVideoAuto,
-            isRadio = true
+            isSelected = isVideoAuto, isRadio = true
         ))
-        
         list.add(TrackUiModel.Video(
-            groupIndex = -2,
-            trackIndex = -2,
+            groupIndex = -2, trackIndex = -2,
             width = 0, height = 0, bitrate = 0,
-            isSelected = isVideoNone,
-            isRadio = true
+            isSelected = isVideoNone, isRadio = true
         ))
-        
-        val useRadioForQualities = videoTracks.size == 1
+
+        val useRadio = videoTracks.size == 1
         list.addAll(videoTracks.map { track ->
             val isChecked = selectedVideoQualities.any {
                 it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex
             }
-            track.copy(
-                isSelected = !isVideoAuto && !isVideoNone && isChecked,
-                isRadio = useRadioForQualities
-            )
+            track.copy(isSelected = !isVideoAuto && !isVideoNone && isChecked, isRadio = useRadio)
         })
-        
+
         (currentAdapter as? TrackAdapter<TrackUiModel.Video>)?.submit(list)
     }
 
     private fun showAudioTracks() {
         if (audioTracks.isEmpty()) return
 
-        val tracksWithOptions = mutableListOf<TrackUiModel.Audio>()
+        val list = mutableListOf<TrackUiModel.Audio>()
 
-        tracksWithOptions.add(TrackUiModel.Audio(
+        list.add(TrackUiModel.Audio(
             groupIndex = -1, trackIndex = -1, language = "Auto", channels = 0, bitrate = 0,
             isSelected = isAudioAuto
         ))
-
-        tracksWithOptions.add(TrackUiModel.Audio(
+        list.add(TrackUiModel.Audio(
             groupIndex = -2, trackIndex = -2, language = "None", channels = 0, bitrate = 0,
             isSelected = isAudioNone
         ))
-
-        tracksWithOptions.addAll(audioTracks.map { track ->
+        list.addAll(audioTracks.map { track ->
             track.copy(isSelected = !isAudioAuto && !isAudioNone && track.isSelected)
         })
 
@@ -324,7 +259,7 @@ class PlayerSettingsDialog(
             (currentAdapter as? TrackAdapter<TrackUiModel.Audio>)?.updateSelection(selected)
         }
 
-        adapter.submit(tracksWithOptions)
+        adapter.submit(list)
         recyclerView.adapter = adapter
         currentAdapter = adapter
     }
@@ -332,19 +267,17 @@ class PlayerSettingsDialog(
     private fun showTextTracks() {
         if (textTracks.isEmpty()) return
 
-        val tracksWithOptions = mutableListOf<TrackUiModel.Text>()
+        val list = mutableListOf<TrackUiModel.Text>()
 
-        tracksWithOptions.add(TrackUiModel.Text(
+        list.add(TrackUiModel.Text(
             groupIndex = -1, trackIndex = -1, language = "Auto",
             isSelected = isTextAuto
         ))
-
-        tracksWithOptions.add(TrackUiModel.Text(
+        list.add(TrackUiModel.Text(
             groupIndex = -2, trackIndex = -2, language = "None",
             isSelected = isTextNone
         ))
-
-        tracksWithOptions.addAll(textTracks.filter { it.language != "Off" }.map { track ->
+        list.addAll(textTracks.filter { it.language != "Off" }.map { track ->
             track.copy(isSelected = !isTextAuto && !isTextNone && track.isSelected)
         })
 
@@ -357,7 +290,7 @@ class PlayerSettingsDialog(
             (currentAdapter as? TrackAdapter<TrackUiModel.Text>)?.updateSelection(selected)
         }
 
-        adapter.submit(tracksWithOptions)
+        adapter.submit(list)
         recyclerView.adapter = adapter
         currentAdapter = adapter
     }
@@ -380,24 +313,18 @@ class PlayerSettingsDialog(
 
     private fun applySelections() {
         try {
-            // Convert the set of selected qualities to a list
-            val videoList = if (isVideoAuto || isVideoNone) {
-                emptyList()
-            } else {
-                selectedVideoQualities.toList()
-            }
-            
-            // You'll need to update TrackSelectionApplier to handle multiple video tracks
+            val videoList = if (isVideoAuto || isVideoNone) emptyList() else selectedVideoQualities.toList()
+
             TrackSelectionApplier.applyMultipleVideo(
-                player = player,
-                videoTracks = videoList,
-                audio = selectedAudio,
-                text = selectedText,
+                player       = player,
+                videoTracks  = videoList,
+                audio        = selectedAudio,
+                text         = selectedText,
                 disableVideo = isVideoNone,
                 disableAudio = isAudioNone,
-                disableText = isTextNone
+                disableText  = isTextNone
             )
-            
+
             player.setPlaybackSpeed(selectedSpeed)
         } catch (e: Exception) {
             Timber.e(e, "Error applying selections")
