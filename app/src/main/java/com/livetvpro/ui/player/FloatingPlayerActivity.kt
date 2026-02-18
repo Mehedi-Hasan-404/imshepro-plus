@@ -1649,10 +1649,12 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
     private fun showSettingsDialog() {
         val exoPlayer = player ?: return
+        if (isFinishing || isDestroyed) return
         try {
             val dialog = com.livetvpro.ui.player.settings.PlayerSettingsDialog(this, exoPlayer)
             dialog.show()
         } catch (e: Exception) {
+            android.util.Log.e("FloatingPlayerActivity", "Error showing settings dialog", e)
         }
     }
 
