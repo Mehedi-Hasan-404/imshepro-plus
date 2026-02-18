@@ -2,8 +2,30 @@ package com.livetvpro.ui.player.settings
 
 import androidx.media3.common.C
 import androidx.media3.common.Player
+import java.util.Locale
 
 object PlayerTrackMapper {
+
+    private fun languageDisplayName(code: String?): String {
+        if (code == null || code == "und" || code.isBlank()) return "Unknown"
+        return try {
+            val locale = Locale.forLanguageTag(code)
+            val name = locale.getDisplayLanguage(Locale.ENGLISH)
+            if (name.isNotBlank() && name != code) name else code.uppercase()
+        } catch (e: Exception) {
+            code.uppercase()
+        }
+    }
+
+    private fun channelLabel(channelCount: Int): String {
+        return when (channelCount) {
+            1 -> "Mono"
+            2 -> "Stereo"
+            6 -> "Surround 5.1"
+            8 -> "Surround 7.1"
+            else -> if (channelCount > 0) "${channelCount}ch" else ""
+        }
+    }
 
     fun videoTracks(player: Player): List<TrackUiModel.Video> {
         val result = mutableListOf<TrackUiModel.Video>()
@@ -47,7 +69,7 @@ object PlayerTrackMapper {
                     TrackUiModel.Audio(
                         groupIndex = groupIndex,
                         trackIndex = i,
-                        language = format.language ?: "Unknown",
+                        language = languageDisplayName(format.language),
                         channels = format.channelCount,
                         bitrate = format.bitrate,
                         isSelected = group.isTrackSelected(i),
@@ -84,7 +106,7 @@ object PlayerTrackMapper {
                     TrackUiModel.Text(
                         groupIndex = groupIndex,
                         trackIndex = i,
-                        language = format.language ?: "Unknown",
+                        language = languageDisplayName(format.language),
                         isSelected = group.isTrackSelected(i),
                         isRadio = true
                     )
