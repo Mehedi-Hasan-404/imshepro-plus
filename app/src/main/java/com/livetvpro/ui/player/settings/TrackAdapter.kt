@@ -13,6 +13,9 @@ import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.interaction.HoverInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -441,9 +444,9 @@ private data class InteractionState(
 private fun rememberInteractionState(
     source: MutableInteractionSource
 ): InteractionState {
-    val isPressed = androidx.compose.foundation.interaction.collectIsPressedAsState(source).value
-    val isHovered = androidx.compose.foundation.interaction.collectIsHoveredAsState(source).value
-    val isFocused = androidx.compose.foundation.interaction.collectIsFocusedAsState(source).value
+    val isPressed by source.collectIsPressedAsState()
+    val isHovered by source.collectIsHoveredAsState()
+    val isFocused by source.collectIsFocusedAsState()
     return InteractionState(isPressed, isHovered, isFocused)
 }
 
