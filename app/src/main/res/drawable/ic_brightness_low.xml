@@ -1,14 +1,10 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <!-- Sun rays (short = low brightness) -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M12,8a4,4 0,0 1,4 4,4 4,0 0,1 -4,4A4,4 0,0 1,8 12,4 4,0 0,1 12,8M12,6a6,6 0,0 0,-6 6,6 6,0 0,0 6,6,6 6,0 0,0 6,-6A6,6 0,0 0,12 6zM12,2L12,4M12,20L12,22M4.22,4.22L5.64,5.64M18.36,18.36L19.78,19.78M2,12L4,12M20,12L22,12M4.22,19.78L5.64,18.36M18.36,5.64L19.78,4.22"
-        android:strokeWidth="2"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"/>
+    android:viewportWidth="960"
+    android:viewportHeight="960"
+    android:tint="?attr/colorControlNormal">
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M480,932L346,800L160,800L160,614L28,480L160,346L160,160L346,160L480,28L614,160L800,160L800,346L932,480L800,614L800,800L614,800L480,932ZM621.5,621.5Q680,563 680,480Q680,397 621.5,338.5Q563,280 480,280Q397,280 338.5,338.5Q280,397 280,480Q280,563 338.5,621.5Q397,680 480,680Q563,680 621.5,621.5ZM395,565Q360,530 360,480Q360,430 395,395Q430,360 480,360Q530,360 565,395Q600,430 600,480Q600,530 565,565Q530,600 480,600Q430,600 395,565ZM480,820L580,720L720,720L720,580L820,480L720,380L720,240L580,240L480,140L380,240L240,240L240,380L140,480L240,580L240,720L380,720L480,820ZM480,480Q480,480 480,480Q480,480 480,480Q480,480 480,480Q480,480 480,480Q480,480 480,480Q480,480 480,480Q480,480 480,480Q480,480 480,480Z"/>
 </vector>
-
