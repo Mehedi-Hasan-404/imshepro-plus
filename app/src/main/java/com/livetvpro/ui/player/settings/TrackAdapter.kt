@@ -4,25 +4,36 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.size
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.databinding.ItemTrackOptionBinding
 
@@ -60,7 +71,6 @@ class TrackAdapter<T : TrackUiModel>(
     inner class VH(val binding: ItemTrackOptionBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
-        // Stable Compose state at VH level — survives rebinds so animations run smoothly
         private val selectedState = mutableStateOf(false)
         private val isRadioState  = mutableStateOf(true)
         private var currentItem: T? = null
@@ -74,11 +84,9 @@ class TrackAdapter<T : TrackUiModel>(
                 val isRadio  by isRadioState
                 val interactionSource = remember { MutableInteractionSource() }
 
-                // Override M3's 48dp minimum touch target — the full row handles touch
                 @OptIn(ExperimentalMaterial3Api::class)
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
                     if (isRadio) {
-                        // Spring-bounce scale + color fade on the radio dot
                         val dotScale by animateFloatAsState(
                             targetValue = if (selected) 1f else 0.7f,
                             animationSpec = spring(dampingRatio = 0.45f, stiffness = 650f),
@@ -91,7 +99,7 @@ class TrackAdapter<T : TrackUiModel>(
                         )
                         RadioButton(
                             selected = selected,
-                            onClick = null,         // row handles touch
+                            onClick = null,
                             interactionSource = interactionSource,
                             colors = RadioButtonDefaults.colors(
                                 selectedColor = activeColor,
@@ -100,31 +108,43 @@ class TrackAdapter<T : TrackUiModel>(
                             modifier = Modifier.scale(dotScale)
                         )
                     } else {
-                        // onClick = null lets M3 own its checkmark-draw animation fully.
-                        // Modifier.scale() instead of Modifier.size() so the stroke isn't clipped.
-                        val checkedColor by animateColorAsState(
+                        val checkmarkProgress = remember { Animatable(if (selected) 1f else 0f) }
+                        val fillProgress     = remember { Animatable(if (selected) 1f else 0f) }
+                        val borderColor by animateColorAsState(
                             targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
-                            animationSpec = tween(150),
-                            label = "checkbox_color"
+                            animationSpec = tween(120),
+                            label = "border_color"
                         )
-                        Checkbox(
-                            checked = selected,
-                            onCheckedChange = null, // row handles touch
-                            interactionSource = interactionSource,
-                            colors = CheckboxDefaults.colors(
-                                checkedColor = checkedColor,
-                                uncheckedColor = Color(0xFF8A8A8A),
-                                checkmarkColor = Color.White
-                            ),
-                            modifier = Modifier.scale(0.85f) // visually compact without clipping
-                        )
+                        LaunchedEffect(selected) {
+                            if (selected) {
+                                fillProgress.animateTo(1f, animationSpec = tween(140))
+                                checkmarkProgress.animateTo(
+                                    1f,
+                                    animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f)
+                                )
+                            } else {
+                                checkmarkProgress.animateTo(0f, animationSpec = tween(100))
+                                fillProgress.animateTo(0f, animationSpec = tween(120))
+                            }
+                        }
+
+                        Canvas(
+                            modifier = Modifier.size(22.dp)
+                        ) {
+                            drawAnimatedCheckbox(
+                                fillProgress = fillProgress.value,
+                                checkmarkProgress = checkmarkProgress.value,
+                                borderColor = borderColor,
+                                checkedFillColor = Color(0xFFFF0000),
+                                checkmarkColor = Color.White,
+                                strokeWidth = 2.2.dp.toPx(),
+                                cornerRadius = 4.dp.toPx()
+                            )
+                        }
                     }
                 }
             }
 
-            // THE FIX: entire row is the click target.
-            // Toggle selectedState immediately for instant animation feedback,
-            // then notify onSelect so the data layer catches up.
             binding.root.setOnClickListener {
                 val item = currentItem ?: return@setOnClickListener
                 if (isRadioState.value) {
@@ -138,8 +158,6 @@ class TrackAdapter<T : TrackUiModel>(
 
         fun bind(item: T) {
             currentItem = item
-            // Updating MutableState triggers a smooth recomposition (not a restart),
-            // so M3's internal checkmark-draw animation runs from old→new state.
             selectedState.value = item.isSelected
             isRadioState.value  = item.isRadio
 
@@ -226,4 +244,72 @@ class TrackAdapter<T : TrackUiModel>(
 
     override fun onBindViewHolder(holder: VH, position: Int) = holder.bind(items[position])
     override fun getItemCount() = items.size
+}
+
+private fun DrawScope.drawAnimatedCheckbox(
+    fillProgress: Float,
+    checkmarkProgress: Float,
+    borderColor: Color,
+    checkedFillColor: Color,
+    checkmarkColor: Color,
+    strokeWidth: Float,
+    cornerRadius: Float
+) {
+    val inset = strokeWidth / 2f
+    val boxSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+    val topLeft = Offset(inset, inset)
+    val radius = CornerRadius(cornerRadius, cornerRadius)
+
+    if (fillProgress > 0f) {
+        drawRoundRect(
+            color = checkedFillColor.copy(alpha = fillProgress),
+            topLeft = topLeft,
+            size = boxSize,
+            cornerRadius = radius
+        )
+    }
+
+    drawRoundRect(
+        color = borderColor,
+        topLeft = topLeft,
+        size = boxSize,
+        cornerRadius = radius,
+        style = Stroke(width = strokeWidth)
+    )
+
+    if (checkmarkProgress > 0f) {
+        val w = size.width
+        val h = size.height
+        val p1 = Offset(w * 0.18f, h * 0.50f)
+        val p2 = Offset(w * 0.40f, h * 0.72f)
+        val p3 = Offset(w * 0.78f, h * 0.28f)
+
+        val path = Path()
+        if (checkmarkProgress <= 0.5f) {
+            val t = checkmarkProgress / 0.5f
+            path.moveTo(p1.x, p1.y)
+            path.lineTo(
+                p1.x + (p2.x - p1.x) * t,
+                p1.y + (p2.y - p1.y) * t
+            )
+        } else {
+            val t = (checkmarkProgress - 0.5f) / 0.5f
+            path.moveTo(p1.x, p1.y)
+            path.lineTo(p2.x, p2.y)
+            path.lineTo(
+                p2.x + (p3.x - p2.x) * t,
+                p2.y + (p3.y - p2.y) * t
+            )
+        }
+
+        drawPath(
+            path = path,
+            color = checkmarkColor,
+            style = Stroke(
+                width = strokeWidth * 1.15f,
+                cap = StrokeCap.Round,
+                join = StrokeJoin.Round
+            )
+        )
+    }
 }
