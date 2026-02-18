@@ -77,7 +77,7 @@ fun GestureOverlay(
                         totalDy += dy
                         if (!committed && abs(totalDy) > slopPx) committed = true
 
-                        if (committed && zone != GestureZone.NONE) {
+                        if (committed) {
                             change.consume()
                             when (zone) {
                                 GestureZone.VOLUME -> {
@@ -100,7 +100,6 @@ fun GestureOverlay(
                                         onShowBrightnessOsd(true)
                                     }
                                 }
-                                GestureZone.NONE -> {}
                             }
                         }
                     }
@@ -171,13 +170,8 @@ private fun OsdCard(content: @Composable RowScope.() -> Unit) {
     ) { content() }
 }
 
-private enum class GestureZone { BRIGHTNESS, NONE, VOLUME }
+private enum class GestureZone { BRIGHTNESS, VOLUME }
 
 private fun gestureZone(x: Float, totalWidth: Float): GestureZone {
-    if (totalWidth <= 0f) return GestureZone.NONE
-    return when {
-        x < totalWidth / 3f      -> GestureZone.BRIGHTNESS
-        x > totalWidth * 2f / 3f -> GestureZone.VOLUME
-        else                      -> GestureZone.NONE
-    }
+    return if (x < totalWidth / 2f) GestureZone.BRIGHTNESS else GestureZone.VOLUME
 }
