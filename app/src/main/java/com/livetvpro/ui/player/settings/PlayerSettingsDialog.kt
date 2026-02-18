@@ -5,8 +5,6 @@ import android.os.Bundle
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.ImageButton
-import android.widget.ProgressBar
-import android.widget.TextView
 import androidx.activity.ComponentDialog
 import androidx.media3.common.C
 import androidx.media3.common.Player
@@ -48,9 +46,20 @@ class PlayerSettingsDialog(
     private var textTracks  = listOf<TrackUiModel.Text>()
 
     private var currentAdapter: TrackAdapter<*>? = null
-    private var currentTabIndex: Int = 0
-
     private var tracksListener: Player.Listener? = null
+
+    // Stable tab list — built once and reused by the single persistent listener
+    private val tabs = mutableListOf<TabEntry>()
+    private data class TabEntry(val label: String, val show: () -> Unit)
+
+    // Single tab listener attached once — never re-attached
+    private val tabSelectedListener = object : TabLayout.OnTabSelectedListener {
+        override fun onTabSelected(tab: TabLayout.Tab?) {
+            tabs.getOrNull(tab?.position ?: return)?.show?.invoke()
+        }
+        override fun onTabUnselected(tab: TabLayout.Tab?) {}
+        override fun onTabReselected(tab: TabLayout.Tab?) {}
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,20 +85,21 @@ class PlayerSettingsDialog(
 
         recyclerView.layoutManager = LinearLayoutManager(context)
 
+        // Attach the listener exactly ONCE — it stays for the dialog's lifetime
+        tabLayout.addOnTabSelectedListener(tabSelectedListener)
+
         loadTracks()
 
         val allEmpty = videoTracks.isEmpty() && audioTracks.isEmpty() && textTracks.isEmpty()
         if (allEmpty) {
-            // Tracks not ready yet — wait for ExoPlayer to report them
             val listener = object : Player.Listener {
                 override fun onTracksChanged(tracks: Tracks) {
                     if (tracks.groups.isNotEmpty()) {
                         player.removeListener(this)
                         tracksListener = null
-                        // Re-run on main thread (listener fires on player thread)
                         recyclerView.post {
                             loadTracks()
-                            buildTabs()
+                            rebuildTabs()
                         }
                     }
                 }
@@ -98,7 +108,7 @@ class PlayerSettingsDialog(
             player.addListener(listener)
         }
 
-        buildTabs()
+        rebuildTabs()
     }
 
     override fun onStop() {
@@ -137,45 +147,35 @@ class PlayerSettingsDialog(
             textTracks  = PlayerTrackMapper.textTracks(player)
 
             selectedVideoQualities.clear()
-            if (!isVideoAuto && !isVideoNone) {
+            if (!isVideoAuto && !isVideoNone)
                 selectedVideoQualities.addAll(videoTracks.filter { it.isSelected })
-            }
+
             selectedAudio = if (!isAudioAuto && !isAudioNone) audioTracks.firstOrNull { it.isSelected } else null
             selectedText  = if (!isTextAuto  && !isTextNone)  textTracks.firstOrNull  { it.isSelected } else null
             selectedSpeed = player.playbackParameters.speed
 
-            Timber.d("Tracks loaded — video:${videoTracks.size} audio:${audioTracks.size} text:${textTracks.size}")
+            Timber.d("Tracks — video:${videoTracks.size} audio:${audioTracks.size} text:${textTracks.size}")
         } catch (e: Exception) {
             Timber.e(e, "Error loading tracks")
         }
     }
 
-    private fun buildTabs() {
+    private fun rebuildTabs() {
+        // Clear tabs list and all tab views — listener stays attached
+        tabs.clear()
         tabLayout.removeAllTabs()
-
-        data class TabEntry(val label: String, val show: () -> Unit)
-        val tabs = mutableListOf<TabEntry>()
 
         if (videoTracks.isNotEmpty()) tabs.add(TabEntry("Video") { showVideoTracks() })
         if (audioTracks.isNotEmpty()) tabs.add(TabEntry("Audio") { showAudioTracks() })
         if (textTracks.isNotEmpty())  tabs.add(TabEntry("Text")  { showTextTracks()  })
         tabs.add(TabEntry("Speed") { showSpeedOptions() })
 
-        var listenerActive = false
+        // Adding tabs fires the listener — but tabs list is already populated so it's safe
         tabs.forEach { tabLayout.addTab(tabLayout.newTab().setText(it.label)) }
 
-        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab?) {
-                if (!listenerActive) return
-                currentTabIndex = tab?.position ?: 0
-                tabs.getOrNull(currentTabIndex)?.show?.invoke()
-            }
-            override fun onTabUnselected(tab: TabLayout.Tab?) {}
-            override fun onTabReselected(tab: TabLayout.Tab?) {}
-        })
-
-        listenerActive = true
-        currentTabIndex = 0
+        // Manually trigger first tab content (addTab selects first tab but listener
+        // fires during addTab before our tabs list was ready in previous versions —
+        // now tabs list IS ready so we just call show directly to be explicit)
         tabs.firstOrNull()?.show?.invoke()
     }
 
@@ -184,8 +184,8 @@ class PlayerSettingsDialog(
     private fun showVideoTracks() {
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
             when (selected.groupIndex) {
-                -1 -> { selectedVideoQualities.clear(); isVideoAuto = true;  isVideoNone = false }
-                -2 -> { selectedVideoQualities.clear(); isVideoAuto = false; isVideoNone = true  }
+                -1   -> { selectedVideoQualities.clear(); isVideoAuto = true;  isVideoNone = false }
+                -2   -> { selectedVideoQualities.clear(); isVideoAuto = false; isVideoNone = true  }
                 else -> {
                     isVideoAuto = false; isVideoNone = false
                     val key = selectedVideoQualities.find {
@@ -222,8 +222,8 @@ class PlayerSettingsDialog(
     private fun showAudioTracks() {
         val adapter = TrackAdapter<TrackUiModel.Audio> { selected ->
             when (selected.groupIndex) {
-                -1 -> { selectedAudio = null; isAudioNone = false; isAudioAuto = true  }
-                -2 -> { selectedAudio = null; isAudioNone = true;  isAudioAuto = false }
+                -1   -> { selectedAudio = null; isAudioNone = false; isAudioAuto = true  }
+                -2   -> { selectedAudio = null; isAudioNone = true;  isAudioAuto = false }
                 else -> { selectedAudio = selected; isAudioNone = false; isAudioAuto = false }
             }
             (currentAdapter as? TrackAdapter<TrackUiModel.Audio>)?.updateSelection(selected)
@@ -248,8 +248,8 @@ class PlayerSettingsDialog(
     private fun showTextTracks() {
         val adapter = TrackAdapter<TrackUiModel.Text> { selected ->
             when (selected.groupIndex) {
-                -1 -> { selectedText = null; isTextNone = false; isTextAuto = true  }
-                -2 -> { selectedText = null; isTextNone = true;  isTextAuto = false }
+                -1   -> { selectedText = null; isTextNone = false; isTextAuto = true  }
+                -2   -> { selectedText = null; isTextNone = true;  isTextAuto = false }
                 else -> { selectedText = selected; isTextNone = false; isTextAuto = false }
             }
             (currentAdapter as? TrackAdapter<TrackUiModel.Text>)?.updateSelection(selected)
