@@ -6,6 +6,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.R
 import com.livetvpro.databinding.ItemTrackOptionBinding
+import androidx.core.content.ContextCompat
 import timber.log.Timber
 
 class TrackAdapter<T : TrackUiModel>(
@@ -62,6 +63,7 @@ class TrackAdapter<T : TrackUiModel>(
                 // Show radio button, hide checkbox
                 radioButton.visibility = View.VISIBLE
                 checkBox.visibility = View.GONE
+                radioButton.buttonTintList = null  // prevent theme from overriding custom drawable
                 radioButton.isChecked = item.isSelected
                 Timber.d("Showing RADIO button")
             } else {
@@ -77,7 +79,16 @@ class TrackAdapter<T : TrackUiModel>(
                     checkBox.startAnimation(anim)
                 }
 
-                checkBox.isChecked = item.isSelected
+                // Handle indeterminate state programmatically
+                val cb = checkBox as? android.widget.CheckBox
+                if (item.isIndeterminate == true) {
+                    cb?.buttonDrawable = ContextCompat.getDrawable(binding.root.context, R.drawable.checkbox_indeterminate)
+                    cb?.isChecked = false
+                } else {
+                    cb?.buttonTintList = null  // prevent theme from overriding custom drawable
+                    cb?.buttonDrawable = ContextCompat.getDrawable(binding.root.context, R.drawable.checkbox_selector)
+                    cb?.isChecked = item.isSelected
+                }
                 Timber.d("Showing CHECKBOX")
             }
 
