@@ -209,13 +209,16 @@ class PlayerSettingsDialog(
             isRadio = true
         ))
         
-        // 2. Add Specific Qualities (Checkboxes)
+        // 2. Add Specific Qualities (Checkbox if multiple, Radio if single)
+        val useRadioForQualities = videoTracks.size == 1
         list.addAll(videoTracks.map { track ->
-            // Check if this track is in our multi-select set
-            val isCurrentlyChecked = selectedVideoQualities.any { 
-                it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex 
+            val isCurrentlyChecked = selectedVideoQualities.any {
+                it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex
             }
-            track.copy(isSelected = !isVideoAuto && !isVideoNone && isCurrentlyChecked)
+            track.copy(
+                isSelected = !isVideoAuto && !isVideoNone && isCurrentlyChecked,
+                isRadio = useRadioForQualities
+            )
         })
 
         val adapter = TrackAdapter<TrackUiModel.Video> { selected ->
@@ -279,11 +282,15 @@ class PlayerSettingsDialog(
             isRadio = true
         ))
         
+        val useRadioForQualities = videoTracks.size == 1
         list.addAll(videoTracks.map { track ->
-            val isChecked = selectedVideoQualities.any { 
-                it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex 
+            val isChecked = selectedVideoQualities.any {
+                it.groupIndex == track.groupIndex && it.trackIndex == track.trackIndex
             }
-            track.copy(isSelected = !isVideoAuto && !isVideoNone && isChecked)
+            track.copy(
+                isSelected = !isVideoAuto && !isVideoNone && isChecked,
+                isRadio = useRadioForQualities
+            )
         })
         
         (currentAdapter as? TrackAdapter<TrackUiModel.Video>)?.submit(list)
