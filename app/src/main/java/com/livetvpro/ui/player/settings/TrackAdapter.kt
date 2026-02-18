@@ -9,6 +9,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -16,6 +18,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,6 +32,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -39,6 +43,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.recyclerview.widget.RecyclerView
 import com.livetvpro.databinding.ItemTrackOptionBinding
+
+private val Red       = Color(0xFFE53935)
+private val Gray      = Color(0xFF8A8A8A)
+private val StateOnSurface = Color(0xFFFFFFFF)
 
 class TrackAdapter<T : TrackUiModel>(
     private val onSelect: (T) -> Unit
@@ -55,7 +63,7 @@ class TrackAdapter<T : TrackUiModel>(
     fun updateSelection(selectedItem: T) {
         items.forEachIndexed { index, item ->
             val wasSelected = item.isSelected
-            val isSelected = item == selectedItem
+            val isSelected  = item == selectedItem
 
             @Suppress("UNCHECKED_CAST")
             val updatedItem = when (item) {
@@ -91,61 +99,17 @@ class TrackAdapter<T : TrackUiModel>(
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
                     Box(
                         contentAlignment = Alignment.Center,
-                        modifier = Modifier.fillMaxSize()
+                        modifier         = Modifier.fillMaxSize()
                     ) {
                         if (isRadio) {
-                            val dotScale by animateFloatAsState(
-                                targetValue = if (selected) 1f else 0.7f,
-                                animationSpec = spring(dampingRatio = 0.45f, stiffness = 650f),
-                                label = "radio_scale"
-                            )
-                            val activeColor by animateColorAsState(
-                                targetValue = if (selected) Color(0xFFE53935) else Color(0xFF8A8A8A),
-                                animationSpec = tween(180),
-                                label = "radio_color"
-                            )
-                            RadioButton(
-                                selected = selected,
-                                onClick = null,
-                                interactionSource = interactionSource,
-                                colors = RadioButtonDefaults.colors(
-                                    selectedColor = activeColor,
-                                    unselectedColor = Color(0xFF8A8A8A)
-                                ),
-                                modifier = Modifier.scale(dotScale)
+                            M3RadioButton(
+                                selected          = selected,
+                                interactionSource = interactionSource
                             )
                         } else {
-                            val checkmarkProgress = remember { Animatable(if (selected) 1f else 0f) }
-                            val fillProgress      = remember { Animatable(if (selected) 1f else 0f) }
-                            val borderColor by animateColorAsState(
-                                targetValue = if (selected) Color(0xFFE53935) else Color(0xFF8A8A8A),
-                                animationSpec = tween(100),
-                                label = "border_color"
-                            )
-
-                            LaunchedEffect(selected) {
-                                if (selected) {
-                                    fillProgress.animateTo(1f, tween(90))
-                                    checkmarkProgress.snapTo(0f)
-                                    checkmarkProgress.animateTo(1f, tween(150))
-                                } else {
-                                    checkmarkProgress.animateTo(0f, tween(80))
-                                    fillProgress.animateTo(0f, tween(100))
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .drawBehind {
-                                        drawM3Checkbox(
-                                            fillProgress      = fillProgress.value,
-                                            checkmarkProgress = checkmarkProgress.value,
-                                            borderColor       = borderColor,
-                                            fillColor         = Color(0xFFE53935),
-                                            checkmarkColor    = Color.White
-                                        )
-                                    }
+                            M3Checkbox(
+                                checked           = selected,
+                                interactionSource = interactionSource
                             )
                         }
                     }
@@ -164,7 +128,7 @@ class TrackAdapter<T : TrackUiModel>(
         }
 
         fun bind(item: T) {
-            currentItem = item
+            currentItem         = item
             selectedState.value = item.isSelected
             isRadioState.value  = item.isRadio
             binding.tvSecondary.visibility = View.VISIBLE
@@ -252,23 +216,150 @@ class TrackAdapter<T : TrackUiModel>(
     override fun getItemCount() = items.size
 }
 
-private fun DrawScope.drawM3Checkbox(
-    fillProgress: Float,
-    checkmarkProgress: Float,
-    borderColor: Color,
-    fillColor: Color,
-    checkmarkColor: Color
+@Composable
+private fun M3RadioButton(
+    selected: Boolean,
+    interactionSource: MutableInteractionSource
 ) {
-    val strokeWidth  = (1.8).dp.toPx()
-    val cornerRadius = 2.dp.toPx()
-    val inset        = strokeWidth / 2f
-    val boxSize      = Size(size.width - strokeWidth, size.height - strokeWidth)
-    val topLeft      = Offset(inset, inset)
-    val radius       = CornerRadius(cornerRadius)
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val isHovered by interactionSource.collectIsHoveredAsState()
 
-    if (fillProgress > 0f) {
+    val dotScale by animateFloatAsState(
+        targetValue   = if (selected) 1f else 0.9f,
+        animationSpec = spring(dampingRatio = 0.45f, stiffness = 650f),
+        label         = "radio_scale"
+    )
+    val activeColor by animateColorAsState(
+        targetValue   = if (selected) Red else Gray,
+        animationSpec = tween(180),
+        label         = "radio_color"
+    )
+
+    val stateLayerAlpha by animateFloatAsState(
+        targetValue = when {
+            isPressed -> 0.12f
+            isHovered -> 0.08f
+            else      -> 0f
+        },
+        animationSpec = tween(if (isPressed) 0 else 150),
+        label         = "radio_state_alpha"
+    )
+    val stateLayerColor = if (selected) Red else StateOnSurface
+
+    RadioButton(
+        selected          = selected,
+        onClick           = null,
+        interactionSource = interactionSource,
+        colors            = RadioButtonDefaults.colors(
+            selectedColor   = activeColor,
+            unselectedColor = Gray
+        ),
+        modifier = Modifier
+            .scale(dotScale)
+            .drawBehind {
+                if (stateLayerAlpha > 0f) {
+                    drawCircle(
+                        color  = stateLayerColor.copy(alpha = stateLayerAlpha),
+                        radius = 20.dp.toPx()
+                    )
+                }
+            }
+    )
+}
+
+@Composable
+private fun M3Checkbox(
+    checked: Boolean,
+    interactionSource: MutableInteractionSource
+) {
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val isHovered by interactionSource.collectIsHoveredAsState()
+
+    val checkmarkProgress = remember { Animatable(if (checked) 1f else 0f) }
+    val fillProgress      = remember { Animatable(if (checked) 1f else 0f) }
+
+    val containerColor by animateColorAsState(
+        targetValue   = if (checked) Red else Color.Transparent,
+        animationSpec = tween(90),
+        label         = "container_fill"
+    )
+    val borderColor by animateColorAsState(
+        targetValue   = if (checked) Red else Gray,
+        animationSpec = tween(100),
+        label         = "border_color"
+    )
+    val iconAlpha by animateFloatAsState(
+        targetValue   = if (checked) 1f else 0f,
+        animationSpec = tween(80),
+        label         = "icon_alpha"
+    )
+    val stateLayerAlpha by animateFloatAsState(
+        targetValue = when {
+            isPressed -> 0.12f
+            isHovered -> 0.08f
+            else      -> 0f
+        },
+        animationSpec = tween(if (isPressed) 0 else 150),
+        label         = "state_layer_alpha"
+    )
+    val stateLayerColor = if (checked) Red else StateOnSurface
+
+    LaunchedEffect(checked) {
+        if (checked) {
+            fillProgress.animateTo(1f, tween(90))
+            checkmarkProgress.snapTo(0f)
+            checkmarkProgress.animateTo(1f, tween(150))
+        } else {
+            checkmarkProgress.animateTo(0f, tween(80))
+            fillProgress.animateTo(0f, tween(100))
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .size(20.dp)
+            .drawBehind {
+                val stateRadius = 20.dp.toPx()
+                if (stateLayerAlpha > 0f) {
+                    drawCircle(
+                        color  = stateLayerColor.copy(alpha = stateLayerAlpha),
+                        radius = stateRadius,
+                        center = center
+                    )
+                }
+
+                drawContainer(
+                    fillColor    = containerColor,
+                    borderColor  = borderColor,
+                    strokeWidth  = 2.dp.toPx(),
+                    cornerRadius = 2.dp.toPx()
+                )
+
+                if (checkmarkProgress.value > 0f) {
+                    drawIcon(
+                        progress = checkmarkProgress.value,
+                        color    = Color.White,
+                        alpha    = iconAlpha
+                    )
+                }
+            }
+    )
+}
+
+private fun DrawScope.drawContainer(
+    fillColor: Color,
+    borderColor: Color,
+    strokeWidth: Float,
+    cornerRadius: Float
+) {
+    val inset   = strokeWidth / 2f
+    val boxSize = Size(size.width - strokeWidth, size.height - strokeWidth)
+    val topLeft = Offset(inset, inset)
+    val radius  = CornerRadius(cornerRadius)
+
+    if (fillColor.alpha > 0f) {
         drawRoundRect(
-            color        = fillColor.copy(alpha = fillProgress),
+            color        = fillColor,
             topLeft      = topLeft,
             size         = boxSize,
             cornerRadius = radius
@@ -282,34 +373,40 @@ private fun DrawScope.drawM3Checkbox(
         cornerRadius = radius,
         style        = Stroke(width = strokeWidth)
     )
+}
 
-    if (checkmarkProgress > 0f) {
-        val w  = size.width
-        val h  = size.height
-        val p1 = Offset(w * 0.20f, h * 0.50f)
-        val p2 = Offset(w * 0.42f, h * 0.72f)
-        val p3 = Offset(w * 0.80f, h * 0.28f)
+private fun DrawScope.drawIcon(
+    progress: Float,
+    color: Color,
+    alpha: Float
+) {
+    val w  = size.width
+    val h  = size.height
+    val p1 = Offset(w * 0.20f, h * 0.50f)
+    val p2 = Offset(w * 0.42f, h * 0.72f)
+    val p3 = Offset(w * 0.80f, h * 0.28f)
 
-        val path = Path()
-        if (checkmarkProgress <= 0.5f) {
-            val t = checkmarkProgress / 0.5f
-            path.moveTo(p1.x, p1.y)
-            path.lineTo(p1.x + (p2.x - p1.x) * t, p1.y + (p2.y - p1.y) * t)
-        } else {
-            val t = (checkmarkProgress - 0.5f) / 0.5f
-            path.moveTo(p1.x, p1.y)
-            path.lineTo(p2.x, p2.y)
-            path.lineTo(p2.x + (p3.x - p2.x) * t, p2.y + (p3.y - p2.y) * t)
-        }
-
-        drawPath(
-            path  = path,
-            color = checkmarkColor,
-            style = Stroke(
-                width = (1.8).dp.toPx(),
-                cap   = StrokeCap.Round,
-                join  = StrokeJoin.Round
-            )
-        )
+    val path = Path().apply {
+        moveTo(p1.x, p1.y)
+        lineTo(p2.x, p2.y)
+        lineTo(p3.x, p3.y)
     }
+
+    val measure  = PathMeasure()
+    measure.setPath(path, false)
+    val totalLen = measure.length
+    val drawn    = totalLen * progress
+
+    val trimmed = Path()
+    measure.getSegment(0f, drawn, trimmed, true)
+
+    drawPath(
+        path  = trimmed,
+        color = color.copy(alpha = alpha),
+        style = Stroke(
+            width = 2.dp.toPx(),
+            cap   = StrokeCap.Round,
+            join  = StrokeJoin.Round
+        )
+    )
 }
