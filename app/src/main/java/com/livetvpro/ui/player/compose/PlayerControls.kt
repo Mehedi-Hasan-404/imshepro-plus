@@ -155,24 +155,13 @@ fun PlayerControls(
 
     // Parent Box — fills the whole player surface.
     // Children are stacked in Z order:
-    //   1. Controls tap/toggle layer  (bottom — handles taps to show/hide UI)
-    //   2. Lock overlay               (middle)
-    //   3. Main player controls UI    (middle)
-    //   4. GestureOverlay             (TOP — always present, fully independent)
+    //   1. Lock overlay               (bottom)
+    //   2. Main player controls UI    (middle)
+    //   3. GestureOverlay             (TOP — owns ALL touches: tap → toggle controls,
+    //                                        swipe left/right → brightness/volume)
     Box(modifier = modifier.fillMaxSize()) {
 
-        // ── Layer 1: tap handler to show/hide controls ─────────────────────
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { state.toggle(scope) }
-                    )
-                }
-        )
-
-        // ── Layer 2: Lock overlay ──────────────────────────────────────────
+        // ── Layer 1: Lock overlay ──────────────────────────────────────────
         AnimatedVisibility(
             visible = state.isLockOverlayVisible,
             enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
@@ -258,6 +247,7 @@ fun PlayerControls(
                 gestureBrightness = b
                 onBrightnessSwipe(b)
             },
+            onTap = { state.toggle(scope) },
         )
     }
 }
