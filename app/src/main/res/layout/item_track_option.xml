@@ -40,32 +40,32 @@
             android:layout_marginTop="2dp" />
     </LinearLayout>
 
-    <!-- RadioButton - Fixed positioning -->
+    <!-- RadioButton - Default Android with red tint -->
     <RadioButton
         android:id="@+id/radioButton"
-        android:layout_width="22dp"
-        android:layout_height="22dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:layout_marginStart="16dp"
-        android:button="@drawable/radio_button_selector"
+        android:buttonTint="#FF0000"
         android:clickable="false"
         android:focusable="false"
         android:visibility="visible"
         android:padding="0dp"
         android:background="@null" />
 
-    <!-- CheckBox - Fixed positioning, same size and position as RadioButton -->
+    <!-- CheckBox - Default Android with red tint -->
     <CheckBox
         android:id="@+id/checkBox"
-        android:layout_width="24dp"
-        android:layout_height="24dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:layout_marginStart="16dp"
-        android:button="@drawable/checkbox_selector"
-        android:background="@drawable/checkbox_ripple"
+        android:buttonTint="#FF0000"
         android:clickable="false"
         android:focusable="false"
         android:visibility="gone"
-        android:padding="0dp" />
+        android:padding="0dp"
+        android:background="@null" />
 
 </LinearLayout>
