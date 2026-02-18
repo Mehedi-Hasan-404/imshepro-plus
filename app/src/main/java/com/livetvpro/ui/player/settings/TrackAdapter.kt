@@ -7,10 +7,10 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.size
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.RadioButton
@@ -109,35 +109,59 @@ class TrackAdapter<T : TrackUiModel>(
                         )
                     } else {
                         val checkmarkProgress = remember { Animatable(if (selected) 1f else 0f) }
-                        val fillProgress     = remember { Animatable(if (selected) 1f else 0f) }
+                        val boxScale          = remember { Animatable(1f) }
+
+                        val fillColor by animateColorAsState(
+                            targetValue = if (selected) Color(0xFFE53935) else Color.Transparent,
+                            animationSpec = tween(80),
+                            label = "fill_color"
+                        )
                         val borderColor by animateColorAsState(
-                            targetValue = if (selected) Color(0xFFFF0000) else Color(0xFF8A8A8A),
-                            animationSpec = tween(120),
+                            targetValue = if (selected) Color(0xFFE53935) else Color(0xFF8A8A8A),
+                            animationSpec = tween(80),
                             label = "border_color"
                         )
+
                         LaunchedEffect(selected) {
                             if (selected) {
-                                fillProgress.animateTo(1f, animationSpec = tween(140))
+                                boxScale.snapTo(1f)
+                                boxScale.animateTo(
+                                    0.82f,
+                                    animationSpec = tween(70)
+                                )
+                                boxScale.animateTo(
+                                    1f,
+                                    animationSpec = spring(dampingRatio = 0.38f, stiffness = 700f)
+                                )
+                                checkmarkProgress.snapTo(0f)
                                 checkmarkProgress.animateTo(
+                                    1f,
+                                    animationSpec = tween(160)
+                                )
+                            } else {
+                                checkmarkProgress.animateTo(0f, animationSpec = tween(80))
+                                boxScale.animateTo(
+                                    0.88f,
+                                    animationSpec = tween(60)
+                                )
+                                boxScale.animateTo(
                                     1f,
                                     animationSpec = spring(dampingRatio = 0.5f, stiffness = 600f)
                                 )
-                            } else {
-                                checkmarkProgress.animateTo(0f, animationSpec = tween(100))
-                                fillProgress.animateTo(0f, animationSpec = tween(120))
                             }
                         }
 
                         Canvas(
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier
+                                .scale(boxScale.value)
+                                .size(26.dp)
                         ) {
                             drawAnimatedCheckbox(
-                                fillProgress = fillProgress.value,
+                                fillColor = fillColor,
                                 checkmarkProgress = checkmarkProgress.value,
                                 borderColor = borderColor,
-                                checkedFillColor = Color(0xFFFF0000),
-                                checkmarkColor = Color.White,
-                                strokeWidth = 2.2.dp.toPx(),
+                                checkmarkColor = Color(0xCCFFFFFF),
+                                strokeWidth = 2.4.dp.toPx(),
                                 cornerRadius = 4.dp.toPx()
                             )
                         }
@@ -247,39 +271,36 @@ class TrackAdapter<T : TrackUiModel>(
 }
 
 private fun DrawScope.drawAnimatedCheckbox(
-    fillProgress: Float,
+    fillColor: Color,
     checkmarkProgress: Float,
     borderColor: Color,
-    checkedFillColor: Color,
     checkmarkColor: Color,
     strokeWidth: Float,
     cornerRadius: Float
 ) {
-    val inset = strokeWidth / 2f
+    val inset   = strokeWidth / 2f
     val boxSize = Size(size.width - strokeWidth, size.height - strokeWidth)
     val topLeft = Offset(inset, inset)
-    val radius = CornerRadius(cornerRadius, cornerRadius)
-
-    if (fillProgress > 0f) {
-        drawRoundRect(
-            color = checkedFillColor.copy(alpha = fillProgress),
-            topLeft = topLeft,
-            size = boxSize,
-            cornerRadius = radius
-        )
-    }
+    val radius  = CornerRadius(cornerRadius, cornerRadius)
 
     drawRoundRect(
-        color = borderColor,
-        topLeft = topLeft,
-        size = boxSize,
+        color       = fillColor,
+        topLeft     = topLeft,
+        size        = boxSize,
+        cornerRadius = radius
+    )
+
+    drawRoundRect(
+        color        = borderColor,
+        topLeft      = topLeft,
+        size         = boxSize,
         cornerRadius = radius,
-        style = Stroke(width = strokeWidth)
+        style        = Stroke(width = strokeWidth)
     )
 
     if (checkmarkProgress > 0f) {
-        val w = size.width
-        val h = size.height
+        val w  = size.width
+        val h  = size.height
         val p1 = Offset(w * 0.18f, h * 0.50f)
         val p2 = Offset(w * 0.40f, h * 0.72f)
         val p3 = Offset(w * 0.78f, h * 0.28f)
@@ -288,27 +309,21 @@ private fun DrawScope.drawAnimatedCheckbox(
         if (checkmarkProgress <= 0.5f) {
             val t = checkmarkProgress / 0.5f
             path.moveTo(p1.x, p1.y)
-            path.lineTo(
-                p1.x + (p2.x - p1.x) * t,
-                p1.y + (p2.y - p1.y) * t
-            )
+            path.lineTo(p1.x + (p2.x - p1.x) * t, p1.y + (p2.y - p1.y) * t)
         } else {
             val t = (checkmarkProgress - 0.5f) / 0.5f
             path.moveTo(p1.x, p1.y)
             path.lineTo(p2.x, p2.y)
-            path.lineTo(
-                p2.x + (p3.x - p2.x) * t,
-                p2.y + (p3.y - p2.y) * t
-            )
+            path.lineTo(p2.x + (p3.x - p2.x) * t, p2.y + (p3.y - p2.y) * t)
         }
 
         drawPath(
-            path = path,
+            path  = path,
             color = checkmarkColor,
             style = Stroke(
-                width = strokeWidth * 1.15f,
-                cap = StrokeCap.Round,
-                join = StrokeJoin.Round
+                width = strokeWidth * 1.2f,
+                cap   = StrokeCap.Round,
+                join  = StrokeJoin.Round
             )
         )
     }
