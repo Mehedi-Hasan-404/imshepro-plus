@@ -3,6 +3,7 @@ package com.livetvpro.ui.player.settings
 sealed class TrackUiModel {
     abstract val isSelected: Boolean
     abstract val isRadio: Boolean
+    open val isIndeterminate: Boolean = false
 
     data class Video(
         val groupIndex: Int,
