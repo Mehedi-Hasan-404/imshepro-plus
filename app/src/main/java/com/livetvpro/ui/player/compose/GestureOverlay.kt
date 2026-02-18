@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,25 +22,10 @@ import androidx.compose.ui.unit.sp
 import com.livetvpro.R
 import kotlin.math.abs
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Data / state
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * [volumePercent]     0 = muted,  1‥100 = audible
- * [brightnessPercent] 0 = AUTO,   1‥100 = manual
- */
 data class GestureState(
     val volumePercent: Int = 50,
     val brightnessPercent: Int = 0,
 )
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Gesture overlay — full screen, transparent
-// Handles tap (toggle controls) + vertical swipe on left/right thirds
-// (brightness / volume). OSD cards are NOT rendered here — they are hoisted
-// to PlayerControls so they appear above the lock overlay too.
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun GestureOverlay(
@@ -48,9 +34,7 @@ fun GestureOverlay(
     pixelsPerPercent: Float = 8f,
     onVolumeChange: (Int) -> Unit = {},
     onBrightnessChange: (Int) -> Unit = {},
-    /** Called on plain tap (no swipe) — use to toggle player controls. */
     onTap: () -> Unit = {},
-    /** Called every frame while swiping — true = show OSD, false = hide. */
     onShowVolumeOsd: (Boolean) -> Unit = {},
     onShowBrightnessOsd: (Boolean) -> Unit = {},
 ) {
@@ -63,12 +47,12 @@ fun GestureOverlay(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .onSizeChanged { size -> totalWidth = size.width.toFloat() }
             .pointerInput(pixelsPerPercent) {
-                totalWidth = size.width.toFloat()
                 val slopPx = viewConfiguration.touchSlop
                 awaitEachGesture {
-                    val down   = awaitFirstDown(requireUnconsumed = false)
-                    val zone   = gestureZone(down.position.x, totalWidth)
+                    val down      = awaitFirstDown(requireUnconsumed = false)
+                    val zone      = gestureZone(down.position.x, totalWidth)
                     var totalDy   = 0f
                     var committed = false
 
@@ -80,9 +64,9 @@ fun GestureOverlay(
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
 
                         if (!change.pressed) {
-                            if (!committed) onTap()          // tap — toggle controls
-                            else {
-                                // swipe ended — hide OSD
+                            if (!committed) {
+                                onTap()
+                            } else {
                                 onShowVolumeOsd(false)
                                 onShowBrightnessOsd(false)
                             }
@@ -100,8 +84,8 @@ fun GestureOverlay(
                                     volumeAccum += dy
                                     val steps = (volumeAccum / pixelsPerPercent).toInt()
                                     if (steps != 0) {
-                                        volumeAccum  -= steps * pixelsPerPercent
-                                        currentVolume = (currentVolume + steps).coerceIn(0, 100)
+                                        volumeAccum   -= steps * pixelsPerPercent
+                                        currentVolume  = (currentVolume + steps).coerceIn(0, 100)
                                         onVolumeChange(currentVolume)
                                         onShowVolumeOsd(true)
                                     }
@@ -124,10 +108,6 @@ fun GestureOverlay(
             }
     )
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// OSD cards — rendered at PlayerControls level, above lock overlay
-// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 fun VolumeOsd(visible: Boolean, volume: Int, modifier: Modifier = Modifier) {
@@ -190,10 +170,6 @@ private fun OsdCard(content: @Composable RowScope.() -> Unit) {
             .padding(horizontal = 24.dp, vertical = 18.dp),
     ) { content() }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 
 private enum class GestureZone { BRIGHTNESS, NONE, VOLUME }
 
