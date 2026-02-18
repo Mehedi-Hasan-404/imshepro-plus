@@ -56,7 +56,7 @@ class TrackAdapter<T : TrackUiModel>(
             Timber.d("Binding item - isRadio: ${item.isRadio}, isSelected: ${item.isSelected}")
 
             binding.composeToggle.setViewCompositionStrategy(
-                ViewCompositionStrategy.DisposeOnRecycled
+                ViewCompositionStrategy.DisposeOnDetachedFromWindowOrReleasedFromPool
             )
             binding.composeToggle.setContent {
                 if (item.isRadio) {
