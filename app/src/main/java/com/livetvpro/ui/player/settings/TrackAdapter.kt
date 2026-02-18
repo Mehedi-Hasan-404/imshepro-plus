@@ -53,6 +53,9 @@ class TrackAdapter<T : TrackUiModel>(
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(item: T) {
+            // Reset secondary text visibility for recycled views
+            binding.tvSecondary.visibility = View.VISIBLE
+
             // Get the radio button and checkbox
             val radioButton = binding.root.findViewById<android.widget.RadioButton>(R.id.radioButton)
             val checkBox = binding.root.findViewById<android.widget.CheckBox>(R.id.checkBox)
@@ -120,8 +123,8 @@ class TrackAdapter<T : TrackUiModel>(
                                 "Unknown bitrate"
                             }
                             
-                            binding.tvPrimary.text = quality
-                            binding.tvSecondary.text = bitrate
+                            binding.tvPrimary.text = "$quality • $bitrate"
+                            binding.tvSecondary.visibility = View.GONE
                         }
                     }
                 }
