@@ -149,54 +149,42 @@ fun PlayerControls(
 ) {
     val scope = rememberCoroutineScope()
 
-    // ── Gesture overlay state (volume + brightness) ────────────────────────
+    // ── Gesture state ──────────────────────────────────────────────────────
     var gestureVolume     by remember { mutableIntStateOf(initialVolume) }
     var gestureBrightness by remember { mutableIntStateOf(initialBrightness) }
+    var showVolumeOsd     by remember { mutableStateOf(false) }
+    var showBrightnessOsd by remember { mutableStateOf(false) }
 
-    // Parent Box — fills the whole player surface.
-    // Children are stacked in Z order:
-    //   1. Lock overlay               (bottom)
-    //   2. Main player controls UI    (middle)
-    //   3. GestureOverlay             (TOP — owns ALL touches: tap → toggle controls,
-    //                                        swipe left/right → brightness/volume)
+    // Layer order (Z, bottom → top):
+    //  1. GestureOverlay  — full screen, handles tap + left/right swipe
+    //  2. Controls UI     — AnimatedVisibility
+    //  3. Lock overlay    — AnimatedVisibility, fullscreen
+    //  4. OSD cards       — always on top of everything including lock overlay
     Box(modifier = modifier.fillMaxSize()) {
 
-        // ── Layer 1: Lock overlay ──────────────────────────────────────────
-        AnimatedVisibility(
-            visible = state.isLockOverlayVisible,
-            enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
-            exit  = fadeOut(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { state.toggle(scope) }
-                        )
-                    }
-            ) {
-                IconButton(
-                    onClick = {
-                        state.unlock(scope)
-                        onLockClick(false)
-                    },
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(start = 4.dp, top = 4.dp)
-                        .size(40.dp)
-                ) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_lock_closed),
-                        contentDescription = "Unlock controls",
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-        }
+        // ── Layer 1: Gesture overlay ───────────────────────────────────────
+        // Full screen. Tap → toggle controls. Swipe left/right → brightness/volume.
+        // Uses awaitEachGesture internally so taps and swipes are distinguished;
+        // only swipe events are consumed — taps propagate normally via onTap callback.
+        GestureOverlay(
+            gestureState = GestureState(
+                volumePercent     = gestureVolume,
+                brightnessPercent = gestureBrightness,
+            ),
+            onVolumeChange = { v ->
+                gestureVolume = v
+                onVolumeSwipe(v)
+            },
+            onBrightnessChange = { b ->
+                gestureBrightness = b
+                onBrightnessSwipe(b)
+            },
+            onTap               = { state.toggle(scope) },
+            onShowVolumeOsd     = { show -> showVolumeOsd = show },
+            onShowBrightnessOsd = { show -> showBrightnessOsd = show },
+        )
 
-        // ── Layer 3: Main player controls UI ──────────────────────────────
+        // ── Layer 2: Main controls UI ──────────────────────────────────────
         AnimatedVisibility(
             visible = state.isVisible && !state.isLocked,
             enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
@@ -230,24 +218,49 @@ fun PlayerControls(
             )
         }
 
-        // ── Layer 4: Gesture overlay — ALWAYS ON TOP, ALWAYS VISIBLE ──────
-        // Completely independent from controls visibility and lock state.
-        // Only shows the OSD card when the user is actively swiping.
-        // Drag events are consumed here; taps fall through to Layer 1.
-        GestureOverlay(
-            gestureState = GestureState(
-                volumePercent     = gestureVolume,
-                brightnessPercent = gestureBrightness,
-            ),
-            onVolumeChange = { v ->
-                gestureVolume = v
-                onVolumeSwipe(v)
-            },
-            onBrightnessChange = { b ->
-                gestureBrightness = b
-                onBrightnessSwipe(b)
-            },
-            onTap = { state.toggle(scope) },
+        // ── Layer 3: Lock overlay ──────────────────────────────────────────
+        AnimatedVisibility(
+            visible = state.isLockOverlayVisible,
+            enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
+            exit  = fadeOut(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { state.toggle(scope) })
+                    }
+            ) {
+                IconButton(
+                    onClick = {
+                        state.unlock(scope)
+                        onLockClick(false)
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 4.dp, top = 4.dp)
+                        .size(40.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_lock_closed),
+                        contentDescription = "Unlock controls",
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+
+        // ── Layer 4: OSD cards — always above everything, even lock overlay ─
+        VolumeOsd(
+            visible  = showVolumeOsd,
+            volume   = gestureVolume,
+            modifier = Modifier.align(Alignment.Center),
+        )
+        BrightnessOsd(
+            visible    = showBrightnessOsd,
+            brightness = gestureBrightness,
+            modifier   = Modifier.align(Alignment.Center),
         )
     }
 }
