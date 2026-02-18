@@ -84,11 +84,11 @@ class TrackAdapter<T : TrackUiModel>(
 
                 // Handle indeterminate state programmatically
                 val cb = checkBox as? android.widget.CheckBox
+                cb?.buttonTintList = null  // prevent theme from overriding custom drawable
                 if (item.isIndeterminate == true) {
                     cb?.buttonDrawable = ContextCompat.getDrawable(binding.root.context, R.drawable.checkbox_indeterminate)
                     cb?.isChecked = false
                 } else {
-                    cb?.buttonTintList = null  // prevent theme from overriding custom drawable
                     cb?.buttonDrawable = ContextCompat.getDrawable(binding.root.context, R.drawable.checkbox_selector)
                     cb?.isChecked = item.isSelected
                 }
@@ -101,12 +101,12 @@ class TrackAdapter<T : TrackUiModel>(
                         item.groupIndex == -2 -> {
                             // None option
                             binding.tvPrimary.text = "None"
-                            binding.tvSecondary.text = "No video"
+                            binding.tvSecondary.visibility = View.GONE
                         }
                         item.groupIndex == -1 -> {
                             // Auto option
                             binding.tvPrimary.text = "Auto"
-                            binding.tvSecondary.text = "Automatic quality"
+                            binding.tvSecondary.visibility = View.GONE
                         }
                         else -> {
                             // Quality
