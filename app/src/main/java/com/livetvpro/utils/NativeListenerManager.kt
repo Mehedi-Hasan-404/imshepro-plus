@@ -30,6 +30,11 @@ class NativeListenerManager @Inject constructor(
     private external fun nativeGetDirectLinkUrl(): String
     private external fun nativeResetSessions()
     private external fun nativeIsConfigValid(): Boolean
+    private external fun nativeGetContactUrl(): String
+    private external fun nativeGetCricLiveUrl(): String
+    private external fun nativeGetFootLiveUrl(): String
+    private external fun nativeGetEmailUs(): String
+    private external fun nativeGetWebUrl(): String
 
     /**
      * Check if should show direct link on page interaction
@@ -101,4 +106,10 @@ class NativeListenerManager @Inject constructor(
             false
         }
     }
+
+    fun getContactUrl(): String = try { nativeGetContactUrl() } catch (e: Exception) { "" }
+    fun getCricLiveUrl(): String = try { nativeGetCricLiveUrl() } catch (e: Exception) { "" }
+    fun getFootLiveUrl(): String = try { nativeGetFootLiveUrl() } catch (e: Exception) { "" }
+    fun getEmailUs(): String = try { nativeGetEmailUs() } catch (e: Exception) { "" }
+    fun getWebUrl(): String = try { nativeGetWebUrl() } catch (e: Exception) { "" }
 }
