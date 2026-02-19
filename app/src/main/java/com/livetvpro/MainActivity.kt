@@ -74,6 +74,8 @@ class MainActivity : AppCompatActivity() {
             insetsController.hide(WindowInsetsCompat.Type.statusBars())
             setupTvNavigation()
         } else {
+            // Phone: lock to portrait so layout-land is never used
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
             handleStatusBarForOrientation()
             setupToolbar()
             setupDrawer()
