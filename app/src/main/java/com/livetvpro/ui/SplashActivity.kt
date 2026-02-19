@@ -2,7 +2,10 @@ package com.livetvpro.ui
 
 import android.animation.AnimatorInflater
 import android.annotation.SuppressLint
+import android.app.UiModeManager
+import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -66,6 +69,8 @@ class SplashActivity : AppCompatActivity() {
     private var isDownloading = false
     private var downloadedApk: File? = null
 
+    private var isTvDevice = false
+
     companion object {
         private const val REQUEST_INSTALL_PERMISSION = 1001
     }
@@ -73,6 +78,8 @@ class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
+
+        isTvDevice = isTvDevice()
 
         val bergenSans = ResourcesCompat.getFont(this, R.font.bergen_sans)
 
@@ -114,6 +121,11 @@ class SplashActivity : AppCompatActivity() {
             if (url.isNotBlank()) openUrl(url)
         }
 
+        // On TV there is no browser — hide the website button in the error row
+        if (isTvDevice) {
+            websiteButton.visibility = View.GONE
+        }
+
         btnClose.setOnClickListener { finishAndRemoveTask() }
         btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
         btnDownloadWebsite.setOnClickListener {
@@ -126,6 +138,11 @@ class SplashActivity : AppCompatActivity() {
                 downloadedApk?.exists() == true -> installApk(downloadedApk!!)
                 else -> startDownload()
             }
+        }
+
+        // On TV, APK sideloading is not supported — hide the in-app update button
+        if (isTvDevice) {
+            btnPrimaryAction.visibility = View.GONE
         }
 
         startFetch()
@@ -202,7 +219,7 @@ class SplashActivity : AppCompatActivity() {
 
     private fun navigateToMain() {
         val intent = Intent(this, MainActivity::class.java).apply {
-            putExtra(MainActivity.EXTRA_IS_FIRE_TV, isFireTvDevice())
+            putExtra(MainActivity.EXTRA_IS_FIRE_TV, isTvDevice)
         }
         startActivity(intent)
         finish()
@@ -229,7 +246,11 @@ class SplashActivity : AppCompatActivity() {
         listOf(bar1, bar2, bar3, bar4, bar5).forEach { it.scaleY = 1f }
     }
 
-    private fun isFireTvDevice(): Boolean {
+    private fun isTvDevice(): Boolean {
+        // Primary check: UiModeManager covers all Android TV and Fire TV devices
+        val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
+        if (uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) return true
+        // Fallback: explicit Fire TV package check for older Fire OS builds
         return try {
             packageManager.getPackageInfo(
                 "com.amazon.tv.leanbacklauncher",
