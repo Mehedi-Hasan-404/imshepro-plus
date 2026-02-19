@@ -1,9 +1,11 @@
 package com.livetvpro.ui.player.compose
 
+import android.widget.ImageView
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -17,73 +19,42 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import android.widget.ImageView
 import com.bumptech.glide.Glide
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 
+private val RED            = Color(0xFFCC0000)
+private val PANEL_BG       = Color(0xCC0A0A0A)   // ~80% opaque
+private val SIDEBAR_BG     = Color(0xCC141414)
+private val HEADER_BG      = Color(0xDD1A1A1A)
+
+/** One named group + its ordered channels */
+data class ChannelGroup(val title: String, val channels: List<Channel>)
+
 /**
- * An item in the channel list panel — either a group header or a channel row.
+ * Builds groups:
+ *   [0] "All Channels"  — every channel serialised 1…N
+ *   [1…] distinct groupTitle values — only channels in that group, serialised 1…N
  */
-sealed class ChannelListItem {
-    data class GroupHeader(val title: String) : ChannelListItem()
-    data class ChannelRow(
-        val channel: Channel,
-        val serialNumber: Int,   // serial number within its group
-        val isCurrentlyPlaying: Boolean
-    ) : ChannelListItem()
+fun buildChannelGroups(channels: List<Channel>): List<ChannelGroup> {
+    val result = mutableListOf<ChannelGroup>()
+    result += ChannelGroup("All Channels", channels)
+    channels.mapNotNull { it.groupTitle.takeIf { g -> g.isNotBlank() } }
+            .distinct()
+            .forEach { g -> result += ChannelGroup(g, channels.filter { it.groupTitle == g }) }
+    return result
 }
 
 /**
- * Builds the flat list that the panel displays:
- *   1. "All Channels" header → all channels serialised 1…N
- *   2. Per-group headers → channels in that group serialised 1…N
- *
- * Channels with an empty groupTitle are listed under "All Channels" only.
- */
-fun buildChannelListItems(
-    channels: List<Channel>,
-    currentChannelId: String
-): List<ChannelListItem> {
-    val items = mutableListOf<ChannelListItem>()
-
-    // ── 1. ALL CHANNELS ──────────────────────────────────────────────────────
-    items += ChannelListItem.GroupHeader("All Channels")
-    channels.forEachIndexed { idx, ch ->
-        items += ChannelListItem.ChannelRow(
-            channel = ch,
-            serialNumber = idx + 1,
-            isCurrentlyPlaying = ch.id == currentChannelId
-        )
-    }
-
-    // ── 2. PER-GROUP SECTIONS ─────────────────────────────────────────────────
-    val groups = channels
-        .mapNotNull { it.groupTitle.takeIf { g -> g.isNotBlank() } }
-        .distinct()
-
-    groups.forEach { group ->
-        val groupChannels = channels.filter { it.groupTitle == group }
-        items += ChannelListItem.GroupHeader(group)
-        groupChannels.forEachIndexed { idx, ch ->
-            items += ChannelListItem.ChannelRow(
-                channel = ch,
-                serialNumber = idx + 1,
-                isCurrentlyPlaying = ch.id == currentChannelId
-            )
-        }
-    }
-
-    return items
-}
-
-/**
- * Sliding panel that appears from the right side in landscape / fullscreen mode.
- * Shows "All Channels" then per-group sections, each with their own serial numbers.
+ * Two-column sliding panel:
+ *   Left  (~28%) — group sidebar
+ *   Right (~72%) — channels for selected group, serial 1…N
+ * Both on a semi-transparent background so the video behind shows through.
  */
 @Composable
 fun ChannelListPanel(
@@ -96,112 +67,127 @@ fun ChannelListPanel(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = slideInHorizontally(
-            initialOffsetX = { it },
-            animationSpec = tween(300)
-        ) + fadeIn(animationSpec = tween(300)),
-        exit = slideOutHorizontally(
-            targetOffsetX = { it },
-            animationSpec = tween(250)
-        ) + fadeOut(animationSpec = tween(250)),
+        enter = slideInHorizontally(initialOffsetX = { it }, animationSpec = tween(300)) +
+                fadeIn(animationSpec = tween(300)),
+        exit  = slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(250)) +
+                fadeOut(animationSpec = tween(250)),
         modifier = modifier
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Dim backdrop — tapping it closes the panel
+
+            // Dim backdrop
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.5f))
+                    .background(Color.Black.copy(alpha = 0.45f))
                     .clickable(
-                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                        interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onDismiss
                     )
             )
 
-            // Panel itself — right-aligned, ~55% width
+            // Panel — right-aligned, ~60% width
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .fillMaxWidth(0.55f)
+                    .fillMaxWidth(0.60f)
                     .align(Alignment.CenterEnd)
-                    .background(Color(0xDD0A0A0A))
+                    .background(PANEL_BG)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {}
+                    )
             ) {
-                val listItems = remember(channels, currentChannelId) {
-                    buildChannelListItems(channels, currentChannelId)
-                }
+                val groups = remember(channels) { buildChannelGroups(channels) }
+                var selectedGroupIndex by remember { mutableIntStateOf(0) }
+                val selectedGroup = groups.getOrNull(selectedGroupIndex)
+                val channelListState = rememberLazyListState()
 
-                // Scroll to currently playing channel on open
-                val listState = rememberLazyListState()
-                val playingIndex = remember(listItems) {
-                    listItems.indexOfFirst {
-                        it is ChannelListItem.ChannelRow && it.isCurrentlyPlaying
-                    }.takeIf { it >= 0 }
-                }
-                LaunchedEffect(visible, playingIndex) {
-                    if (visible && playingIndex != null) {
-                        listState.animateScrollToItem(playingIndex)
+                LaunchedEffect(selectedGroupIndex) { channelListState.scrollToItem(0) }
+                LaunchedEffect(visible, selectedGroupIndex) {
+                    if (visible && selectedGroup != null) {
+                        val idx = selectedGroup.channels.indexOfFirst { it.id == currentChannelId }
+                        if (idx >= 0) channelListState.animateScrollToItem(idx)
                     }
                 }
 
                 Column(modifier = Modifier.fillMaxSize()) {
-                    // Header bar
+
+                    // Header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF1A1A1A))
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .background(HEADER_BG)
+                            .padding(horizontal = 14.dp, vertical = 11.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_list),
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(Color(0xFF2DB233), RoundedCornerShape(50))
+                                .clickable(onClick = onDismiss),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_back),
+                                contentDescription = "Close",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
                         Text(
                             text = "Channels List",
                             color = Color.White,
-                            fontSize = 16.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        Spacer(Modifier.weight(1f))
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_close),
-                                contentDescription = "Close",
-                                tint = Color.White,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
                     }
 
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f), thickness = 1.dp)
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
 
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier.fillMaxSize()
-                    ) {
-                        itemsIndexed(listItems) { _, item ->
-                            when (item) {
-                                is ChannelListItem.GroupHeader -> {
-                                    GroupHeaderRow(title = item.title)
-                                }
-                                is ChannelListItem.ChannelRow -> {
-                                    ChannelItemRow(
-                                        channel = item.channel,
-                                        serialNumber = item.serialNumber,
-                                        isPlaying = item.isCurrentlyPlaying,
-                                        onClick = {
-                                            onChannelClick(item.channel)
-                                            onDismiss()
-                                        }
-                                    )
-                                }
+                    // Body: sidebar + channel list
+                    Row(modifier = Modifier.fillMaxSize()) {
+
+                        // LEFT sidebar
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(0.28f)
+                                .background(SIDEBAR_BG)
+                        ) {
+                            itemsIndexed(groups) { index, group ->
+                                GroupSidebarItem(
+                                    title = group.title,
+                                    isSelected = index == selectedGroupIndex,
+                                    channelCount = group.channels.size,
+                                    onClick = { selectedGroupIndex = index }
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .width(1.dp)
+                                .background(Color.White.copy(alpha = 0.08f))
+                        )
+
+                        // RIGHT channel list
+                        LazyColumn(
+                            state = channelListState,
+                            modifier = Modifier.fillMaxSize().background(PANEL_BG)
+                        ) {
+                            val chList = selectedGroup?.channels ?: emptyList()
+                            itemsIndexed(chList) { index, channel ->
+                                ChannelItemRow(
+                                    channel = channel,
+                                    serialNumber = index + 1,
+                                    isPlaying = channel.id == currentChannelId,
+                                    onClick = { onChannelClick(channel); onDismiss() }
+                                )
                             }
                         }
                     }
@@ -212,29 +198,38 @@ fun ChannelListPanel(
 }
 
 @Composable
-private fun GroupHeaderRow(title: String) {
-    Row(
+private fun GroupSidebarItem(
+    title: String,
+    isSelected: Boolean,
+    channelCount: Int,
+    onClick: () -> Unit
+) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF1E1E1E))
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .background(if (isSelected) RED.copy(alpha = 0.85f) else Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(
-            modifier = Modifier
-                .width(3.dp)
-                .height(16.dp)
-                .background(Color(0xFFCC0000), RoundedCornerShape(2.dp))
-        )
-        Spacer(Modifier.width(10.dp))
         Text(
             text = title,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.5.sp
+            color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            lineHeight = 14.sp
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = "$channelCount",
+            color = if (isSelected) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.4f),
+            fontSize = 10.sp
         )
     }
+    HorizontalDivider(color = Color.White.copy(alpha = 0.06f), thickness = 0.5.dp)
 }
 
 @Composable
@@ -244,73 +239,52 @@ private fun ChannelItemRow(
     isPlaying: Boolean,
     onClick: () -> Unit
 ) {
-    val bgColor = if (isPlaying) Color(0x33CC0000) else Color.Transparent
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(bgColor)
+            .background(if (isPlaying) RED.copy(alpha = 0.85f) else Color.Transparent)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Serial number
         Text(
             text = serialNumber.toString(),
-            color = if (isPlaying) Color(0xFFCC0000) else Color.White.copy(alpha = 0.5f),
+            color = if (isPlaying) Color.White else Color(0xFFB8E44A),
             fontSize = 12.sp,
-            fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
-            modifier = Modifier.widthIn(min = 28.dp)
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.widthIn(min = 30.dp),
+            textAlign = TextAlign.Start
         )
-
-        Spacer(Modifier.width(8.dp))
-
-        // Channel logo
+        Spacer(Modifier.width(6.dp))
         AndroidView(
-            factory = { ctx ->
-                ImageView(ctx).apply {
-                    scaleType = ImageView.ScaleType.FIT_CENTER
-                }
-            },
-            update = { imageView ->
-                Glide.with(imageView)
+            factory = { ctx -> ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
+            update = { iv ->
+                Glide.with(iv)
                     .load(channel.logoUrl.takeIf { it.isNotBlank() })
                     .placeholder(R.drawable.ic_tv_placeholder)
                     .error(R.drawable.ic_tv_placeholder)
-                    .into(imageView)
+                    .into(iv)
             },
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(4.dp))
+            modifier = Modifier.size(32.dp).clip(RoundedCornerShape(4.dp))
         )
-
-        Spacer(Modifier.width(10.dp))
-
-        // Channel name
+        Spacer(Modifier.width(8.dp))
         Text(
             text = channel.name,
-            color = if (isPlaying) Color.White else Color.White.copy(alpha = 0.85f),
-            fontSize = 13.sp,
+            color = Color.White,
+            fontSize = 12.sp,
             fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-
-        // Now playing indicator
         if (isPlaying) {
-            Spacer(Modifier.width(6.dp))
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .background(Color(0xFFCC0000), shape = RoundedCornerShape(50))
-            )
+            Spacer(Modifier.width(4.dp))
+            Box(modifier = Modifier.size(6.dp).background(Color.White, RoundedCornerShape(50)))
         }
     }
-
     HorizontalDivider(
         color = Color.White.copy(alpha = 0.05f),
         thickness = 0.5.dp,
-        modifier = Modifier.padding(start = 56.dp)
+        modifier = Modifier.padding(start = 48.dp)
     )
 }
