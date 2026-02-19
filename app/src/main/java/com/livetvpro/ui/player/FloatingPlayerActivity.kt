@@ -587,11 +587,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
         }
         
         if (wasLockedBeforePip) {
-            controlsState.isLocked = true
+            controlsState.lock()
             wasLockedBeforePip = false
-        } else {
-            controlsState.isLocked = false
         }
+        // If not locked before PiP, controls are already unlocked (default state)
         
         // Always keep PlayerView controller disabled - we use Compose controls
         binding.playerView.useController = false
@@ -1532,15 +1531,6 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     val channelListItems by viewModel.channelListItems.observeAsState(emptyList())
                     val isChannelListAvailable = contentType == ContentType.CHANNEL && channelListItems.isNotEmpty()
 
-                    // Show controls briefly when playback starts; PlayerControlsState
-                    // auto-hides after autoHideDelay (5s) via its own internal job.
-                    val scope = rememberCoroutineScope()
-                    LaunchedEffect(isPlaying) {
-                        if (isPlaying && !controlsState.isLocked) {
-                            controlsState.show(scope)
-                        }
-                    }
-                    
                     // Sync link chips visibility with controls in landscape.
                     // Chips show only when controls are visible AND not locked.
                     LaunchedEffect(controlsState.isVisible, controlsState.isLocked, isLandscape, showChannelList) {
@@ -1742,9 +1732,12 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 
     private fun toggleLock() {
-        controlsState.isLocked = !controlsState.isLocked
-        // Lock state and UI fully managed by Compose PlayerControls
-        // PlayerView controller stays disabled
+        if (controlsState.isLocked) {
+            // Need a scope — borrow lifecycleScope for this Activity-level call
+            controlsState.unlock(lifecycleScope)
+        } else {
+            controlsState.lock()
+        }
         binding.playerView.useController = false
     }
 
