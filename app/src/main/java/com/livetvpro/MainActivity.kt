@@ -140,7 +140,6 @@ class MainActivity : AppCompatActivity() {
             R.id.toolbar
         )
         setSupportActionBar(tvToolbar)
-        // Hide the action bar title - we have "Live TV Pro" branding on the right side
         supportActionBar?.setDisplayShowTitleEnabled(false)
         drawerToggle = ActionBarDrawerToggle(
             this,
@@ -266,6 +265,9 @@ class MainActivity : AppCompatActivity() {
         val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
         val tvClearBtn = binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)
 
+        // Clear button is always visible — it cancels/closes the search bar
+        tvClearBtn?.visibility = View.VISIBLE
+
         tvSearchView?.setOnQueryTextListener(object :
             androidx.appcompat.widget.SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?) = true
@@ -275,16 +277,14 @@ class MainActivity : AppCompatActivity() {
                         .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
                     val frag = nhf?.childFragmentManager?.fragments?.firstOrNull()
                     if (frag is SearchableFragment) frag.onSearchQuery(query)
-                    tvClearBtn?.visibility = if (query.isNotEmpty()) View.VISIBLE else View.GONE
                 }
                 return true
             }
         })
 
-        // Cross icon: clears text only — does NOT close the search bar
+        // Cross icon: always closes/cancels the search bar
         tvClearBtn?.setOnClickListener {
-            tvSearchView?.setQuery("", false)
-            tvSearchView?.requestFocus()
+            hideTvSearch()
         }
     }
 
@@ -304,8 +304,6 @@ class MainActivity : AppCompatActivity() {
         val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
         tvSearchView?.setQuery("", false)
         tvSearchView?.clearFocus()
-        binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)
-            ?.visibility = View.GONE
     }
 
     // ─────────────────────────────────────────────────────────────────────────
