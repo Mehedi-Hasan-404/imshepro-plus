@@ -49,6 +49,24 @@ class PlayerViewModel @Inject constructor(
     private val _refreshedChannel = MutableLiveData<Channel?>()
     val refreshedChannel: LiveData<Channel?> = _refreshedChannel
 
+    private val _channelListItems = MutableLiveData<List<Channel>>(emptyList())
+    val channelListItems: LiveData<List<Channel>> = _channelListItems
+
+    fun loadAllChannelsForList(categoryId: String) {
+        viewModelScope.launch {
+            try {
+                val channels = if (categoryId.isNotEmpty()) {
+                    channelRepository.getChannelsByCategory(categoryId)
+                } else {
+                    withContext(Dispatchers.IO) { nativeDataRepository.getChannels() }
+                }
+                _channelListItems.postValue(channels)
+            } catch (e: Exception) {
+                _channelListItems.postValue(emptyList())
+            }
+        }
+    }
+
     fun refreshChannelData(channelId: String) {
         viewModelScope.launch {
             try {
