@@ -6,12 +6,10 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Main content -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
-        <!-- Toolbar -->
         <com.google.android.material.appbar.AppBarLayout
             android:id="@+id/app_bar_layout"
             android:layout_width="match_parent"
@@ -31,7 +29,6 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent">
 
-                    <!-- Toolbar title -->
                     <TextView
                         android:id="@+id/toolbar_title"
                         android:layout_width="0dp"
@@ -40,13 +37,13 @@
                         android:textColor="@android:color/white"
                         android:textSize="20sp"
                         android:textStyle="bold"
+                        android:fontFamily="@font/bergen_sans"
                         android:layout_marginStart="0dp"
                         app:layout_constraintStart_toStartOf="parent"
                         app:layout_constraintEnd_toStartOf="@id/btn_search"
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintBottom_toBottomOf="parent" />
 
-                    <!-- Search button -->
                     <ImageButton
                         android:id="@+id/btn_search"
                         android:layout_width="48dp"
@@ -60,7 +57,6 @@
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintBottom_toBottomOf="parent" />
 
-                    <!-- Favorites button -->
                     <ImageButton
                         android:id="@+id/btn_favorites"
                         android:layout_width="48dp"
@@ -75,7 +71,6 @@
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintBottom_toBottomOf="parent" />
 
-                    <!-- Search view (hidden by default) -->
                     <androidx.appcompat.widget.SearchView
                         android:id="@+id/search_view"
                         android:layout_width="0dp"
@@ -92,7 +87,6 @@
                         app:layout_constraintTop_toTopOf="parent"
                         app:layout_constraintBottom_toBottomOf="parent" />
 
-                    <!-- Search clear button (hidden by default) -->
                     <ImageButton
                         android:id="@+id/btn_search_clear"
                         android:layout_width="48dp"
@@ -114,7 +108,6 @@
 
         </com.google.android.material.appbar.AppBarLayout>
 
-        <!-- Fragment container -->
         <androidx.fragment.app.FragmentContainerView
             android:id="@+id/nav_host_fragment"
             android:name="androidx.navigation.fragment.NavHostFragment"
@@ -127,7 +120,6 @@
             app:layout_constraintTop_toBottomOf="@id/app_bar_layout"
             app:navGraph="@navigation/nav_graph" />
 
-        <!-- Global error overlay -->
         <LinearLayout
             android:id="@+id/global_error_overlay"
             android:layout_width="0dp"
@@ -149,6 +141,7 @@
                 android:textColor="?android:attr/textColorPrimary"
                 android:textSize="18sp"
                 android:textStyle="bold"
+                android:fontFamily="@font/bergen_sans"
                 android:gravity="center" />
 
             <com.google.android.material.button.MaterialButton
@@ -164,13 +157,13 @@
                 android:text="RETRY"
                 android:textColor="@android:color/white"
                 android:textStyle="bold"
+                android:fontFamily="@font/bergen_sans"
                 app:backgroundTint="@color/accent"
                 app:cornerRadius="8dp"
                 app:rippleColor="#40FFFFFF" />
 
         </LinearLayout>
 
-        <!-- Bottom Navigation -->
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_navigation"
             android:layout_width="0dp"
@@ -184,7 +177,6 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Navigation drawer -->
     <com.google.android.material.navigation.NavigationView
         android:id="@+id/navigation_view"
         android:layout_width="wrap_content"
