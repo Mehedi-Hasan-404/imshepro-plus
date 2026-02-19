@@ -3,16 +3,20 @@ package com.livetvpro
 import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Intent
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.text.SpannableString
+import android.text.style.StyleSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -67,19 +71,42 @@ class MainActivity : AppCompatActivity() {
         val isFireTv = intent.getBooleanExtra(EXTRA_IS_FIRE_TV, false)
         isTvDevice = resources.getBoolean(R.bool.is_tv_device) || isFireTv
 
-        if (isTvDevice) {
+        applyBergenSansToNavigationMenu()
 
+        if (isTvDevice) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
             insetsController.hide(WindowInsetsCompat.Type.statusBars())
             setupTvNavigation()
         } else {
-
             handleStatusBarForOrientation()
             setupToolbar()
             setupDrawer()
             setupNavigation()
             setupSearch()
+        }
+    }
+
+    private fun applyBergenSansToNavigationMenu() {
+        val bergenSans = ResourcesCompat.getFont(this, R.font.bergen_sans) ?: return
+        val navigationView = binding.root.findViewById<com.google.android.material.navigation.NavigationView>(
+            R.id.navigation_view
+        ) ?: return
+        val menu = navigationView.menu
+        for (i in 0 until menu.size()) {
+            val item = menu.getItem(i)
+            val spannable = SpannableString(item.title)
+            spannable.setSpan(CustomTypefaceSpan(bergenSans), 0, spannable.length, 0)
+            item.title = spannable
+            val subMenu = item.subMenu
+            if (subMenu != null) {
+                for (j in 0 until subMenu.size()) {
+                    val subItem = subMenu.getItem(j)
+                    val subSpannable = SpannableString(subItem.title)
+                    subSpannable.setSpan(CustomTypefaceSpan(bergenSans), 0, subSpannable.length, 0)
+                    subItem.title = subSpannable
+                }
+            }
         }
     }
 
@@ -194,25 +221,24 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_contact_browser -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
-                        ?: "https://t.me/livetvprochat"
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contactUrl)))
+                    if (contactUrl != null) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contactUrl)))
                     true
                 }
                 R.id.nav_website -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val webUrl = listenerManager.getWebUrl().takeIf { it.isNotBlank() }
-                        ?: "https://www.livetvpro.site/"
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
+                    if (webUrl != null) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
                     true
                 }
                 R.id.nav_email_us -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val email = listenerManager.getEmailUs().takeIf { it.isNotBlank() }
-                        ?: "880188mm@gmail.com"
-                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email")).apply {
-                        putExtra(Intent.EXTRA_SUBJECT, "LiveTVPro Support")
+                    if (email != null) {
+                        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email")).apply {
+                            putExtra(Intent.EXTRA_SUBJECT, "LiveTVPro Support")
+                        }
+                        startActivity(Intent.createChooser(intent, "Send Email"))
                     }
-                    startActivity(Intent.createChooser(intent, "Send Email"))
                     true
                 }
                 R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment,
@@ -352,7 +378,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-
         if (isTvDevice) return false
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
@@ -443,25 +468,24 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_contact_browser -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
-                        ?: "https://t.me/livetvprochat"
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contactUrl)))
+                    if (contactUrl != null) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contactUrl)))
                     true
                 }
                 R.id.nav_website -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val webUrl = listenerManager.getWebUrl().takeIf { it.isNotBlank() }
-                        ?: "https://www.livetvpro.site/"
-                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
+                    if (webUrl != null) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
                     true
                 }
                 R.id.nav_email_us -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val email = listenerManager.getEmailUs().takeIf { it.isNotBlank() }
-                        ?: "880188mm@gmail.com"
-                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email")).apply {
-                        putExtra(Intent.EXTRA_SUBJECT, "LiveTVPro Support")
+                    if (email != null) {
+                        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email")).apply {
+                            putExtra(Intent.EXTRA_SUBJECT, "LiveTVPro Support")
+                        }
+                        startActivity(Intent.createChooser(intent, "Send Email"))
                     }
-                    startActivity(Intent.createChooser(intent, "Send Email"))
                     true
                 }
                 R.id.networkStreamFragment, R.id.playlistsFragment,
@@ -713,5 +737,14 @@ class MainActivity : AppCompatActivity() {
                 super.onBackPressed()
             }
         }
+    }
+}
+
+private class CustomTypefaceSpan(private val typeface: Typeface) : android.text.style.TypefaceSpan("") {
+    override fun updateDrawState(ds: android.text.TextPaint) {
+        ds.typeface = typeface
+    }
+    override fun updateMeasureState(paint: android.text.TextPaint) {
+        paint.typeface = typeface
     }
 }
