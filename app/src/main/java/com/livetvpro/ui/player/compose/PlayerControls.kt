@@ -138,6 +138,8 @@ fun PlayerControls(
     onForwardClick: () -> Unit,
     onAspectRatioClick: () -> Unit,
     onFullscreenClick: () -> Unit,
+    onChannelListClick: () -> Unit = {},
+    isChannelListAvailable: Boolean = false,
     /** Called when user swipes up/down on the RIGHT third. 0 = muted, 1‥100 = volume. */
     onVolumeSwipe: (Int) -> Unit = {},
     /** Called when user swipes up/down on the LEFT third. 0 = auto, 1‥100 = brightness. */
@@ -214,6 +216,8 @@ fun PlayerControls(
                 onForwardClick = onForwardClick,
                 onAspectRatioClick = onAspectRatioClick,
                 onFullscreenClick = onFullscreenClick,
+                onChannelListClick = onChannelListClick,
+                isChannelListAvailable = isChannelListAvailable,
                 onInteraction = { state.show(scope) }
             )
         }
@@ -287,6 +291,8 @@ private fun PlayerControlsContent(
     onForwardClick: () -> Unit,
     onAspectRatioClick: () -> Unit,
     onFullscreenClick: () -> Unit,
+    onChannelListClick: () -> Unit,
+    isChannelListAvailable: Boolean,
     onInteraction: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
@@ -472,6 +478,20 @@ private fun PlayerControlsContent(
                     modifier = Modifier.padding(end = 12.dp)
                 )
                 
+                // Channel list button — landscape only, left of fullscreen
+                if (isLandscape && isChannelListAvailable) {
+                    PlayerIconButton(
+                        onClick = {
+                            onChannelListClick()
+                            onInteraction()
+                        },
+                        iconRes = R.drawable.ic_list,
+                        contentDescription = "Channel list",
+                        size = 40,
+                        modifier = Modifier.padding(end = 4.dp)
+                    )
+                }
+
                 // Fullscreen button (40dp, right side)
                 PlayerIconButton(
                     onClick = onFullscreenClick,
