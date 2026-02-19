@@ -23,9 +23,9 @@ import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.local.ThemeManager
 import com.livetvpro.databinding.ActivityMainBinding
 import com.livetvpro.ui.player.dialogs.FloatingPlayerDialog
+import com.livetvpro.utils.NativeListenerManager
 import com.livetvpro.utils.Refreshable
 import dagger.hilt.android.AndroidEntryPoint
-import timber.log.Timber
 import javax.inject.Inject
 
 interface SearchableFragment {
@@ -43,11 +43,13 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var themeManager: ThemeManager
 
+    @Inject
+    lateinit var listenerManager: NativeListenerManager
+
     private var drawerToggle: ActionBarDrawerToggle? = null
     private var isSearchVisible = false
     private var showRefreshIcon = false
 
-    /** True when running on Android TV / Google TV. Set from values-television/booleans.xml */
     private var isTvDevice = false
 
     companion object {
@@ -62,19 +64,17 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Detect TV via resource qualifier (values-television/booleans.xml)
-        // OR via TV launcher intent category passed from SplashActivity
         val isFireTv = intent.getBooleanExtra(EXTRA_IS_FIRE_TV, false)
         isTvDevice = resources.getBoolean(R.bool.is_tv_device) || isFireTv
 
         if (isTvDevice) {
-            // TV: full-screen, no status bar chrome needed
+
             WindowCompat.setDecorFitsSystemWindows(window, false)
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
             insetsController.hide(WindowInsetsCompat.Type.statusBars())
             setupTvNavigation()
         } else {
-            // Phone: respect user's auto-rotation setting
+
             handleStatusBarForOrientation()
             setupToolbar()
             setupDrawer()
@@ -103,7 +103,7 @@ class MainActivity : AppCompatActivity() {
             windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
             windowInsetsController.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
-            // Enforce black status bar in portrait regardless of active theme
+
             window.statusBarColor = android.graphics.Color.BLACK
             windowInsetsController.isAppearanceLightStatusBars = false
 
@@ -120,10 +120,6 @@ class MainActivity : AppCompatActivity() {
         if (!isTvDevice) handleStatusBarForOrientation()
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-    //  TV NAVIGATION  (Google TV-style top tab bar)
-    // ─────────────────────────────────────────────────────────────────────────
-
     private fun setupTvNavigation() {
         val navHostFragment = supportFragmentManager
             .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment ?: return
@@ -136,8 +132,6 @@ class MainActivity : AppCompatActivity() {
             R.id.navigation_view
         )
 
-        // Use the toolbar in the TV top bar with ActionBarDrawerToggle —
-        // same as phone, Android draws the hamburger icon automatically
         val tvToolbar = binding.root.findViewById<com.google.android.material.appbar.MaterialToolbar>(
             R.id.toolbar
         )
@@ -155,7 +149,6 @@ class MainActivity : AppCompatActivity() {
         }
         drawerToggle?.let { drawerLayout?.addDrawerListener(it) }
 
-        // Map tab view IDs → destination IDs
         val tabDestinations = mapOf(
             R.id.tv_tab_live      to R.id.liveEventsFragment,
             R.id.tv_tab_home      to R.id.homeFragment,
@@ -180,14 +173,12 @@ class MainActivity : AppCompatActivity() {
             navController.navigate(destinationId, null, navOptions)
         }
 
-        // Wire tab click listeners
         tabDestinations.forEach { (viewId, destId) ->
             binding.root.findViewById<android.widget.TextView>(viewId)?.setOnClickListener {
                 navigate(destId)
             }
         }
 
-        // Wire NavigationView item selection (same logic as phone)
         val topLevelDestinations = setOf(
             R.id.homeFragment,
             R.id.liveEventsFragment,
@@ -200,7 +191,32 @@ class MainActivity : AppCompatActivity() {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     true
                 }
-                R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment -> {
+                R.id.nav_contact_browser -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
+                        ?: "https://t.me/livetvprochat"
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contactUrl)))
+                    true
+                }
+                R.id.nav_website -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    val webUrl = listenerManager.getWebUrl().takeIf { it.isNotBlank() }
+                        ?: "https://www.livetvpro.site/"
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
+                    true
+                }
+                R.id.nav_email_us -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    val email = listenerManager.getEmailUs().takeIf { it.isNotBlank() }
+                        ?: "880188mm@gmail.com"
+                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email")).apply {
+                        putExtra(Intent.EXTRA_SUBJECT, "LiveTVPro Support")
+                    }
+                    startActivity(Intent.createChooser(intent, "Send Email"))
+                    true
+                }
+                R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment,
+                R.id.cricketScoreFragment, R.id.footballScoreFragment -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     drawerLayout?.postDelayed({
                         navController.navigate(menuItem.itemId)
@@ -215,7 +231,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Sync tab highlight + hamburger/back icon when destination changes (mirrors phone logic)
         navController.addOnDestinationChangedListener { _, destination, _ ->
             val activeDestId = when (destination.id) {
                 R.id.categoryChannelsFragment -> R.id.homeFragment
@@ -256,18 +271,14 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Select start tab on launch
         selectTab(navController.graph.startDestinationId)
 
-        // Wire search button: toggles the search bar open / closed
         binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search)
             ?.setOnClickListener { if (isSearchVisible) hideTvSearch() else showTvSearch() }
 
-        // Wire search view
         val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
         val tvClearBtn = binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)
 
-        // Clear button is always visible — it cancels/closes the search bar
         tvClearBtn?.visibility = View.VISIBLE
 
         tvSearchView?.setOnQueryTextListener(object :
@@ -284,7 +295,6 @@ class MainActivity : AppCompatActivity() {
             }
         })
 
-        // Cross icon: always closes/cancels the search bar
         tvClearBtn?.setOnClickListener {
             hideTvSearch()
         }
@@ -336,15 +346,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────────────
-
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        // TV has no options menu / toolbar overflow
+
         if (isTvDevice) return false
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
@@ -398,7 +406,6 @@ class MainActivity : AppCompatActivity() {
 
         val navController = navHostFragment.navController
 
-        // Null-safe references — these views only exist in the phone layout
         val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
             R.id.drawer_layout
         )
@@ -433,7 +440,32 @@ class MainActivity : AppCompatActivity() {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     true
                 }
-                R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment -> {
+                R.id.nav_contact_browser -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
+                        ?: "https://t.me/livetvprochat"
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contactUrl)))
+                    true
+                }
+                R.id.nav_website -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    val webUrl = listenerManager.getWebUrl().takeIf { it.isNotBlank() }
+                        ?: "https://www.livetvpro.site/"
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
+                    true
+                }
+                R.id.nav_email_us -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    val email = listenerManager.getEmailUs().takeIf { it.isNotBlank() }
+                        ?: "880188mm@gmail.com"
+                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:$email")).apply {
+                        putExtra(Intent.EXTRA_SUBJECT, "LiveTVPro Support")
+                    }
+                    startActivity(Intent.createChooser(intent, "Send Email"))
+                    true
+                }
+                R.id.networkStreamFragment, R.id.playlistsFragment,
+                R.id.cricketScoreFragment, R.id.footballScoreFragment -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     drawerLayout?.postDelayed({
                         navController.navigate(menuItem.itemId)
@@ -468,6 +500,8 @@ class MainActivity : AppCompatActivity() {
                 R.id.contactFragment -> "Contact"
                 R.id.networkStreamFragment -> "Network Stream"
                 R.id.playlistsFragment -> "Playlists"
+                R.id.cricketScoreFragment -> "Cricket Score"
+                R.id.footballScoreFragment -> "Football Score"
                 else -> "Live TV Pro"
             }
 
