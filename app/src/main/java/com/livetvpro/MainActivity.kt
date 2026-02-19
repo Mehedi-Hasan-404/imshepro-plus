@@ -289,60 +289,50 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun animateTvSearchWeight(from: Float, to: Float, onEnd: (() -> Unit)? = null) {
+        val tvSearchBar = binding.root.findViewById<View>(R.id.tv_search_bar) ?: return
+        val lp = tvSearchBar.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        ValueAnimator.ofFloat(from, to).apply {
+            duration = 220
+            interpolator = if (to > from)
+                android.view.animation.DecelerateInterpolator()
+            else
+                android.view.animation.AccelerateInterpolator()
+            addUpdateListener { va ->
+                lp.weight = va.animatedValue as Float
+                tvSearchBar.layoutParams = lp
+            }
+            onEnd?.let {
+                addListener(object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) { it() }
+                })
+            }
+            start()
+        }
+    }
+
     private fun showTvSearch() {
         isSearchVisible = true
-        val tvSearchBar = binding.root.findViewById<android.widget.LinearLayout>(R.id.tv_search_bar) ?: return
-        val tvTabStrip = binding.root.findViewById<android.widget.HorizontalScrollView>(
-            // HorizontalScrollView wrapping the tabs
-            R.id.tv_tab_strip
-        )?.parent as? android.widget.HorizontalScrollView
-            ?: binding.root.findViewById<android.view.View>(R.id.tv_tab_live)
-                ?.let { it.parent?.parent as? android.widget.HorizontalScrollView }
-
+        val tvSearchBar = binding.root.findViewById<View>(R.id.tv_search_bar) ?: return
+        val lp = tvSearchBar.layoutParams as? android.widget.LinearLayout.LayoutParams ?: return
+        lp.weight = 0f
+        tvSearchBar.layoutParams = lp
         tvSearchBar.visibility = View.VISIBLE
+        animateTvSearchWeight(0f, 2f)
 
-        // Animate weight 0 → 2 (moderate expansion into tab space)
-        val animator = ValueAnimator.ofFloat(0f, 2f)
-        animator.duration = 250
-        animator.interpolator = android.view.animation.DecelerateInterpolator()
-        animator.addUpdateListener { va ->
-            val w = va.animatedValue as Float
-            val lp = tvSearchBar.layoutParams as android.widget.LinearLayout.LayoutParams
-            lp.weight = w
-            tvSearchBar.layoutParams = lp
-        }
-        animator.start()
-
-        val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
-        tvSearchView?.post {
-            tvSearchView.isIconified = false
-            tvSearchView.requestFocus()
+        binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)?.post {
+            binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
+                ?.apply { isIconified = false; requestFocus() }
         }
     }
 
     private fun hideTvSearch() {
         isSearchVisible = false
-        val tvSearchBar = binding.root.findViewById<android.widget.LinearLayout>(R.id.tv_search_bar) ?: return
-        val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
-        tvSearchView?.setQuery("", false)
-        tvSearchView?.clearFocus()
-
-        // Animate weight 2 → 0 then hide
-        val animator = ValueAnimator.ofFloat(2f, 0f)
-        animator.duration = 200
-        animator.interpolator = android.view.animation.AccelerateInterpolator()
-        animator.addUpdateListener { va ->
-            val w = va.animatedValue as Float
-            val lp = tvSearchBar.layoutParams as android.widget.LinearLayout.LayoutParams
-            lp.weight = w
-            tvSearchBar.layoutParams = lp
+        binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
+            ?.apply { setQuery("", false); clearFocus() }
+        animateTvSearchWeight(2f, 0f) {
+            binding.root.findViewById<View>(R.id.tv_search_bar)?.visibility = View.GONE
         }
-        animator.addListener(object : android.animation.AnimatorListenerAdapter() {
-            override fun onAnimationEnd(animation: android.animation.Animator) {
-                tvSearchBar.visibility = View.GONE
-            }
-        })
-        animator.start()
     }
 
     // ─────────────────────────────────────────────────────────────────────────
