@@ -17,7 +17,9 @@ struct ListenerConfigState {
     std::string webUrl;
     std::string message;
     std::string messageUrl;
-} static listenerState = {false, "", {}, false, "", "", "", "", "", "", ""};
+    std::string appVersion;   // ← ADDED
+    std::string downloadUrl;  // ← ADDED
+} static listenerState = {false, "", {}, false, "", "", "", "", "", "", "", "", ""};
 
 static std::set<std::string> triggeredSessions;
 
@@ -175,6 +177,8 @@ static void extractListenerConfig(const std::string& json) {
         extractStringField("web_url", listenerState.webUrl);
         extractStringField("message", listenerState.message);
         extractStringField("message_url", listenerState.messageUrl);
+        extractStringField("app_version", listenerState.appVersion);   // ← ADDED
+        extractStringField("download_url", listenerState.downloadUrl); // ← ADDED
 
     } catch (...) {
         listenerState.enableDirectLink = false;
@@ -378,4 +382,16 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeGetMessage(JNIEnv* env, job
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_livetvpro_utils_NativeListenerManager_nativeGetMessageUrl(JNIEnv* env, jobject) {
     return env->NewStringUTF(listenerState.messageUrl.c_str());
+}
+
+// ← ADDED: was missing, caused UnsatisfiedLinkError crash at splash
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetAppVersion(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.appVersion.c_str());
+}
+
+// ← ADDED: was missing, caused UnsatisfiedLinkError crash at splash
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetDownloadUrl(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.downloadUrl.c_str());
 }
