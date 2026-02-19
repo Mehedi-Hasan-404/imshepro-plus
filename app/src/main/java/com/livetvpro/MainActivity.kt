@@ -1,7 +1,6 @@
 package com.livetvpro
 
 import android.animation.AnimatorListenerAdapter
-import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.net.Uri
