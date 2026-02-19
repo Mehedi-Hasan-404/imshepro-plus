@@ -12,7 +12,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.provider.Settings
 import android.view.View
-import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -56,7 +55,6 @@ class SplashActivity : AppCompatActivity() {
     private lateinit var versionText: TextView
 
     private lateinit var updateScreen: View
-    private lateinit var btnClose: ImageButton
     private lateinit var btnPrimaryAction: MaterialButton
     private lateinit var btnDownloadWebsite: MaterialButton
     private lateinit var btnUpdateLater: MaterialButton
@@ -97,7 +95,6 @@ class SplashActivity : AppCompatActivity() {
         versionText = findViewById(R.id.version_text)
 
         updateScreen = findViewById(R.id.update_screen)
-        btnClose = findViewById(R.id.btn_close)
         btnPrimaryAction = findViewById(R.id.btn_primary_action)
         btnDownloadWebsite = findViewById(R.id.btn_download_website)
         btnUpdateLater = findViewById(R.id.btn_update_later)
@@ -126,7 +123,6 @@ class SplashActivity : AppCompatActivity() {
             websiteButton.visibility = View.GONE
         }
 
-        btnClose.setOnClickListener { finishAndRemoveTask() }
         btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
         btnDownloadWebsite.setOnClickListener {
             val url = listenerManager.getWebUrl()
