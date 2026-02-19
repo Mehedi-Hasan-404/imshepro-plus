@@ -10,7 +10,12 @@ struct ListenerConfigState {
     std::string directLinkUrl;
     std::set<std::string> allowedPages;
     bool isInitialized;
-} static listenerState = {false, "", {}, false};
+    std::string contactUrl;
+    std::string cricLiveUrl;
+    std::string footLiveUrl;
+    std::string emailUs;
+    std::string webUrl;
+} static listenerState = {false, "", {}, false, "", "", "", "", ""};
 
 static std::set<std::string> triggeredSessions;
 
@@ -148,6 +153,25 @@ static void extractListenerConfig(const std::string& json) {
         
         listenerState.isInitialized = true;
         
+        auto extractStringField = [&](const std::string& fieldName, std::string& out) {
+            size_t pos = json.find("\"" + fieldName + "\"", configPos);
+            if (pos == std::string::npos) return;
+            size_t colon = json.find(':', pos);
+            if (colon == std::string::npos) return;
+            size_t quoteStart = json.find('"', colon);
+            if (quoteStart == std::string::npos) return;
+            quoteStart++;
+            size_t quoteEnd = json.find('"', quoteStart);
+            if (quoteEnd == std::string::npos) return;
+            out = json.substr(quoteStart, quoteEnd - quoteStart);
+        };
+
+        extractStringField("contact_url", listenerState.contactUrl);
+        extractStringField("cric_live_url", listenerState.cricLiveUrl);
+        extractStringField("foot_live_url", listenerState.footLiveUrl);
+        extractStringField("email_us", listenerState.emailUs);
+        extractStringField("web_url", listenerState.webUrl);
+
     } catch (...) {
         listenerState.enableDirectLink = false;
         listenerState.isInitialized = false;
@@ -315,4 +339,29 @@ Java_com_livetvpro_data_repository_NativeDataRepository_nativeStoreConfigUrl(JNI
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_livetvpro_data_repository_NativeDataRepository_nativeGetConfigUrl(JNIEnv* env, jobject thiz) {
     return env->NewStringUTF(remoteConfigFetched ? remoteConfigUrl.c_str() : "");
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetContactUrl(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.contactUrl.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetCricLiveUrl(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.cricLiveUrl.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetFootLiveUrl(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.footLiveUrl.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetEmailUs(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.emailUs.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetWebUrl(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.webUrl.c_str());
 }
