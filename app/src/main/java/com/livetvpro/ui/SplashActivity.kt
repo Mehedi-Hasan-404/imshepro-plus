@@ -114,7 +114,7 @@ class SplashActivity : AppCompatActivity() {
 
         retryButton.setOnClickListener { startFetch() }
         websiteButton.setOnClickListener {
-            val url = listenerManager.getWebUrl()
+            val url = listenerManager.getWebUrl().ifBlank { cachedWebUrl }
             if (url.isNotBlank()) openUrl(url)
         }
 
@@ -125,7 +125,7 @@ class SplashActivity : AppCompatActivity() {
 
         btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
         btnDownloadWebsite.setOnClickListener {
-            val url = listenerManager.getWebUrl()
+            val url = listenerManager.getWebUrl().ifBlank { cachedWebUrl }
             if (url.isNotBlank()) openUrl(url)
         }
         btnPrimaryAction.setOnClickListener {
@@ -144,11 +144,16 @@ class SplashActivity : AppCompatActivity() {
         startFetch()
     }
 
+    private var cachedWebUrl: String = ""
+
     private fun startFetch() {
         showLoading()
         lifecycleScope.launch {
             val success = fetchData()
             if (success) {
+                // Cache the web URL now that native data is loaded
+                val url = listenerManager.getWebUrl()
+                if (url.isNotBlank()) cachedWebUrl = url
                 if (isUpdateRequired()) {
                     showUpdateScreen()
                 } else {
