@@ -17,10 +17,30 @@
             android:title="@string/nav_playlists" />
 
         <item
-            android:id="@+id/contactFragment"
+            android:id="@+id/cricketScoreFragment"
+            android:icon="@drawable/ic_cricket"
+            android:title="@string/nav_cricket_score" />
+
+        <item
+            android:id="@+id/footballScoreFragment"
+            android:icon="@drawable/ic_football"
+            android:title="@string/nav_football_score" />
+
+        <item
+            android:id="@+id/nav_contact_browser"
             android:icon="@drawable/ic_contact"
             android:title="@string/nav_contact" />
-            
+
+        <item
+            android:id="@+id/nav_website"
+            android:icon="@drawable/ic_website"
+            android:title="@string/nav_website" />
+
+        <item
+            android:id="@+id/nav_email_us"
+            android:icon="@drawable/ic_email"
+            android:title="@string/nav_email_us" />
+
         <item
             android:id="@+id/networkStreamFragment"
             android:icon="@drawable/ic_network_stream"
