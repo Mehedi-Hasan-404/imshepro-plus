@@ -10,10 +10,12 @@ import android.os.Environment
 import android.provider.Settings
 import android.view.View
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
+import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.livetvpro.BuildConfig
@@ -45,7 +47,9 @@ class SplashActivity : AppCompatActivity() {
     private lateinit var bar4: View
     private lateinit var bar5: View
     private lateinit var errorText: TextView
+    private lateinit var buttonsRow: LinearLayout
     private lateinit var retryButton: MaterialButton
+    private lateinit var websiteButton: MaterialButton
     private lateinit var versionText: TextView
 
     private lateinit var updateScreen: View
@@ -70,6 +74,8 @@ class SplashActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
 
+        val bergenSans = ResourcesCompat.getFont(this, R.font.bergen_sans)
+
         splashScreen = findViewById(R.id.splash_screen)
         signalLoader = findViewById(R.id.signal_loader)
         bar1 = findViewById(R.id.bar1)
@@ -78,7 +84,9 @@ class SplashActivity : AppCompatActivity() {
         bar4 = findViewById(R.id.bar4)
         bar5 = findViewById(R.id.bar5)
         errorText = findViewById(R.id.error_text)
+        buttonsRow = findViewById(R.id.buttons_row)
         retryButton = findViewById(R.id.retry_button)
+        websiteButton = findViewById(R.id.website_button)
         versionText = findViewById(R.id.version_text)
 
         updateScreen = findViewById(R.id.update_screen)
@@ -89,8 +97,22 @@ class SplashActivity : AppCompatActivity() {
         updateProgress = findViewById(R.id.update_progress)
         tvProgress = findViewById(R.id.tv_progress)
 
+        errorText.typeface = bergenSans
+        retryButton.typeface = bergenSans
+        websiteButton.typeface = bergenSans
+        versionText.typeface = bergenSans
+        tvProgress.typeface = bergenSans
+        btnPrimaryAction.typeface = bergenSans
+        btnDownloadWebsite.typeface = bergenSans
+        btnUpdateLater.typeface = bergenSans
+
         versionText.text = "VERSION ${BuildConfig.VERSION_NAME}"
+
         retryButton.setOnClickListener { startFetch() }
+        websiteButton.setOnClickListener {
+            val url = listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" }
+            openUrl(url)
+        }
 
         btnClose.setOnClickListener { finishAndRemoveTask() }
         btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
@@ -160,7 +182,7 @@ class SplashActivity : AppCompatActivity() {
         updateScreen.visibility = View.GONE
         signalLoader.visibility = View.VISIBLE
         errorText.visibility = View.GONE
-        retryButton.visibility = View.GONE
+        buttonsRow.visibility = View.GONE
         startBarAnimations()
     }
 
@@ -169,7 +191,7 @@ class SplashActivity : AppCompatActivity() {
         signalLoader.visibility = View.GONE
         errorText.text = message
         errorText.visibility = View.VISIBLE
-        retryButton.visibility = View.VISIBLE
+        buttonsRow.visibility = View.VISIBLE
     }
 
     private fun showUpdateScreen() {
