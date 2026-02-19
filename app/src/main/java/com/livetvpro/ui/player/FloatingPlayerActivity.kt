@@ -1722,8 +1722,12 @@ class FloatingPlayerActivity : AppCompatActivity() {
             val url = listenerManager.getMessageUrl()
             if (url.isNotBlank()) {
                 binding.tvMessageBanner.setOnClickListener {
-                    startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                    try {
+                        startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                    } catch (e: Exception) { }
                 }
+            } else {
+                binding.tvMessageBanner.setOnClickListener(null)
             }
         }
     }
