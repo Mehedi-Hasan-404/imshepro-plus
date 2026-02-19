@@ -29,18 +29,15 @@ import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 
 private val RED            = Color(0xFFCC0000)
-private val PANEL_BG       = Color(0xCC0A0A0A)   // ~80% opaque
-private val SIDEBAR_BG     = Color(0xCC141414)
-private val HEADER_BG      = Color(0xDD1A1A1A)
+private val PANEL_BG       = Color(0x990A0A0A)
+private val SIDEBAR_BG     = Color(0x99141414)
+private val HEADER_BG      = Color(0xAA1A1A1A)
+private val BergenSans     = androidx.compose.ui.text.font.FontFamily(
+    androidx.compose.ui.text.font.Font(R.font.bergen_sans)
+)
 
-/** One named group + its ordered channels */
 data class ChannelGroup(val title: String, val channels: List<Channel>)
 
-/**
- * Builds groups:
- *   [0] "All Channels"  — every channel serialised 1…N
- *   [1…] distinct groupTitle values — only channels in that group, serialised 1…N
- */
 fun buildChannelGroups(channels: List<Channel>): List<ChannelGroup> {
     val result = mutableListOf<ChannelGroup>()
     result += ChannelGroup("All Channels", channels)
@@ -50,12 +47,6 @@ fun buildChannelGroups(channels: List<Channel>): List<ChannelGroup> {
     return result
 }
 
-/**
- * Two-column sliding panel:
- *   Left  (~28%) — group sidebar
- *   Right (~72%) — channels for selected group, serial 1…N
- * Both on a semi-transparent background so the video behind shows through.
- */
 @Composable
 fun ChannelListPanel(
     visible: Boolean,
@@ -75,11 +66,10 @@ fun ChannelListPanel(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
 
-            // Dim backdrop
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.45f))
+                    .background(Color.Black.copy(alpha = 0.25f))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -87,7 +77,6 @@ fun ChannelListPanel(
                     )
             )
 
-            // Panel — right-aligned, ~60% width
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
@@ -115,7 +104,6 @@ fun ChannelListPanel(
 
                 Column(modifier = Modifier.fillMaxSize()) {
 
-                    // Header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -142,16 +130,15 @@ fun ChannelListPanel(
                             text = "Channels List",
                             color = Color.White,
                             fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = BergenSans
                         )
                     }
 
                     HorizontalDivider(color = Color.White.copy(alpha = 0.08f), thickness = 1.dp)
 
-                    // Body: sidebar + channel list
                     Row(modifier = Modifier.fillMaxSize()) {
 
-                        // LEFT sidebar
                         LazyColumn(
                             modifier = Modifier
                                 .fillMaxHeight()
@@ -175,7 +162,6 @@ fun ChannelListPanel(
                                 .background(Color.White.copy(alpha = 0.08f))
                         )
 
-                        // RIGHT channel list
                         LazyColumn(
                             state = channelListState,
                             modifier = Modifier.fillMaxSize().background(PANEL_BG)
@@ -217,6 +203,7 @@ private fun GroupSidebarItem(
             color = if (isSelected) Color.White else Color.White.copy(alpha = 0.65f),
             fontSize = 11.sp,
             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            fontFamily = BergenSans,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
@@ -226,7 +213,8 @@ private fun GroupSidebarItem(
         Text(
             text = "$channelCount",
             color = if (isSelected) Color.White.copy(alpha = 0.85f) else Color.White.copy(alpha = 0.4f),
-            fontSize = 10.sp
+            fontSize = 10.sp,
+            fontFamily = BergenSans
         )
     }
     HorizontalDivider(color = Color.White.copy(alpha = 0.06f), thickness = 0.5.dp)
@@ -252,6 +240,7 @@ private fun ChannelItemRow(
             color = if (isPlaying) Color.White else Color(0xFFB8E44A),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
+            fontFamily = BergenSans,
             modifier = Modifier.widthIn(min = 30.dp),
             textAlign = TextAlign.Start
         )
@@ -273,6 +262,7 @@ private fun ChannelItemRow(
             color = Color.White,
             fontSize = 12.sp,
             fontWeight = if (isPlaying) FontWeight.Bold else FontWeight.Normal,
+            fontFamily = BergenSans,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
