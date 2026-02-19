@@ -67,6 +67,8 @@ import java.util.UUID
 import android.annotation.SuppressLint
 import android.graphics.Rect
 import androidx.compose.runtime.*
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.livetvpro.ui.player.compose.PlayerControls
 import com.livetvpro.ui.player.compose.PlayerControlsState
@@ -214,6 +216,8 @@ class PlayerActivity : AppCompatActivity() {
 
         if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
             viewModel.refreshChannelData(contentId)
+            // Load channel list for the ic_list panel (only meaningful for CHANNEL type)
+            viewModel.loadAllChannelsForList(intentCategoryId?.takeIf { it.isNotEmpty() } ?: channelData?.categoryId ?: "")
         }
 
         // Apply orientation ONCE - enterFullscreen/exitFullscreen inside handle container params
@@ -652,6 +656,11 @@ class PlayerActivity : AppCompatActivity() {
                     val duration = player?.duration ?: 0L
                     val bufferedPosition = player?.bufferedPosition ?: 0L
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
+                    // Channel list panel state
+                    var showChannelList by remember { mutableStateOf(false) }
+                    val channelListItems by viewModel.channelListItems.observeAsState(emptyList())
+                    val isChannelListAvailable = contentType == ContentType.CHANNEL && channelListItems.isNotEmpty()
                     
                     // Auto-hide controls when playback starts
                     val scope = rememberCoroutineScope()
@@ -687,90 +696,106 @@ class PlayerActivity : AppCompatActivity() {
                             binding.playerView.viewTreeObserver.removeOnGlobalLayoutListener(listener)
                         }
                     }
-                    
-                    PlayerControls(
-                        state = controlsState,
-                        isPlaying = isPlaying,
-                        isMuted = isMuted,
-                        currentPosition = currentPosition,
-                        duration = duration,
-                        bufferedPosition = bufferedPosition,
-                        channelName = contentName,
-                        showPipButton = isPipSupported,
-                        showAspectRatioButton = true,
-                        isLandscape = isLandscape,
-                        onBackClick = { finish() },
-                        onPipClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                wasLockedBeforePip = controlsState.isLocked
-                                enterPictureInPictureMode(updatePipParams(enter = false))
-                            }
-                        },
-                        onSettingsClick = { showSettingsDialog() },
-                        onMuteClick = { toggleMute() },
-                        onLockClick = { locked -> },
-                        onPlayPauseClick = {
-                            player?.let {
-                                val hasError = binding.errorView.visibility == View.VISIBLE
-                                val hasEnded = it.playbackState == Player.STATE_ENDED
-                                
-                                if (hasError || hasEnded) {
-                                    retryPlayback()
-                                } else {
-                                    if (it.isPlaying) it.pause() else it.play()
+
+                    Box(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
+                        PlayerControls(
+                            state = controlsState,
+                            isPlaying = isPlaying,
+                            isMuted = isMuted,
+                            currentPosition = currentPosition,
+                            duration = duration,
+                            bufferedPosition = bufferedPosition,
+                            channelName = contentName,
+                            showPipButton = isPipSupported,
+                            showAspectRatioButton = true,
+                            isLandscape = isLandscape,
+                            isChannelListAvailable = isChannelListAvailable,
+                            onBackClick = { finish() },
+                            onPipClick = {
+                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                    wasLockedBeforePip = controlsState.isLocked
+                                    enterPictureInPictureMode(updatePipParams(enter = false))
                                 }
-                            }
-                        },
-                        onSeek = { position ->
-                            player?.seekTo(position)
-                        },
-                        onRewindClick = {
-                            player?.let {
-                                val newPosition = it.currentPosition - skipMs
-                                it.seekTo(if (newPosition < 0) 0 else newPosition)
-                            }
-                        },
-                        onForwardClick = {
-                            player?.let {
-                                val newPosition = it.currentPosition + skipMs
-                                if (it.isCurrentWindowLive && it.duration != C.TIME_UNSET && newPosition >= it.duration) {
-                                    it.seekTo(it.duration)
-                                } else {
-                                    it.seekTo(newPosition)
+                            },
+                            onSettingsClick = { showSettingsDialog() },
+                            onMuteClick = { toggleMute() },
+                            onLockClick = { locked -> },
+                            onChannelListClick = { showChannelList = true },
+                            onPlayPauseClick = {
+                                player?.let {
+                                    val hasError = binding.errorView.visibility == View.VISIBLE
+                                    val hasEnded = it.playbackState == Player.STATE_ENDED
+                                    
+                                    if (hasError || hasEnded) {
+                                        retryPlayback()
+                                    } else {
+                                        if (it.isPlaying) it.pause() else it.play()
+                                    }
                                 }
-                            }
-                        },
-                        onAspectRatioClick = { 
-                            // Only allow aspect ratio change in landscape or network streams
-                            if (isLandscape || contentType == ContentType.NETWORK_STREAM) {
-                                cycleAspectRatio()
-                            }
-                        },
-                        onFullscreenClick = { toggleFullscreen() },
-                        onVolumeSwipe = { vol ->
-                            gestureVolume = vol
-                            val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-                            val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                            val target = (vol / 100f * max).toInt()
-                            audioManager.setStreamVolume(
-                                AudioManager.STREAM_MUSIC,
-                                target,
-                                0 // no UI flag — our OSD replaces it
+                            },
+                            onSeek = { position ->
+                                player?.seekTo(position)
+                            },
+                            onRewindClick = {
+                                player?.let {
+                                    val newPosition = it.currentPosition - skipMs
+                                    it.seekTo(if (newPosition < 0) 0 else newPosition)
+                                }
+                            },
+                            onForwardClick = {
+                                player?.let {
+                                    val newPosition = it.currentPosition + skipMs
+                                    if (it.isCurrentWindowLive && it.duration != C.TIME_UNSET && newPosition >= it.duration) {
+                                        it.seekTo(it.duration)
+                                    } else {
+                                        it.seekTo(newPosition)
+                                    }
+                                }
+                            },
+                            onAspectRatioClick = { 
+                                // Only allow aspect ratio change in landscape or network streams
+                                if (isLandscape || contentType == ContentType.NETWORK_STREAM) {
+                                    cycleAspectRatio()
+                                }
+                            },
+                            onFullscreenClick = { toggleFullscreen() },
+                            onVolumeSwipe = { vol ->
+                                gestureVolume = vol
+                                val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+                                val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                val target = (vol / 100f * max).toInt()
+                                audioManager.setStreamVolume(
+                                    AudioManager.STREAM_MUSIC,
+                                    target,
+                                    0 // no UI flag — our OSD replaces it
+                                )
+                            },
+                            onBrightnessSwipe = { bri ->
+                                gestureBrightness = bri
+                                val lp = window.attributes
+                                lp.screenBrightness = if (bri == 0) {
+                                    WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+                                } else {
+                                    bri / 100f
+                                }
+                                window.attributes = lp
+                            },
+                            initialVolume = gestureVolume,
+                            initialBrightness = gestureBrightness,
+                        )
+
+                        // Channel list panel — rendered on top of controls, landscape only
+                        if (isLandscape && isChannelListAvailable) {
+                            com.livetvpro.ui.player.compose.ChannelListPanel(
+                                visible = showChannelList,
+                                channels = channelListItems,
+                                currentChannelId = contentId,
+                                onChannelClick = { channel -> switchToChannel(channel) },
+                                onDismiss = { showChannelList = false },
+                                modifier = androidx.compose.ui.Modifier.fillMaxSize()
                             )
-                        },
-                        onBrightnessSwipe = { bri ->
-                            gestureBrightness = bri
-                            val lp = window.attributes
-                            lp.screenBrightness = if (bri == 0) {
-                                WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
-                            } else {
-                                bri / 100f
-                            }
-                            window.attributes = lp
-                        },
-                        initialVolume = gestureVolume,
-                        initialBrightness = gestureBrightness,
-                    )
+                        }
+                    }
                 }
             }
         }
