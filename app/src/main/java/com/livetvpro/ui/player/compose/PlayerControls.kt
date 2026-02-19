@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.material3.ripple
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -207,20 +208,28 @@ fun PlayerControls(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
                     .pointerInput(Unit) {
                         detectTapGestures(onTap = { state.toggle(scope) })
                     }
             ) {
-                IconButton(
-                    onClick = {
-                        state.unlock(scope)
-                        onLockClick(false)
-                    },
+                val lockInteractionSource = remember { MutableInteractionSource() }
+                Box(
+                    contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(start = 4.dp, top = 4.dp)
                         .size(40.dp)
+                        .clickable(
+                            interactionSource = lockInteractionSource,
+                            indication = ripple(
+                                bounded = true,
+                                color = Color.White.copy(alpha = 0.25f)
+                            ),
+                            onClick = {
+                                state.unlock(scope)
+                                onLockClick(false)
+                            }
+                        )
                 ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_lock_closed),
@@ -449,7 +458,7 @@ private fun PlayerControlsContent(
                         },
                         iconRes = R.drawable.ic_list,
                         contentDescription = "Channel list",
-                        size = 40,
+                        size = 48,
                         modifier = Modifier.padding(end = 4.dp)
                     )
                 }
@@ -474,9 +483,19 @@ private fun PlayerIconButton(
     size: Int = 40,
     tint: Color = Color.White
 ) {
-    IconButton(
-        onClick = onClick,
-        modifier = modifier.size(size.dp)
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .size(size.dp)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(
+                    bounded = true,
+                    color = Color.White.copy(alpha = 0.25f)
+                ),
+                onClick = onClick
+            )
     ) {
         Icon(
             painter = painterResource(iconRes),
