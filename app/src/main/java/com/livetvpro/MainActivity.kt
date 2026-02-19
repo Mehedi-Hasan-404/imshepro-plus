@@ -62,10 +62,11 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Detect TV via resource qualifier (values-television/booleans.xml)
-        // OR via TV launcher intent category passed from SplashActivity
+        // Detect TV via leanback feature (actual TV/FireTV hardware) or FireTV intent flag.
+        // Intentionally does NOT read R.bool.is_tv_device so landscape phones are unaffected.
         val isFireTv = intent.getBooleanExtra(EXTRA_IS_FIRE_TV, false)
-        isTvDevice = resources.getBoolean(R.bool.is_tv_device) || isFireTv
+        val hasLeanback = packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+        isTvDevice = hasLeanback || isFireTv
 
         if (isTvDevice) {
             // TV: full-screen, no status bar chrome needed
