@@ -23,5 +23,6 @@ data class ListenerConfig(
         const val PAGE_CHANNELS = "channels"
         const val PAGE_LIVE_EVENTS = "live_events"
         const val PAGE_FAVORITES = "favorites"
+        const val PAGE_SPORTS = "sports"
     }
 }
