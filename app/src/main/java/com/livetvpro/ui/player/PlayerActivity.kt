@@ -69,6 +69,7 @@ import android.graphics.Rect
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.livetvpro.ui.player.compose.PlayerControls
 import com.livetvpro.ui.player.compose.PlayerControlsState
@@ -697,7 +698,7 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
 
-                    Box(modifier = androidx.compose.ui.Modifier.fillMaxSize()) {
+                    Box(modifier = Modifier.fillMaxSize()) {
                         PlayerControls(
                             state = controlsState,
                             isPlaying = isPlaying,
@@ -792,7 +793,7 @@ class PlayerActivity : AppCompatActivity() {
                                 currentChannelId = contentId,
                                 onChannelClick = { channel -> switchToChannel(channel) },
                                 onDismiss = { showChannelList = false },
-                                modifier = androidx.compose.ui.Modifier.fillMaxSize()
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
                     }
