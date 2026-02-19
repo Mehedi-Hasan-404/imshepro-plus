@@ -35,9 +35,6 @@ import com.livetvpro.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/**
- * Player controls state holder
- */
 class PlayerControlsState(
     initialVisible: Boolean = true,
     val autoHideDelay: Long = 5000L
@@ -46,10 +43,7 @@ class PlayerControlsState(
         private set
 
     var isLocked by mutableStateOf(false)
-        // Made publicly settable for compatibility with PlayerActivity
 
-    // When locked, tracks whether the lock-icon overlay is currently visible.
-    // Tapping the screen toggles it; it auto-hides after autoHideDelay.
     var isLockOverlayVisible by mutableStateOf(false)
         private set
 
@@ -76,7 +70,6 @@ class PlayerControlsState(
 
     fun toggle(coroutineScope: kotlinx.coroutines.CoroutineScope) {
         if (isLocked) {
-            // Tapping while locked toggles only the lock-icon overlay
             toggleLockOverlay(coroutineScope)
         } else {
             if (isVisible) hide() else show(coroutineScope)
@@ -85,7 +78,6 @@ class PlayerControlsState(
 
     fun lock() {
         isLocked = true
-        // Forcibly hide main controls (bypass the isLocked guard in hide())
         hideJob?.cancel()
         isVisible = false
         isLockOverlayVisible = false
@@ -110,10 +102,6 @@ class PlayerControlsState(
     }
 }
 
-/**
- * Main player controls composable - matches the original XML design
- * FIXED: Now properly allows link chips in landscape mode to be clickable
- */
 @Composable
 fun PlayerControls(
     modifier: Modifier = Modifier,
@@ -140,34 +128,24 @@ fun PlayerControls(
     onFullscreenClick: () -> Unit,
     onChannelListClick: () -> Unit = {},
     isChannelListAvailable: Boolean = false,
-    /** Called when user swipes up/down on the RIGHT third. 0 = muted, 1‥100 = volume. */
+
     onVolumeSwipe: (Int) -> Unit = {},
-    /** Called when user swipes up/down on the LEFT third. 0 = auto, 1‥100 = brightness. */
+
     onBrightnessSwipe: (Int) -> Unit = {},
-    /** Starting volume percent (0‥100) so the OSD shows the right value immediately. */
+
     initialVolume: Int = 100,
-    /** Starting brightness percent (0 = auto, 1‥100). */
+
     initialBrightness: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
 
-    // ── Gesture state ──────────────────────────────────────────────────────
     var gestureVolume     by remember { mutableIntStateOf(initialVolume) }
     var gestureBrightness by remember { mutableIntStateOf(initialBrightness) }
     var showVolumeOsd     by remember { mutableStateOf(false) }
     var showBrightnessOsd by remember { mutableStateOf(false) }
 
-    // Layer order (Z, bottom → top):
-    //  1. GestureOverlay  — full screen, handles tap + left/right swipe
-    //  2. Controls UI     — AnimatedVisibility
-    //  3. Lock overlay    — AnimatedVisibility, fullscreen
-    //  4. OSD cards       — always on top of everything including lock overlay
     Box(modifier = modifier.fillMaxSize()) {
 
-        // ── Layer 1: Gesture overlay ───────────────────────────────────────
-        // Full screen. Tap → toggle controls. Swipe left/right → brightness/volume.
-        // Uses awaitEachGesture internally so taps and swipes are distinguished;
-        // only swipe events are consumed — taps propagate normally via onTap callback.
         GestureOverlay(
             gestureState = GestureState(
                 volumePercent     = gestureVolume,
@@ -186,7 +164,6 @@ fun PlayerControls(
             onShowBrightnessOsd = { show -> showBrightnessOsd = show },
         )
 
-        // ── Layer 2: Main controls UI ──────────────────────────────────────
         AnimatedVisibility(
             visible = state.isVisible && !state.isLocked,
             enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
@@ -222,7 +199,6 @@ fun PlayerControls(
             )
         }
 
-        // ── Layer 3: Lock overlay ──────────────────────────────────────────
         AnimatedVisibility(
             visible = state.isLockOverlayVisible,
             enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
@@ -255,7 +231,6 @@ fun PlayerControls(
             }
         }
 
-        // ── Layer 4: OSD cards — always above everything, even lock overlay ─
         VolumeOsd(
             visible  = showVolumeOsd,
             volume   = gestureVolume,
@@ -296,7 +271,6 @@ private fun PlayerControlsContent(
     onInteraction: () -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
-        // Top gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -312,7 +286,6 @@ private fun PlayerControlsContent(
                 )
         )
         
-        // Bottom gradient overlay
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -328,7 +301,6 @@ private fun PlayerControlsContent(
                 )
         )
         
-        // Top bar with controls (back, channel name, pip, settings, mute, lock)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -337,7 +309,6 @@ private fun PlayerControlsContent(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start
         ) {
-            // Back button
             PlayerIconButton(
                 onClick = onBackClick,
                 iconRes = R.drawable.ic_arrow_back,
@@ -345,12 +316,14 @@ private fun PlayerControlsContent(
                 size = 40
             )
             
-            // Channel name
             Text(
                 text = channelName,
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
+                fontFamily = androidx.compose.ui.text.font.FontFamily(
+                    androidx.compose.ui.text.font.Font(R.font.bergen_sans)
+                ),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
@@ -358,7 +331,6 @@ private fun PlayerControlsContent(
                     .padding(start = 12.dp)
             )
             
-            // PIP button
             if (showPipButton) {
                 PlayerIconButton(
                     onClick = onPipClick,
@@ -368,7 +340,6 @@ private fun PlayerControlsContent(
                 )
             }
             
-            // Settings button
             PlayerIconButton(
                 onClick = {
                     onSettingsClick()
@@ -379,7 +350,6 @@ private fun PlayerControlsContent(
                 size = 40
             )
             
-            // Mute button
             PlayerIconButton(
                 onClick = {
                     onMuteClick()
@@ -390,7 +360,6 @@ private fun PlayerControlsContent(
                 size = 40
             )
             
-            // Lock button
             PlayerIconButton(
                 onClick = onLockClick,
                 iconRes = R.drawable.ic_lock_open,
@@ -400,14 +369,12 @@ private fun PlayerControlsContent(
             )
         }
         
-        // Bottom bar with playback controls
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .padding(start = 8.dp, end = 8.dp, bottom = 0.dp)
         ) {
-            // Time bar with position and duration
             ExoPlayerTimeBar(
                 currentPosition = currentPosition,
                 duration = duration,
@@ -418,7 +385,6 @@ private fun PlayerControlsContent(
                     .padding(bottom = 4.dp)
             )
             
-            // Playback control buttons
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -426,7 +392,6 @@ private fun PlayerControlsContent(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Aspect ratio button (40dp, left side)
                 if (showAspectRatioButton) {
                     PlayerIconButton(
                         onClick = {
@@ -442,7 +407,6 @@ private fun PlayerControlsContent(
                     Spacer(modifier = Modifier.width(52.dp))
                 }
                 
-                // Rewind button (48dp)
                 PlayerIconButton(
                     onClick = {
                         onRewindClick()
@@ -454,7 +418,6 @@ private fun PlayerControlsContent(
                     modifier = Modifier.padding(end = 16.dp)
                 )
                 
-                // Play/Pause button (64dp - largest)
                 PlayerIconButton(
                     onClick = {
                         onPlayPauseClick()
@@ -466,7 +429,6 @@ private fun PlayerControlsContent(
                     modifier = Modifier.padding(end = 16.dp)
                 )
                 
-                // Forward button (48dp)
                 PlayerIconButton(
                     onClick = {
                         onForwardClick()
@@ -478,7 +440,6 @@ private fun PlayerControlsContent(
                     modifier = Modifier.padding(end = 12.dp)
                 )
                 
-                // Channel list button — landscape only, left of fullscreen
                 if (isLandscape && isChannelListAvailable) {
                     PlayerIconButton(
                         onClick = {
@@ -492,7 +453,6 @@ private fun PlayerControlsContent(
                     )
                 }
 
-                // Fullscreen button (40dp, right side)
                 PlayerIconButton(
                     onClick = onFullscreenClick,
                     iconRes = if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen,
@@ -526,10 +486,6 @@ private fun PlayerIconButton(
     }
 }
 
-/**
- * ExoPlayer-style TimeBar that closely matches DefaultTimeBar appearance
- * This replaces the Material3 Slider with a custom implementation
- */
 @Composable
 private fun ExoPlayerTimeBar(
     currentPosition: Long,
@@ -545,7 +501,6 @@ private fun ExoPlayerTimeBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
-        // Position text
         Text(
             text = formatTime(currentPosition),
             color = Color.White,
@@ -558,7 +513,6 @@ private fun ExoPlayerTimeBar(
             maxLines = 1
         )
         
-        // Custom TimeBar
         CustomTimeBar(
             currentPosition = currentPosition,
             duration = duration,
@@ -570,7 +524,6 @@ private fun ExoPlayerTimeBar(
                 .height(20.dp)
         )
         
-        // Duration text
         Text(
             text = formatTime(duration),
             color = Color.White,
@@ -585,9 +538,6 @@ private fun ExoPlayerTimeBar(
     }
 }
 
-/**
- * Custom TimeBar that looks like ExoPlayer's DefaultTimeBar
- */
 @Composable
 private fun CustomTimeBar(
     currentPosition: Long,
@@ -640,7 +590,6 @@ private fun CustomTimeBar(
         val scrubberRadius = 6.dp.toPx()
         val centerY = size.height / 2f
         
-        // Draw unplayed track (light gray/white with transparency)
         drawLine(
             color = Color.White.copy(alpha = 0.3f),
             start = Offset(0f, centerY),
@@ -649,7 +598,6 @@ private fun CustomTimeBar(
             cap = StrokeCap.Round
         )
         
-        // Draw buffered track (slightly lighter)
         val bufferedWidth = size.width * bufferedProgress
         if (bufferedWidth > 0) {
             drawLine(
@@ -661,12 +609,11 @@ private fun CustomTimeBar(
             )
         }
         
-        // Draw played track (red, like YouTube/ExoPlayer default)
         val currentProgress = if (isDragging) dragPosition else progress
         val playedWidth = size.width * currentProgress
         if (playedWidth > 0) {
             drawLine(
-                color = Color(0xFFFF0000), // Bright red like ExoPlayer
+                color = Color(0xFFFF0000),
                 start = Offset(0f, centerY),
                 end = Offset(playedWidth, centerY),
                 strokeWidth = barHeight,
@@ -674,7 +621,6 @@ private fun CustomTimeBar(
             )
         }
         
-        // Draw scrubber (white circle)
         drawCircle(
             color = Color.White,
             radius = scrubberRadius,
@@ -684,7 +630,6 @@ private fun CustomTimeBar(
 }
 
 private fun formatTime(timeMs: Long): String {
-    // Use ExoPlayer's default time formatter
     val formatter = StringBuilder()
     val formatter2 = java.util.Formatter(formatter, java.util.Locale.getDefault())
     return androidx.media3.common.util.Util.getStringForTime(formatter, formatter2, timeMs)
