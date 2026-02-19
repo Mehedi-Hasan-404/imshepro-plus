@@ -208,6 +208,7 @@ fun PlayerControls(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
                     .pointerInput(Unit) {
                         detectTapGestures(onTap = { state.toggle(scope) })
                     }
