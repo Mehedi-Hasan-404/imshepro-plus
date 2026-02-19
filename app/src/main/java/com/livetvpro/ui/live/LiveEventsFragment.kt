@@ -1,5 +1,7 @@
 package com.livetvpro.ui.live
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -69,11 +71,27 @@ class LiveEventsFragment : Fragment(), Refreshable {
         setupStatusFilters()
         setupRetryHandling()
         observeViewModel()
-        
+        setupMessageBanner()
+
         viewModel.loadEventCategories()
         viewModel.filterEvents(null, "evt_cat_all")
         
         startDynamicUpdates()
+    }
+
+    private fun setupMessageBanner() {
+        val message = listenerManager.getMessage()
+        if (message.isNotBlank()) {
+            binding.tvMessageBanner.text = message
+            binding.tvMessageBanner.visibility = View.VISIBLE
+            binding.tvMessageBanner.isSelected = true
+            val url = listenerManager.getMessageUrl()
+            if (url.isNotBlank()) {
+                binding.tvMessageBanner.setOnClickListener {
+                    startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }
+            }
+        }
     }
 
     private fun setupRetryHandling() {
