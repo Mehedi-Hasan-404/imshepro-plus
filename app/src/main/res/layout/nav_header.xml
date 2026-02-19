@@ -22,7 +22,8 @@
         android:textAppearance="@style/TextAppearance.AppCompat.Body1"
         android:textColor="@android:color/white"
         android:textSize="20sp"
-        android:textStyle="bold" />
+        android:textStyle="bold"
+        android:fontFamily="@font/bergen_sans" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -30,6 +31,7 @@
         android:text="Watch Live TV Anywhere"
         android:textAppearance="@style/TextAppearance.AppCompat.Body2"
         android:textColor="@android:color/white"
+        android:fontFamily="@font/bergen_sans"
         android:alpha="0.8" />
 
 </LinearLayout>
