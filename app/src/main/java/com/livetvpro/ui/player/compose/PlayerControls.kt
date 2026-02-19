@@ -38,7 +38,7 @@ import kotlinx.coroutines.launch
 
 class PlayerControlsState(
     initialVisible: Boolean = true,
-    val autoHideDelay: Long = 5000L
+    val autoHideDelay: Long = 3500L
 ) {
     var isVisible by mutableStateOf(initialVisible)
         private set
@@ -168,7 +168,10 @@ fun PlayerControls(
 
         val overlayAlpha by animateFloatAsState(
             targetValue = if (state.isVisible && !state.isLocked) 1f else 0f,
-            animationSpec = tween(durationMillis = 300, easing = FastOutSlowInEasing),
+            animationSpec = if (state.isVisible && !state.isLocked)
+                tween(durationMillis = 0)
+            else
+                tween(durationMillis = 250),
             label = "controls_overlay_alpha"
         )
 
@@ -188,10 +191,8 @@ fun PlayerControls(
 
         AnimatedVisibility(
             visible = state.isVisible && !state.isLocked,
-            enter = slideInHorizontally(playerControlsEnterAnimationSpec()) { -it } +
-                    fadeIn(playerControlsEnterAnimationSpec()),
-            exit  = slideOutHorizontally(playerControlsExitAnimationSpec()) { -it } +
-                    fadeOut(playerControlsExitAnimationSpec()),
+            enter = fadeIn(animationSpec = tween(durationMillis = 0)),
+            exit  = fadeOut(animationSpec = tween(durationMillis = 250)),
             modifier = Modifier.align(Alignment.TopStart)
         ) {
             Row(
@@ -225,10 +226,8 @@ fun PlayerControls(
 
         AnimatedVisibility(
             visible = state.isVisible && !state.isLocked,
-            enter = slideInHorizontally(playerControlsEnterAnimationSpec()) { it } +
-                    fadeIn(playerControlsEnterAnimationSpec()),
-            exit  = slideOutHorizontally(playerControlsExitAnimationSpec()) { it } +
-                    fadeOut(playerControlsExitAnimationSpec()),
+            enter = fadeIn(animationSpec = tween(durationMillis = 0)),
+            exit  = fadeOut(animationSpec = tween(durationMillis = 250)),
             modifier = Modifier.align(Alignment.TopEnd)
         ) {
             Row(
@@ -276,8 +275,8 @@ fun PlayerControls(
 
         AnimatedVisibility(
             visible = state.isVisible && !state.isLocked,
-            enter = fadeIn(playerControlsEnterAnimationSpec()),
-            exit  = fadeOut(playerControlsExitAnimationSpec()),
+            enter = fadeIn(animationSpec = tween(durationMillis = 0)),
+            exit  = fadeOut(animationSpec = tween(durationMillis = 250)),
             modifier = Modifier.align(Alignment.Center)
         ) {
             Row(
@@ -318,10 +317,8 @@ fun PlayerControls(
 
         AnimatedVisibility(
             visible = state.isVisible && !state.isLocked,
-            enter = slideInVertically(playerControlsEnterAnimationSpec()) { it } +
-                    fadeIn(playerControlsEnterAnimationSpec()),
-            exit  = slideOutVertically(playerControlsExitAnimationSpec()) { it } +
-                    fadeOut(playerControlsExitAnimationSpec()),
+            enter = fadeIn(animationSpec = tween(durationMillis = 0)),
+            exit  = fadeOut(animationSpec = tween(durationMillis = 250)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             Column(
@@ -383,8 +380,8 @@ fun PlayerControls(
 
         AnimatedVisibility(
             visible = state.isLockOverlayVisible,
-            enter = fadeIn(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing)),
-            exit  = fadeOut(animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing))
+            enter = fadeIn(animationSpec = tween(durationMillis = 0)),
+            exit  = fadeOut(animationSpec = tween(durationMillis = 250))
         ) {
             Box(
                 modifier = Modifier
@@ -619,8 +616,4 @@ private fun formatTime(timeMs: Long): String {
     return androidx.media3.common.util.Util.getStringForTime(formatter, formatter2, timeMs)
 }
 
-private fun <T> playerControlsEnterAnimationSpec(): androidx.compose.animation.core.FiniteAnimationSpec<T> =
-    tween(durationMillis = 100, easing = LinearOutSlowInEasing)
 
-private fun <T> playerControlsExitAnimationSpec(): androidx.compose.animation.core.FiniteAnimationSpec<T> =
-    tween(durationMillis = 300, easing = FastOutSlowInEasing)
