@@ -14,15 +14,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import androidx.compose.ui.viewinterop.AndroidView
+import android.widget.ImageView
+import com.bumptech.glide.Glide
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 
@@ -266,12 +266,19 @@ private fun ChannelItemRow(
         Spacer(Modifier.width(8.dp))
 
         // Channel logo
-        AsyncImage(
-            model = channel.logoUrl.takeIf { it.isNotBlank() },
-            contentDescription = null,
-            placeholder = painterResource(R.drawable.ic_tv_placeholder),
-            error = painterResource(R.drawable.ic_tv_placeholder),
-            contentScale = ContentScale.Fit,
+        AndroidView(
+            factory = { ctx ->
+                ImageView(ctx).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                }
+            },
+            update = { imageView ->
+                Glide.with(imageView)
+                    .load(channel.logoUrl.takeIf { it.isNotBlank() })
+                    .placeholder(R.drawable.ic_tv_placeholder)
+                    .error(R.drawable.ic_tv_placeholder)
+                    .into(imageView)
+            },
             modifier = Modifier
                 .size(36.dp)
                 .clip(RoundedCornerShape(4.dp))
