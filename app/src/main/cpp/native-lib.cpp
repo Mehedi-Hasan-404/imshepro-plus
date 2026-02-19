@@ -15,7 +15,9 @@ struct ListenerConfigState {
     std::string footLiveUrl;
     std::string emailUs;
     std::string webUrl;
-} static listenerState = {false, "", {}, false, "", "", "", "", ""};
+    std::string message;
+    std::string messageUrl;
+} static listenerState = {false, "", {}, false, "", "", "", "", "", "", ""};
 
 static std::set<std::string> triggeredSessions;
 
@@ -171,6 +173,8 @@ static void extractListenerConfig(const std::string& json) {
         extractStringField("foot_live_url", listenerState.footLiveUrl);
         extractStringField("email_us", listenerState.emailUs);
         extractStringField("web_url", listenerState.webUrl);
+        extractStringField("message", listenerState.message);
+        extractStringField("message_url", listenerState.messageUrl);
 
     } catch (...) {
         listenerState.enableDirectLink = false;
@@ -364,4 +368,14 @@ Java_com_livetvpro_utils_NativeListenerManager_nativeGetEmailUs(JNIEnv* env, job
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_livetvpro_utils_NativeListenerManager_nativeGetWebUrl(JNIEnv* env, jobject) {
     return env->NewStringUTF(listenerState.webUrl.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetMessage(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.message.c_str());
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_livetvpro_utils_NativeListenerManager_nativeGetMessageUrl(JNIEnv* env, jobject) {
+    return env->NewStringUTF(listenerState.messageUrl.c_str());
 }
