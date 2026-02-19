@@ -3,27 +3,41 @@ package com.livetvpro.ui
 import android.animation.AnimatorInflater
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.view.View
+import android.widget.ImageButton
+import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
 import com.livetvpro.BuildConfig
 import com.livetvpro.MainActivity
 import com.livetvpro.R
 import com.livetvpro.data.repository.NativeDataRepository
+import com.livetvpro.utils.NativeListenerManager
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileOutputStream
+import java.net.URL
 import javax.inject.Inject
 
 @SuppressLint("CustomSplashScreen")
 @AndroidEntryPoint
 class SplashActivity : AppCompatActivity() {
 
-    @Inject
-    lateinit var dataRepository: NativeDataRepository
+    @Inject lateinit var dataRepository: NativeDataRepository
+    @Inject lateinit var listenerManager: NativeListenerManager
 
+    // Splash views
+    private lateinit var splashScreen: View
     private lateinit var signalLoader: View
     private lateinit var bar1: View
     private lateinit var bar2: View
@@ -34,12 +48,28 @@ class SplashActivity : AppCompatActivity() {
     private lateinit var retryButton: MaterialButton
     private lateinit var versionText: TextView
 
+    // Update screen views
+    private lateinit var updateScreen: View
+    private lateinit var btnClose: ImageButton
+    private lateinit var btnPrimaryAction: MaterialButton
+    private lateinit var btnDownloadWebsite: MaterialButton
+    private lateinit var btnUpdateLater: MaterialButton
+    private lateinit var updateProgress: ProgressBar
+    private lateinit var tvProgress: TextView
+
     private val barAnimators = mutableListOf<android.animation.Animator>()
+
+    // Download state
+    private var downloadCancelled = false
+    private var isDownloading = false
+    private var downloadedApk: File? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_splash)
 
+        // Splash views
+        splashScreen = findViewById(R.id.splash_screen)
         signalLoader = findViewById(R.id.signal_loader)
         bar1 = findViewById(R.id.bar1)
         bar2 = findViewById(R.id.bar2)
@@ -50,19 +80,48 @@ class SplashActivity : AppCompatActivity() {
         retryButton = findViewById(R.id.retry_button)
         versionText = findViewById(R.id.version_text)
 
-        versionText.text = "VERSION ${BuildConfig.VERSION_NAME}"
+        // Update screen views
+        updateScreen = findViewById(R.id.update_screen)
+        btnClose = findViewById(R.id.btn_close)
+        btnPrimaryAction = findViewById(R.id.btn_primary_action)
+        btnDownloadWebsite = findViewById(R.id.btn_download_website)
+        btnUpdateLater = findViewById(R.id.btn_update_later)
+        updateProgress = findViewById(R.id.update_progress)
+        tvProgress = findViewById(R.id.tv_progress)
 
+        versionText.text = "VERSION ${BuildConfig.VERSION_NAME}"
         retryButton.setOnClickListener { startFetch() }
+
+        // Update screen button wiring
+        btnClose.setOnClickListener { finishAndRemoveTask() }
+        btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
+        btnDownloadWebsite.setOnClickListener {
+            val url = listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" }
+            openUrl(url)
+        }
+        btnPrimaryAction.setOnClickListener {
+            when {
+                isDownloading -> cancelDownload()
+                downloadedApk?.exists() == true -> installApk(downloadedApk!!)
+                else -> startDownload()
+            }
+        }
 
         startFetch()
     }
+
+    // ─── Splash logic ────────────────────────────────────────────────────────
 
     private fun startFetch() {
         showLoading()
         lifecycleScope.launch {
             val success = fetchData()
             if (success) {
-                navigateToMain()
+                if (isUpdateRequired()) {
+                    showUpdateScreen()
+                } else {
+                    navigateToMain()
+                }
             } else {
                 showRetry("Connection error")
             }
@@ -79,7 +138,30 @@ class SplashActivity : AppCompatActivity() {
         }
     }
 
+    private fun isUpdateRequired(): Boolean {
+        return try {
+            val remote = listenerManager.getAppVersion().trim()
+            if (remote.isEmpty()) return false
+            compareVersions(remote, BuildConfig.VERSION_NAME.trim()) > 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** Returns positive if v1 > v2, negative if v1 < v2, 0 if equal. */
+    private fun compareVersions(v1: String, v2: String): Int {
+        val p1 = v1.split(".").map { it.toIntOrNull() ?: 0 }
+        val p2 = v2.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(p1.size, p2.size)) {
+            val diff = (p1.getOrElse(i) { 0 }) - (p2.getOrElse(i) { 0 })
+            if (diff != 0) return diff
+        }
+        return 0
+    }
+
     private fun showLoading() {
+        splashScreen.visibility = View.VISIBLE
+        updateScreen.visibility = View.GONE
         signalLoader.visibility = View.VISIBLE
         errorText.visibility = View.GONE
         retryButton.visibility = View.GONE
@@ -94,14 +176,25 @@ class SplashActivity : AppCompatActivity() {
         retryButton.visibility = View.VISIBLE
     }
 
+    private fun showUpdateScreen() {
+        stopBarAnimations()
+        splashScreen.visibility = View.GONE
+        updateScreen.visibility = View.VISIBLE
+    }
+
+    private fun navigateToMain() {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            putExtra(MainActivity.EXTRA_IS_FIRE_TV, isFireTvDevice())
+        }
+        startActivity(intent)
+        finish()
+    }
+
     private fun startBarAnimations() {
         val bars = listOf(bar1, bar2, bar3, bar4, bar5)
         val animRes = listOf(
-            R.anim.signal_bar1,
-            R.anim.signal_bar2,
-            R.anim.signal_bar3,
-            R.anim.signal_bar4,
-            R.anim.signal_bar5
+            R.anim.signal_bar1, R.anim.signal_bar2, R.anim.signal_bar3,
+            R.anim.signal_bar4, R.anim.signal_bar5
         )
         barAnimators.clear()
         bars.forEachIndexed { i, bar ->
@@ -130,11 +223,109 @@ class SplashActivity : AppCompatActivity() {
         }
     }
 
-    private fun navigateToMain() {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            putExtra(MainActivity.EXTRA_IS_FIRE_TV, isFireTvDevice())
+    // ─── Update screen / download logic ──────────────────────────────────────
+
+    private fun startDownload() {
+        val url = listenerManager.getDownloadUrl()
+        if (url.isBlank()) {
+            openUrl(listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" })
+            return
         }
-        startActivity(intent)
-        finish()
+        isDownloading = true
+        downloadCancelled = false
+        btnPrimaryAction.text = "CANCEL"
+        updateProgress.progress = 0
+        updateProgress.visibility = View.VISIBLE
+        tvProgress.text = "Preparing…"
+        tvProgress.visibility = View.VISIBLE
+
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) { downloadApk(url) }
+            isDownloading = false
+            if (result != null) {
+                downloadedApk = result
+                updateProgress.visibility = View.GONE
+                tvProgress.visibility = View.GONE
+                btnPrimaryAction.text = "INSTALL"
+                installApk(result)
+            } else {
+                updateProgress.visibility = View.GONE
+                tvProgress.visibility = View.GONE
+                btnPrimaryAction.text = "UPDATE APP"
+            }
+        }
+    }
+
+    private fun cancelDownload() {
+        downloadCancelled = true
+        isDownloading = false
+        btnPrimaryAction.text = "UPDATE APP"
+        updateProgress.visibility = View.GONE
+        tvProgress.visibility = View.GONE
+    }
+
+    @SuppressLint("SetTextI18n")
+    private suspend fun downloadApk(url: String): File? {
+        return try {
+            val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: cacheDir
+            val apkFile = File(dir, "update.apk")
+            if (apkFile.exists()) apkFile.delete()
+
+            val connection = URL(url).openConnection()
+            connection.connect()
+            val totalBytes = connection.contentLength.toLong()
+
+            connection.getInputStream().use { input ->
+                FileOutputStream(apkFile).use { output ->
+                    val buffer = ByteArray(8192)
+                    var downloaded = 0L
+                    var bytes: Int
+                    while (input.read(buffer).also { bytes = it } != -1) {
+                        if (downloadCancelled) { apkFile.delete(); return null }
+                        output.write(buffer, 0, bytes)
+                        downloaded += bytes
+                        val pct = if (totalBytes > 0) ((downloaded * 100) / totalBytes).toInt() else 0
+                        val dlMb = "%.1f".format(downloaded / 1_048_576.0)
+                        val totMb = if (totalBytes > 0) "%.1f".format(totalBytes / 1_048_576.0) else "?"
+                        withContext(Dispatchers.Main) {
+                            updateProgress.progress = pct
+                            tvProgress.text = "$dlMb MB / $totMb MB    $pct%"
+                        }
+                    }
+                }
+            }
+            apkFile
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun installApk(apkFile: File) {
+        try {
+            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                FileProvider.getUriForFile(this, "${packageName}.fileprovider", apkFile)
+            } else {
+                Uri.fromFile(apkFile)
+            }
+            startActivity(Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        } catch (e: Exception) {
+            openUrl(listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" })
+        }
+    }
+
+    private fun openUrl(url: String) {
+        try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { }
+    }
+
+    override fun onBackPressed() {
+        // On the update screen, back = close app; on splash, normal behavior
+        if (updateScreen.visibility == View.VISIBLE) {
+            finishAndRemoveTask()
+        } else {
+            super.onBackPressed()
+        }
     }
 }
