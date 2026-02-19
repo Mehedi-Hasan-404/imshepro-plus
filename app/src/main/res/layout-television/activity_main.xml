@@ -129,6 +129,44 @@
                 </LinearLayout>
             </HorizontalScrollView>
 
+            <!-- Inline expanding search box (hidden by default, expands left into tab area) -->
+            <LinearLayout
+                android:id="@+id/tv_search_bar"
+                android:layout_width="0dp"
+                android:layout_height="40dp"
+                android:layout_weight="0"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_search_box"
+                android:paddingStart="12dp"
+                android:paddingEnd="4dp"
+                android:visibility="gone"
+                android:clipToPadding="false">
+
+                <androidx.appcompat.widget.SearchView
+                    android:id="@+id/search_view"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@android:color/transparent"
+                    app:iconifiedByDefault="false"
+                    app:queryHint="Search..."
+                    app:searchIcon="@null"
+                    app:closeIcon="@null"
+                    app:queryBackground="@android:color/transparent" />
+
+                <ImageButton
+                    android:id="@+id/btn_search_clear"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Close search"
+                    android:src="@drawable/ic_close"
+                    android:tint="@color/white"
+                    android:padding="8dp" />
+
+            </LinearLayout>
+
             <!-- Search icon -->
             <ImageButton
                 android:id="@+id/btn_search"
@@ -164,46 +202,6 @@
             app:layout_constraintTop_toBottomOf="@id/tv_top_bar"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent" />
-
-        <!-- Search bar (hidden by default) -->
-        <LinearLayout
-            android:id="@+id/tv_search_bar"
-            android:layout_width="0dp"
-            android:layout_height="52dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:paddingStart="24dp"
-            android:paddingEnd="16dp"
-            android:background="@color/surface_dark"
-            android:visibility="gone"
-            app:layout_constraintTop_toBottomOf="@id/tv_divider"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent">
-
-            <androidx.appcompat.widget.SearchView
-                android:id="@+id/search_view"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@android:color/transparent"
-                app:iconifiedByDefault="false"
-                app:queryHint="Search something..."
-                app:searchIcon="@null"
-                app:closeIcon="@null"
-                app:queryBackground="@android:color/transparent" />
-
-            <ImageButton
-                android:id="@+id/btn_search_clear"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="Clear"
-                android:src="@drawable/ic_close"
-                android:tint="@color/white"
-                android:padding="8dp"
-                android:visibility="visible" />
-
-        </LinearLayout>
 
         <!-- Fragment container -->
         <androidx.fragment.app.FragmentContainerView
