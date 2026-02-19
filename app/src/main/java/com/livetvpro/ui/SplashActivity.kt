@@ -110,15 +110,15 @@ class SplashActivity : AppCompatActivity() {
 
         retryButton.setOnClickListener { startFetch() }
         websiteButton.setOnClickListener {
-            val url = listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" }
-            openUrl(url)
+            val url = listenerManager.getWebUrl()
+            if (url.isNotBlank()) openUrl(url)
         }
 
         btnClose.setOnClickListener { finishAndRemoveTask() }
         btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
         btnDownloadWebsite.setOnClickListener {
-            val url = listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" }
-            openUrl(url)
+            val url = listenerManager.getWebUrl()
+            if (url.isNotBlank()) openUrl(url)
         }
         btnPrimaryAction.setOnClickListener {
             when {
@@ -243,10 +243,7 @@ class SplashActivity : AppCompatActivity() {
 
     private fun startDownload() {
         val url = listenerManager.getDownloadUrl()
-        if (url.isBlank()) {
-            openUrl(listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" })
-            return
-        }
+        if (url.isBlank()) return
         isDownloading = true
         downloadCancelled = false
         btnPrimaryAction.text = "CANCEL"
@@ -329,9 +326,7 @@ class SplashActivity : AppCompatActivity() {
                 }
             }
             launchInstaller(apkFile)
-        } catch (e: Exception) {
-            openUrl(listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" })
-        }
+        } catch (e: Exception) { }
     }
 
     private fun launchInstaller(apkFile: File) {
@@ -345,9 +340,7 @@ class SplashActivity : AppCompatActivity() {
                 setDataAndType(uri, "application/vnd.android.package-archive")
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
             })
-        } catch (e: Exception) {
-            openUrl(listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" })
-        }
+        } catch (e: Exception) { }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -357,8 +350,6 @@ class SplashActivity : AppCompatActivity() {
             if (apk != null && apk.exists()) {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && packageManager.canRequestPackageInstalls()) {
                     launchInstaller(apk)
-                } else {
-                    openUrl(listenerManager.getWebUrl().ifBlank { "https://www.livetvpro.site/" })
                 }
             }
         }
