@@ -140,6 +140,8 @@ class MainActivity : AppCompatActivity() {
             R.id.toolbar
         )
         setSupportActionBar(tvToolbar)
+        // Hide the action bar title - we have "Live TV Pro" branding on the right side
+        supportActionBar?.setDisplayShowTitleEnabled(false)
         drawerToggle = ActionBarDrawerToggle(
             this,
             drawerLayout,
