@@ -1,6 +1,7 @@
 package com.livetvpro
 
 import android.animation.AnimatorListenerAdapter
+import android.animation.AnimatorListenerAdapter
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.net.Uri
@@ -74,8 +75,7 @@ class MainActivity : AppCompatActivity() {
             insetsController.hide(WindowInsetsCompat.Type.statusBars())
             setupTvNavigation()
         } else {
-            // Phone: lock to portrait so layout-land is never used
-            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
+            // Phone: respect user's auto-rotation setting
             handleStatusBarForOrientation()
             setupToolbar()
             setupDrawer()
