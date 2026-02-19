@@ -663,15 +663,6 @@ class PlayerActivity : AppCompatActivity() {
                     val channelListItems by viewModel.channelListItems.observeAsState(emptyList())
                     val isChannelListAvailable = contentType == ContentType.CHANNEL && channelListItems.isNotEmpty()
                     
-                    // Auto-hide controls when playback starts
-                    val scope = rememberCoroutineScope()
-                    LaunchedEffect(isPlaying) {
-                        if (isPlaying && controlsState.isVisible && !controlsState.isLocked) {
-                            delay(5000) // Wait 5 seconds
-                            controlsState.hide()
-                        }
-                    }
-                    
                     // Sync link chips visibility with controls in landscape.
                     // Chips show only when controls are visible AND not locked.
                     LaunchedEffect(controlsState.isVisible, controlsState.isLocked, isLandscape, showChannelList) {
