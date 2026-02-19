@@ -491,7 +491,7 @@ class PlayerActivity : AppCompatActivity() {
             relatedParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            relatedParams.topToBottom = binding.tvMessageBanner.id
+            relatedParams.topToBottom = binding.messageBannerContainer.id
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
             
@@ -1663,7 +1663,7 @@ class PlayerActivity : AppCompatActivity() {
             binding.tvMessageBanner.text = message
             binding.tvMessageBanner.isSelected = true
             val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            binding.tvMessageBanner.visibility = if (isLandscape) View.GONE else View.VISIBLE
+            binding.messageBannerContainer.visibility = if (isLandscape) View.GONE else View.VISIBLE
             val url = listenerManager.getMessageUrl()
             if (url.isNotBlank()) {
                 binding.tvMessageBanner.setOnClickListener {
@@ -1675,7 +1675,7 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun updateMessageBannerForOrientation(isLandscape: Boolean) {
         if (binding.tvMessageBanner.text.isNotBlank()) {
-            binding.tvMessageBanner.visibility = if (isLandscape) View.GONE else View.VISIBLE
+            binding.messageBannerContainer.visibility = if (isLandscape) View.GONE else View.VISIBLE
         }
     }
 
