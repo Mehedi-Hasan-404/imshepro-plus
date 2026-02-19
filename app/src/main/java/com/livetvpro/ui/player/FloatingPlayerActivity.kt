@@ -1543,10 +1543,10 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     
                     // Sync link chips visibility with controls in landscape.
                     // Chips show only when controls are visible AND not locked.
-                    LaunchedEffect(controlsState.isVisible, controlsState.isLocked, isLandscape) {
+                    LaunchedEffect(controlsState.isVisible, controlsState.isLocked, isLandscape, showChannelList) {
                         if (isLandscape) {
                             val landscapeLinksRecycler = binding.playerContainer.findViewById<RecyclerView>(R.id.exo_links_recycler)
-                            val chipsVisible = controlsState.isVisible && !controlsState.isLocked
+                            val chipsVisible = controlsState.isVisible && !controlsState.isLocked && !showChannelList
                             landscapeLinksRecycler?.visibility = if (chipsVisible) View.VISIBLE else View.GONE
                         }
                     }
