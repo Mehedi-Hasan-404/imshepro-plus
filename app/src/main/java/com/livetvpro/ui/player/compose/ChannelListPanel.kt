@@ -131,7 +131,7 @@ fun ChannelListPanel(
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                painter = painterResource(R.drawable.ic_back),
+                                painter = painterResource(R.drawable.ic_arrow_back),
                                 contentDescription = "Close",
                                 tint = Color.White,
                                 modifier = Modifier.size(16.dp)
