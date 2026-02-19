@@ -144,4 +144,26 @@
             app:destination="@id/categoryChannelsFragment" />
     </fragment>
 
+    <fragment
+        android:id="@+id/cricketScoreFragment"
+        android:name="com.livetvpro.ui.score.CricketScoreFragment"
+        android:label="Cricket Score">
+        <action
+            android:id="@+id/action_cricket_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
+            app:popUpToInclusive="false" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/footballScoreFragment"
+        android:name="com.livetvpro.ui.score.FootballScoreFragment"
+        android:label="Football Score">
+        <action
+            android:id="@+id/action_football_to_home"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/liveEventsFragment"
+            app:popUpToInclusive="false" />
+    </fragment>
+
 </navigation>
