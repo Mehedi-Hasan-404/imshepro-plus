@@ -75,7 +75,7 @@ class MainActivity : AppCompatActivity() {
             setupTvNavigation()
         } else {
             // Phone: lock to portrait so layout-land is never used
-            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_USER
             handleStatusBarForOrientation()
             setupToolbar()
             setupDrawer()
