@@ -7,6 +7,10 @@
     <string name="nav_home">Categories</string>
     <string name="nav_live">Live Events</string>
     <string name="nav_contact">Contact</string>
+    <string name="nav_cricket_score">Cricket Score</string>
+    <string name="nav_football_score">Football Score</string>
+    <string name="nav_email_us">Email Us</string>
+    <string name="nav_website">Website</string>
     <string name="nav_sports">Sports</string>
     <string name="nav_favorites">Favorites</string>
     <string name="nav_floating_player">Floating Player</string>
