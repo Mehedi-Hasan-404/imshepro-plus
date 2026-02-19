@@ -206,7 +206,7 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
         channelAdapter = ChannelAdapter(
             onChannelClick = { channel ->
                 val shouldBlock = listenerManager.onPageInteraction(
-                    pageType = ListenerConfig.PAGE_LIVE_EVENTS,
+                    pageType = ListenerConfig.PAGE_SPORTS,
                     uniqueId = channel.id
                 )
                 
