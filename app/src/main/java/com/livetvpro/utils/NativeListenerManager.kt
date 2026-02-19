@@ -26,6 +26,8 @@ class NativeListenerManager @Inject constructor(
     private external fun nativeGetFootLiveUrl(): String
     private external fun nativeGetEmailUs(): String
     private external fun nativeGetWebUrl(): String
+    private external fun nativeGetMessage(): String
+    private external fun nativeGetMessageUrl(): String
 
     fun onPageInteraction(pageType: String, uniqueId: String? = null): Boolean {
         return try {
@@ -73,4 +75,6 @@ class NativeListenerManager @Inject constructor(
     fun getFootLiveUrl(): String = try { nativeGetFootLiveUrl() } catch (e: Exception) { "" }
     fun getEmailUs(): String = try { nativeGetEmailUs() } catch (e: Exception) { "" }
     fun getWebUrl(): String = try { nativeGetWebUrl() } catch (e: Exception) { "" }
+    fun getMessage(): String = try { nativeGetMessage() } catch (e: Exception) { "" }
+    fun getMessageUrl(): String = try { nativeGetMessageUrl() } catch (e: Exception) { "" }
 }
