@@ -163,20 +163,6 @@
         android:paddingBottom="27dp"
         android:visibility="gone">
 
-        <ImageButton
-            android:id="@+id/btn_close"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:layout_margin="8dp"
-            android:src="@android:drawable/ic_menu_close_clear_cancel"
-            android:background="@drawable/tv_focus_button_background"
-            android:tint="@color/white"
-            android:contentDescription="Close"
-            android:focusable="true"
-            android:nextFocusDown="@id/btn_primary_action"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
-
         <ImageView
             android:id="@+id/update_app_icon"
             android:layout_width="110dp"
@@ -251,7 +237,6 @@
             android:letterSpacing="0.08"
             android:fontFamily="@font/bergen_sans"
             android:focusable="true"
-            android:nextFocusUp="@id/btn_close"
             android:nextFocusDown="@id/btn_download_website"
             app:backgroundTint="@color/accent"
             app:cornerRadius="8dp"
