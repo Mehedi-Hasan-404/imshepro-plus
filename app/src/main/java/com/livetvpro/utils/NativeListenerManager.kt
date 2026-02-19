@@ -28,6 +28,8 @@ class NativeListenerManager @Inject constructor(
     private external fun nativeGetWebUrl(): String
     private external fun nativeGetMessage(): String
     private external fun nativeGetMessageUrl(): String
+    private external fun nativeGetAppVersion(): String
+    private external fun nativeGetDownloadUrl(): String
 
     fun onPageInteraction(pageType: String, uniqueId: String? = null): Boolean {
         return try {
@@ -77,4 +79,6 @@ class NativeListenerManager @Inject constructor(
     fun getWebUrl(): String = try { nativeGetWebUrl() } catch (e: Exception) { "" }
     fun getMessage(): String = try { nativeGetMessage() } catch (e: Exception) { "" }
     fun getMessageUrl(): String = try { nativeGetMessageUrl() } catch (e: Exception) { "" }
+    fun getAppVersion(): String = try { nativeGetAppVersion() } catch (e: Exception) { "" }
+    fun getDownloadUrl(): String = try { nativeGetDownloadUrl() } catch (e: Exception) { "" }
 }
