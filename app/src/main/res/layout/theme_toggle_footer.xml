@@ -9,14 +9,12 @@
     android:paddingStart="20dp"
     android:paddingEnd="20dp">
 
-    
     <View
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="#2A2A2A"
         android:layout_marginBottom="18dp" />
-    
-    
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -25,11 +23,11 @@
         android:textSize="13sp"
         android:textStyle="bold"
         android:letterSpacing="0.05"
+        android:fontFamily="@font/bergen_sans"
         android:layout_marginBottom="14dp"
         android:layout_marginStart="2dp"
         android:alpha="0.85" />
 
-    
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -40,7 +38,6 @@
         android:paddingStart="4dp"
         android:paddingEnd="4dp">
 
-        
         <LinearLayout
             android:id="@+id/theme_auto_button"
             android:layout_width="0dp"
@@ -73,10 +70,10 @@
                 android:textSize="11sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.02"
+                android:fontFamily="@font/bergen_sans"
                 android:layout_marginTop="7dp" />
         </LinearLayout>
 
-    
         <LinearLayout
             android:id="@+id/theme_light_button"
             android:layout_width="0dp"
@@ -110,10 +107,10 @@
                 android:textSize="11sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.02"
+                android:fontFamily="@font/bergen_sans"
                 android:layout_marginTop="7dp" />
         </LinearLayout>
 
-        
         <LinearLayout
             android:id="@+id/theme_dark_button"
             android:layout_width="0dp"
@@ -147,6 +144,7 @@
                 android:textSize="11sp"
                 android:textStyle="bold"
                 android:letterSpacing="0.02"
+                android:fontFamily="@font/bergen_sans"
                 android:layout_marginTop="7dp" />
         </LinearLayout>
     </LinearLayout>
