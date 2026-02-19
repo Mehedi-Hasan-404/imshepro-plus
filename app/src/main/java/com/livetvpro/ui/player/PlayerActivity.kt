@@ -92,6 +92,9 @@ class PlayerActivity : AppCompatActivity() {
     
     @javax.inject.Inject
     lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
+
+    @javax.inject.Inject
+    lateinit var listenerManager: com.livetvpro.utils.NativeListenerManager
     
     private lateinit var relatedChannelsAdapter: RelatedChannelAdapter
     private var relatedChannels = listOf<Channel>()
@@ -234,6 +237,7 @@ class PlayerActivity : AppCompatActivity() {
         setupComposeControls()
         setupRelatedChannels()
         setupLinksUI()
+        setupMessageBanner()
         configurePlayerInteractions()
         
         binding.playerView.useController = false
@@ -396,6 +400,7 @@ class PlayerActivity : AppCompatActivity() {
     applyResizeModeForOrientation(isLandscape)
     applyOrientationSettings(isLandscape)
     setSubtitleTextSize()
+    updateMessageBannerForOrientation(isLandscape)
     
     if (player?.playbackState == Player.STATE_BUFFERING) {
         binding.playerView.hideController()
@@ -486,7 +491,7 @@ class PlayerActivity : AppCompatActivity() {
             relatedParams.height = ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
             relatedParams.startToStart = ConstraintLayout.LayoutParams.PARENT_ID
             relatedParams.endToEnd = ConstraintLayout.LayoutParams.PARENT_ID
-            relatedParams.topToBottom = binding.linksSection.id
+            relatedParams.topToBottom = binding.tvMessageBanner.id
             relatedParams.bottomToBottom = ConstraintLayout.LayoutParams.PARENT_ID
             binding.relatedChannelsSection.layoutParams = relatedParams
             
@@ -1649,6 +1654,28 @@ class PlayerActivity : AppCompatActivity() {
             isMuted = !isMuted
             it.volume = if (isMuted) 0f else 1f
             // Icon updated automatically by Compose controls observing isMuted state
+        }
+    }
+
+    private fun setupMessageBanner() {
+        val message = listenerManager.getMessage()
+        if (message.isNotBlank()) {
+            binding.tvMessageBanner.text = message
+            binding.tvMessageBanner.isSelected = true
+            val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            binding.tvMessageBanner.visibility = if (isLandscape) View.GONE else View.VISIBLE
+            val url = listenerManager.getMessageUrl()
+            if (url.isNotBlank()) {
+                binding.tvMessageBanner.setOnClickListener {
+                    startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+                }
+            }
+        }
+    }
+
+    private fun updateMessageBannerForOrientation(isLandscape: Boolean) {
+        if (binding.tvMessageBanner.text.isNotBlank()) {
+            binding.tvMessageBanner.visibility = if (isLandscape) View.GONE else View.VISIBLE
         }
     }
 
