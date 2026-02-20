@@ -32,9 +32,7 @@
                 app:boxBackgroundColor="@color/input_background"
                 app:boxStrokeColor="@color/input_stroke_color"
                 app:hintTextColor="@color/input_hint"
-                app:startIconDrawable="@drawable/ic_paste"
-                app:startIconTint="@color/input_hint"
-                app:endIconMode="clear_text"
+                app:endIconMode="custom"
                 app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -58,9 +56,7 @@
                 app:boxBackgroundColor="@color/input_background"
                 app:boxStrokeColor="@color/input_stroke_color"
                 app:hintTextColor="@color/input_hint"
-                app:startIconDrawable="@drawable/ic_paste"
-                app:startIconTint="@color/input_hint"
-                app:endIconMode="clear_text"
+                app:endIconMode="custom"
                 app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -84,9 +80,7 @@
                 app:boxBackgroundColor="@color/input_background"
                 app:boxStrokeColor="@color/input_stroke_color"
                 app:hintTextColor="@color/input_hint"
-                app:startIconDrawable="@drawable/ic_paste"
-                app:startIconTint="@color/input_hint"
-                app:endIconMode="clear_text"
+                app:endIconMode="custom"
                 app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -110,9 +104,7 @@
                 app:boxBackgroundColor="@color/input_background"
                 app:boxStrokeColor="@color/input_stroke_color"
                 app:hintTextColor="@color/input_hint"
-                app:startIconDrawable="@drawable/ic_paste"
-                app:startIconTint="@color/input_hint"
-                app:endIconMode="clear_text"
+                app:endIconMode="custom"
                 app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -136,9 +128,7 @@
                 app:boxBackgroundColor="@color/input_background"
                 app:boxStrokeColor="@color/input_stroke_color"
                 app:hintTextColor="@color/input_hint"
-                app:startIconDrawable="@drawable/ic_paste"
-                app:startIconTint="@color/input_hint"
-                app:endIconMode="clear_text"
+                app:endIconMode="custom"
                 app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
@@ -216,9 +206,7 @@
                 app:boxBackgroundColor="@color/input_background"
                 app:boxStrokeColor="@color/input_stroke_color"
                 app:hintTextColor="@color/input_hint"
-                app:startIconDrawable="@drawable/ic_paste"
-                app:startIconTint="@color/input_hint"
-                app:endIconMode="clear_text"
+                app:endIconMode="custom"
                 app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
