@@ -1571,11 +1571,40 @@ class FloatingPlayerActivity : AppCompatActivity() {
                                 val currentPlayer = player
                                 val currentStreamUrl = streamUrl
                                 val currentName = contentName
+                                val sourceInstanceId = intent.getStringExtra("source_instance_id")
 
-                                if (currentPlayer != null && (currentChannel != null || currentEvent != null)) {
+                                if (currentPlayer != null && contentType == ContentType.NETWORK_STREAM) {
+                                    // Network stream: transfer the live player to the floating overlay
                                     PlayerHolder.transferPlayer(currentPlayer, currentStreamUrl, currentName)
 
-                                    val sourceInstanceId = intent.getStringExtra("source_instance_id")
+                                    val link = allEventLinks.getOrNull(currentLinkIndex)
+                                    val serviceIntent = Intent(this@FloatingPlayerActivity, FloatingPlayerService::class.java).apply {
+                                        putExtra("IS_NETWORK_STREAM", true)
+                                        putExtra("use_transferred_player", true)
+                                        putExtra("STREAM_URL", link?.url ?: currentStreamUrl)
+                                        putExtra("COOKIE", link?.cookie ?: "")
+                                        putExtra("REFERER", link?.referer ?: "")
+                                        putExtra("ORIGIN", link?.origin ?: "")
+                                        putExtra("DRM_LICENSE", link?.drmLicenseUrl ?: "")
+                                        putExtra("USER_AGENT", link?.userAgent ?: "Default")
+                                        putExtra("DRM_SCHEME", link?.drmScheme ?: "clearkey")
+                                        putExtra("CHANNEL_NAME", currentName)
+                                        putExtra(FloatingPlayerService.EXTRA_RESTORE_POSITION, true)
+                                        if (sourceInstanceId != null) {
+                                            putExtra(FloatingPlayerService.EXTRA_INSTANCE_ID, sourceInstanceId)
+                                        }
+                                    }
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        startForegroundService(serviceIntent)
+                                    } else {
+                                        startService(serviceIntent)
+                                    }
+
+                                    player = null
+                                    finish()
+
+                                } else if (currentPlayer != null && (currentChannel != null || currentEvent != null)) {
+                                    PlayerHolder.transferPlayer(currentPlayer, currentStreamUrl, currentName)
 
                                     val serviceIntent = Intent(this@FloatingPlayerActivity, FloatingPlayerService::class.java).apply {
                                         if (currentChannel != null) {
