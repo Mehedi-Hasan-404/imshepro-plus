@@ -189,8 +189,6 @@
             android:layout_height="0dp"
             android:layout_weight="1"
             android:orientation="horizontal"
-            android:paddingStart="12dp"
-            android:paddingEnd="12dp"
             android:clipToPadding="false" />
     </LinearLayout>
 
