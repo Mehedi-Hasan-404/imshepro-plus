@@ -4,7 +4,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -50,14 +49,7 @@ class NetworkStreamFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        // Wrap the inflater's context with the amber theme overlay so that
-        // colorControlActivated (#FFB300) is inherited by every EditText in
-        // this fragment — this is what Android reads when tinting the cursor
-        // and selection handle drawables at the framework level.
-        val themedInflater = inflater.cloneInContext(
-            ContextThemeWrapper(requireContext(), R.style.ThemeOverlay_NetworkStream_AmberHandles)
-        )
-        _binding = FragmentNetworkStreamBinding.inflate(themedInflater, container, false)
+        _binding = FragmentNetworkStreamBinding.inflate(inflater, container, false)
         return binding.root
     }
 
