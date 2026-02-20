@@ -767,7 +767,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                 switchToChannel(relatedItem)
             }
             
-            binding.relatedChannelsRecycler.layoutManager = GridLayoutManager(this, 3)
+            binding.relatedChannelsRecycler.layoutManager = GridLayoutManager(this, resources.getInteger(R.integer.grid_column_count))
             binding.relatedChannelsRecycler.adapter = relatedChannelsAdapter
         }
     }
