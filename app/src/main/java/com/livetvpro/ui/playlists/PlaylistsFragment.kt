@@ -180,10 +180,13 @@ class PlaylistsFragment : Fragment() {
         onClick: () -> Unit
     ): LinearLayout {
         val dp = resources.displayMetrics.density
+        // Pill height ~52dp, FAB ~56dp, gap between items = 12dp
+        // URL pill: 16dp above FAB bottom  →  FAB(56) + gap(16) = 72dp
+        // File pill: URL pill(52) + gap(12) above that  →  72 + 52 + 12 = 136dp
         val marginBottom = if (isTopItem) {
-            (16 * dp).toInt() + 180 // Top item spacing
+            (136 * dp).toInt()
         } else {
-            (16 * dp).toInt() + 90  // Bottom item spacing
+            (72 * dp).toInt()
         }
 
         // Outer wrapper — invisible container used for animation + constraint anchoring
