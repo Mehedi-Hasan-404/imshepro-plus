@@ -13,6 +13,8 @@ import android.text.style.StyleSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.ActionBarDrawerToggle
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
@@ -27,6 +29,7 @@ import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.local.ThemeManager
 import com.livetvpro.databinding.ActivityMainBinding
 import com.livetvpro.ui.player.dialogs.FloatingPlayerDialog
+import com.livetvpro.utils.DeviceUtils
 import com.livetvpro.utils.NativeListenerManager
 import com.livetvpro.utils.Refreshable
 import dagger.hilt.android.AndroidEntryPoint
@@ -54,11 +57,17 @@ class MainActivity : AppCompatActivity() {
     private var isSearchVisible = false
     private var showRefreshIcon = false
 
-    private var isTvDevice = false
-
     companion object {
         private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
-        const val EXTRA_IS_FIRE_TV = "extra_is_fire_tv"
+    }
+
+    // Modern replacement for deprecated startActivityForResult
+    private val overlayPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
+            FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,12 +77,9 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        val isFireTv = intent.getBooleanExtra(EXTRA_IS_FIRE_TV, false)
-        isTvDevice = resources.getBoolean(R.bool.is_tv_device) || isFireTv
-
         applyBergenSansToNavigationMenu()
 
-        if (isTvDevice) {
+        if (DeviceUtils.isTvDevice) {
             WindowCompat.setDecorFitsSystemWindows(window, false)
             val insetsController = WindowCompat.getInsetsController(window, window.decorView)
             insetsController.hide(WindowInsetsCompat.Type.statusBars())
@@ -85,6 +91,24 @@ class MainActivity : AppCompatActivity() {
             setupNavigation()
             setupSearch()
         }
+
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
+                    R.id.drawer_layout
+                )
+                when {
+                    drawerLayout?.isDrawerOpen(GravityCompat.START) == true ->
+                        drawerLayout.closeDrawer(GravityCompat.START)
+                    DeviceUtils.isTvDevice && isSearchVisible -> hideTvSearch()
+                    !DeviceUtils.isTvDevice && isSearchVisible -> hideSearch()
+                    else -> {
+                        isEnabled = false
+                        onBackPressedDispatcher.onBackPressed()
+                    }
+                }
+            }
+        })
     }
 
     private fun applyBergenSansToNavigationMenu() {
@@ -144,7 +168,7 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         drawerToggle?.onConfigurationChanged(newConfig)
-        if (!isTvDevice) handleStatusBarForOrientation()
+        if (!DeviceUtils.isTvDevice) handleStatusBarForOrientation()
     }
 
     private fun setupTvNavigation() {
@@ -378,13 +402,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        if (isTvDevice) return false
+        if (DeviceUtils.isTvDevice) return false
         menuInflater.inflate(R.menu.main_menu, menu)
         return true
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        if (isTvDevice) return false
+        if (DeviceUtils.isTvDevice) return false
         menu.findItem(R.id.action_refresh)?.isVisible = showRefreshIcon
         return super.onPrepareOptionsMenu(menu)
     }
@@ -600,24 +624,12 @@ class MainActivity : AppCompatActivity() {
                         Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:$packageName")
                     )
-                    @Suppress("DEPRECATION")
-                    startActivityForResult(intent, REQUEST_CODE_OVERLAY_PERMISSION)
+                    overlayPermissionLauncher.launch(intent)
                 }
                 .setNegativeButton("Cancel", null)
                 .show()
         } else {
             FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
-        }
-    }
-
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        @Suppress("DEPRECATION")
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_CODE_OVERLAY_PERMISSION) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.canDrawOverlays(this)) {
-                FloatingPlayerDialog.newInstance().show(supportFragmentManager, FloatingPlayerDialog.TAG)
-            }
         }
     }
 
@@ -722,22 +734,6 @@ class MainActivity : AppCompatActivity() {
         drawerToggle?.syncState()
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
-            R.id.drawer_layout
-        )
-        when {
-            drawerLayout?.isDrawerOpen(GravityCompat.START) == true ->
-                drawerLayout.closeDrawer(GravityCompat.START)
-            isTvDevice && isSearchVisible -> hideTvSearch()
-            !isTvDevice && isSearchVisible -> hideSearch()
-            else -> {
-                @Suppress("DEPRECATION")
-                super.onBackPressed()
-            }
-        }
-    }
 }
 
 private class CustomTypefaceSpan(private val typeface: Typeface) : android.text.style.TypefaceSpan("") {
