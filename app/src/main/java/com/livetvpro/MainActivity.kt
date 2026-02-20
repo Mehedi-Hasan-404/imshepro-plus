@@ -85,6 +85,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        handleNotificationIntent(intent)
+
         applyBergenSansToNavigationMenu()
 
         if (DeviceUtils.isTvDevice) {
@@ -774,6 +776,21 @@ class MainActivity : AppCompatActivity() {
         animator.interpolator = android.view.animation.DecelerateInterpolator()
         animator.duration = 300
         animator.start()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleNotificationIntent(intent)
+    }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        val url = intent?.getStringExtra("url") ?: return
+        if (url.isBlank()) return
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            })
+        } catch (e: Exception) { }
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
