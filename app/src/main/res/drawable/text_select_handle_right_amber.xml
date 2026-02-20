@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:gravity="left|bottom">
+        <shape android:shape="oval">
+            <solid android:color="@color/input_cursor" />
+            <size android:width="12dp" android:height="12dp" />
+        </shape>
+    </item>
+    <item
+        android:bottom="10dp"
+        android:gravity="left|bottom"
+        android:left="5dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/input_cursor" />
+            <size android:width="2dp" android:height="16dp" />
+        </shape>
+    </item>
+</layer-list>
