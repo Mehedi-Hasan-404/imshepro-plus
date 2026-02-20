@@ -86,13 +86,9 @@ class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // layout-television is auto-selected on Android TV via UI_MODE_TYPE_TELEVISION.
-        // Fire TV (older Fire OS) reports UI_MODE_TYPE_NORMAL so we force the TV layout manually.
-        if (DeviceUtils.isTvDevice) {
-            setContentView(R.layout.activity_splash_tv)
-        } else {
-            setContentView(R.layout.activity_splash)
-        }
+        // Single unified layout for all devices (phone, tablet, TV, Fire TV).
+        // TV-specific sizing is handled via values-television/splash_dimens.xml.
+        setContentView(R.layout.activity_splash)
 
         val bergenSans = ResourcesCompat.getFont(this, R.font.bergen_sans)
 
