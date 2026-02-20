@@ -76,6 +76,13 @@
         <item name="android:textAllCaps">true</item>
         <item name="android:fontFamily">sans-serif-medium</item>
     </style>
+    <!-- Network Stream EditText: amber cursor + selection, red focused border -->
+    <style name="NetworkStreamEditText" parent="Widget.Material3.TextInputEditText.OutlinedBox">
+        <item name="android:textCursorDrawable">@null</item>
+        <item name="android:highlightColor">#55FFB300</item>
+        <item name="colorControlActivated">#FFB300</item>
+    </style>
+
     <!-- DIALOG THEME — ensures title, list items and buttons are always clearly visible -->
     <style name="ThemeOverlay.LiveTVPro.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="colorSurface">#1F1F1F</item>
