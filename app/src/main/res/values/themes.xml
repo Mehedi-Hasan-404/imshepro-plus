@@ -78,7 +78,10 @@
     </style>
     <!-- Network Stream EditText: amber cursor + selection, red focused border -->
     <style name="NetworkStreamEditText" parent="Widget.Material3.TextInputEditText.OutlinedBox">
-        <item name="android:textCursorDrawable">@null</item>
+        <item name="android:textCursorDrawable">@drawable/cursor_amber</item>
+        <item name="android:textSelectHandle">@drawable/text_select_handle_right_amber</item>
+        <item name="android:textSelectHandleLeft">@drawable/text_select_handle_left_amber</item>
+        <item name="android:textSelectHandleRight">@drawable/text_select_handle_right_amber</item>
         <item name="colorControlActivated">#FFB300</item>
     </style>
 
