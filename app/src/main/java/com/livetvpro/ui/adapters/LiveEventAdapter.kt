@@ -243,7 +243,7 @@ class LiveEventAdapter(
         val linkLabels = event.links.map { it.quality }.toTypedArray()
         
         MaterialAlertDialogBuilder(context)
-            .setTitle("Select Stream")
+            .setTitle("Multiple Links Available")
             .setItems(linkLabels) { dialog, which ->
                 onEventClick?.invoke(event, which)
                 dialog.dismiss()
@@ -258,14 +258,8 @@ class LiveEventAdapter(
         // Check if this event already has a floating player
         val hasExistingPlayer = FloatingPlayerHelper.hasFloatingPlayerForEvent(event.id)
         
-        val title = if (hasExistingPlayer) {
-            "Switch Stream (Update Existing Player)"
-        } else {
-            "Select Stream"
-        }
-        
         MaterialAlertDialogBuilder(context)
-            .setTitle(title)
+            .setTitle("Multiple Links Available")
             .setItems(linkLabels) { dialog, which ->
                 proceedWithPlayer(event, which)
                 dialog.dismiss()
