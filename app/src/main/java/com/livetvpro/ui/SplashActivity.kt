@@ -15,6 +15,8 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
@@ -51,7 +53,6 @@ class SplashActivity : AppCompatActivity() {
     private lateinit var errorText: TextView
     private lateinit var buttonsRow: LinearLayout
     private lateinit var retryButton: MaterialButton
-    private lateinit var websiteButton: MaterialButton
     private lateinit var versionText: TextView
 
     private lateinit var updateScreen: View
@@ -66,11 +67,23 @@ class SplashActivity : AppCompatActivity() {
     private var downloadCancelled = false
     private var isDownloading = false
     private var downloadedApk: File? = null
-
+    private var cachedWebUrl: String = ""
     private var isTvDevice = false
 
     companion object {
         private const val REQUEST_INSTALL_PERMISSION = 1001
+    }
+
+    // Modern replacement for deprecated startActivityForResult
+    private val installPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        val apk = downloadedApk
+        if (apk != null && apk.exists()) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && packageManager.canRequestPackageInstalls()) {
+                launchInstaller(apk)
+            }
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,7 +104,6 @@ class SplashActivity : AppCompatActivity() {
         errorText = findViewById(R.id.error_text)
         buttonsRow = findViewById(R.id.buttons_row)
         retryButton = findViewById(R.id.retry_button)
-        websiteButton = findViewById(R.id.website_button)
         versionText = findViewById(R.id.version_text)
 
         updateScreen = findViewById(R.id.update_screen)
@@ -103,7 +115,6 @@ class SplashActivity : AppCompatActivity() {
 
         errorText.typeface = bergenSans
         retryButton.typeface = bergenSans
-        websiteButton.typeface = bergenSans
         versionText.typeface = bergenSans
         tvProgress.typeface = bergenSans
         btnPrimaryAction.typeface = bergenSans
@@ -113,15 +124,6 @@ class SplashActivity : AppCompatActivity() {
         versionText.text = "VERSION ${BuildConfig.VERSION_NAME}"
 
         retryButton.setOnClickListener { startFetch() }
-        websiteButton.setOnClickListener {
-            val url = listenerManager.getWebUrl().ifBlank { cachedWebUrl }
-            if (url.isNotBlank()) openUrl(url)
-        }
-
-        // On TV there is no browser — hide the website button in the error row
-        if (isTvDevice) {
-            websiteButton.visibility = View.GONE
-        }
 
         btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
         btnDownloadWebsite.setOnClickListener {
@@ -141,10 +143,20 @@ class SplashActivity : AppCompatActivity() {
             btnPrimaryAction.visibility = View.GONE
         }
 
+        // Modern replacement for deprecated onBackPressed override
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (updateScreen.visibility == View.VISIBLE) {
+                    finishAndRemoveTask()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                }
+            }
+        })
+
         startFetch()
     }
-
-    private var cachedWebUrl: String = ""
 
     private fun startFetch() {
         showLoading()
@@ -247,6 +259,12 @@ class SplashActivity : AppCompatActivity() {
         listOf(bar1, bar2, bar3, bar4, bar5).forEach { it.scaleY = 1f }
     }
 
+    override fun onStop() {
+        super.onStop()
+        // Stop animations when activity goes to background to avoid leaking against detached views
+        stopBarAnimations()
+    }
+
     private fun isTvDevice(): Boolean {
         // Primary check: UiModeManager covers all Android TV and Fire TV devices
         val uiModeManager = getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
@@ -306,8 +324,11 @@ class SplashActivity : AppCompatActivity() {
             val apkFile = File(dir, "update.apk")
             if (apkFile.exists()) apkFile.delete()
 
-            val connection = URL(url).openConnection()
-            connection.connect()
+            val connection = (URL(url).openConnection()).also {
+                it.connectTimeout = 15_000
+                it.readTimeout = 30_000
+                it.connect()
+            }
             val totalBytes = connection.contentLength.toLong()
 
             connection.getInputStream().use { input ->
@@ -343,7 +364,7 @@ class SplashActivity : AppCompatActivity() {
                         data = Uri.parse("package:$packageName")
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
-                    startActivityForResult(intent, REQUEST_INSTALL_PERMISSION)
+                    installPermissionLauncher.launch(intent)
                     return
                 }
             }
@@ -365,27 +386,7 @@ class SplashActivity : AppCompatActivity() {
         } catch (e: Exception) { }
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQUEST_INSTALL_PERMISSION) {
-            val apk = downloadedApk
-            if (apk != null && apk.exists()) {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && packageManager.canRequestPackageInstalls()) {
-                    launchInstaller(apk)
-                }
-            }
-        }
-    }
-
     private fun openUrl(url: String) {
         try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { }
-    }
-
-    override fun onBackPressed() {
-        if (updateScreen.visibility == View.VISIBLE) {
-            finishAndRemoveTask()
-        } else {
-            super.onBackPressed()
-        }
     }
 }
