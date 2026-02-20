@@ -234,7 +234,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
         parseIntent()
 
-        if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
+        val isTransferredFromFloating = intent.getBooleanExtra("use_transferred_player", false)
+
+        if (!isTransferredFromFloating && contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
             viewModel.refreshChannelData(contentId)
             viewModel.loadAllChannelsForList(intentCategoryId?.takeIf { it.isNotEmpty() } ?: channelData?.categoryId ?: "")
         }
@@ -257,7 +259,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         binding.playerView.useController = false
         
-        if (!isLandscape) {
+        if (!isLandscape && !isTransferredFromFloating) {
             binding.relatedLoadingProgress.visibility = View.VISIBLE
             binding.relatedChannelsRecycler.visibility = View.GONE
         }
@@ -277,7 +279,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
         )
         
         setupPlayer()
-        loadRelatedContent()
+        if (!isTransferredFromFloating) {
+            loadRelatedContent()
+        }
         
         viewModel.refreshedChannel.observe(this) { freshChannel ->
             if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
