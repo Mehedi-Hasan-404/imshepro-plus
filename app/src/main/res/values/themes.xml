@@ -81,11 +81,14 @@
         <item name="android:textCursorDrawable">@null</item>
     </style>
 
-    <!-- Theme overlay applied via ContextThemeWrapper in Kotlin.
-         colorControlActivated drives the handle + cursor tint on the view's context. -->
+    <!-- Theme overlay applied via android:theme on the root of NetworkStream and
+         Playlists fragments. colorControlActivated drives handle/cursor tint.
+         android:fontFamily applies bergen_sans to all text in those fragments. -->
     <style name="ThemeOverlay.NetworkStream.AmberHandles" parent="">
         <item name="colorControlActivated">#EF4444</item>
         <item name="colorAccent">#EF4444</item>
+        <item name="android:fontFamily">@font/bergen_sans</item>
+        <item name="fontFamily">@font/bergen_sans</item>
     </style>
 
     <!-- DIALOG THEME — ensures title, list items and buttons are always clearly visible -->
