@@ -245,7 +245,7 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
         val linkLabels = links.map { it.quality }.toTypedArray()
         
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select Stream Quality")
+            .setTitle("Multiple Links Available")
             .setItems(linkLabels) { dialog, which ->
                 PlayerActivity.startWithChannel(requireContext(), channel, which)
                 dialog.dismiss()
