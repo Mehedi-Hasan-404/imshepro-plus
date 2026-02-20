@@ -82,6 +82,7 @@
         <item name="colorOnSurface">#FFFFFF</item>
         <item name="android:textColorPrimary">#FFFFFF</item>
         <item name="android:textColorSecondary">#CCCCCC</item>
+        <item name="android:textColorAlertDialogListItem">#FFFFFF</item>
         <item name="materialAlertDialogTitleTextStyle">@style/Dialog.TitleText</item>
         <item name="materialAlertDialogBodyTextStyle">@style/Dialog.BodyText</item>
         <item name="buttonBarPositiveButtonStyle">@style/Dialog.ButtonText</item>
