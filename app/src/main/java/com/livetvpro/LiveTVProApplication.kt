@@ -1,8 +1,11 @@
 package com.livetvpro
 
 import android.app.Application
+import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.local.ThemeManager
 import com.livetvpro.data.repository.NativeDataRepository
+import com.livetvpro.utils.DeviceUtils
+import com.livetvpro.utils.FloatingPlayerManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,16 +16,12 @@ import javax.inject.Inject
 @HiltAndroidApp
 class LiveTVProApplication : Application() {
 
-    @Inject
-    lateinit var dataRepository: NativeDataRepository
-    
-    @Inject
-    lateinit var themeManager: ThemeManager
-    
-    @Inject
-    lateinit var preferencesManager: com.livetvpro.data.local.PreferencesManager
-    
-    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    @Inject lateinit var dataRepository: NativeDataRepository
+    @Inject lateinit var themeManager: ThemeManager
+    @Inject lateinit var preferencesManager: PreferencesManager
+
+    // App-scoped coroutine scope — lives for the lifetime of the process, no need to cancel
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     companion object {
         init {
@@ -35,11 +34,14 @@ class LiveTVProApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        
-        com.livetvpro.utils.FloatingPlayerManager.initialize(preferencesManager)
-        
+
+        // Detect device type once — available globally via DeviceUtils throughout the app
+        DeviceUtils.init(this)
+
+        FloatingPlayerManager.initialize(preferencesManager)
+
         themeManager.applyTheme()
-        
+
         applicationScope.launch {
             try {
                 dataRepository.fetchRemoteConfig()
