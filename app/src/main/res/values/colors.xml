@@ -41,8 +41,10 @@
     
     <!-- Network Stream Input Colors -->
     <color name="input_background">#1E1E1E</color>
-    <color name="input_stroke">#FFB300</color>
+    <color name="input_stroke">#EF4444</color>
+    <color name="input_stroke_color">#EF4444</color>
     <color name="input_hint">#BBBBBB</color>
     <color name="input_text">#F0F0F0</color>
-    <color name="input_stroke_focused">#FFB300</color>
+    <color name="input_stroke_focused">#EF4444</color>
+    <color name="input_cursor">#FFB300</color>
 </resources>
