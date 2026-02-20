@@ -30,15 +30,19 @@
                 android:hint="@string/media_stream_url"
                 app:boxBackgroundMode="outline"
                 app:boxBackgroundColor="@color/input_background"
-                app:boxStrokeColor="@color/input_stroke"
-                app:hintTextColor="@color/input_hint">
+                app:boxStrokeColor="@color/input_stroke_color"
+                app:hintTextColor="@color/input_hint"
+                app:startIconDrawable="@drawable/ic_paste"
+                app:startIconTint="@color/input_hint"
+                app:endIconMode="clear_text"
+                app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etStreamUrl"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
-                    android:textColor="?attr/colorOnSurface"
+                    android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
@@ -52,15 +56,19 @@
                 android:hint="@string/cookie_value"
                 app:boxBackgroundMode="outline"
                 app:boxBackgroundColor="@color/input_background"
-                app:boxStrokeColor="@color/input_stroke"
-                app:hintTextColor="@color/input_hint">
+                app:boxStrokeColor="@color/input_stroke_color"
+                app:hintTextColor="@color/input_hint"
+                app:startIconDrawable="@drawable/ic_paste"
+                app:startIconTint="@color/input_hint"
+                app:endIconMode="clear_text"
+                app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etCookie"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="text"
-                    android:textColor="?attr/colorOnSurface"
+                    android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
@@ -74,15 +82,19 @@
                 android:hint="@string/referer_value"
                 app:boxBackgroundMode="outline"
                 app:boxBackgroundColor="@color/input_background"
-                app:boxStrokeColor="@color/input_stroke"
-                app:hintTextColor="@color/input_hint">
+                app:boxStrokeColor="@color/input_stroke_color"
+                app:hintTextColor="@color/input_hint"
+                app:startIconDrawable="@drawable/ic_paste"
+                app:startIconTint="@color/input_hint"
+                app:endIconMode="clear_text"
+                app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etReferer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
-                    android:textColor="?attr/colorOnSurface"
+                    android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
@@ -96,15 +108,19 @@
                 android:hint="@string/origin_value"
                 app:boxBackgroundMode="outline"
                 app:boxBackgroundColor="@color/input_background"
-                app:boxStrokeColor="@color/input_stroke"
-                app:hintTextColor="@color/input_hint">
+                app:boxStrokeColor="@color/input_stroke_color"
+                app:hintTextColor="@color/input_hint"
+                app:startIconDrawable="@drawable/ic_paste"
+                app:startIconTint="@color/input_hint"
+                app:endIconMode="clear_text"
+                app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etOrigin"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
-                    android:textColor="?attr/colorOnSurface"
+                    android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
@@ -118,15 +134,19 @@
                 android:hint="@string/drm_license_url"
                 app:boxBackgroundMode="outline"
                 app:boxBackgroundColor="@color/input_background"
-                app:boxStrokeColor="@color/input_stroke"
-                app:hintTextColor="@color/input_hint">
+                app:boxStrokeColor="@color/input_stroke_color"
+                app:hintTextColor="@color/input_hint"
+                app:startIconDrawable="@drawable/ic_paste"
+                app:startIconTint="@color/input_hint"
+                app:endIconMode="clear_text"
+                app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etDrmLicense"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="textUri"
-                    android:textColor="?attr/colorOnSurface"
+                    android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
@@ -149,7 +169,7 @@
                     android:layout_weight="1"
                     android:hint="@string/user_agent"
                     app:boxBackgroundColor="@color/input_background"
-                    app:boxStrokeColor="@color/input_stroke"
+                    app:boxStrokeColor="@color/input_stroke_color"
                     app:hintTextColor="@color/input_hint">
 
                     <AutoCompleteTextView
@@ -157,7 +177,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="none"
-                        android:textColor="?attr/colorOnSurface"
+                        android:textColor="@color/input_text"
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
 
@@ -171,7 +191,7 @@
                     android:layout_weight="1"
                     android:hint="@string/drm_scheme"
                     app:boxBackgroundColor="@color/input_background"
-                    app:boxStrokeColor="@color/input_stroke"
+                    app:boxStrokeColor="@color/input_stroke_color"
                     app:hintTextColor="@color/input_hint">
 
                     <AutoCompleteTextView
@@ -179,7 +199,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="none"
-                        android:textColor="?attr/colorOnSurface"
+                        android:textColor="@color/input_text"
                         android:textSize="14sp" />
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
@@ -194,15 +214,19 @@
                 android:visibility="gone"
                 app:boxBackgroundMode="outline"
                 app:boxBackgroundColor="@color/input_background"
-                app:boxStrokeColor="@color/input_stroke"
-                app:hintTextColor="@color/input_hint">
+                app:boxStrokeColor="@color/input_stroke_color"
+                app:hintTextColor="@color/input_hint"
+                app:startIconDrawable="@drawable/ic_paste"
+                app:startIconTint="@color/input_hint"
+                app:endIconMode="clear_text"
+                app:endIconTint="@color/input_hint">
 
                 <com.google.android.material.textfield.TextInputEditText
                     android:id="@+id/etCustomUserAgent"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:inputType="text"
-                    android:textColor="?attr/colorOnSurface"
+                    android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
                     android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
