@@ -60,6 +60,14 @@ class SplashActivity : AppCompatActivity() {
     private lateinit var updateProgress: ProgressBar
     private lateinit var tvProgress: TextView
 
+    // Landscape / TV two-column update screen
+    private lateinit var updateScreenLand: View
+    private lateinit var btnPrimaryActionLand: MaterialButton
+    private lateinit var btnDownloadWebsiteLand: MaterialButton
+    private lateinit var btnUpdateLaterLand: MaterialButton
+    private lateinit var updateProgressLand: ProgressBar
+    private lateinit var tvProgressLand: TextView
+
     private val barAnimators = mutableListOf<android.animation.Animator>()
 
     private var downloadCancelled = false
@@ -86,8 +94,8 @@ class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Single unified layout for all devices (phone, tablet, TV, Fire TV).
-        // TV-specific sizing is handled via values-television/splash_dimens.xml.
+        // Single unified layout handles portrait, landscape, and TV.
+        // Landscape / TV two-column update screen is toggled in showUpdateScreen().
         setContentView(R.layout.activity_splash)
 
         val bergenSans = ResourcesCompat.getFont(this, R.font.bergen_sans)
@@ -111,6 +119,13 @@ class SplashActivity : AppCompatActivity() {
         updateProgress = findViewById(R.id.update_progress)
         tvProgress = findViewById(R.id.tv_progress)
 
+        updateScreenLand = findViewById(R.id.update_screen_land)
+        btnPrimaryActionLand = findViewById(R.id.btn_primary_action_land)
+        btnDownloadWebsiteLand = findViewById(R.id.btn_download_website_land)
+        btnUpdateLaterLand = findViewById(R.id.btn_update_later_land)
+        updateProgressLand = findViewById(R.id.update_progress_land)
+        tvProgressLand = findViewById(R.id.tv_progress_land)
+
         errorText.typeface = bergenSans
         retryButton.typeface = bergenSans
         versionText.typeface = bergenSans
@@ -118,11 +133,16 @@ class SplashActivity : AppCompatActivity() {
         btnPrimaryAction.typeface = bergenSans
         btnDownloadWebsite.typeface = bergenSans
         btnUpdateLater.typeface = bergenSans
+        tvProgressLand.typeface = bergenSans
+        btnPrimaryActionLand.typeface = bergenSans
+        btnDownloadWebsiteLand.typeface = bergenSans
+        btnUpdateLaterLand.typeface = bergenSans
 
         versionText.text = "VERSION ${BuildConfig.VERSION_NAME}"
 
         retryButton.setOnClickListener { startFetch() }
 
+        // Portrait update screen buttons
         btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
         btnDownloadWebsite.setOnClickListener {
             val url = listenerManager.getWebUrl().ifBlank { cachedWebUrl }
@@ -136,15 +156,30 @@ class SplashActivity : AppCompatActivity() {
             }
         }
 
-        // On TV, APK sideloading is not supported — hide the in-app update button
+        // Landscape / TV update screen buttons — same actions
+        btnUpdateLaterLand.setOnClickListener { finishAndRemoveTask() }
+        btnDownloadWebsiteLand.setOnClickListener {
+            val url = listenerManager.getWebUrl().ifBlank { cachedWebUrl }
+            if (url.isNotBlank()) openUrl(url)
+        }
+        btnPrimaryActionLand.setOnClickListener {
+            when {
+                isDownloading -> cancelDownload()
+                downloadedApk?.exists() == true -> installApk(downloadedApk!!)
+                else -> startDownload()
+            }
+        }
+
+        // On TV, APK sideloading is not supported — hide the in-app update button on both layouts
         if (DeviceUtils.isTvDevice) {
             btnPrimaryAction.visibility = View.GONE
+            btnPrimaryActionLand.visibility = View.GONE
         }
 
         // Modern replacement for deprecated onBackPressed override
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (updateScreen.visibility == View.VISIBLE) {
+                if (updateScreen.visibility == View.VISIBLE || updateScreenLand.visibility == View.VISIBLE) {
                     finishAndRemoveTask()
                 } else {
                     isEnabled = false
@@ -208,6 +243,7 @@ class SplashActivity : AppCompatActivity() {
     private fun showLoading() {
         splashScreen.visibility = View.VISIBLE
         updateScreen.visibility = View.GONE
+        updateScreenLand.visibility = View.GONE
         signalLoader.visibility = View.VISIBLE
         errorText.visibility = View.GONE
         buttonsRow.visibility = View.GONE
@@ -225,7 +261,15 @@ class SplashActivity : AppCompatActivity() {
     private fun showUpdateScreen() {
         stopBarAnimations()
         splashScreen.visibility = View.GONE
-        updateScreen.visibility = View.VISIBLE
+        val isLandscape = resources.configuration.orientation ==
+                android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        if (isLandscape || DeviceUtils.isTvDevice) {
+            updateScreen.visibility = View.GONE
+            updateScreenLand.visibility = View.VISIBLE
+        } else {
+            updateScreen.visibility = View.VISIBLE
+            updateScreenLand.visibility = View.GONE
+        }
     }
 
     private fun navigateToMain() {
@@ -265,25 +309,23 @@ class SplashActivity : AppCompatActivity() {
         if (url.isBlank()) return
         isDownloading = true
         downloadCancelled = false
-        btnPrimaryAction.text = "CANCEL"
-        updateProgress.progress = 0
-        updateProgress.visibility = View.VISIBLE
-        tvProgress.text = "Preparing…"
-        tvProgress.visibility = View.VISIBLE
+        for (btn in listOf(btnPrimaryAction, btnPrimaryActionLand)) btn.text = "CANCEL"
+        for (pb in listOf(updateProgress, updateProgressLand)) { pb.progress = 0; pb.visibility = View.VISIBLE }
+        for (tv in listOf(tvProgress, tvProgressLand)) { tv.text = "Preparing…"; tv.visibility = View.VISIBLE }
 
         lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) { downloadApk(url) }
             isDownloading = false
             if (result != null) {
                 downloadedApk = result
-                updateProgress.visibility = View.INVISIBLE
-                tvProgress.visibility = View.INVISIBLE
-                btnPrimaryAction.text = "INSTALL"
+                for (pb in listOf(updateProgress, updateProgressLand)) pb.visibility = View.INVISIBLE
+                for (tv in listOf(tvProgress, tvProgressLand)) tv.visibility = View.INVISIBLE
+                for (btn in listOf(btnPrimaryAction, btnPrimaryActionLand)) btn.text = "INSTALL"
                 installApk(result)
             } else {
-                updateProgress.visibility = View.INVISIBLE
-                tvProgress.visibility = View.INVISIBLE
-                btnPrimaryAction.text = "UPDATE APP"
+                for (pb in listOf(updateProgress, updateProgressLand)) pb.visibility = View.INVISIBLE
+                for (tv in listOf(tvProgress, tvProgressLand)) tv.visibility = View.INVISIBLE
+                for (btn in listOf(btnPrimaryAction, btnPrimaryActionLand)) btn.text = "UPDATE APP"
             }
         }
     }
@@ -291,9 +333,9 @@ class SplashActivity : AppCompatActivity() {
     private fun cancelDownload() {
         downloadCancelled = true
         isDownloading = false
-        btnPrimaryAction.text = "UPDATE APP"
-        updateProgress.visibility = View.INVISIBLE
-        tvProgress.visibility = View.INVISIBLE
+        for (btn in listOf(btnPrimaryAction, btnPrimaryActionLand)) btn.text = "UPDATE APP"
+        for (pb in listOf(updateProgress, updateProgressLand)) pb.visibility = View.INVISIBLE
+        for (tv in listOf(tvProgress, tvProgressLand)) tv.visibility = View.INVISIBLE
     }
 
     @SuppressLint("SetTextI18n")
@@ -323,8 +365,8 @@ class SplashActivity : AppCompatActivity() {
                         val dlMb = "%.1f".format(downloaded / 1_048_576.0)
                         val totMb = if (totalBytes > 0) "%.1f".format(totalBytes / 1_048_576.0) else "?"
                         withContext(Dispatchers.Main) {
-                            updateProgress.progress = pct
-                            tvProgress.text = "$dlMb MB / $totMb MB    $pct%"
+                            for (pb in listOf(updateProgress, updateProgressLand)) pb.progress = pct
+                            for (tv in listOf(tvProgress, tvProgressLand)) tv.text = "$dlMb MB / $totMb MB    $pct%"
                         }
                     }
                 }
