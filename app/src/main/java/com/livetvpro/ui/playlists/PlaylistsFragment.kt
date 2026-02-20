@@ -24,7 +24,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.livetvpro.R
 import com.livetvpro.data.models.Playlist
 import com.livetvpro.databinding.FragmentPlaylistsBinding
@@ -165,9 +164,11 @@ class PlaylistsFragment : Fragment() {
             }
         }
         
-        // Change main FAB color to brown/golden
-        binding.fabAddPlaylist.backgroundTintList = 
-            android.content.res.ColorStateList.valueOf(0xFF8B6914.toInt())
+        // Style main FAB as amber/orange (matches the × close button in the screenshot)
+        binding.fabAddPlaylist.backgroundTintList =
+            android.content.res.ColorStateList.valueOf(0xFFFFB300.toInt())
+        binding.fabAddPlaylist.imageTintList =
+            android.content.res.ColorStateList.valueOf(0xFF3E2000.toInt())
     }
     
     private fun createFabWithLabel(
@@ -178,12 +179,14 @@ class PlaylistsFragment : Fragment() {
         isTopItem: Boolean,
         onClick: () -> Unit
     ): LinearLayout {
+        val dp = resources.displayMetrics.density
         val marginBottom = if (isTopItem) {
-            resources.getDimensionPixelSize(R.dimen.fab_margin) + 180 // Top item spacing
+            (16 * dp).toInt() + 180 // Top item spacing
         } else {
-            resources.getDimensionPixelSize(R.dimen.fab_margin) + 90 // Bottom item spacing
+            (16 * dp).toInt() + 90  // Bottom item spacing
         }
-        
+
+        // Outer wrapper — invisible container used for animation + constraint anchoring
         return LinearLayout(context).apply {
             id = View.generateViewId()
             orientation = LinearLayout.HORIZONTAL
@@ -193,50 +196,60 @@ class PlaylistsFragment : Fragment() {
                 ConstraintLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 bottomToBottom = binding.fabAddPlaylist.id
-                endToEnd = binding.fabAddPlaylist.id
+                endToEnd    = binding.fabAddPlaylist.id
                 bottomMargin = marginBottom
-                marginEnd = resources.getDimensionPixelSize(R.dimen.fab_margin)
+                marginEnd    = (16 * dp).toInt()
             }
-            alpha = 0f
-            scaleX = 0f
-            scaleY = 0f
+            alpha      = 0f
+            scaleX     = 0f
+            scaleY     = 0f
             visibility = View.GONE
-            
-            // FAB button FIRST (on the left)
-            val fab = FloatingActionButton(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    marginEnd = 24 // Space between FAB and label
-                }
-                // Use normal size, not mini
-                size = FloatingActionButton.SIZE_NORMAL
-                setImageResource(iconRes)
-                backgroundTintList = android.content.res.ColorStateList.valueOf(0xFFFFB74D.toInt())
-                imageTintList = android.content.res.ColorStateList.valueOf(0xFF5D4037.toInt())
-                setOnClickListener { onClick() }
-            }
-            addView(fab)
-            
-            // Label card SECOND (on the right)
-            val labelCard = MaterialCardView(context).apply {
+
+            // Single wide pill card — icon + text inside, matching the screenshot
+            val pillCard = MaterialCardView(context).apply {
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 )
-                cardElevation = 6f
-                radius = 28f // More rounded
-                setCardBackgroundColor(0xFF8B6914.toInt()) // Brown/golden
-                
-                addView(TextView(context).apply {
-                    text = labelText
-                    textSize = 16f // Slightly larger text
-                    setTextColor(0xFFFFFFFF.toInt())
-                    setPadding(32, 16, 32, 16) // More padding for bigger label
-                })
+                cardElevation = 8f
+                radius = 999f              // Full pill shape
+                setCardBackgroundColor(0xFF8B6914.toInt()) // Dark golden/brown
+
+                // Inner row: icon then text
+                val row = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity     = Gravity.CENTER_VERTICAL
+                    setPadding(
+                        (20 * dp).toInt(),
+                        (14 * dp).toInt(),
+                        (28 * dp).toInt(),
+                        (14 * dp).toInt()
+                    )
+
+                    // Icon
+                    val icon = android.widget.ImageView(context).apply {
+                        layoutParams = LinearLayout.LayoutParams(
+                            (28 * dp).toInt(),
+                            (28 * dp).toInt()
+                        ).apply { marginEnd = (16 * dp).toInt() }
+                        setImageResource(iconRes)
+                        imageTintList = android.content.res.ColorStateList.valueOf(0xFFFFECB3.toInt())
+                    }
+                    addView(icon)
+
+                    // Label
+                    val label = TextView(context).apply {
+                        text     = labelText
+                        textSize = 16f
+                        setTextColor(0xFFFFECB3.toInt()) // Warm cream/ivory
+                        typeface = android.graphics.Typeface.DEFAULT_BOLD
+                    }
+                    addView(label)
+                }
+                addView(row)
+                setOnClickListener { onClick() }
             }
-            addView(labelCard)
+            addView(pillCard)
         }
     }
     
