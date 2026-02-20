@@ -16,7 +16,7 @@ class LinkSelectionDialog(
         val labels = links.map { it.quality }.toTypedArray()
 
         MaterialAlertDialogBuilder(context)
-            .setTitle("Select Stream")
+            .setTitle("Multiple Links Available")
             .setItems(labels) { dialog, which ->
                 // 'which' is the index of the item clicked
                 if (which in links.indices) {
