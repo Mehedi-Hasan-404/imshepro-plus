@@ -92,23 +92,13 @@ class FloatingPlayerService : Service() {
 
         fun start(context: Context, channel: Channel, linkIndex: Int = 0, playbackPosition: Long = 0L) {
             try {
-                if (channel.links == null || channel.links?.isEmpty() == true) {
-                    android.widget.Toast.makeText(context, "No stream available", android.widget.Toast.LENGTH_SHORT).show()
-                    return
-                }
-
-                val selectedLink = if (channel.links != null && linkIndex in channel.links!!.indices) {
-                    channel.links!![linkIndex]
+                val streamUrl = if (!channel.links.isNullOrEmpty()) {
+                    val selectedLink = if (linkIndex in channel.links!!.indices) channel.links!![linkIndex] else channel.links!!.firstOrNull()
+                    selectedLink?.url ?: channel.streamUrl
                 } else {
-                    channel.links?.firstOrNull()
+                    channel.streamUrl
                 }
-
-                val streamUrl = selectedLink?.url ?: ""
-
-                if (streamUrl.isEmpty()) {
-                    android.widget.Toast.makeText(context, "Invalid stream URL", android.widget.Toast.LENGTH_SHORT).show()
-                    return
-                }
+                if (streamUrl.isBlank()) return
 
                 val intent = Intent(context, FloatingPlayerService::class.java).apply {
                     putExtra(EXTRA_CHANNEL, channel)
@@ -123,9 +113,8 @@ class FloatingPlayerService : Service() {
                 } else {
                     context.startService(intent)
                 }
-
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "Failed to start floating player: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
+
             }
         }
 
@@ -141,10 +130,7 @@ class FloatingPlayerService : Service() {
             linkIndex: Int = 0
         ): Boolean {
             try {
-                if (channel == null && event == null) {
-                    android.widget.Toast.makeText(context, "No content provided", android.widget.Toast.LENGTH_SHORT).show()
-                    return false
-                }
+                if (channel == null && event == null) return false
 
                 val streamUrl = when {
                     channel != null -> {
@@ -154,32 +140,18 @@ class FloatingPlayerService : Service() {
                             selectedLink?.url ?: channel.streamUrl
                         } else {
                             channel.streamUrl
-                        }.also {
-                            if (it.isBlank()) {
-                                android.widget.Toast.makeText(context, "No stream available", android.widget.Toast.LENGTH_SHORT).show()
-                                return false
-                            }
-                        }
+                        }.also { if (it.isBlank()) return false }
                     }
                     event != null -> {
                         val links = event.links
-                        if (links.isEmpty()) {
-                            android.widget.Toast.makeText(context, "No stream available", android.widget.Toast.LENGTH_SHORT).show()
-                            return false
-                        }
+                        if (links.isEmpty()) return false
                         val selectedLink = if (linkIndex in links.indices) links[linkIndex] else links.firstOrNull()
-                        selectedLink?.url ?: ""
+                        selectedLink?.url ?: return false
                     }
-                    else -> {
-                        android.widget.Toast.makeText(context, "No content provided", android.widget.Toast.LENGTH_SHORT).show()
-                        return false
-                    }
+                    else -> return false
                 }
 
-                if (streamUrl.isEmpty()) {
-                    android.widget.Toast.makeText(context, "Invalid stream URL", android.widget.Toast.LENGTH_SHORT).show()
-                    return false
-                }
+                if (streamUrl.isBlank()) return false
 
                 val title = channel?.name ?: event?.title ?: "Unknown"
 
@@ -202,7 +174,6 @@ class FloatingPlayerService : Service() {
                 return true
 
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "Failed to start floating player: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
                 return false
             }
         }
@@ -243,7 +214,6 @@ class FloatingPlayerService : Service() {
                 return true
 
             } catch (e: Exception) {
-                android.widget.Toast.makeText(context, "Failed to start floating player: ${e.message}", android.widget.Toast.LENGTH_LONG).show()
                 return false
             }
         }
@@ -463,6 +433,8 @@ class FloatingPlayerService : Service() {
                 }
                 else -> null
             }
+            val parsedStream = parseStreamUrl(streamUrl)
+            val actualUrl = parsedStream.url
             val headers = mutableMapOf<String, String>()
             selectedLinkForHeaders?.let { link ->
                 link.referer?.takeIf { it.isNotEmpty() }?.let { headers["Referer"] = it }
@@ -470,6 +442,7 @@ class FloatingPlayerService : Service() {
                 link.origin?.takeIf { it.isNotEmpty() }?.let { headers["Origin"] = it }
                 link.userAgent?.takeIf { it.isNotEmpty() }?.let { headers["User-Agent"] = it }
             }
+            parsedStream.headers.forEach { (k, v) -> headers.putIfAbsent(k, v) }
             if (!headers.containsKey("User-Agent")) {
                 headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }
@@ -486,9 +459,9 @@ class FloatingPlayerService : Service() {
             val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
             playerView.player = player
 
-            val mediaItemBuilder = MediaItem.Builder().setUri(streamUrl)
-            if (streamUrl.contains("m3u8", ignoreCase = true) ||
-                streamUrl.contains("extension=m3u8", ignoreCase = true)) {
+            val mediaItemBuilder = MediaItem.Builder().setUri(actualUrl)
+            if (actualUrl.contains("m3u8", ignoreCase = true) ||
+                actualUrl.contains("extension=m3u8", ignoreCase = true)) {
                 mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
             }
             player.setMediaItem(mediaItemBuilder.build())
@@ -528,7 +501,6 @@ class FloatingPlayerService : Service() {
             }
 
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "Failed to create floating player: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -625,7 +597,6 @@ class FloatingPlayerService : Service() {
             }
 
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "Failed to restore floating player: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -753,7 +724,6 @@ class FloatingPlayerService : Service() {
             }
 
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "Failed to create floating player: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -772,10 +742,7 @@ class FloatingPlayerService : Service() {
                 channel.streamUrl
             }
 
-            if (streamUrl.isBlank()) {
-                android.widget.Toast.makeText(this, "No stream available", android.widget.Toast.LENGTH_SHORT).show()
-                return
-            }
+            if (streamUrl.isBlank()) return
 
             instance.currentChannel = channel
 
@@ -790,7 +757,6 @@ class FloatingPlayerService : Service() {
             updateNotification()
 
         } catch (e: Exception) {
-            android.widget.Toast.makeText(this, "Failed to update stream: ${e.message}", android.widget.Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -952,14 +918,6 @@ class FloatingPlayerService : Service() {
 
                 btnPlayPause?.setImageResource(R.drawable.ic_error_outline)
 
-                // Show error message as Toast
-                android.os.Handler(android.os.Looper.getMainLooper()).post {
-                    android.widget.Toast.makeText(
-                        this@FloatingPlayerService,
-                        errorMessage,
-                        android.widget.Toast.LENGTH_LONG
-                    ).show()
-                }
             }
         })
 
@@ -1263,4 +1221,43 @@ class FloatingPlayerService : Service() {
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private data class StreamInfo(
+        val url: String,
+        val headers: Map<String, String>,
+        val drmScheme: String?,
+        val drmKeyId: String?,
+        val drmKey: String?,
+        val drmLicenseUrl: String?
+    )
+
+    private fun parseStreamUrl(streamUrl: String): StreamInfo {
+        val pipeIndex = streamUrl.indexOf('|')
+        if (pipeIndex == -1) return StreamInfo(streamUrl, mapOf(), null, null, null, null)
+
+        val url = streamUrl.substring(0, pipeIndex).trim()
+        val parts = streamUrl.substring(pipeIndex + 1).replace("&", "|").split("|")
+        val headers = mutableMapOf<String, String>()
+        var drmScheme: String? = null
+        var drmKeyId: String? = null
+        var drmKey: String? = null
+        var drmLicenseUrl: String? = null
+
+        for (part in parts) {
+            val eqIndex = part.indexOf('=')
+            if (eqIndex == -1) continue
+            val key = part.substring(0, eqIndex).trim()
+            val value = part.substring(eqIndex + 1).trim()
+            when (key.lowercase()) {
+                "drmscheme" -> drmScheme = value
+                "drmlicense" -> drmLicenseUrl = value
+                "user-agent" -> headers["User-Agent"] = value
+                "referer" -> headers["Referer"] = value
+                "cookie" -> headers["Cookie"] = value
+                "origin" -> headers["Origin"] = value
+                else -> headers[key] = value
+            }
+        }
+        return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey, drmLicenseUrl)
+    }
 }
