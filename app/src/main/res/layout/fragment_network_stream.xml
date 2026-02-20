@@ -43,7 +43,7 @@
                     android:inputType="textUri"
                     android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
-                    android:textSize="14sp"
+                    android:textSize="14sp" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Cookie Value -->
