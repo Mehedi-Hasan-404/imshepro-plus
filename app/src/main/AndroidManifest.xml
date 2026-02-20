@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.PICTURE_IN_PICTURE" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Required on Android 13+ to show push notifications -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature
         android:name="android.hardware.touchscreen"
@@ -80,6 +82,15 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+
+        <!-- FCM: receives push messages and token refreshes -->
+        <service
+            android:name=".utils.FcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
 
         <provider
             android:name="androidx.core.content.FileProvider"
