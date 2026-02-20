@@ -978,7 +978,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
             )
             
-            binding.relatedChannelsRecycler.layoutManager = LinearLayoutManager(this)
+            binding.relatedChannelsRecycler.layoutManager = GridLayoutManager(this, resources.getInteger(R.integer.event_span_count))
             binding.relatedChannelsRecycler.adapter = relatedEventsAdapter
         } else {
             relatedChannelsAdapter = RelatedChannelAdapter { relatedItem ->
