@@ -76,10 +76,16 @@
         <item name="android:textAllCaps">true</item>
         <item name="android:fontFamily">sans-serif-medium</item>
     </style>
-    <!-- Network Stream EditText: amber cursor + selection, red focused border -->
+    <!-- Network Stream EditText: amber cursor + selection handles, red focused border -->
     <style name="NetworkStreamEditText" parent="Widget.Material3.TextInputEditText.OutlinedBox">
         <item name="android:textCursorDrawable">@null</item>
-        <item name="colorControlActivated">#FFB300</item>
+    </style>
+
+    <!-- Theme overlay applied via ContextThemeWrapper in Kotlin.
+         colorControlActivated drives the handle + cursor tint on the view's context. -->
+    <style name="ThemeOverlay.NetworkStream.AmberHandles" parent="">
+        <item name="colorControlActivated">#EF4444</item>
+        <item name="colorAccent">#EF4444</item>
     </style>
 
     <!-- DIALOG THEME — ensures title, list items and buttons are always clearly visible -->
