@@ -170,7 +170,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
         val linkLabels = links.map { it.quality }.toTypedArray()
 
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select Stream")
+            .setTitle("Multiple Links Available")
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
                 val modifiedChannel = channel.copy(streamUrl = selectedLink.url)
