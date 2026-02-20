@@ -52,6 +52,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTop"
             android:exported="false"
             android:theme="@style/Theme.LiveTVPro"
             android:screenOrientation="user"
