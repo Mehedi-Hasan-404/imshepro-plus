@@ -57,6 +57,14 @@ class MainActivity : AppCompatActivity() {
     private var isSearchVisible = false
     private var showRefreshIcon = false
 
+    // Phone-only views — populated in setupNavigation(), null on TV
+    private var phoneToolbar: com.google.android.material.appbar.MaterialToolbar? = null
+    private var phoneToolbarTitle: android.widget.TextView? = null
+    private var phoneBtnSearch: android.widget.ImageButton? = null
+    private var phoneBtnFavorites: android.widget.ImageButton? = null
+    private var phoneSearchView: androidx.appcompat.widget.SearchView? = null
+    private var phoneBtnSearchClear: android.widget.ImageButton? = null
+
     companion object {
         private const val REQUEST_CODE_OVERLAY_PERMISSION = 1001
     }
@@ -168,7 +176,18 @@ class MainActivity : AppCompatActivity() {
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         drawerToggle?.onConfigurationChanged(newConfig)
-        if (!DeviceUtils.isTvDevice) handleStatusBarForOrientation()
+
+        if (!DeviceUtils.isTvDevice) {
+            // Orientation / screen size changed — re-evaluate status bar visibility
+            handleStatusBarForOrientation()
+
+            // Grid column count may have changed (e.g. phone rotated, foldable unfolded).
+            // Propagate to the active fragment so it can update its GridLayoutManager span.
+            val navHostFragment = supportFragmentManager
+                .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+            navHostFragment?.childFragmentManager?.fragments?.firstOrNull()
+                ?.onConfigurationChanged(newConfig)
+        }
     }
 
     private fun setupTvNavigation() {
@@ -397,7 +416,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupToolbar() {
-        setSupportActionBar(binding.toolbar)
+        val toolbar = binding.root.findViewById<com.google.android.material.appbar.MaterialToolbar>(
+            R.id.toolbar
+        ) ?: return
+        setSupportActionBar(toolbar)
         supportActionBar?.setDisplayShowTitleEnabled(false)
     }
 
@@ -433,11 +455,14 @@ class MainActivity : AppCompatActivity() {
         val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
             R.id.drawer_layout
         ) ?: return
+        val toolbar = binding.root.findViewById<com.google.android.material.appbar.MaterialToolbar>(
+            R.id.toolbar
+        ) ?: return
 
         drawerToggle = ActionBarDrawerToggle(
             this,
             drawerLayout,
-            binding.toolbar,
+            toolbar,
             R.string.navigation_drawer_open,
             R.string.navigation_drawer_close
         ).apply {
@@ -461,6 +486,17 @@ class MainActivity : AppCompatActivity() {
         val navigationView = binding.root.findViewById<com.google.android.material.navigation.NavigationView>(
             R.id.navigation_view
         )
+        val toolbar = binding.root.findViewById<com.google.android.material.appbar.MaterialToolbar>(
+            R.id.toolbar
+        )
+        val toolbarTitle = binding.root.findViewById<android.widget.TextView>(R.id.toolbar_title)
+        val bottomNavigation = binding.root.findViewById<com.google.android.material.bottomnavigation.BottomNavigationView>(
+            R.id.bottom_navigation
+        )
+        val btnSearch = binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search)
+        val btnFavorites = binding.root.findViewById<android.widget.ImageButton>(R.id.btn_favorites)
+        val searchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
+        val btnSearchClear = binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)
 
         val topLevelDestinations = setOf(
             R.id.homeFragment,
@@ -530,7 +566,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.bottomNavigation.setOnItemSelectedListener { menuItem ->
+        bottomNavigation?.setOnItemSelectedListener { menuItem ->
             if (menuItem.itemId in topLevelDestinations) {
                 navigateTopLevel(menuItem.itemId)
                 return@setOnItemSelectedListener true
@@ -539,7 +575,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
-            binding.toolbarTitle.text = when (destination.id) {
+            toolbarTitle?.text = when (destination.id) {
                 R.id.homeFragment -> "Categories"
                 R.id.categoryChannelsFragment -> "Channels"
                 R.id.liveEventsFragment -> "Live Events"
@@ -568,11 +604,11 @@ class MainActivity : AppCompatActivity() {
             val isNetworkStream = destination.id == R.id.networkStreamFragment
 
             if (isNetworkStream) {
-                binding.btnSearch.visibility = View.GONE
-                binding.btnFavorites.visibility = View.GONE
+                btnSearch?.visibility = View.GONE
+                btnFavorites?.visibility = View.GONE
             } else {
-                binding.btnSearch.visibility = View.VISIBLE
-                binding.btnFavorites.visibility = View.VISIBLE
+                btnSearch?.visibility = View.VISIBLE
+                btnFavorites?.visibility = View.VISIBLE
             }
 
             if (isTopLevel) {
@@ -581,23 +617,23 @@ class MainActivity : AppCompatActivity() {
                 )
                 drawerToggle?.isDrawerIndicatorEnabled = true
                 animateNavigationIcon(0f)
-                binding.toolbar.setNavigationOnClickListener {
+                toolbar?.setNavigationOnClickListener {
                     if (drawerLayout?.isDrawerOpen(GravityCompat.START) == true) {
                         drawerLayout.closeDrawer(GravityCompat.START)
                     } else {
                         drawerLayout?.openDrawer(GravityCompat.START)
                     }
                 }
-                binding.bottomNavigation.menu.findItem(destination.id)?.isChecked = true
+                bottomNavigation?.menu?.findItem(destination.id)?.isChecked = true
             } else {
                 drawerLayout?.setDrawerLockMode(
                     androidx.drawerlayout.widget.DrawerLayout.LOCK_MODE_LOCKED_CLOSED
                 )
                 drawerToggle?.isDrawerIndicatorEnabled = true
-                binding.toolbar.post {
+                toolbar?.post {
                     animateNavigationIcon(1f)
                 }
-                binding.toolbar.setNavigationOnClickListener {
+                toolbar?.setNavigationOnClickListener {
                     onBackPressedDispatcher.onBackPressed()
                 }
             }
@@ -607,11 +643,19 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        binding.btnFavorites.setOnClickListener {
+        btnFavorites?.setOnClickListener {
             if (navController.currentDestination?.id != R.id.favoritesFragment) {
                 navController.navigate(R.id.favoritesFragment)
             }
         }
+
+        // Store phone-only views for use in showSearch/hideSearch
+        phoneToolbar = toolbar
+        phoneToolbarTitle = toolbarTitle
+        phoneBtnSearch = btnSearch
+        phoneBtnFavorites = btnFavorites
+        phoneSearchView = searchView
+        phoneBtnSearchClear = btnSearchClear
     }
 
     private fun showFloatingPlayerDialog() {
@@ -634,11 +678,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupSearch() {
-        binding.btnSearch.setOnClickListener {
+        phoneBtnSearch?.setOnClickListener {
             showSearch()
         }
 
-        binding.searchView.setOnQueryTextListener(object :
+        phoneSearchView?.setOnQueryTextListener(object :
             androidx.appcompat.widget.SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
                 return true
@@ -653,41 +697,41 @@ class MainActivity : AppCompatActivity() {
                     if (currentFragment is SearchableFragment) {
                         currentFragment.onSearchQuery(query)
                     }
-                    binding.btnSearchClear.visibility =
+                    phoneBtnSearchClear?.visibility =
                         if (query.isNotEmpty()) View.VISIBLE else View.GONE
                 }
                 return true
             }
         })
 
-        binding.btnSearchClear.setOnClickListener {
-            binding.searchView.setQuery("", false)
+        phoneBtnSearchClear?.setOnClickListener {
+            phoneSearchView?.setQuery("", false)
         }
     }
 
     private fun showSearch() {
         isSearchVisible = true
-        binding.toolbarTitle.visibility = View.GONE
-        binding.btnSearch.visibility = View.GONE
-        binding.btnFavorites.visibility = View.GONE
-        binding.searchView.visibility = View.VISIBLE
-        binding.searchView.isIconified = false
-        binding.searchView.requestFocus()
+        phoneToolbarTitle?.visibility = View.GONE
+        phoneBtnSearch?.visibility = View.GONE
+        phoneBtnFavorites?.visibility = View.GONE
+        phoneSearchView?.visibility = View.VISIBLE
+        phoneSearchView?.isIconified = false
+        phoneSearchView?.requestFocus()
         animateNavigationIcon(1f)
-        binding.toolbar.setNavigationOnClickListener {
+        phoneToolbar?.setNavigationOnClickListener {
             hideSearch()
         }
     }
 
     private fun hideSearch() {
         isSearchVisible = false
-        binding.toolbarTitle.visibility = View.VISIBLE
-        binding.btnSearch.visibility = View.VISIBLE
-        binding.btnFavorites.visibility = View.VISIBLE
-        binding.searchView.visibility = View.GONE
-        binding.btnSearchClear.visibility = View.GONE
-        binding.searchView.setQuery("", false)
-        binding.searchView.clearFocus()
+        phoneToolbarTitle?.visibility = View.VISIBLE
+        phoneBtnSearch?.visibility = View.VISIBLE
+        phoneBtnFavorites?.visibility = View.VISIBLE
+        phoneSearchView?.visibility = View.GONE
+        phoneBtnSearchClear?.visibility = View.GONE
+        phoneSearchView?.setQuery("", false)
+        phoneSearchView?.clearFocus()
 
         val navHostFragment = supportFragmentManager
             .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
@@ -701,16 +745,19 @@ class MainActivity : AppCompatActivity() {
 
         animateNavigationIcon(if (isTopLevel) 0f else 1f)
 
+        val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
+            R.id.drawer_layout
+        )
         if (isTopLevel) {
-            binding.toolbar.setNavigationOnClickListener {
-                if (binding.drawerLayout.isDrawerOpen(GravityCompat.START)) {
-                    binding.drawerLayout.closeDrawer(GravityCompat.START)
+            phoneToolbar?.setNavigationOnClickListener {
+                if (drawerLayout?.isDrawerOpen(GravityCompat.START) == true) {
+                    drawerLayout.closeDrawer(GravityCompat.START)
                 } else {
-                    binding.drawerLayout.openDrawer(GravityCompat.START)
+                    drawerLayout?.openDrawer(GravityCompat.START)
                 }
             }
         } else {
-            binding.toolbar.setNavigationOnClickListener {
+            phoneToolbar?.setNavigationOnClickListener {
                 onBackPressedDispatcher.onBackPressed()
             }
         }
