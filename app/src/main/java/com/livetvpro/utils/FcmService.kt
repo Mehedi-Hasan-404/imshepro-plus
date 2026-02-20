@@ -20,22 +20,11 @@ class FcmService : FirebaseMessagingService() {
         private const val NOTIFICATION_ID = 2001
     }
 
-    /**
-     * Called when a new FCM token is generated (fresh install or token refresh).
-     * Log or send to your server here.
-     */
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        // TODO: send token to your backend if needed
         android.util.Log.d("FCM", "New token: $token")
     }
 
-    /**
-     * Called when a push message arrives while the app is in the foreground.
-     * When the app is in the background, FCM shows the notification automatically
-     * using the notification payload — this method is only called for data messages
-     * or foreground notification delivery.
-     */
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
 
@@ -45,7 +34,7 @@ class FcmService : FirebaseMessagingService() {
 
         val body = message.notification?.body
             ?: message.data["body"]
-            ?: return   // nothing to show
+            ?: return
 
         showNotification(title, body)
     }
@@ -54,7 +43,6 @@ class FcmService : FirebaseMessagingService() {
         val notificationManager =
             getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-        // Create channel once (no-op on subsequent calls)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
@@ -66,7 +54,6 @@ class FcmService : FirebaseMessagingService() {
             notificationManager.createNotificationChannel(channel)
         }
 
-        // Tap opens the app at MainActivity
         val intent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
@@ -76,7 +63,7 @@ class FcmService : FirebaseMessagingService() {
         )
 
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_play)   // replace with your notification icon if you have one
+            .setSmallIcon(R.drawable.ic_play)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
