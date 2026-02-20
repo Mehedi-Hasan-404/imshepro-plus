@@ -22,7 +22,6 @@ class FcmService : FirebaseMessagingService() {
 
     override fun onNewToken(token: String) {
         super.onNewToken(token)
-        android.util.Log.d("FCM", "New token: $token")
     }
 
     override fun onMessageReceived(message: RemoteMessage) {
