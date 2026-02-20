@@ -19,14 +19,6 @@
         <item name="fontFamily">sans-serif-medium</item>
     </style>
     
-    <!-- Network Stream Input Field Style -->
-    <style name="NetworkStreamEditText">
-        <item name="android:textCursorDrawable">@drawable/cursor_amber</item>
-        <item name="android:textSelectHandle">@drawable/text_select_handle_right_amber</item>
-        <item name="android:textSelectHandleLeft">@drawable/text_select_handle_left_amber</item>
-        <item name="android:textSelectHandleRight">@drawable/text_select_handle_right_amber</item>
-    </style>
-
     <!-- Material3 TextInputLayout Styles -->
     <style name="Widget.Material3.TextInputLayout.OutlinedExposedDropdownMenu" parent="Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu">
         <!-- This provides compatibility for the OutlinedExposedDropdownMenu style -->
