@@ -25,6 +25,8 @@ import com.livetvpro.utils.NativeListenerManager
 import com.livetvpro.utils.RetryViewModel
 import com.livetvpro.utils.RetryHandler
 import com.livetvpro.utils.Refreshable
+import com.livetvpro.data.local.PreferencesManager
+import com.livetvpro.utils.FloatingPlayerHelper
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -172,6 +174,9 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
     @Inject
     lateinit var listenerManager: NativeListenerManager
 
+    @Inject
+    lateinit var preferencesManager: PreferencesManager
+
     override fun onSearchQuery(query: String) {
         viewModel.searchSports(query)
     }
@@ -217,7 +222,7 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
                 if (channel.links != null && channel.links.size > 1) {
                     showLinkSelectionDialog(channel)
                 } else {
-                    PlayerActivity.startWithChannel(requireContext(), channel)
+                    launchPlayer(channel, -1)
                 }
             },
             onFavoriteToggle = { channel ->
@@ -240,6 +245,30 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
         }
     }
 
+    private fun launchPlayer(channel: Channel, linkIndex: Int) {
+        val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
+        val hasPermission = FloatingPlayerHelper.hasOverlayPermission(requireContext())
+
+        if (floatingEnabled) {
+            if (!hasPermission) {
+                android.widget.Toast.makeText(
+                    requireContext(),
+                    "Overlay permission required for floating player. Opening normally instead.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                PlayerActivity.startWithChannel(requireContext(), channel, linkIndex)
+                return
+            }
+            try {
+                FloatingPlayerHelper.launchFloatingPlayer(requireContext(), channel, linkIndex)
+            } catch (e: Exception) {
+                PlayerActivity.startWithChannel(requireContext(), channel, linkIndex)
+            }
+        } else {
+            PlayerActivity.startWithChannel(requireContext(), channel, linkIndex)
+        }
+    }
+
     private fun showLinkSelectionDialog(channel: Channel) {
         val links = channel.links ?: return
         val linkLabels = links.map { it.quality }.toTypedArray()
@@ -247,7 +276,7 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
         MaterialAlertDialogBuilder(requireContext())
             .setTitle("Multiple Links Available")
             .setItems(linkLabels) { dialog, which ->
-                PlayerActivity.startWithChannel(requireContext(), channel, which)
+                launchPlayer(channel, which)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
