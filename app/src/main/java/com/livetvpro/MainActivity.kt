@@ -16,7 +16,7 @@ import android.view.View
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.ActionBarDrawerToggle
-import androidx.appcompat.app.AlertDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.res.ResourcesCompat
 import androidx.core.view.GravityCompat
@@ -660,7 +660,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showFloatingPlayerDialog() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-            AlertDialog.Builder(this)
+            MaterialAlertDialogBuilder(this)
                 .setTitle("Permission Required")
                 .setMessage("Floating Player requires permission to draw over other apps. Please enable it in the next screen.")
                 .setPositiveButton("Settings") { _, _ ->
