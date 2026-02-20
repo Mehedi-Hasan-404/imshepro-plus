@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import com.livetvpro.data.models.Channel
+import com.livetvpro.data.models.ChannelLink
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.ui.player.FloatingPlayerService
 import java.util.UUID
@@ -51,24 +52,30 @@ object FloatingPlayerHelper {
             Toast.makeText(context, "Overlay permission required for floating player", Toast.LENGTH_LONG).show()
             return
         }
-        
-        if (channel.links.isNullOrEmpty()) {
-            Toast.makeText(context, "No stream available for ${channel.name}", Toast.LENGTH_SHORT).show()
-            return
+
+        // If no links list but has a direct streamUrl, wrap it so the rest of the flow works
+        val resolvedChannel = if (channel.links.isNullOrEmpty()) {
+            if (channel.streamUrl.isBlank()) {
+                Toast.makeText(context, "No stream available for ${channel.name}", Toast.LENGTH_SHORT).show()
+                return
+            }
+            channel.copy(links = listOf(ChannelLink(quality = "Default", url = channel.streamUrl)))
+        } else {
+            channel
         }
         
-        val actualEventId = eventId ?: channel.id
-        
+        val actualEventId = eventId ?: resolvedChannel.id
+
         // Check if this event already has a floating player
         val existingInstanceId = eventToInstanceMap[actualEventId]
-        
+
         if (existingInstanceId != null && FloatingPlayerManager.hasPlayer(existingInstanceId)) {
             // Update the existing floating player with the new link
-            updateFloatingPlayer(context, existingInstanceId, channel, linkIndex)
+            updateFloatingPlayer(context, existingInstanceId, resolvedChannel, linkIndex)
             Toast.makeText(context, "Updated floating player with new stream", Toast.LENGTH_SHORT).show()
         } else {
             // Create new floating player
-            createNewFloatingPlayer(context, channel = channel, linkIndex = linkIndex, eventId = actualEventId)
+            createNewFloatingPlayer(context, channel = resolvedChannel, linkIndex = linkIndex, eventId = actualEventId)
         }
     }
     
