@@ -91,6 +91,12 @@
         <item name="fontFamily">@font/bergen_sans</item>
     </style>
 
+    <!-- Bottom nav label text appearance -->
+    <style name="BottomNav.TextAppearance" parent="TextAppearance.MaterialComponents.Caption">
+        <item name="android:fontFamily">@font/bergen_sans</item>
+        <item name="fontFamily">@font/bergen_sans</item>
+    </style>
+
     <!-- DIALOG THEME — ensures title, list items and buttons are always clearly visible -->
     <style name="ThemeOverlay.LiveTVPro.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="colorSurface">#1F1F1F</item>
