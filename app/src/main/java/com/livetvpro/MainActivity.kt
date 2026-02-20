@@ -784,7 +784,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleNotificationIntent(intent: Intent?) {
-        val url = intent?.getStringExtra("url") ?: return
+        val url = intent?.getStringExtra("url")
+            ?: intent?.extras?.getString("url")
+            ?: return
         if (url.isBlank()) return
         try {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
