@@ -10,6 +10,7 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.chip.Chip
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -56,6 +57,12 @@ class LiveEventsFragment : Fragment(), Refreshable {
 
     override fun refreshData() {
         viewModel.refresh()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val spanCount = getEventSpanCount()
+        (binding.recyclerViewEvents.layoutManager as? GridLayoutManager)?.spanCount = spanCount
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
@@ -127,11 +134,21 @@ class LiveEventsFragment : Fragment(), Refreshable {
         }
     }
 
+    private fun getEventSpanCount(): Int {
+        val context = requireContext()
+        val config = context.resources.configuration
+        val isLargeScreen = config.smallestScreenWidthDp >= 600
+        val isLandscape = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+        val isTelevision = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
+        return if (isLargeScreen || isLandscape || isTelevision) 3 else 1
+    }
+
     private fun setupEventRecycler() {
         eventAdapter = LiveEventAdapter(requireContext(), emptyList(), preferencesManager)
-        
+
+        val spanCount = getEventSpanCount()
         binding.recyclerViewEvents.apply {
-            layoutManager = LinearLayoutManager(context)
+            layoutManager = GridLayoutManager(context, spanCount)
             adapter = eventAdapter
         }
     }
