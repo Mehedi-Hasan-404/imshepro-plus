@@ -134,166 +134,136 @@
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <!-- ===================== UPDATE SCREEN =====================
-         One unbroken packed chain: icon → title → progress → btn_primary
-         → description → btn_download → btn_update_later → parent bottom.
-         packed + bias=0.5 centres the whole block vertically.
-         description uses wrap_content + maxLines so it never overflows. -->
-    <androidx.constraintlayout.widget.ConstraintLayout
+         ScrollView with fillViewport="true":
+         - Portrait: fillViewport makes it fill the full screen → looks identical to before
+         - Landscape: scrolls only when content doesn't fit → UPDATE LATER never clipped
+         The splash loading screen above is unaffected. -->
+    <ScrollView
         android:id="@+id/update_screen"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:paddingStart="@dimen/splash_padding_horizontal"
-        android:paddingEnd="@dimen/splash_padding_horizontal"
-        android:paddingTop="@dimen/splash_padding_vertical"
-        android:paddingBottom="@dimen/splash_padding_vertical"
+        android:fillViewport="true"
+        android:overScrollMode="never"
         android:visibility="gone">
 
-        <!-- CHAIN HEAD — defines packed + bias for the whole chain -->
-        <ImageView
-            android:id="@+id/update_app_icon"
-            android:layout_width="@dimen/splash_icon_size"
-            android:layout_height="@dimen/splash_icon_size"
-            android:src="@mipmap/ic_launcher"
-            android:scaleType="fitCenter"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toTopOf="@id/tv_update_title"
-            app:layout_constraintVertical_chainStyle="packed"
-            app:layout_constraintVertical_bias="0.45" />
-
-        <TextView
-            android:id="@+id/tv_update_title"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="New Update Available"
-            android:textColor="@color/white"
-            android:textSize="@dimen/splash_update_title_text_size"
-            android:textStyle="bold"
-            android:fontFamily="@font/bergen_sans"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/update_app_icon"
-            app:layout_constraintBottom_toTopOf="@id/update_progress" />
+            android:orientation="vertical"
+            android:gravity="center_horizontal"
+            android:paddingStart="@dimen/splash_padding_horizontal"
+            android:paddingEnd="@dimen/splash_padding_horizontal"
+            android:paddingTop="@dimen/splash_update_padding_top"
+            android:paddingBottom="@dimen/splash_padding_vertical">
 
-        <ProgressBar
-            android:id="@+id/update_progress"
-            style="@android:style/Widget.ProgressBar.Horizontal"
-            android:layout_width="0dp"
-            android:layout_height="6dp"
-            android:layout_marginTop="12dp"
-            android:max="100"
-            android:progressTint="@color/accent"
-            android:progressBackgroundTint="#555555"
-            android:visibility="invisible"
-            app:layout_constraintTop_toBottomOf="@id/tv_update_title"
-            app:layout_constraintBottom_toTopOf="@id/tv_progress"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            <ImageView
+                android:id="@+id/update_app_icon"
+                android:layout_width="@dimen/splash_icon_size"
+                android:layout_height="@dimen/splash_icon_size"
+                android:src="@mipmap/ic_launcher"
+                android:scaleType="fitCenter" />
 
-        <TextView
-            android:id="@+id/tv_progress"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textColor="@color/white"
-            android:textSize="@dimen/splash_version_text_size"
-            android:fontFamily="@font/bergen_sans"
-            android:visibility="invisible"
-            app:layout_constraintTop_toBottomOf="@id/update_progress"
-            app:layout_constraintBottom_toTopOf="@id/btn_primary_action"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            <TextView
+                android:id="@+id/tv_update_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="New Update Available"
+                android:textColor="@color/white"
+                android:textSize="@dimen/splash_update_title_text_size"
+                android:textStyle="bold"
+                android:fontFamily="@font/bergen_sans" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_primary_action"
-            style="@style/Widget.MaterialComponents.Button"
-            android:layout_width="0dp"
-            android:layout_height="@dimen/splash_button_height"
-            android:layout_marginTop="12dp"
-            android:text="UPDATE APP"
-            android:textColor="@android:color/white"
-            android:textStyle="bold"
-            android:textSize="@dimen/splash_button_text_size"
-            android:letterSpacing="0.08"
-            android:fontFamily="@font/bergen_sans"
-            android:focusable="true"
-            android:nextFocusDown="@id/btn_download_website"
-            app:backgroundTint="@color/accent"
-            app:cornerRadius="8dp"
-            app:rippleColor="#40FFFFFF"
-            app:layout_constraintTop_toBottomOf="@id/tv_progress"
-            app:layout_constraintBottom_toTopOf="@id/tv_update_description"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            <ProgressBar
+                android:id="@+id/update_progress"
+                style="@android:style/Widget.ProgressBar.Horizontal"
+                android:layout_width="match_parent"
+                android:layout_height="6dp"
+                android:layout_marginTop="14dp"
+                android:max="100"
+                android:progressTint="@color/accent"
+                android:progressBackgroundTint="#555555"
+                android:visibility="invisible" />
 
-        <!-- wrap_content height + maxLines: takes only what it needs,
-             never expands to fill slack space, never pushes buttons off screen -->
-        <TextView
-            android:id="@+id/tv_update_description"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:layout_marginBottom="10dp"
-            android:text="You need to install the latest version. We will discontinue all the old version soon. Please download and install it. If the in-app update does not work, please download from our website."
-            android:textColor="@color/white"
-            android:textSize="@dimen/splash_description_text_size"
-            android:lineSpacingExtra="2dp"
-            android:fontFamily="@font/bergen_sans"
-            android:gravity="center"
-            android:ellipsize="end"
-            android:maxLines="3"
-            app:layout_constraintTop_toBottomOf="@id/btn_primary_action"
-            app:layout_constraintBottom_toTopOf="@id/btn_download_website"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            <TextView
+                android:id="@+id/tv_progress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/white"
+                android:textSize="@dimen/splash_version_text_size"
+                android:fontFamily="@font/bergen_sans"
+                android:visibility="invisible" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_download_website"
-            style="@style/Widget.MaterialComponents.Button"
-            android:layout_width="0dp"
-            android:layout_height="@dimen/splash_button_height"
-            android:text="DOWNLOAD FROM WEBSITE"
-            android:textColor="@android:color/white"
-            android:textStyle="bold"
-            android:textSize="@dimen/splash_button_text_size"
-            android:letterSpacing="0.08"
-            android:fontFamily="@font/bergen_sans"
-            android:focusable="true"
-            android:nextFocusUp="@id/btn_primary_action"
-            android:nextFocusDown="@id/btn_update_later"
-            app:backgroundTint="@color/accent"
-            app:cornerRadius="8dp"
-            app:rippleColor="#40FFFFFF"
-            app:layout_constraintTop_toBottomOf="@id/tv_update_description"
-            app:layout_constraintBottom_toTopOf="@id/btn_update_later"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_primary_action"
+                style="@style/Widget.MaterialComponents.Button"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/splash_button_height"
+                android:layout_marginTop="14dp"
+                android:text="UPDATE APP"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
+                android:textSize="@dimen/splash_button_text_size"
+                android:letterSpacing="0.08"
+                android:fontFamily="@font/bergen_sans"
+                android:focusable="true"
+                android:nextFocusDown="@id/btn_download_website"
+                app:backgroundTint="@color/accent"
+                app:cornerRadius="8dp"
+                app:rippleColor="#40FFFFFF" />
 
-        <!-- CHAIN TAIL — closes the chain back to parent bottom -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btn_update_later"
-            style="@style/Widget.MaterialComponents.Button"
-            android:layout_width="0dp"
-            android:layout_height="@dimen/splash_button_height"
-            android:layout_marginTop="8dp"
-            android:text="UPDATE LATER"
-            android:textColor="@android:color/white"
-            android:textStyle="bold"
-            android:textSize="@dimen/splash_button_text_size"
-            android:letterSpacing="0.08"
-            android:fontFamily="@font/bergen_sans"
-            android:focusable="true"
-            android:nextFocusUp="@id/btn_download_website"
-            app:backgroundTint="@color/accent"
-            app:cornerRadius="8dp"
-            app:rippleColor="#40FFFFFF"
-            app:layout_constraintTop_toBottomOf="@id/btn_download_website"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent" />
+            <TextView
+                android:id="@+id/tv_update_description"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="You need to install the latest version. We will discontinue all the old version soon. Please download and install it. If the in-app update does not work, please download from our website."
+                android:textColor="@color/white"
+                android:textSize="@dimen/splash_description_text_size"
+                android:lineSpacingExtra="2dp"
+                android:fontFamily="@font/bergen_sans"
+                android:gravity="center" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_download_website"
+                style="@style/Widget.MaterialComponents.Button"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/splash_button_height"
+                android:layout_marginTop="12dp"
+                android:text="DOWNLOAD FROM WEBSITE"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
+                android:textSize="@dimen/splash_button_text_size"
+                android:letterSpacing="0.08"
+                android:fontFamily="@font/bergen_sans"
+                android:focusable="true"
+                android:nextFocusUp="@id/btn_primary_action"
+                android:nextFocusDown="@id/btn_update_later"
+                app:backgroundTint="@color/accent"
+                app:cornerRadius="8dp"
+                app:rippleColor="#40FFFFFF" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_update_later"
+                style="@style/Widget.MaterialComponents.Button"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/splash_button_height"
+                android:layout_marginTop="8dp"
+                android:text="UPDATE LATER"
+                android:textColor="@android:color/white"
+                android:textStyle="bold"
+                android:textSize="@dimen/splash_button_text_size"
+                android:letterSpacing="0.08"
+                android:fontFamily="@font/bergen_sans"
+                android:focusable="true"
+                android:nextFocusUp="@id/btn_download_website"
+                app:backgroundTint="@color/accent"
+                app:cornerRadius="8dp"
+                app:rippleColor="#40FFFFFF" />
+
+        </LinearLayout>
+
+    </ScrollView>
 
 </FrameLayout>
