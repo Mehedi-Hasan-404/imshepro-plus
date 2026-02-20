@@ -28,6 +28,8 @@ import com.livetvpro.ui.player.PlayerActivity
 import com.livetvpro.utils.NativeListenerManager
 import com.livetvpro.utils.RetryHandler
 import com.livetvpro.utils.Refreshable
+import com.livetvpro.data.local.PreferencesManager
+import com.livetvpro.utils.FloatingPlayerHelper
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -44,6 +46,9 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
 
     @Inject
     lateinit var listenerManager: NativeListenerManager
+
+    @Inject
+    lateinit var preferencesManager: PreferencesManager
 
     private var currentCategoryId: String? = null
 
@@ -123,13 +128,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
                 if (channel.links != null && channel.links.isNotEmpty() && channel.links.size > 1) {
                     showLinkSelectionDialog(channel)
                 } else {
-                    // UPDATED: Pass metadata instead of full channel list
-                    PlayerActivity.startWithChannel(
-                        requireContext(), 
-                        channel,
-                        categoryId = currentCategoryId,
-                        selectedGroup = viewModel.currentGroup.value
-                    )
+                    launchPlayer(channel, -1)
                 }
             },
             onFavoriteToggle = { channel ->
@@ -165,6 +164,42 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
         )
     }
 
+    private fun launchPlayer(channel: Channel, linkIndex: Int) {
+        val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
+        val hasPermission = FloatingPlayerHelper.hasOverlayPermission(requireContext())
+
+        if (floatingEnabled) {
+            if (!hasPermission) {
+                android.widget.Toast.makeText(
+                    requireContext(),
+                    "Overlay permission required for floating player. Opening normally instead.",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                PlayerActivity.startWithChannel(
+                    requireContext(), channel, linkIndex,
+                    categoryId = currentCategoryId,
+                    selectedGroup = viewModel.currentGroup.value
+                )
+                return
+            }
+            try {
+                FloatingPlayerHelper.launchFloatingPlayer(requireContext(), channel, linkIndex)
+            } catch (e: Exception) {
+                PlayerActivity.startWithChannel(
+                    requireContext(), channel, linkIndex,
+                    categoryId = currentCategoryId,
+                    selectedGroup = viewModel.currentGroup.value
+                )
+            }
+        } else {
+            PlayerActivity.startWithChannel(
+                requireContext(), channel, linkIndex,
+                categoryId = currentCategoryId,
+                selectedGroup = viewModel.currentGroup.value
+            )
+        }
+    }
+
     private fun showLinkSelectionDialog(channel: Channel) {
         val links = channel.links ?: return
         val linkLabels = links.map { it.quality }.toTypedArray()
@@ -174,14 +209,7 @@ class CategoryChannelsFragment : Fragment(), SearchableFragment, Refreshable {
             .setItems(linkLabels) { dialog, which ->
                 val selectedLink = links[which]
                 val modifiedChannel = channel.copy(streamUrl = selectedLink.url)
-                // UPDATED: Pass metadata instead of full channel list
-                PlayerActivity.startWithChannel(
-                    requireContext(), 
-                    modifiedChannel, 
-                    which,
-                    categoryId = currentCategoryId,
-                    selectedGroup = viewModel.currentGroup.value
-                )
+                launchPlayer(modifiedChannel, which)
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
