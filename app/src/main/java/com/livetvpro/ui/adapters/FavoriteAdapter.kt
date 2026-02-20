@@ -101,7 +101,7 @@ class FavoriteAdapter(
             val linkLabels = links.map { it.quality }.toTypedArray()
             
             MaterialAlertDialogBuilder(context)
-                .setTitle("Select Stream")
+                .setTitle("Multiple Links Available")
                 .setItems(linkLabels) { dialog, which ->
                     launchPlayer(channel, which)
                     dialog.dismiss()
