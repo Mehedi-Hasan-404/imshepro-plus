@@ -178,7 +178,13 @@ object FloatingPlayerHelper {
      */
     private fun updateFloatingPlayer(context: Context, instanceId: String, channel: Channel, linkIndex: Int) {
         try {
-            FloatingPlayerService.updateFloatingPlayer(context, instanceId, channel, linkIndex)
+            val resolvedChannel = if (channel.links.isNullOrEmpty()) {
+                if (channel.streamUrl.isBlank()) return
+                channel.copy(links = listOf(ChannelLink(quality = "Default", url = channel.streamUrl)))
+            } else {
+                channel
+            }
+            FloatingPlayerService.updateFloatingPlayer(context, instanceId, resolvedChannel, linkIndex)
         } catch (e: Exception) {
             Toast.makeText(context, "Failed to update player: ${e.message}", Toast.LENGTH_SHORT).show()
         }
