@@ -149,12 +149,17 @@ class FloatingPlayerService : Service() {
                 val streamUrl = when {
                     channel != null -> {
                         val links = channel.links
-                        if (links == null || links.isEmpty()) {
-                            android.widget.Toast.makeText(context, "No stream available", android.widget.Toast.LENGTH_SHORT).show()
-                            return false
+                        if (!links.isNullOrEmpty()) {
+                            val selectedLink = if (linkIndex in links.indices) links[linkIndex] else links.firstOrNull()
+                            selectedLink?.url ?: channel.streamUrl
+                        } else {
+                            channel.streamUrl
+                        }.also {
+                            if (it.isBlank()) {
+                                android.widget.Toast.makeText(context, "No stream available", android.widget.Toast.LENGTH_SHORT).show()
+                                return false
+                            }
                         }
-                        val selectedLink = if (linkIndex in links.indices) links[linkIndex] else links.firstOrNull()
-                        selectedLink?.url ?: ""
                     }
                     event != null -> {
                         val links = event.links
@@ -389,9 +394,12 @@ class FloatingPlayerService : Service() {
             val streamUrl = when {
                 channel != null -> {
                     val links = channel.links
-                    if (links == null || links.isEmpty()) return
-                    val selectedLink = if (linkIndex in links.indices) links[linkIndex] else links.firstOrNull()
-                    selectedLink?.url ?: return
+                    if (!links.isNullOrEmpty()) {
+                        val selectedLink = if (linkIndex in links.indices) links[linkIndex] else links.firstOrNull()
+                        selectedLink?.url ?: channel.streamUrl
+                    } else {
+                        channel.streamUrl
+                    }.also { if (it.isBlank()) return }
                 }
                 event != null -> {
                     val links = event.links
@@ -753,12 +761,21 @@ class FloatingPlayerService : Service() {
         val instance = activeInstances[instanceId] ?: return
 
         try {
-            val selectedLink = if (channel.links != null && linkIndex in channel.links!!.indices) {
-                channel.links!![linkIndex]
+            val streamUrl = if (!channel.links.isNullOrEmpty()) {
+                val selectedLink = if (linkIndex in channel.links!!.indices) {
+                    channel.links!![linkIndex]
+                } else {
+                    channel.links!!.firstOrNull()
+                }
+                selectedLink?.url ?: channel.streamUrl
             } else {
-                channel.links?.firstOrNull()
+                channel.streamUrl
             }
-            val streamUrl = selectedLink?.url ?: return
+
+            if (streamUrl.isBlank()) {
+                android.widget.Toast.makeText(this, "No stream available", android.widget.Toast.LENGTH_SHORT).show()
+                return
+            }
 
             instance.currentChannel = channel
 
