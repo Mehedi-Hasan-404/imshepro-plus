@@ -473,7 +473,7 @@ private fun CustomTimeBar(
 
         val currentProgress = if (isDragging) dragPosition else progress
         val playedWidth = size.width * currentProgress
-        if (playedWidth > 0) drawLine(color = Color(0xFFFF0000), start = Offset(0f, centerY), end = Offset(playedWidth, centerY), strokeWidth = barHeight, cap = StrokeCap.Round)
+        if (playedWidth > 0) drawLine(color = Color.White, start = Offset(0f, centerY), end = Offset(playedWidth, centerY), strokeWidth = barHeight, cap = StrokeCap.Round)
 
         drawCircle(color = Color.White, radius = scrubberRadius, center = Offset(playedWidth, centerY))
     }
