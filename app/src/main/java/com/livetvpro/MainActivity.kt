@@ -85,8 +85,6 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        handleNotificationIntent(intent)
-
         applyBergenSansToNavigationMenu()
 
         if (DeviceUtils.isTvDevice) {
@@ -101,6 +99,8 @@ class MainActivity : AppCompatActivity() {
             setupNavigation()
             setupSearch()
         }
+
+        binding.root.post { handleNotificationIntent(intent) }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
