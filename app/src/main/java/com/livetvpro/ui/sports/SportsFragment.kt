@@ -251,11 +251,6 @@ class SportsFragment : Fragment(), SearchableFragment, Refreshable {
 
         if (floatingEnabled) {
             if (!hasPermission) {
-                android.widget.Toast.makeText(
-                    requireContext(),
-                    "Overlay permission required for floating player. Opening normally instead.",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
                 PlayerActivity.startWithChannel(requireContext(), channel, linkIndex)
                 return
             }
