@@ -114,14 +114,14 @@ class FavoriteAdapter(
 
         private fun launchPlayer(channel: Channel, linkIndex: Int) {
             val context = binding.root.context
-            
+
             val selectedLink = channel.links?.getOrNull(linkIndex)
             val streamUrl = if (selectedLink != null) {
                 buildStreamUrlFromLink(selectedLink)
             } else {
                 channel.streamUrl
             }
-            
+
             val channelWithUrl = Channel(
                 id = channel.id,
                 name = channel.name,
@@ -131,12 +131,25 @@ class FavoriteAdapter(
                 categoryName = channel.categoryName,
                 links = channel.links
             )
-            
+
             val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
             val hasPermission = FloatingPlayerHelper.hasOverlayPermission(context)
-            
-            if (floatingEnabled && hasPermission) {
-                FloatingPlayerHelper.launchFloatingPlayer(context, channelWithUrl, linkIndex)
+
+            if (floatingEnabled) {
+                if (!hasPermission) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Overlay permission required for floating player. Opening normally instead.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    PlayerActivity.startWithChannel(context, channelWithUrl, linkIndex)
+                    return
+                }
+                try {
+                    FloatingPlayerHelper.launchFloatingPlayer(context, channelWithUrl, linkIndex)
+                } catch (e: Exception) {
+                    PlayerActivity.startWithChannel(context, channelWithUrl, linkIndex)
+                }
             } else {
                 PlayerActivity.startWithChannel(context, channelWithUrl, linkIndex)
             }
@@ -162,12 +175,25 @@ class FavoriteAdapter(
         
         private fun launchPlayerWithUrl(channel: Channel, url: String) {
             val context = binding.root.context
-            
+
             val floatingEnabled = preferencesManager.isFloatingPlayerEnabled()
             val hasPermission = FloatingPlayerHelper.hasOverlayPermission(context)
-            
-            if (floatingEnabled && hasPermission) {
-                FloatingPlayerHelper.launchFloatingPlayer(context, channel, -1)
+
+            if (floatingEnabled) {
+                if (!hasPermission) {
+                    android.widget.Toast.makeText(
+                        context,
+                        "Overlay permission required for floating player. Opening normally instead.",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                    PlayerActivity.startWithChannel(context, channel, -1)
+                    return
+                }
+                try {
+                    FloatingPlayerHelper.launchFloatingPlayer(context, channel, -1)
+                } catch (e: Exception) {
+                    PlayerActivity.startWithChannel(context, channel, -1)
+                }
             } else {
                 PlayerActivity.startWithChannel(context, channel, -1)
             }
