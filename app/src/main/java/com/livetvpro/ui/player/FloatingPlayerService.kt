@@ -1124,8 +1124,11 @@ class FloatingPlayerService : Service() {
                             if (abs(dx) > 10 || abs(dy) > 10) {
                                 isDragging = true
                                 hasMoved = true
-                                p.x = initialX + dx
-                                p.y = initialY + dy
+                                val minVisible = p.width / 4
+                                val screenW = getScreenWidth()
+                                val screenH = getScreenHeight()
+                                p.x = (initialX + dx).coerceIn(-(p.width - minVisible), screenW - minVisible)
+                                p.y = (initialY + dy).coerceIn(-(p.height - minVisible), screenH - minVisible)
                                 windowManager?.updateViewLayout(floatingView, p)
                             }
                             true
@@ -1164,8 +1167,11 @@ class FloatingPlayerService : Service() {
                             if (abs(dx) > 10 || abs(dy) > 10) {
                                 isDragging = true
                                 hasMoved = true
-                                p.x = initialX + dx
-                                p.y = initialY + dy
+                                val minVisible = p.width / 4
+                                val screenW = getScreenWidth()
+                                val screenH = getScreenHeight()
+                                p.x = (initialX + dx).coerceIn(-(p.width - minVisible), screenW - minVisible)
+                                p.y = (initialY + dy).coerceIn(-(p.height - minVisible), screenH - minVisible)
                                 windowManager?.updateViewLayout(floatingView, p)
                             }
                             isDragging
