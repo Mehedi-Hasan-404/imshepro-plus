@@ -314,7 +314,13 @@ class FloatingPlayerService : Service() {
             val drmScheme = intent?.getStringExtra("DRM_SCHEME") ?: "clearkey"
             val streamName = intent?.getStringExtra("CHANNEL_NAME") ?: "Network Stream"
 
-            if (streamUrl.isNotBlank()) {
+            if (isRestoredFromFullscreen && PlayerHolder.player != null) {
+                // Player was transferred from FloatingPlayerActivity — reuse it directly
+                createFloatingPlayerInstanceFromNetworkStreamTransfer(
+                    instanceId, streamName, streamUrl, cookie, referer, origin, drmLicense, userAgent, drmScheme
+                )
+                updateNotification()
+            } else if (streamUrl.isNotBlank()) {
                 createFloatingPlayerInstanceForNetworkStream(instanceId, streamUrl, cookie, referer, origin, drmLicense, userAgent, drmScheme, streamName)
                 updateNotification()
             }
@@ -593,6 +599,117 @@ class FloatingPlayerService : Service() {
 
             if (activeInstances.size == 1) {
                 val notification = createNotification(contentName)
+                startForeground(NOTIFICATION_ID, notification)
+            }
+
+        } catch (e: Exception) {
+        }
+    }
+
+    private fun createFloatingPlayerInstanceFromNetworkStreamTransfer(
+        instanceId: String,
+        streamName: String,
+        streamUrl: String,
+        cookie: String,
+        referer: String,
+        origin: String,
+        drmLicense: String,
+        userAgent: String,
+        drmScheme: String
+    ) {
+        try {
+            val transferredPlayer = PlayerHolder.player
+            if (transferredPlayer == null) {
+                // Fallback: create a fresh player if the transfer was lost
+                createFloatingPlayerInstanceForNetworkStream(
+                    instanceId, streamUrl, cookie, referer, origin, drmLicense, userAgent, drmScheme, streamName
+                )
+                return
+            }
+
+            PlayerHolder.clearReferences()
+
+            val floatingView = LayoutInflater.from(this).inflate(R.layout.floating_player_window, null)
+
+            val screenWidth = getScreenWidth()
+            val screenHeight = getScreenHeight()
+            val statusBarHeight: Int = run {
+                val resId = resources.getIdentifier("status_bar_height", "dimen", "android")
+                if (resId > 0) resources.getDimensionPixelSize(resId) else 0
+            }
+
+            val savedWidth = preferencesManager.getFloatingPlayerWidth()
+            val savedHeight = preferencesManager.getFloatingPlayerHeight()
+            val initialWidth = if (savedWidth > 0) savedWidth.coerceIn(getMinWidth(), getMaxWidth())
+                               else (screenWidth * 0.6f).toInt().coerceIn(getMinWidth(), getMaxWidth())
+            val initialHeight = if (savedHeight > 0) savedHeight.coerceIn(getMinHeight(), getMaxHeight())
+                                else initialWidth * 9 / 16
+
+            val savedX = preferencesManager.getFloatingPlayerX()
+            val savedY = preferencesManager.getFloatingPlayerY()
+            val initialX = if (savedX != Int.MIN_VALUE) savedX else (screenWidth - initialWidth) / 2
+            val initialY = if (savedY != Int.MIN_VALUE) savedY
+                           else statusBarHeight + (screenHeight - statusBarHeight - initialHeight) / 2
+
+            val params = WindowManager.LayoutParams(
+                initialWidth,
+                initialHeight,
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                    WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                else {
+                    @Suppress("DEPRECATION")
+                    WindowManager.LayoutParams.TYPE_PHONE
+                },
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                x = initialX
+                y = initialY
+            }
+
+            val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
+            playerView.player = transferredPlayer
+
+            val titleText = floatingView.findViewById<TextView>(R.id.tv_title)
+            titleText.text = streamName
+
+            val lockOverlay = floatingView.findViewById<View>(R.id.lock_overlay)
+            val unlockButton = floatingView.findViewById<ImageButton>(R.id.unlock_button)
+
+            setupFloatingControls(floatingView, playerView, params, instanceId, transferredPlayer, lockOverlay, unlockButton, null, null)
+
+            windowManager?.addView(floatingView, params)
+            hideControlsHandlers[instanceId] = android.os.Handler(android.os.Looper.getMainLooper())
+
+            val instance = FloatingPlayerInstance(
+                instanceId = instanceId,
+                floatingView = floatingView,
+                player = transferredPlayer,
+                playerView = playerView,
+                params = params,
+                currentChannel = null,
+                currentEvent = null,
+                lockOverlay = lockOverlay,
+                unlockButton = unlockButton,
+                isNetworkStream = true,
+                networkStreamUrl = streamUrl,
+                networkStreamName = streamName,
+                networkCookie = cookie,
+                networkReferer = referer,
+                networkOrigin = origin,
+                networkDrmLicense = drmLicense,
+                networkUserAgent = userAgent,
+                networkDrmScheme = drmScheme
+            )
+            activeInstances[instanceId] = instance
+
+            com.livetvpro.utils.FloatingPlayerManager.addPlayer(instanceId, streamName, "network_stream")
+
+            if (activeInstances.size == 1) {
+                val notification = createNotification(streamName)
                 startForeground(NOTIFICATION_ID, notification)
             }
 
