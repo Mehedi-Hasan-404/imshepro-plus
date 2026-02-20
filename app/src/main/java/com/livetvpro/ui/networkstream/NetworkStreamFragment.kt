@@ -11,8 +11,6 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import com.livetvpro.R
 import com.livetvpro.databinding.FragmentNetworkStreamBinding
 import com.livetvpro.ui.player.PlayerActivity
@@ -66,24 +64,59 @@ class NetworkStreamFragment : Fragment() {
 
     private fun setupPasteIcons() {
         listOf(
-            binding.tilStreamUrl  to binding.etStreamUrl,
-            binding.tilCookie     to binding.etCookie,
-            binding.tilReferer    to binding.etReferer,
-            binding.tilOrigin     to binding.etOrigin,
-            binding.tilDrmLicense to binding.etDrmLicense,
+            binding.tilStreamUrl       to binding.etStreamUrl,
+            binding.tilCookie          to binding.etCookie,
+            binding.tilReferer         to binding.etReferer,
+            binding.tilOrigin          to binding.etOrigin,
+            binding.tilDrmLicense      to binding.etDrmLicense,
             binding.tilCustomUserAgent to binding.etCustomUserAgent
         ).forEach { (til, et) ->
-            til.setStartIconOnClickListener {
-                val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                val clip = clipboard.primaryClip
-                if (clip != null && clip.itemCount > 0) {
-                    val text = clip.getItemAt(0).coerceToText(requireContext()).toString()
-                    et.setText(text)
-                    et.setSelection(text.length)
+
+            // Set initial icon based on whether field already has text
+            updateEndIcon(til, et.text?.isNotEmpty() == true)
+
+            // Swap icon as text changes
+            et.doOnTextChanged { text, _, _, _ ->
+                updateEndIcon(til, !text.isNullOrEmpty())
+            }
+
+            // Handle icon click: paste if empty, clear if has text
+            til.setEndIconOnClickListener {
+                if (et.text?.isNotEmpty() == true) {
+                    et.setText("")
                 } else {
-                    Toast.makeText(requireContext(), "Clipboard is empty", Toast.LENGTH_SHORT).show()
+                    pasteFromClipboard(et)
                 }
             }
+        }
+    }
+
+    private fun updateEndIcon(til: com.google.android.material.textfield.TextInputLayout, hasText: Boolean) {
+        til.endIconDrawable = if (hasText) {
+            androidx.core.content.ContextCompat.getDrawable(requireContext(), R.drawable.ic_close)
+        } else {
+            androidx.core.content.ContextCompat.getDrawable(requireContext(), R.drawable.ic_paste)
+        }
+    }
+
+    private fun pasteFromClipboard(et: com.google.android.material.textfield.TextInputEditText) {
+        try {
+            val clipboard = requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            val text = clipboard.primaryClip
+                ?.takeIf { it.itemCount > 0 }
+                ?.getItemAt(0)
+                ?.coerceToText(requireContext())
+                ?.toString()
+                ?.takeIf { it.isNotEmpty() }
+
+            if (text != null) {
+                et.setText(text)
+                et.setSelection(text.length)
+            } else {
+                Toast.makeText(requireContext(), "Clipboard is empty", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(requireContext(), "Could not read clipboard", Toast.LENGTH_SHORT).show()
         }
     }
 
