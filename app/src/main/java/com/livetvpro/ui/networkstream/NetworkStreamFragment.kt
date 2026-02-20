@@ -71,6 +71,8 @@ class NetworkStreamFragment : Fragment() {
             binding.tilDrmLicense      to binding.etDrmLicense,
             binding.tilCustomUserAgent to binding.etCustomUserAgent
         ).forEach { (til, et) ->
+            // Amber selection highlight
+            et.highlightColor = 0x55FFB300.toInt()
 
             // Set initial icon based on whether field already has text
             updateEndIcon(til, et.text?.isNotEmpty() == true)
