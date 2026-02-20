@@ -43,7 +43,8 @@
                     android:inputType="textUri"
                     android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:highlightColor="#55FFB300" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Cookie Value -->
@@ -68,7 +69,8 @@
                     android:inputType="text"
                     android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:highlightColor="#55FFB300" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Referer Value -->
@@ -93,7 +95,8 @@
                     android:inputType="textUri"
                     android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:highlightColor="#55FFB300" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- Origin Value -->
@@ -118,7 +121,8 @@
                     android:inputType="textUri"
                     android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:highlightColor="#55FFB300" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- DRM License URL -->
@@ -143,7 +147,8 @@
                     android:inputType="textUri"
                     android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:highlightColor="#55FFB300" />
             </com.google.android.material.textfield.TextInputLayout>
 
             <!-- User Agent and DRM Scheme Row -->
@@ -173,7 +178,8 @@
                         android:layout_height="wrap_content"
                         android:inputType="none"
                         android:textColor="@color/input_text"
-                        android:textSize="14sp" />
+                        android:textSize="14sp"
+                    android:highlightColor="#55FFB300" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <!-- DRM Scheme Dropdown -->
@@ -195,7 +201,8 @@
                         android:layout_height="wrap_content"
                         android:inputType="none"
                         android:textColor="@color/input_text"
-                        android:textSize="14sp" />
+                        android:textSize="14sp"
+                    android:highlightColor="#55FFB300" />
                 </com.google.android.material.textfield.TextInputLayout>
             </LinearLayout>
 
@@ -222,7 +229,8 @@
                     android:inputType="text"
                     android:textColor="@color/input_text"
                     android:textColorHint="@color/input_hint"
-                    android:textSize="14sp" />
+                    android:textSize="14sp"
+                    android:highlightColor="#55FFB300" />
             </com.google.android.material.textfield.TextInputLayout>
 
         </LinearLayout>
