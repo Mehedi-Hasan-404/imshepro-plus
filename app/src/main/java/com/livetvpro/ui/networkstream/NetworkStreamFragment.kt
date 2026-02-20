@@ -3,16 +3,13 @@ package com.livetvpro.ui.networkstream
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.graphics.drawable.Drawable
 import android.os.Bundle
+import android.view.ContextThemeWrapper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
-import android.widget.EditText
-import android.widget.TextView
 import android.widget.Toast
-import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.widget.doOnTextChanged
 import androidx.fragment.app.Fragment
 import com.livetvpro.R
@@ -53,7 +50,14 @@ class NetworkStreamFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View {
-        _binding = FragmentNetworkStreamBinding.inflate(inflater, container, false)
+        // Wrap the inflater's context with the amber theme overlay so that
+        // colorControlActivated (#FFB300) is inherited by every EditText in
+        // this fragment — this is what Android reads when tinting the cursor
+        // and selection handle drawables at the framework level.
+        val themedInflater = inflater.cloneInContext(
+            ContextThemeWrapper(requireContext(), R.style.ThemeOverlay_NetworkStream_AmberHandles)
+        )
+        _binding = FragmentNetworkStreamBinding.inflate(themedInflater, container, false)
         return binding.root
     }
 
@@ -75,11 +79,8 @@ class NetworkStreamFragment : Fragment() {
             binding.tilDrmLicense      to binding.etDrmLicense,
             binding.tilCustomUserAgent to binding.etCustomUserAgent
         ).forEach { (til, et) ->
-            // Amber selection highlight
-            et.highlightColor = 0x55FFB300.toInt()
-
-            // Amber cursor handles (left, right, insertion pointers)
-            et.tintSelectionHandles(0xFFFFB300.toInt())
+            // Red selection highlight (matches app accent)
+            et.highlightColor = 0x55EF4444.toInt()
 
             // Set initial icon based on whether field already has text
             updateEndIcon(til, et.text?.isNotEmpty() == true)
@@ -283,39 +284,5 @@ class NetworkStreamFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-    }
-
-    /**
-     * Tints the two selection handle pointers (left & right) and the insertion
-     * cursor handle using the system's default drawable shapes — just recoloured.
-     * Uses reflection on the hidden TextView.Editor to reach the drawables.
-     */
-    private fun EditText.tintSelectionHandles(color: Int) {
-        try {
-            val editorField = TextView::class.java.getDeclaredField("mEditor")
-                .also { it.isAccessible = true }
-            val editor = editorField.get(this) ?: return
-
-            // The three handle field names inside Editor
-            listOf("mSelectHandleLeft", "mSelectHandleRight", "mSelectHandleCenter").forEach { name ->
-                runCatching {
-                    editor.javaClass.getDeclaredField(name)
-                        .also { it.isAccessible = true }
-                        .get(editor)
-                        ?.let { drawable ->
-                            DrawableCompat.wrap(drawable as Drawable)
-                                .mutate()
-                                .also { wrapped ->
-                                    DrawableCompat.setTint(wrapped, color)
-                                    editor.javaClass.getDeclaredField(name)
-                                        .also { f -> f.isAccessible = true }
-                                        .set(editor, wrapped)
-                                }
-                        }
-                }
-            }
-        } catch (_: Exception) {
-            // Reflection may fail on heavily modified OEM ROMs — fail silently
-        }
     }
 }
