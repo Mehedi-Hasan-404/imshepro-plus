@@ -578,7 +578,7 @@ class MainActivity : AppCompatActivity() {
             toolbarTitle?.text = when (destination.id) {
                 R.id.homeFragment -> "Categories"
                 R.id.categoryChannelsFragment -> "Channels"
-                R.id.liveEventsFragment -> "Live Events"
+                R.id.liveEventsFragment -> getString(R.string.app_name)
                 R.id.favoritesFragment -> "Favorites"
                 R.id.sportsFragment -> "Sports"
                 R.id.contactFragment -> "Contact"
