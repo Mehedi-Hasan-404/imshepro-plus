@@ -1,8 +1,10 @@
 package com.livetvpro.ui
 
+import android.Manifest
 import android.animation.AnimatorInflater
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -15,6 +17,7 @@ import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
@@ -60,7 +63,6 @@ class SplashActivity : AppCompatActivity() {
     private lateinit var updateProgress: ProgressBar
     private lateinit var tvProgress: TextView
 
-    // Landscape / TV two-column update screen
     private lateinit var updateScreenLand: View
     private lateinit var btnPrimaryActionLand: MaterialButton
     private lateinit var btnDownloadWebsiteLand: MaterialButton
@@ -79,7 +81,12 @@ class SplashActivity : AppCompatActivity() {
         private const val REQUEST_INSTALL_PERMISSION = 1001
     }
 
-    // Modern replacement for deprecated startActivityForResult
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        startFetch()
+    }
+
     private val installPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) {
@@ -94,8 +101,6 @@ class SplashActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Single unified layout handles portrait, landscape, and TV.
-        // Landscape / TV two-column update screen is toggled in showUpdateScreen().
         setContentView(R.layout.activity_splash)
 
         val bergenSans = ResourcesCompat.getFont(this, R.font.bergen_sans)
@@ -142,7 +147,6 @@ class SplashActivity : AppCompatActivity() {
 
         retryButton.setOnClickListener { startFetch() }
 
-        // Portrait update screen buttons
         btnUpdateLater.setOnClickListener { finishAndRemoveTask() }
         btnDownloadWebsite.setOnClickListener {
             val url = listenerManager.getWebUrl().ifBlank { cachedWebUrl }
@@ -156,7 +160,6 @@ class SplashActivity : AppCompatActivity() {
             }
         }
 
-        // Landscape / TV update screen buttons — same actions
         btnUpdateLaterLand.setOnClickListener { finishAndRemoveTask() }
         btnDownloadWebsiteLand.setOnClickListener {
             val url = listenerManager.getWebUrl().ifBlank { cachedWebUrl }
@@ -170,13 +173,11 @@ class SplashActivity : AppCompatActivity() {
             }
         }
 
-        // On TV, APK sideloading is not supported — hide the in-app update button on both layouts
         if (DeviceUtils.isTvDevice) {
             btnPrimaryAction.visibility = View.GONE
             btnPrimaryActionLand.visibility = View.GONE
         }
 
-        // Modern replacement for deprecated onBackPressed override
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (updateScreen.visibility == View.VISIBLE || updateScreenLand.visibility == View.VISIBLE) {
@@ -188,7 +189,22 @@ class SplashActivity : AppCompatActivity() {
             }
         })
 
-        startFetch()
+        requestNotificationPermission()
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this, Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                startFetch()
+            }
+        } else {
+            startFetch()
+        }
     }
 
     private fun startFetch() {
@@ -196,7 +212,6 @@ class SplashActivity : AppCompatActivity() {
         lifecycleScope.launch {
             val success = fetchData()
             if (success) {
-                // Cache the web URL now that native data is loaded
                 val url = listenerManager.getWebUrl()
                 if (url.isNotBlank()) cachedWebUrl = url
                 if (isUpdateRequired()) {
@@ -300,7 +315,6 @@ class SplashActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        // Stop animations when activity goes to background to avoid leaking against detached views
         stopBarAnimations()
     }
 
