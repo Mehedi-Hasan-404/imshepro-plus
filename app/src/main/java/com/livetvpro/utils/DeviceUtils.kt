@@ -13,7 +13,8 @@ object DeviceUtils {
         TV,
         WATCH,
         AUTOMOTIVE,
-        FOLDABLE
+        FOLDABLE,
+        EMULATOR  // x86 / ChromeOS / Android emulator
     }
 
     var deviceType: DeviceType = DeviceType.PHONE
@@ -25,8 +26,15 @@ object DeviceUtils {
     val isWatch: Boolean get() = deviceType == DeviceType.WATCH
     val isAutomotive: Boolean get() = deviceType == DeviceType.AUTOMOTIVE
     val isFoldable: Boolean get() = deviceType == DeviceType.FOLDABLE
+    val isEmulator: Boolean get() = deviceType == DeviceType.EMULATOR
 
     fun init(context: Context) {
+        // x86 / emulator check first — emulators can fake any UI mode
+        if (isX86OrEmulator()) {
+            deviceType = DeviceType.EMULATOR
+            return
+        }
+
         val uiModeManager = context.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager
         deviceType = when (uiModeManager.currentModeType) {
             Configuration.UI_MODE_TYPE_TELEVISION -> DeviceType.TV
@@ -41,6 +49,23 @@ object DeviceUtils {
                 deviceType = DeviceType.TV
             }
         }
+    }
+
+    private fun isX86OrEmulator(): Boolean {
+        // Check CPU ABI — x86/x86_64 is emulator or ChromeOS (ARM devices are real hardware)
+        val supportedAbis = Build.SUPPORTED_ABIS
+        val isX86 = supportedAbis.any { it.startsWith("x86") }
+
+        // Additional emulator fingerprint checks
+        val isEmulatorBuild = (Build.FINGERPRINT.startsWith("generic")
+                || Build.FINGERPRINT.startsWith("unknown")
+                || Build.MODEL.contains("Emulator", ignoreCase = true)
+                || Build.MODEL.contains("Android SDK", ignoreCase = true)
+                || Build.MANUFACTURER.contains("Genymotion", ignoreCase = true)
+                || Build.BRAND.startsWith("generic")
+                || Build.DEVICE.startsWith("generic"))
+
+        return isX86 || isEmulatorBuild
     }
 
     private fun detectHandheld(context: Context): DeviceType {
