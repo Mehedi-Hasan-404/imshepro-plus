@@ -106,6 +106,7 @@
     <style name="Dialog.ButtonText" parent="Widget.Material3.Button.TextButton.Dialog">
         <item name="android:fontFamily">@font/bergen_sans</item>
         <item name="fontFamily">@font/bergen_sans</item>
+        <item name="android:textColor">#EF4444</item>
     </style>
 
 </resources>
