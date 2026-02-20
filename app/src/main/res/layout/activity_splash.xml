@@ -19,22 +19,12 @@
         android:paddingBottom="@dimen/splash_padding_vertical"
         android:visibility="visible">
 
-        <!--
-            Icon height = 18% of screen height.
-            On a portrait phone  (~800dp tall) → ~144dp  ✓
-            On a landscape phone (~360dp tall) →  ~65dp  ✓  fits perfectly
-            On TV / tablet       (large)       → capped by splash_icon_max_size via maxHeight
-        -->
         <ImageView
             android:id="@+id/app_icon"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
+            android:layout_width="@dimen/splash_icon_size"
+            android:layout_height="@dimen/splash_icon_size"
             android:src="@mipmap/ic_launcher"
             android:scaleType="fitCenter"
-            android:adjustViewBounds="true"
-            app:layout_constraintWidth_percent="0.28"
-            app:layout_constraintHeight_percent="0.18"
-            app:layout_constraintDimensionRatio="1:1"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
@@ -156,22 +146,12 @@
         android:paddingEnd="@dimen/splash_padding_horizontal"
         android:visibility="gone">
 
-        <!--
-            Icon: 15% of screen height, square aspect ratio.
-            Portrait phone (~800dp) → ~120dp  ✓
-            Landscape phone (~360dp) → ~54dp  ✓  fits without scrolling
-            TV (large screen) → big enough to look good
-        -->
         <ImageView
             android:id="@+id/update_app_icon"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
+            android:layout_width="@dimen/splash_icon_size"
+            android:layout_height="@dimen/splash_icon_size"
             android:src="@mipmap/ic_launcher"
             android:scaleType="fitCenter"
-            android:adjustViewBounds="true"
-            app:layout_constraintWidth_percent="0.24"
-            app:layout_constraintHeight_percent="0.15"
-            app:layout_constraintDimensionRatio="1:1"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
