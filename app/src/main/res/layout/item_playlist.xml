@@ -7,12 +7,14 @@
     android:layout_margin="8dp"
     app:cardElevation="2dp"
     app:cardCornerRadius="8dp"
+    android:theme="@style/ThemeOverlay.NetworkStream.AmberHandles"
     android:foreground="?attr/selectableItemBackground">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="16dp">
+        android:padding="16dp"
+    android:theme="@style/ThemeOverlay.NetworkStream.AmberHandles">
 
         <TextView
             android:id="@+id/playlist_title"
