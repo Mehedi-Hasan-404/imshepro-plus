@@ -152,7 +152,7 @@ class LiveEventsFragment : Fragment(), Refreshable {
         val linkLabels = event.links.map { it.quality }.toTypedArray()
         
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle("Select Stream")
+            .setTitle("Multiple Links Available")
             .setItems(linkLabels) { dialog, which ->
                 PlayerActivity.startWithEvent(requireContext(), event, which)
                 dialog.dismiss()
