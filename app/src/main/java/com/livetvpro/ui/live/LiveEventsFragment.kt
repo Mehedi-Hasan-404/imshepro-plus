@@ -135,12 +135,7 @@ class LiveEventsFragment : Fragment(), Refreshable {
     }
 
     private fun getEventSpanCount(): Int {
-        val context = requireContext()
-        val config = context.resources.configuration
-        val isLargeScreen = config.smallestScreenWidthDp >= 600
-        val isLandscape = config.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-        val isTelevision = context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
-        return if (isLargeScreen || isLandscape || isTelevision) 3 else 1
+        return resources.getInteger(R.integer.event_span_count)
     }
 
     private fun setupEventRecycler() {
