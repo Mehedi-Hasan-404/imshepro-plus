@@ -136,6 +136,9 @@
         <item name="android:fontFamily">@font/bergen_sans</item>
         <item name="fontFamily">@font/bergen_sans</item>
         <item name="android:textColor">#EF4444</item>
+        <item name="android:backgroundTint">@android:color/transparent</item>
+        <item name="backgroundTint">@android:color/transparent</item>
+        <item name="rippleColor">#33EF4444</item>
         <item name="materialThemeOverlay">@style/Dialog.ButtonText.ColorOverlay</item>
     </style>
 
