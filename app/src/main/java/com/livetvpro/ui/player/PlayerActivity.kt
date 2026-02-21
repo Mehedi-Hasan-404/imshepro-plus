@@ -934,6 +934,12 @@ class PlayerActivity : AppCompatActivity() {
         if (!isInPictureInPictureMode) {
             pipReceiver?.let { unregisterReceiver(it); pipReceiver = null }
             isInPipMode = false
+            // If the activity is finishing (user swiped away / closed the PiP window),
+            // just let it die — don't restore the full-screen UI.
+            if (isFinishing) {
+                super.onPictureInPictureModeChanged(false, newConfig)
+                return
+            }
             controlsState.show(lifecycleScope)
             if (wasLockedBeforePip) { controlsState.lock(); wasLockedBeforePip = false }
             super.onPictureInPictureModeChanged(false, newConfig)
@@ -1019,12 +1025,9 @@ class PlayerActivity : AppCompatActivity() {
 
     @SuppressLint("NewApi")
     override fun onBackPressed() {
-        if (isPipSupported && player?.isPlaying == true) {
-            wasLockedBeforePip = controlsState.isLocked
-            enterPictureInPictureMode(updatePipParams(enter = true))
-        } else {
-            super.onBackPressed()
-        }
+        // Back = user explicitly wants to leave → close the player entirely.
+        // PiP is only triggered when the user navigates home (onUserLeaveHint).
+        super.onBackPressed()
     }
 
     // ════════════════════════════════════════════════════════════════════════════
