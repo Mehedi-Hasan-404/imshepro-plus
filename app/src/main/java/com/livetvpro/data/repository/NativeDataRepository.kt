@@ -9,7 +9,6 @@ import com.livetvpro.data.models.Category
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.data.models.EventCategory
-import com.livetvpro.data.local.PreferencesManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -25,8 +24,7 @@ import javax.inject.Singleton
 class NativeDataRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val httpClient: OkHttpClient,
-    private val gson: Gson,
-    private val preferencesManager: PreferencesManager
+    private val gson: Gson
 ) {
     companion object {
         private var isNativeLibraryLoaded = false
@@ -156,6 +154,11 @@ class NativeDataRepository @Inject constructor(
     private val refreshMutex = Mutex()
     private val remoteConfig = Firebase.remoteConfig
 
+    // In-memory only cache — lives only while the process is alive.
+    // Automatically wiped when the app is closed/killed. No cleanup needed.
+    private var inMemoryJson: String = ""
+    private var inMemoryConfigUrl: String = ""
+
 
     init {
         try {
@@ -178,26 +181,23 @@ class NativeDataRepository @Inject constructor(
             val activated = remoteConfig.fetchAndActivate().await()
             val configKey = getRemoteConfigKey()
             val configUrl = remoteConfig.getString(configKey)
-            
+
             if (configUrl.isNotEmpty()) {
                 storeConfigUrl(configUrl)
-                // Also persist the config URL so we can use it after process death
-                preferencesManager.setCachedConfigUrl(configUrl)
+                inMemoryConfigUrl = configUrl
                 return@withContext true
             } else {
-                // Try falling back to persisted config URL
-                val cachedUrl = preferencesManager.getCachedConfigUrl()
-                if (cachedUrl.isNotEmpty()) {
-                    storeConfigUrl(cachedUrl)
+                // Network ok but no URL — fall back to in-memory if available
+                if (inMemoryConfigUrl.isNotEmpty()) {
+                    storeConfigUrl(inMemoryConfigUrl)
                     return@withContext true
                 }
                 return@withContext false
             }
         } catch (error: Exception) {
-            // Network failed — try falling back to persisted config URL
-            val cachedUrl = preferencesManager.getCachedConfigUrl()
-            if (cachedUrl.isNotEmpty()) {
-                storeConfigUrl(cachedUrl)
+            // Network failed — fall back to in-memory config URL if available
+            if (inMemoryConfigUrl.isNotEmpty()) {
+                storeConfigUrl(inMemoryConfigUrl)
                 return@withContext true
             }
             return@withContext false
@@ -229,8 +229,8 @@ class NativeDataRepository @Inject constructor(
                     
                     val success = storeJsonData(responseBody)
                     if (success) {
-                        // Persist to disk cache for mid-session background restore
-                        preferencesManager.setCachedJson(responseBody)
+                        // Store in memory only — wiped automatically when process dies
+                        inMemoryJson = responseBody
                         return@withContext true
                     } else {
                         return@withContext restoreFromCache()
@@ -248,9 +248,8 @@ class NativeDataRepository @Inject constructor(
      */
     private fun restoreFromCache(): Boolean {
         return try {
-            val cachedJson = preferencesManager.getCachedJson()
-            if (cachedJson.isBlank()) return false
-            storeJsonData(cachedJson)
+            if (inMemoryJson.isBlank()) return false
+            storeJsonData(inMemoryJson)
         } catch (e: Exception) {
             false
         }
