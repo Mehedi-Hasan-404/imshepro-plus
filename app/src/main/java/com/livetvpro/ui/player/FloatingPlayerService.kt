@@ -458,20 +458,34 @@ class FloatingPlayerService : Service() {
             if (!headers.containsKey("User-Agent")) {
                 headers["User-Agent"] = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             }
+
+            // Merge DRM: prefer parsed pipe-URL DRM, fall back to ChannelLink DRM fields
+            val effectiveDrmScheme = parsedStream.drmScheme
+                ?: selectedLinkForHeaders?.drmScheme?.takeIf { it.isNotEmpty() }
+            val effectiveDrmLicenseUrl = parsedStream.drmLicenseUrl
+                ?: selectedLinkForHeaders?.drmLicenseUrl?.takeIf { it.isNotEmpty() }
+            val effectiveStreamInfo = if (effectiveDrmScheme != null &&
+                (parsedStream.drmKeyId != null || effectiveDrmLicenseUrl != null)) {
+                parsedStream.copy(drmScheme = effectiveDrmScheme, drmLicenseUrl = effectiveDrmLicenseUrl)
+            } else if (effectiveDrmScheme != null && effectiveDrmLicenseUrl != null) {
+                buildStreamInfoFromDrmFields(actualUrl, headers, effectiveDrmScheme, effectiveDrmLicenseUrl)
+            } else {
+                parsedStream
+            }
             val dataSourceFactory = DefaultHttpDataSource.Factory()
                 .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
                 .setDefaultRequestProperties(headers)
                 .setConnectTimeoutMs(30000)
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
-            val mediaSourceFactory = buildDrmMediaSourceFactory(parsedStream, dataSourceFactory, headers)
+            val mediaSourceFactory = buildDrmMediaSourceFactory(effectiveStreamInfo, dataSourceFactory, headers)
             val player = ExoPlayer.Builder(this)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
             val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
             playerView.player = player
 
-            val mediaItem = buildDrmMediaItem(parsedStream)
+            val mediaItem = buildDrmMediaItem(effectiveStreamInfo)
             player.setMediaItem(mediaItem)
             player.prepare()
             player.playWhenReady = true
@@ -787,24 +801,10 @@ class FloatingPlayerService : Service() {
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
 
-            // Build DRM-aware stream info from the individual fields
-            val normalizedScheme = normalizeDrmScheme(drmScheme).takeIf { it.isNotEmpty() }
-            val nsStreamInfo = when {
-                drmLicense.trimStart().startsWith("{") ->
-                    StreamInfo(streamUrl, headers, normalizedScheme, null, null, drmLicense)
-                drmLicense.startsWith("http://", ignoreCase = true) ||
-                drmLicense.startsWith("https://", ignoreCase = true) ->
-                    StreamInfo(streamUrl, headers, normalizedScheme, null, null, drmLicense)
-                drmLicense.contains(":") -> {
-                    val colonIndex = drmLicense.indexOf(':')
-                    StreamInfo(streamUrl, headers, normalizedScheme,
-                        drmLicense.substring(0, colonIndex).trim(),
-                        drmLicense.substring(colonIndex + 1).trim(), null)
-                }
-                else -> StreamInfo(streamUrl, headers, normalizedScheme, null, null, null)
-            }
-
+            // Build a StreamInfo from the individual DRM fields so we can use the shared DRM builder
+            val nsStreamInfo = buildStreamInfoFromDrmFields(streamUrl, headers, drmScheme, drmLicense)
             val nsMediaSourceFactory = buildDrmMediaSourceFactory(nsStreamInfo, nsDataSourceFactory, headers)
+
             val player = ExoPlayer.Builder(this)
                 .setMediaSourceFactory(nsMediaSourceFactory)
                 .build()
@@ -1374,7 +1374,18 @@ class FloatingPlayerService : Service() {
         if (pipeIndex == -1) return StreamInfo(streamUrl, mapOf(), null, null, null, null)
 
         val url = streamUrl.substring(0, pipeIndex).trim()
-        val parts = streamUrl.substring(pipeIndex + 1).replace("&", "|").split("|")
+        val parts = buildList {
+            for (segment in streamUrl.substring(pipeIndex + 1).split("|")) {
+                val eqIdx = segment.indexOf('=')
+                val value = if (eqIdx != -1) segment.substring(eqIdx + 1) else ""
+                if (value.startsWith("http://", ignoreCase = true) ||
+                    value.startsWith("https://", ignoreCase = true)) {
+                    add(segment)
+                } else {
+                    addAll(segment.split("&"))
+                }
+            }
+        }
         val headers = mutableMapOf<String, String>()
         var drmScheme: String? = null
         var drmKeyId: String? = null
@@ -1388,22 +1399,15 @@ class FloatingPlayerService : Service() {
             val value = part.substring(eqIndex + 1).trim()
             when (key.lowercase()) {
                 "drmscheme" -> drmScheme = normalizeDrmScheme(value)
-                "drmlicense" -> {
-                    when {
-                        value.startsWith("http://", ignoreCase = true) ||
-                        value.startsWith("https://", ignoreCase = true) -> {
-                            drmLicenseUrl = value
-                        }
-                        value.trimStart().startsWith("{") -> {
-                            // Raw JWK JSON: {"keys":[{"kty":"oct","k":"...","kid":"..."}]}
-                            drmLicenseUrl = value
-                        }
-                        else -> {
-                            val colonIndex = value.indexOf(':')
-                            if (colonIndex != -1) {
-                                drmKeyId = value.substring(0, colonIndex).trim()
-                                drmKey = value.substring(colonIndex + 1).trim()
-                            }
+                "drmlicense" -> when {
+                    value.startsWith("http://", ignoreCase = true) ||
+                    value.startsWith("https://", ignoreCase = true) -> drmLicenseUrl = value
+                    value.trimStart().startsWith("{") -> drmLicenseUrl = value   // raw JWK JSON
+                    else -> {
+                        val colonIndex = value.indexOf(':')
+                        if (colonIndex != -1) {
+                            drmKeyId = value.substring(0, colonIndex).trim()
+                            drmKey = value.substring(colonIndex + 1).trim()
                         }
                     }
                 }
@@ -1418,90 +1422,101 @@ class FloatingPlayerService : Service() {
         return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey, drmLicenseUrl)
     }
 
+    /** Builds a StreamInfo from flat DRM fields (used by network stream path). */
+    private fun buildStreamInfoFromDrmFields(
+        url: String,
+        headers: Map<String, String>,
+        drmScheme: String,
+        drmLicense: String
+    ): StreamInfo {
+        val scheme = normalizeDrmScheme(drmScheme).takeIf { it.isNotEmpty() }
+        return when {
+            drmLicense.trimStart().startsWith("{") ->
+                StreamInfo(url, headers, scheme, null, null, drmLicense)
+            drmLicense.startsWith("http://", ignoreCase = true) ||
+            drmLicense.startsWith("https://", ignoreCase = true) ->
+                StreamInfo(url, headers, scheme, null, null, drmLicense)
+            drmLicense.contains(':') -> {
+                val i = drmLicense.indexOf(':')
+                StreamInfo(url, headers, scheme,
+                    drmLicense.substring(0, i).trim(),
+                    drmLicense.substring(i + 1).trim(), null)
+            }
+            else -> StreamInfo(url, headers, scheme, null, null, null)
+        }
+    }
+
     private fun normalizeDrmScheme(scheme: String): String {
         val lower = scheme.lowercase()
         return when {
             lower.contains("clearkey") || lower == "org.w3.clearkey" -> "clearkey"
             lower.contains("widevine") || lower == "com.widevine.alpha" -> "widevine"
             lower.contains("playready") || lower == "com.microsoft.playready" -> "playready"
-            lower.contains("fairplay") -> "fairplay"
             else -> lower
         }
     }
 
+    private fun hexToBytes(hex: String): ByteArray {
+        return try {
+            val clean = hex.replace(" ", "").replace("-", "").lowercase()
+            if (clean.length % 2 != 0) return ByteArray(0)
+            clean.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        } catch (e: Exception) { ByteArray(0) }
+    }
+
     private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
         return try {
-            val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
-            val keyIdBytes = hexToBytes(keyIdHex)
-            val keyBytes = hexToBytes(keyHex)
-            val keyIdBase64 = android.util.Base64.encodeToString(
-                keyIdBytes,
-                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
-            )
-            val keyBase64 = android.util.Base64.encodeToString(
-                keyBytes,
-                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
-            )
-            val jwkResponse = """{"keys":[{"kty":"oct","k":"$keyBase64","kid":"$keyIdBase64"}],"type":"temporary"}"""
-            val drmCallback = LocalMediaDrmCallback(jwkResponse.toByteArray())
+            val uuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
+            val kidB64 = android.util.Base64.encodeToString(hexToBytes(keyIdHex),
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP)
+            val kB64 = android.util.Base64.encodeToString(hexToBytes(keyHex),
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP)
+            val jwk = """{"keys":[{"kty":"oct","k":"$kB64","kid":"$kidB64"}],"type":"temporary"}"""
             DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .setUuidAndExoMediaDrmProvider(uuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
-                .build(drmCallback)
+                .build(LocalMediaDrmCallback(jwk.toByteArray()))
         } catch (e: Exception) { null }
     }
 
     private fun createClearKeyDrmManagerFromJwk(jwkJson: String): DefaultDrmSessionManager? {
         return try {
-            val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
-            val drmCallback = LocalMediaDrmCallback(jwkJson.toByteArray())
+            val uuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
             DefaultDrmSessionManager.Builder()
-                .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .setUuidAndExoMediaDrmProvider(uuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
-                .build(drmCallback)
+                .build(LocalMediaDrmCallback(jwkJson.toByteArray()))
         } catch (e: Exception) { null }
     }
 
-    private fun createWidevineDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
+    private fun createWidevineDrmManager(licenseUrl: String, headers: Map<String, String>): DefaultDrmSessionManager? {
         return try {
-            val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
-                .setDefaultRequestProperties(requestHeaders)
-                .setConnectTimeoutMs(30000)
-                .setReadTimeoutMs(30000)
+            val factory = DefaultHttpDataSource.Factory()
+                .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
+                .setDefaultRequestProperties(headers)
+                .setConnectTimeoutMs(30000).setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
-            val drmCallback = HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory)
-            requestHeaders.forEach { (key, value) -> drmCallback.setKeyRequestProperty(key, value) }
+            val cb = HttpMediaDrmCallback(licenseUrl, factory)
+            headers.forEach { (k, v) -> cb.setKeyRequestProperty(k, v) }
             DefaultDrmSessionManager.Builder()
                 .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
-                .setMultiSession(false)
-                .build(drmCallback)
+                .setMultiSession(false).build(cb)
         } catch (e: Exception) { null }
     }
 
-    private fun createPlayReadyDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
+    private fun createPlayReadyDrmManager(licenseUrl: String, headers: Map<String, String>): DefaultDrmSessionManager? {
         return try {
-            val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
-                .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
-                .setDefaultRequestProperties(requestHeaders)
-                .setConnectTimeoutMs(30000)
-                .setReadTimeoutMs(30000)
+            val factory = DefaultHttpDataSource.Factory()
+                .setUserAgent(headers["User-Agent"] ?: "LiveTVPro/1.0")
+                .setDefaultRequestProperties(headers)
+                .setConnectTimeoutMs(30000).setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
-            val drmCallback = HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory)
-            requestHeaders.forEach { (key, value) -> drmCallback.setKeyRequestProperty(key, value) }
+            val cb = HttpMediaDrmCallback(licenseUrl, factory)
+            headers.forEach { (k, v) -> cb.setKeyRequestProperty(k, v) }
             DefaultDrmSessionManager.Builder()
                 .setUuidAndExoMediaDrmProvider(C.PLAYREADY_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
-                .setMultiSession(false)
-                .build(drmCallback)
+                .setMultiSession(false).build(cb)
         } catch (e: Exception) { null }
-    }
-
-    private fun hexToBytes(hex: String): ByteArray {
-        return try {
-            val cleanHex = hex.replace(" ", "").replace("-", "").lowercase()
-            if (cleanHex.length % 2 != 0) return ByteArray(0)
-            cleanHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-        } catch (e: Exception) { ByteArray(0) }
     }
 
     private fun buildDrmMediaSourceFactory(
@@ -1509,11 +1524,11 @@ class FloatingPlayerService : Service() {
         dataSourceFactory: DefaultHttpDataSource.Factory,
         headers: Map<String, String>
     ): DefaultMediaSourceFactory {
-        val drmSessionManager = when (streamInfo.drmScheme) {
+        val mgr = when (streamInfo.drmScheme) {
             "clearkey" -> when {
                 streamInfo.drmKeyId != null && streamInfo.drmKey != null ->
                     createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
-                streamInfo.drmLicenseUrl != null && streamInfo.drmLicenseUrl.trimStart().startsWith("{") ->
+                streamInfo.drmLicenseUrl?.trimStart()?.startsWith("{") == true ->
                     createClearKeyDrmManagerFromJwk(streamInfo.drmLicenseUrl)
                 else -> null
             }
@@ -1521,35 +1536,30 @@ class FloatingPlayerService : Service() {
             "playready" -> streamInfo.drmLicenseUrl?.let { createPlayReadyDrmManager(it, headers) }
             else -> null
         }
-
-        return if (drmSessionManager != null) {
+        return if (mgr != null) {
             DefaultMediaSourceFactory(this)
                 .setDataSourceFactory(dataSourceFactory)
-                .setDrmSessionManagerProvider { drmSessionManager }
+                .setDrmSessionManagerProvider { mgr }
         } else {
             DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory)
         }
     }
 
     private fun buildDrmMediaItem(streamInfo: StreamInfo): MediaItem {
-        val mediaItemBuilder = MediaItem.Builder().setUri(streamInfo.url)
+        val builder = MediaItem.Builder().setUri(streamInfo.url)
         if (streamInfo.url.contains("m3u8", ignoreCase = true) ||
             streamInfo.url.contains("extension=m3u8", ignoreCase = true)) {
-            mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+            builder.setMimeType(MimeTypes.APPLICATION_M3U8)
         }
-        if (streamInfo.drmScheme != null && streamInfo.drmLicenseUrl != null &&
-            !streamInfo.drmLicenseUrl.trimStart().startsWith("{")) {
-            val drmUuid = when (streamInfo.drmScheme) {
-                "widevine" -> C.WIDEVINE_UUID
-                "playready" -> C.PLAYREADY_UUID
-                "clearkey" -> UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
-                else -> C.WIDEVINE_UUID
+        // For Widevine/PlayReady set DrmConfiguration on MediaItem too
+        if (streamInfo.drmScheme == "widevine" || streamInfo.drmScheme == "playready") {
+            streamInfo.drmLicenseUrl?.let { licUrl ->
+                val uuid = if (streamInfo.drmScheme == "widevine") C.WIDEVINE_UUID else C.PLAYREADY_UUID
+                builder.setDrmConfiguration(
+                    MediaItem.DrmConfiguration.Builder(uuid).setLicenseUri(licUrl).build()
+                )
             }
-            mediaItemBuilder.setDrmConfiguration(
-                MediaItem.DrmConfiguration.Builder(drmUuid)
-                    .setLicenseUri(streamInfo.drmLicenseUrl)
-                    .build()
-            )
         }
-        return mediaItemBuilder.build()
+        return builder.build()
     }
+}
