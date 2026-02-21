@@ -9,9 +9,12 @@ import com.bumptech.glide.request.target.ImageViewTarget
 import com.bumptech.glide.request.target.Target
 
 /**
- * Listener which updates the {@link ImageView} to be software rendered, because
- * {@link com.caverock.androidsvg.SVG SVG} can't render on a hardware backed
- * {@link android.graphics.Canvas Canvas}.
+ * Listener which updates the ImageView to be software rendered, because
+ * SVG can't render on a hardware backed Canvas.
+ *
+ * Crash fix: previously used a hard `as ImageViewTarget` cast which would throw
+ * ClassCastException if the target was ever not an ImageViewTarget.
+ * Now uses a safe `as?` cast with a null check.
  */
 class SvgSoftwareLayerSetter : RequestListener<PictureDrawable> {
 
@@ -21,8 +24,8 @@ class SvgSoftwareLayerSetter : RequestListener<PictureDrawable> {
         target: Target<PictureDrawable>,
         isFirstResource: Boolean
     ): Boolean {
-        val view = (target as ImageViewTarget<*>).view
-        view.setLayerType(ImageView.LAYER_TYPE_NONE, null)
+        (target as? ImageViewTarget<*>)?.view
+            ?.setLayerType(ImageView.LAYER_TYPE_NONE, null)
         return false
     }
 
@@ -33,8 +36,8 @@ class SvgSoftwareLayerSetter : RequestListener<PictureDrawable> {
         dataSource: DataSource,
         isFirstResource: Boolean
     ): Boolean {
-        val view = (target as ImageViewTarget<*>).view
-        view.setLayerType(ImageView.LAYER_TYPE_SOFTWARE, null)
+        (target as? ImageViewTarget<*>)?.view
+            ?.setLayerType(ImageView.LAYER_TYPE_SOFTWARE, null)
         return false
     }
 }
