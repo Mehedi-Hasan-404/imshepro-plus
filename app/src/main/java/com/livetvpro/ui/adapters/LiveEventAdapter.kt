@@ -8,6 +8,7 @@ import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -44,9 +45,16 @@ class LiveEventAdapter(
     private val handler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
         override fun run() {
-            notifyDataSetChanged()
+            // PAYLOAD update — only rebinds status/timer fields, never touches images
+            for (i in events.indices) {
+                notifyItemChanged(i, PAYLOAD_TIMER)
+            }
             handler.postDelayed(this, 1000)
         }
+    }
+
+    companion object {
+        const val PAYLOAD_TIMER = "timer"
     }
 
     init {
@@ -58,6 +66,15 @@ class LiveEventAdapter(
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EventViewHolder {
         val binding = ItemLiveEventBinding.inflate(LayoutInflater.from(parent.context), parent, false)
         return EventViewHolder(binding)
+    }
+
+    override fun onBindViewHolder(holder: EventViewHolder, position: Int, payloads: List<Any>) {
+        if (payloads.contains(PAYLOAD_TIMER)) {
+            // Only update timer/status — skip images entirely
+            bindTimer(holder.binding, events[position])
+        } else {
+            onBindViewHolder(holder, position)
+        }
     }
 
     override fun onBindViewHolder(holder: EventViewHolder, position: Int) {
@@ -104,6 +121,14 @@ class LiveEventAdapter(
             isCircular = true
         )
 
+        bindTimer(binding, event)
+
+        holder.itemView.setOnClickListener {
+            launchPlayer(event)
+        }
+    }
+
+    private fun bindTimer(binding: ItemLiveEventBinding, event: LiveEvent) {
         try {
             val startDate = apiDateFormat.parse(event.startTime)
             val startTimeMillis = startDate?.time ?: 0L
@@ -201,9 +226,6 @@ class LiveEventAdapter(
             binding.statusText.visibility = View.VISIBLE
         }
 
-        holder.itemView.setOnClickListener {
-            launchPlayer(event)
-        }
     }
 
     private fun launchPlayer(event: LiveEvent) {
@@ -319,8 +341,18 @@ class LiveEventAdapter(
     override fun getItemCount(): Int = events.size
 
     fun updateData(newEvents: List<LiveEvent>) {
+        val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
+            override fun getOldListSize() = events.size
+            override fun getNewListSize() = newEvents.size
+            override fun areItemsTheSame(oldPos: Int, newPos: Int) =
+                events[oldPos].id == newEvents[newPos].id
+            override fun areContentsTheSame(oldPos: Int, newPos: Int) =
+                events[oldPos] == newEvents[newPos]
+            // If only timer-relevant fields changed, use payload so images are not reloaded
+            override fun getChangePayload(oldPos: Int, newPos: Int): Any? = PAYLOAD_TIMER
+        })
         events = newEvents
-        notifyDataSetChanged()
+        diff.dispatchUpdatesTo(this)
     }
     
     fun stopCountdown() {
