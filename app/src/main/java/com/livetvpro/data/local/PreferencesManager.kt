@@ -20,6 +20,11 @@ class PreferencesManager @Inject constructor(
         private const val KEY_FIRST_LAUNCH = "first_launch"
         private const val KEY_LAST_UPDATE = "last_update"
         
+        // Data Cache
+        private const val KEY_CACHED_JSON = "cached_data_json"
+        private const val KEY_CACHED_CONFIG_URL = "cached_config_url"
+        private const val KEY_CACHE_TIMESTAMP = "cache_timestamp"
+
         // Floating Player Preferences
         private const val KEY_FLOATING_PLAYER_ENABLED = "floating_player_enabled"
         private const val KEY_FLOATING_PLAYER_AUTO_START = "floating_player_auto_start"
@@ -102,6 +107,39 @@ class PreferencesManager @Inject constructor(
 
     fun setFloatingPlayerY(y: Int) {
         prefs.edit().putInt(KEY_FLOATING_PLAYER_Y, y).apply()
+    }
+
+    // Data Cache
+    fun getCachedJson(): String {
+        return prefs.getString(KEY_CACHED_JSON, "") ?: ""
+    }
+
+    fun setCachedJson(json: String) {
+        prefs.edit().putString(KEY_CACHED_JSON, json).apply()
+    }
+
+    fun getCachedConfigUrl(): String {
+        return prefs.getString(KEY_CACHED_CONFIG_URL, "") ?: ""
+    }
+
+    fun setCachedConfigUrl(url: String) {
+        prefs.edit().putString(KEY_CACHED_CONFIG_URL, url).apply()
+    }
+
+    fun getCacheTimestamp(): Long {
+        return prefs.getLong(KEY_CACHE_TIMESTAMP, 0L)
+    }
+
+    fun setCacheTimestamp(timestamp: Long) {
+        prefs.edit().putLong(KEY_CACHE_TIMESTAMP, timestamp).apply()
+    }
+
+    fun hasFreshCache(): Boolean {
+        val timestamp = getCacheTimestamp()
+        if (timestamp == 0L) return false
+        val ageMs = System.currentTimeMillis() - timestamp
+        // Cache valid for 24 hours
+        return ageMs < 24 * 60 * 60 * 1000L
     }
 
     // Clear all preferences
