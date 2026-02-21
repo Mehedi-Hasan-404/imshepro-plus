@@ -76,6 +76,7 @@ import com.livetvpro.ui.player.compose.PlayerControlsState
 import com.livetvpro.ui.player.compose.GestureState
 import android.media.AudioManager
 import com.livetvpro.ui.theme.AppTheme
+import com.livetvpro.utils.DeviceUtils
 import kotlinx.coroutines.delay
 
 @UnstableApi
@@ -208,9 +209,14 @@ class PlayerActivity : AppCompatActivity() {
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
+
+        // On TV devices: force landscape and stay fullscreen at all times
+        if (DeviceUtils.isTvDevice) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+
         val currentOrientation = resources.configuration.orientation
-        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        val isLandscape = DeviceUtils.isTvDevice || currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
@@ -242,7 +248,7 @@ class PlayerActivity : AppCompatActivity() {
         
         binding.playerView.useController = false
         
-        if (!isLandscape) {
+        if (!isLandscape && !DeviceUtils.isTvDevice) {
             binding.relatedLoadingProgress.visibility = View.VISIBLE
             binding.relatedChannelsRecycler.visibility = View.GONE
         }
@@ -666,7 +672,7 @@ class PlayerActivity : AppCompatActivity() {
                     // Channel list panel state
                     var showChannelList by remember { mutableStateOf(false) }
                     val channelListItems by viewModel.channelListItems.observeAsState(emptyList())
-                    val isChannelListAvailable = contentType == ContentType.CHANNEL && channelListItems.isNotEmpty()
+                    val isChannelListAvailable = contentType == ContentType.CHANNEL && channelListItems.isNotEmpty() && (isLandscape || DeviceUtils.isTvDevice)
                     
                     // Sync link chips visibility with controls in landscape.
                     // Chips show only when controls are visible AND not locked.
@@ -706,6 +712,7 @@ class PlayerActivity : AppCompatActivity() {
                             showPipButton = isPipSupported,
                             showAspectRatioButton = true,
                             isLandscape = isLandscape,
+                            isTvMode = DeviceUtils.isTvDevice,
                             isChannelListAvailable = isChannelListAvailable,
                             onBackClick = { finish() },
                             onPipClick = {
@@ -963,7 +970,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun setupRelatedChannels() {
-        if (contentType == ContentType.NETWORK_STREAM) {
+        if (contentType == ContentType.NETWORK_STREAM || DeviceUtils.isTvDevice) {
             binding.relatedChannelsSection.visibility = View.GONE
             return
         }
@@ -1075,6 +1082,7 @@ class PlayerActivity : AppCompatActivity() {
     }
 
     private fun loadRelatedContent() {
+        if (DeviceUtils.isTvDevice) return
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
