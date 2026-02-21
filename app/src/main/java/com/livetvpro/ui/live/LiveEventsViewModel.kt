@@ -111,7 +111,11 @@ class LiveEventsViewModel @Inject constructor(
             }
         }
 
-        _filteredEvents.value = filtered
+        // Only push a new value if the list actually changed — prevents the RecyclerView
+        // from re-rendering (and visually flashing) on every tab switch / timer tick
+        if (filtered != _filteredEvents.value) {
+            _filteredEvents.value = filtered
+        }
     }
 
     private fun isEventLiveByTime(event: LiveEvent, currentTime: Long): Boolean {
