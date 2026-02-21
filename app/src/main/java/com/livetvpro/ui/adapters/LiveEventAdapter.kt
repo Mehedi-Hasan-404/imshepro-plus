@@ -80,8 +80,8 @@ class LiveEventAdapter(
         GlideExtensions.loadImage(
             binding.leagueLogo,
             event.leagueLogo,
-            R.drawable.ic_channel_placeholder,
-            R.drawable.ic_channel_placeholder,
+            R.mipmap.ic_launcher_round,
+            R.mipmap.ic_launcher_round,
             isCircular = false
         )
 
@@ -91,16 +91,16 @@ class LiveEventAdapter(
         GlideExtensions.loadImage(
             binding.team1Logo,
             event.team1Logo,
-            R.drawable.ic_placeholder_team,
-            R.drawable.ic_placeholder_team,
+            R.mipmap.ic_launcher_round,
+            R.mipmap.ic_launcher_round,
             isCircular = true
         )
 
         GlideExtensions.loadImage(
             binding.team2Logo,
             event.team2Logo,
-            R.drawable.ic_placeholder_team,
-            R.drawable.ic_placeholder_team,
+            R.mipmap.ic_launcher_round,
+            R.mipmap.ic_launcher_round,
             isCircular = true
         )
 
