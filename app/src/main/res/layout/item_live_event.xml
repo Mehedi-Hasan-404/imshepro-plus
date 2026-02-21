@@ -106,12 +106,13 @@
             app:layout_constraintTop_toBottomOf="@+id/divider">
 
             <!-- Team 1 Logo (CIRCULAR) -->
-            <ImageView
+            <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/team1Logo"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:contentDescription="Team 1"
                 android:scaleType="centerCrop"
+                app:shapeAppearanceOverlay="@style/CircleImageView"
                 tools:srcCompat="@tools:sample/avatars" />
 
             <!-- Team 1 Name (DIRECTLY BELOW LOGO) -->
@@ -211,12 +212,13 @@
             app:layout_constraintTop_toTopOf="@+id/team1Section">
 
             <!-- Team 2 Logo (CIRCULAR) -->
-            <ImageView
+            <com.google.android.material.imageview.ShapeableImageView
                 android:id="@+id/team2Logo"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:contentDescription="Team 2"
                 android:scaleType="centerCrop"
+                app:shapeAppearanceOverlay="@style/CircleImageView"
                 tools:srcCompat="@tools:sample/avatars" />
 
             <!-- Team 2 Name (DIRECTLY BELOW LOGO) -->
