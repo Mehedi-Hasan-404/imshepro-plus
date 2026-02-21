@@ -8,7 +8,9 @@ import android.provider.Settings
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.ChannelLink
 import com.livetvpro.data.models.LiveEvent
+import com.livetvpro.ui.player.FloatingPlayerActivity
 import com.livetvpro.ui.player.FloatingPlayerService
+import com.livetvpro.utils.DeviceUtils
 import java.util.UUID
 
 object FloatingPlayerHelper {
@@ -40,6 +42,12 @@ object FloatingPlayerHelper {
     }
 
     fun launchFloatingPlayer(context: Context, channel: Channel, linkIndex: Int = 0, eventId: String? = null) {
+        // On TV there is no overlay permission / window — launch FloatingPlayerActivity directly
+        if (DeviceUtils.isTvDevice) {
+            FloatingPlayerActivity.startWithChannel(context, channel, linkIndex)
+            return
+        }
+
         if (!hasOverlayPermission(context)) return
 
         val resolvedChannel = if (channel.links.isNullOrEmpty()) {
@@ -61,6 +69,12 @@ object FloatingPlayerHelper {
 
     fun launchFloatingPlayerWithEvent(context: Context, channel: Channel, event: LiveEvent, linkIndex: Int = 0) {
         if (!hasOverlayPermission(context)) return
+        // On TV launch FloatingPlayerActivity directly
+        if (DeviceUtils.isTvDevice) {
+            FloatingPlayerActivity.startWithChannel(context, channel, linkIndex)
+            return
+        }
+
         if (channel.links.isNullOrEmpty()) return
 
         val existingInstanceId = eventToInstanceMap[event.id]
@@ -83,6 +97,12 @@ object FloatingPlayerHelper {
         drmScheme: String = "clearkey",
         streamName: String = "Network Stream"
     ): String? {
+        // On TV launch FloatingPlayerActivity directly
+        if (DeviceUtils.isTvDevice) {
+            FloatingPlayerActivity.startWithNetworkStream(context, streamUrl, cookie, referer, origin, drmLicense, userAgent, drmScheme, streamName)
+            return null
+        }
+
         if (!hasOverlayPermission(context)) return null
         if (streamUrl.isBlank()) return null
         if (!FloatingPlayerManager.canAddNewPlayer()) return null
