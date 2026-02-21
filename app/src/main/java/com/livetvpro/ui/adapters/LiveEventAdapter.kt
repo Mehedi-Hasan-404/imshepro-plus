@@ -3,8 +3,6 @@ package com.livetvpro.ui.adapters
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -42,23 +40,8 @@ class LiveEventAdapter(
     }
     private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault())
     
-    private val handler = Handler(Looper.getMainLooper())
-    private val updateRunnable = object : Runnable {
-        override fun run() {
-            // PAYLOAD update — only rebinds status/timer fields, never touches images
-            for (i in events.indices) {
-                notifyItemChanged(i, PAYLOAD_TIMER)
-            }
-            handler.postDelayed(this, 1000)
-        }
-    }
-
     companion object {
         const val PAYLOAD_TIMER = "timer"
-    }
-
-    init {
-        handler.post(updateRunnable)
     }
 
     inner class EventViewHolder(val binding: ItemLiveEventBinding) : RecyclerView.ViewHolder(binding.root)
@@ -355,7 +338,5 @@ class LiveEventAdapter(
         diff.dispatchUpdatesTo(this)
     }
     
-    fun stopCountdown() {
-        handler.removeCallbacks(updateRunnable)
-    }
+
 }
