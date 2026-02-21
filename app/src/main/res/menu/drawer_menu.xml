@@ -2,19 +2,19 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
     <group android:checkableBehavior="single">
         <item
-            android:id="@+id/homeFragment"
-            android:icon="@drawable/ic_tv"
-            android:title="@string/nav_home" />
-
-        <item
-            android:id="@+id/liveEventsFragment"
-            android:icon="@drawable/ic_live"
-            android:title="@string/nav_live" />
+            android:id="@+id/networkStreamFragment"
+            android:icon="@drawable/ic_network_stream"
+            android:title="@string/nav_network_stream" />
 
         <item
             android:id="@+id/playlistsFragment"
             android:icon="@drawable/ic_playlist"
             android:title="@string/nav_playlists" />
+
+        <item
+            android:id="@+id/floating_player_settings"
+            android:icon="@drawable/ic_pip"
+            android:title="Floating Player" />
 
         <item
             android:id="@+id/cricketScoreFragment"
@@ -40,15 +40,5 @@
             android:id="@+id/nav_email_us"
             android:icon="@drawable/ic_email"
             android:title="@string/nav_email_us" />
-
-        <item
-            android:id="@+id/networkStreamFragment"
-            android:icon="@drawable/ic_network_stream"
-            android:title="@string/nav_network_stream" />
-            
-        <item
-            android:id="@+id/floating_player_settings"
-            android:icon="@drawable/ic_pip"
-            android:title="Floating Player" />
     </group>
 </menu>
