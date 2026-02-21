@@ -5,8 +5,8 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import com.livetvpro.R
+import com.livetvpro.utils.GlideExtensions
 import com.livetvpro.data.models.Category
 import com.livetvpro.databinding.ItemCategoryBinding
 
@@ -46,12 +46,7 @@ class CategoryAdapter(
             if (category.iconUrl.isNullOrEmpty()) {
                 binding.categoryIcon.setImageResource(R.mipmap.ic_launcher_round)
             } else {
-                Glide.with(binding.categoryIcon)
-                    .load(category.iconUrl)
-                    .placeholder(R.mipmap.ic_launcher_round)
-                    .error(R.mipmap.ic_launcher_round)
-                    .centerInside()
-                    .into(binding.categoryIcon)
+                GlideExtensions.loadImage(binding.categoryIcon, category.iconUrl, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round)
             }
         }
     }
