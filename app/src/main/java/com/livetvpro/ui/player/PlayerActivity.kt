@@ -1207,7 +1207,6 @@ class PlayerActivity : AppCompatActivity() {
     private fun switchToEventFromLiveEvent(newEvent: LiveEvent) {
         try {
             if (::relatedEventsAdapter.isInitialized) {
-                relatedEventsAdapter.stopCountdown()
             }
             
             releasePlayer()
