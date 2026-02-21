@@ -116,6 +116,7 @@
         <item name="materialAlertDialogBodyTextStyle">@style/Dialog.BodyText</item>
         <item name="buttonBarPositiveButtonStyle">@style/Dialog.ButtonText</item>
         <item name="buttonBarNegativeButtonStyle">@style/Dialog.ButtonText</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Dialog.ButtonText</item>
         <item name="android:fontFamily">@font/bergen_sans</item>
         <item name="fontFamily">@font/bergen_sans</item>
     </style>
