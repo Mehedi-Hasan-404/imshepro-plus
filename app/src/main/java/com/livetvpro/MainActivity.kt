@@ -307,12 +307,22 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        val drawerFragments = setOf(
+            R.id.networkStreamFragment, R.id.playlistsFragment,
+            R.id.cricketScoreFragment, R.id.footballScoreFragment
+        )
+
         navController.addOnDestinationChangedListener { _, destination, _ ->
             val activeDestId = when (destination.id) {
                 R.id.categoryChannelsFragment -> R.id.homeFragment
                 else -> destination.id
             }
             selectTab(activeDestId)
+
+            // Clear drawer selection if destination is not a drawer fragment
+            if (destination.id !in drawerFragments) {
+                navigationView?.checkedItem?.isChecked = false
+            }
 
             val isTopLevel = destination.id in topLevelDestinations
 
@@ -586,7 +596,17 @@ class MainActivity : AppCompatActivity() {
             return@setOnItemSelectedListener false
         }
 
+        val drawerFragments2 = setOf(
+            R.id.networkStreamFragment, R.id.playlistsFragment,
+            R.id.cricketScoreFragment, R.id.footballScoreFragment
+        )
+
         navController.addOnDestinationChangedListener { _, destination, _ ->
+            // Clear drawer selection if destination is not a drawer fragment
+            if (destination.id !in drawerFragments2) {
+                navigationView?.checkedItem?.isChecked = false
+            }
+
             toolbarTitle?.text = when (destination.id) {
                 R.id.homeFragment -> "Categories"
                 R.id.categoryChannelsFragment -> "Channels"
