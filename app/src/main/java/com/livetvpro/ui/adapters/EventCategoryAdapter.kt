@@ -5,8 +5,8 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import com.livetvpro.R
+import com.livetvpro.utils.GlideExtensions
 import com.livetvpro.data.models.EventCategory
 import com.livetvpro.databinding.ItemEventCategoryBinding
 
@@ -60,12 +60,7 @@ class EventCategoryAdapter(
             }
             
             // Load circular logo
-            Glide.with(binding.categoryLogo)
-                .load(category.logoUrl)
-                .placeholder(R.mipmap.ic_launcher_round)
-                .error(R.mipmap.ic_launcher_round)
-                .circleCrop()
-                .into(binding.categoryLogo)
+            GlideExtensions.loadImage(binding.categoryLogo, category.logoUrl, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round, isCircular = true)
         }
     }
 
