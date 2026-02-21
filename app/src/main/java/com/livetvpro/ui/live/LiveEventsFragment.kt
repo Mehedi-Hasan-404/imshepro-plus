@@ -50,8 +50,9 @@ class LiveEventsFragment : Fragment(), Refreshable {
     private val updateHandler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
         override fun run() {
+            // Only re-filter/re-sort data every 10s — countdown UI is driven by the adapter's own ticker
             viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
-            updateHandler.postDelayed(this, 1000)
+            updateHandler.postDelayed(this, 10_000)
         }
     }
 
