@@ -261,19 +261,19 @@ class MainActivity : AppCompatActivity() {
                 R.id.floating_player_settings -> {
                     showFloatingPlayerDialog()
                     drawerLayout?.closeDrawer(GravityCompat.START)
-                    true
+                    false
                 }
                 R.id.nav_contact_browser -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
                     if (contactUrl != null) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contactUrl)))
-                    true
+                    false
                 }
                 R.id.nav_website -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val webUrl = listenerManager.getWebUrl().takeIf { it.isNotBlank() }
                     if (webUrl != null) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
-                    true
+                    false
                 }
                 R.id.nav_email_us -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
@@ -284,7 +284,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         startActivity(Intent.createChooser(intent, "Send Email"))
                     }
-                    true
+                    false
                 }
                 R.id.contactFragment, R.id.networkStreamFragment, R.id.playlistsFragment,
                 R.id.cricketScoreFragment, R.id.footballScoreFragment -> {
@@ -525,19 +525,19 @@ class MainActivity : AppCompatActivity() {
                 R.id.floating_player_settings -> {
                     showFloatingPlayerDialog()
                     drawerLayout?.closeDrawer(GravityCompat.START)
-                    true
+                    false
                 }
                 R.id.nav_contact_browser -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
                     if (contactUrl != null) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(contactUrl)))
-                    true
+                    false
                 }
                 R.id.nav_website -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val webUrl = listenerManager.getWebUrl().takeIf { it.isNotBlank() }
                     if (webUrl != null) startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
-                    true
+                    false
                 }
                 R.id.nav_email_us -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
@@ -548,7 +548,7 @@ class MainActivity : AppCompatActivity() {
                         }
                         startActivity(Intent.createChooser(intent, "Send Email"))
                     }
-                    true
+                    false
                 }
                 R.id.networkStreamFragment, R.id.playlistsFragment,
                 R.id.cricketScoreFragment, R.id.footballScoreFragment -> {
