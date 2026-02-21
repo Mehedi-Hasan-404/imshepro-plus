@@ -4,6 +4,7 @@ import android.graphics.drawable.PictureDrawable
 import android.widget.ImageView
 import com.bumptech.glide.Glide
 import com.bumptech.glide.RequestBuilder
+import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.bumptech.glide.load.resource.drawable.DrawableTransitionOptions
 import com.bumptech.glide.request.RequestOptions
 
@@ -36,6 +37,7 @@ object GlideExtensions {
             // Load regular image
             var request = Glide.with(imageView.context)
                 .load(url)
+                .diskCacheStrategy(DiskCacheStrategy.ALL)
                 .transition(DrawableTransitionOptions.withCrossFade())
             
             if (placeholderResId != null) {
@@ -69,6 +71,7 @@ object GlideExtensions {
             .listener(SvgSoftwareLayerSetter())
         
         var options = RequestOptions()
+            .diskCacheStrategy(DiskCacheStrategy.ALL)
         
         if (placeholderResId != null) {
             options = options.placeholder(placeholderResId)
