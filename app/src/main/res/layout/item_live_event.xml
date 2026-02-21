@@ -25,7 +25,6 @@
             android:layout_height="28dp"
             android:scaleType="fitCenter"
             android:adjustViewBounds="true"
-            android:src="@drawable/ic_channel_placeholder"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
