@@ -22,6 +22,7 @@ import androidx.core.content.FileProvider
 import androidx.core.content.res.ResourcesCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.button.MaterialButton
+import com.google.firebase.messaging.FirebaseMessaging
 import com.livetvpro.BuildConfig
 import com.livetvpro.MainActivity
 import com.livetvpro.R
@@ -189,6 +190,7 @@ class SplashActivity : AppCompatActivity() {
             }
         })
 
+        FirebaseMessaging.getInstance().subscribeToTopic("all")
         requestNotificationPermission()
     }
 
