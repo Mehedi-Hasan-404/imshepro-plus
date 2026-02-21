@@ -52,4 +52,10 @@
     <style name="NavigationBarActiveIndicatorShape" parent="ShapeAppearance.Material3.Corner.Full">
         <item name="cornerSize">50%</item>
     </style>
+    <!-- Circle shape overlay for ShapeableImageView -->
+    <style name="CircleImageView" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">50%</item>
+    </style>
+    
 </resources>
