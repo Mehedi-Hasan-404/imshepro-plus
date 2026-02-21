@@ -24,6 +24,12 @@ object GlideExtensions {
             return
         }
 
+        // Skip reload entirely if this exact URL is already displayed.
+        // This prevents images flashing through placeholder on tab-switch, because
+        // Coil would otherwise re-issue the request even when the bitmap is cached.
+        if (imageView.tag == url) return
+        imageView.tag = url
+
         // Uses the singleton ImageLoader set in LiveTVProApplication (has SvgDecoder + allowHardware=false)
         imageView.load(url) {
             diskCachePolicy(CachePolicy.ENABLED)
