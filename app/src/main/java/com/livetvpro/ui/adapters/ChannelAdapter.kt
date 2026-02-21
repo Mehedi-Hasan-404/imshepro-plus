@@ -5,9 +5,9 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
+import com.livetvpro.utils.GlideExtensions
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ItemChannelBinding
 
@@ -87,12 +87,7 @@ class ChannelAdapter(
                 android.view.View.GONE
             }
 
-            Glide.with(binding.channelLogo)
-                .load(channel.logoUrl)
-                .placeholder(R.mipmap.ic_launcher_round)
-                .error(R.mipmap.ic_launcher_round)
-                .centerInside()
-                .into(binding.channelLogo)
+            GlideExtensions.loadImage(binding.channelLogo, channel.logoUrl, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round)
         }
     }
 
