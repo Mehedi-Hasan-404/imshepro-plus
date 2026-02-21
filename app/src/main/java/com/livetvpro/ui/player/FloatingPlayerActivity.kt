@@ -75,6 +75,7 @@ import com.livetvpro.ui.player.compose.PlayerControlsState
 import com.livetvpro.ui.player.compose.GestureState
 import android.media.AudioManager
 import com.livetvpro.ui.theme.AppTheme
+import com.livetvpro.utils.DeviceUtils
 import kotlinx.coroutines.delay
 
 @UnstableApi
@@ -224,9 +225,14 @@ class FloatingPlayerActivity : AppCompatActivity() {
         windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        
+
+        // On TV devices: force landscape and stay fullscreen at all times
+        if (DeviceUtils.isTvDevice) {
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        }
+
         val currentOrientation = resources.configuration.orientation
-        val isLandscape = currentOrientation == Configuration.ORIENTATION_LANDSCAPE
+        val isLandscape = DeviceUtils.isTvDevice || currentOrientation == Configuration.ORIENTATION_LANDSCAPE
         
         setupWindowFlags(isLandscape)
         setupSystemUI(isLandscape)
@@ -259,7 +265,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         binding.playerView.useController = false
         
-        if (!isLandscape && !isTransferredFromFloating) {
+        if (!isLandscape && !isTransferredFromFloating && !DeviceUtils.isTvDevice) {
             binding.relatedLoadingProgress.visibility = View.VISIBLE
             binding.relatedChannelsRecycler.visibility = View.GONE
         }
@@ -749,7 +755,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 
     private fun setupRelatedChannels() {
-        if (contentType == ContentType.NETWORK_STREAM) {
+        if (contentType == ContentType.NETWORK_STREAM || DeviceUtils.isTvDevice) {
             binding.relatedChannelsSection.visibility = View.GONE
             return
         }
@@ -861,6 +867,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
     }
 
     private fun loadRelatedContent() {
+        if (DeviceUtils.isTvDevice) return
         when (contentType) {
             ContentType.CHANNEL -> {
                 channelData?.let { channel ->
@@ -1569,7 +1576,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     // Channel list panel state
                     var showChannelList by remember { mutableStateOf(false) }
                     val channelListItems by viewModel.channelListItems.observeAsState(emptyList())
-                    val isChannelListAvailable = contentType == ContentType.CHANNEL && channelListItems.isNotEmpty()
+                    val isChannelListAvailable = contentType == ContentType.CHANNEL && channelListItems.isNotEmpty() && (isLandscape || DeviceUtils.isTvDevice)
 
                     // Sync link chips visibility with controls in landscape.
                     // Chips show only when controls are visible AND not locked.
@@ -1597,6 +1604,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                             },
                             showAspectRatioButton = true,
                             isLandscape = isLandscape,
+                            isTvMode = DeviceUtils.isTvDevice,
                             isChannelListAvailable = isChannelListAvailable,
                             onBackClick = { finish() },
                             onPipClick = {
@@ -1731,8 +1739,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
                             initialBrightness = gestureBrightness,
                         )
 
-                        // Channel list panel — rendered on top of controls, landscape only
-                        if (isLandscape && isChannelListAvailable) {
+                        // Channel list panel — landscape or TV always, rendered on top of controls
+                        if ((isLandscape || DeviceUtils.isTvDevice) && isChannelListAvailable) {
                             com.livetvpro.ui.player.compose.ChannelListPanel(
                                 visible = showChannelList,
                                 channels = channelListItems,
