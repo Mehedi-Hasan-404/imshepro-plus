@@ -329,9 +329,20 @@ class LiveEventAdapter(
             override fun getNewListSize() = newEvents.size
             override fun areItemsTheSame(oldPos: Int, newPos: Int) =
                 events[oldPos].id == newEvents[newPos].id
-            override fun areContentsTheSame(oldPos: Int, newPos: Int) =
-                events[oldPos] == newEvents[newPos]
-            // If only timer-relevant fields changed, use payload so images are not reloaded
+            override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean {
+                val old = events[oldPos]
+                val new = newEvents[newPos]
+                // Only compare stable fields — images only reload if URLs actually change
+                return old.id == new.id &&
+                    old.leagueLogo == new.leagueLogo &&
+                    old.team1Logo == new.team1Logo &&
+                    old.team2Logo == new.team2Logo &&
+                    old.team1Name == new.team1Name &&
+                    old.team2Name == new.team2Name &&
+                    old.league == new.league &&
+                    old.isLive == new.isLive
+            }
+            // Timer/status changed — use payload so only bindTimer runs, images untouched
             override fun getChangePayload(oldPos: Int, newPos: Int): Any? = PAYLOAD_TIMER
         })
         events = newEvents
