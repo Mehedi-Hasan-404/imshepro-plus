@@ -47,6 +47,11 @@
             android:title="Copyright" />
 
         <item
+            android:id="@+id/nav_share_app"
+            android:icon="@drawable/ic_share"
+            android:title="Share App" />
+
+        <item
             android:id="@+id/nav_exit"
             android:icon="@drawable/ic_exit"
             android:title="Exit" />
