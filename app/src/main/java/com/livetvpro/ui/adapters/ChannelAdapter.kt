@@ -89,8 +89,8 @@ class ChannelAdapter(
 
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .error(R.drawable.ic_channel_placeholder)
+                .placeholder(R.mipmap.ic_launcher_round)
+                .error(R.mipmap.ic_launcher_round)
                 .centerInside()
                 .into(binding.channelLogo)
         }
