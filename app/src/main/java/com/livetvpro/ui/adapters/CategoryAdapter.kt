@@ -44,12 +44,12 @@ class CategoryAdapter(
             binding.categoryName.text = category.name
 
             if (category.iconUrl.isNullOrEmpty()) {
-                binding.categoryIcon.setImageResource(R.drawable.ic_tv_placeholder)
+                binding.categoryIcon.setImageResource(R.mipmap.ic_launcher_round)
             } else {
                 Glide.with(binding.categoryIcon)
                     .load(category.iconUrl)
-                    .placeholder(R.drawable.ic_tv_placeholder)
-                    .error(R.drawable.ic_tv_placeholder)
+                    .placeholder(R.mipmap.ic_launcher_round)
+                    .error(R.mipmap.ic_launcher_round)
                     .centerInside()
                     .into(binding.categoryIcon)
             }
