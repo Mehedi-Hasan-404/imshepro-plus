@@ -182,6 +182,7 @@ dependencies {
     implementation("androidx.media3:media3-ui:$media3Version")
     implementation("androidx.media3:media3-common:$media3Version")
     implementation("androidx.media3:media3-session:$media3Version")
+    implementation("androidx.media3:media3-exoplayer-ffmpeg:$media3Version")
 
     // Network - OkHttp & Retrofit
     val okhttpVersion = "4.12.0"
