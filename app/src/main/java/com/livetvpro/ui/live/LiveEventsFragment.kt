@@ -35,8 +35,6 @@ class LiveEventsFragment : Fragment(), Refreshable {
     private var _binding: FragmentLiveEventsBinding? = null
     private val binding get() = _binding!!
     private val viewModel: LiveEventsViewModel by viewModels()
-    private lateinit var eventAdapter: LiveEventAdapter
-    private lateinit var categoryAdapter: EventCategoryAdapter
     
     @Inject
     lateinit var listenerManager: NativeListenerManager
@@ -47,10 +45,17 @@ class LiveEventsFragment : Fragment(), Refreshable {
     private var selectedCategoryId: String = "evt_cat_all"
     private var selectedStatusFilter: EventStatus? = null
 
+    // Adapter lives at class level and is created only once — not recreated on every
+    // onViewCreated (which happens on every tab switch). Recreating it with an empty list
+    // and then filling it via LiveData caused the visible "reload" flash.
+    private var eventAdapter: LiveEventAdapter? = null
+    private var categoryAdapter: EventCategoryAdapter? = null
+
     private val updateHandler = Handler(Looper.getMainLooper())
     private val updateRunnable = object : Runnable {
         override fun run() {
-            // Only re-filter/re-sort data every 10s — countdown UI is driven by the adapter's own ticker
+            // Re-filter every 10s to update sort order (e.g. event goes live)
+            // Per-second countdown UI is driven by the adapter's own internal ticker
             viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
             updateHandler.postDelayed(this, 10_000)
         }
@@ -73,7 +78,7 @@ class LiveEventsFragment : Fragment(), Refreshable {
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        
+
         setupCategoryRecycler()
         setupEventRecycler()
         setupStatusFilters()
@@ -82,8 +87,11 @@ class LiveEventsFragment : Fragment(), Refreshable {
         setupMessageBanner()
 
         viewModel.loadEventCategories()
-        viewModel.filterEvents(null, "evt_cat_all")
-        
+        // Only trigger initial filter if ViewModel has no data yet
+        if (viewModel.filteredEvents.value == null) {
+            viewModel.filterEvents(null, "evt_cat_all")
+        }
+
         startDynamicUpdates()
     }
 
@@ -124,11 +132,12 @@ class LiveEventsFragment : Fragment(), Refreshable {
     }
 
     private fun setupCategoryRecycler() {
-        categoryAdapter = EventCategoryAdapter { category ->
-            selectedCategoryId = category.id
-            viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
+        if (categoryAdapter == null) {
+            categoryAdapter = EventCategoryAdapter { category ->
+                selectedCategoryId = category.id
+                viewModel.filterEvents(selectedStatusFilter, selectedCategoryId)
+            }
         }
-        
         binding.categoryRecycler.apply {
             layoutManager = LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
             adapter = categoryAdapter
@@ -140,12 +149,16 @@ class LiveEventsFragment : Fragment(), Refreshable {
     }
 
     private fun setupEventRecycler() {
-        eventAdapter = LiveEventAdapter(requireContext(), emptyList(), preferencesManager)
-
+        if (eventAdapter == null) {
+            eventAdapter = LiveEventAdapter(requireContext(), emptyList(), preferencesManager)
+        }
         val spanCount = getEventSpanCount()
         binding.recyclerViewEvents.apply {
             layoutManager = GridLayoutManager(context, spanCount)
             adapter = eventAdapter
+            // Disable default item animator — prevents fade flicker on timer ticks
+            // and DiffUtil partial updates
+            itemAnimator = null
         }
     }
 
@@ -199,11 +212,11 @@ class LiveEventsFragment : Fragment(), Refreshable {
     private fun observeViewModel() {
         viewModel.eventCategories.observe(viewLifecycleOwner) { categories ->
             binding.categoryRecycler.visibility = View.VISIBLE
-            categoryAdapter.submitList(categories)
+            categoryAdapter?.submitList(categories)
         }
-        
+
         viewModel.filteredEvents.observe(viewLifecycleOwner) { events ->
-            eventAdapter.updateData(events)
+            eventAdapter?.updateData(events)
         }
     }
 
