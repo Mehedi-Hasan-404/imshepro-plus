@@ -7,10 +7,9 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
-import com.bumptech.glide.load.engine.DiskCacheStrategy
 import com.google.android.material.card.MaterialCardView
 import com.livetvpro.R
+import com.livetvpro.utils.GlideExtensions
 import com.livetvpro.data.models.Channel
 import com.livetvpro.databinding.ItemChannelBinding
 import com.livetvpro.databinding.ItemRelatedEventBinding
@@ -91,26 +90,12 @@ class RelatedChannelAdapter(
             
             val categoryIconView = binding.root.findViewById<android.widget.ImageView>(R.id.category_icon)
             categoryIconView?.let {
-                Glide.with(it)
-                    .load(channel.logoUrl)
-                    .placeholder(R.mipmap.ic_launcher_round)
-                    .error(R.mipmap.ic_launcher_round)
-                    .into(it)
+                GlideExtensions.loadImage(it, channel.logoUrl, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round)
             }
             
-            Glide.with(binding.team1Logo)
-                .load(channel.team1Logo.ifEmpty { channel.logoUrl })
-                .placeholder(R.mipmap.ic_launcher_round)
-                .error(R.mipmap.ic_launcher_round)
-                .circleCrop()
-                .into(binding.team1Logo)
+            GlideExtensions.loadImage(binding.team1Logo, channel.team1Logo.ifEmpty { channel.logoUrl }, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round, isCircular = true)
             
-            Glide.with(binding.team2Logo)
-                .load(channel.team2Logo.ifEmpty { channel.logoUrl })
-                .placeholder(R.mipmap.ic_launcher_round)
-                .error(R.mipmap.ic_launcher_round)
-                .circleCrop()
-                .into(binding.team2Logo)
+            GlideExtensions.loadImage(binding.team2Logo, channel.team2Logo.ifEmpty { channel.logoUrl }, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round, isCircular = true)
             
             val eventTimeView = binding.root.findViewById<android.widget.TextView>(R.id.event_time)
             val eventDateView = binding.root.findViewById<android.widget.TextView>(R.id.event_date)
@@ -232,13 +217,7 @@ class RelatedChannelAdapter(
             // Set ImageView background to white first to force white behind transparent logos
             binding.channelLogo.setBackgroundColor(android.graphics.Color.WHITE)
             
-            Glide.with(binding.channelLogo)
-                .load(channel.logoUrl)
-                .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .placeholder(R.mipmap.ic_launcher_round)
-                .error(R.mipmap.ic_launcher_round)
-                .fitCenter()
-                .into(binding.channelLogo)
+            GlideExtensions.loadImage(binding.channelLogo, channel.logoUrl, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round)
 
             // Set card stroke
             val cardView = binding.root as MaterialCardView
