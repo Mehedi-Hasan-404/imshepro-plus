@@ -44,7 +44,7 @@ object FloatingPlayerHelper {
 
         val resolvedChannel = if (channel.links.isNullOrEmpty()) {
             if (channel.streamUrl.isBlank()) return
-            channel.copy(links = listOf(ChannelLink(quality = "Default", url = channel.streamUrl)))
+            channel.copy(links = listOf(parseLinkFromStreamUrl(channel.streamUrl)))
         } else {
             channel
         }
@@ -120,7 +120,7 @@ object FloatingPlayerHelper {
         try {
             val resolvedChannel = if (channel.links.isNullOrEmpty()) {
                 if (channel.streamUrl.isBlank()) return
-                channel.copy(links = listOf(ChannelLink(quality = "Default", url = channel.streamUrl)))
+                channel.copy(links = listOf(parseLinkFromStreamUrl(channel.streamUrl)))
             } else {
                 channel
             }
@@ -203,4 +203,55 @@ object FloatingPlayerHelper {
     }
 
     fun getInstanceIdForEvent(eventId: String): String? = eventToInstanceMap[eventId]
+
+    /**
+     * Parses a pipe-encoded stream URL into a ChannelLink with all DRM and header
+     * fields correctly populated. Used when an M3U channel has no explicit links list.
+     *
+     * Example input:
+     *   "https://....mpd|drmScheme=clearkey|drmLicense=de8045e9:6807bd09"
+     * Produces ChannelLink with url="https://....mpd", drmScheme="clearkey",
+     *   drmLicenseUrl="de8045e9:6807bd09"
+     */
+    private fun parseLinkFromStreamUrl(streamUrl: String): ChannelLink {
+        val pipeIndex = streamUrl.indexOf('|')
+        if (pipeIndex == -1) {
+            return ChannelLink(quality = "Default", url = streamUrl)
+        }
+        val url = streamUrl.substring(0, pipeIndex).trim()
+        val parts = streamUrl.substring(pipeIndex + 1).replace("&", "|").split("|")
+
+        var cookie: String? = null
+        var referer: String? = null
+        var origin: String? = null
+        var userAgent: String? = null
+        var drmScheme: String? = null
+        var drmLicenseUrl: String? = null
+
+        for (part in parts) {
+            val eq = part.indexOf('=')
+            if (eq == -1) continue
+            val key = part.substring(0, eq).trim().lowercase()
+            val value = part.substring(eq + 1).trim()
+            when (key) {
+                "drmscheme" -> drmScheme = value
+                "drmlicense" -> drmLicenseUrl = value   // keep raw; FloatingPlayerService will decode it
+                "cookie" -> cookie = value
+                "referer", "referrer" -> referer = value
+                "origin" -> origin = value
+                "user-agent", "useragent" -> userAgent = value
+            }
+        }
+
+        return ChannelLink(
+            quality = "Default",
+            url = url,
+            cookie = cookie,
+            referer = referer,
+            origin = origin,
+            userAgent = userAgent,
+            drmScheme = drmScheme,
+            drmLicenseUrl = drmLicenseUrl
+        )
+    }
 }
