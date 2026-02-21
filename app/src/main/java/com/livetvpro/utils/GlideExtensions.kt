@@ -20,6 +20,7 @@ object GlideExtensions {
     private fun getImageLoader(imageView: ImageView): ImageLoader {
         return _imageLoader ?: ImageLoader.Builder(imageView.context.applicationContext)
             .components { add(SvgDecoder.Factory()) }
+            .allowHardware(false) // Required for SVG rendering — hardware bitmaps don't support Canvas operations SVG needs
             .diskCachePolicy(CachePolicy.ENABLED)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .build()
