@@ -250,8 +250,8 @@ private fun ChannelItemRow(
             update = { iv ->
                 Glide.with(iv)
                     .load(channel.logoUrl.takeIf { it.isNotBlank() })
-                    .placeholder(R.drawable.ic_tv_placeholder)
-                    .error(R.drawable.ic_tv_placeholder)
+                    .placeholder(R.mipmap.ic_launcher_round)
+                    .error(R.mipmap.ic_launcher_round)
                     .into(iv)
             },
             modifier = Modifier.size(32.dp).clip(RoundedCornerShape(4.dp))
