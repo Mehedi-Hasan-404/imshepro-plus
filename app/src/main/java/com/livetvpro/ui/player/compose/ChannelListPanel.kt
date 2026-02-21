@@ -24,8 +24,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.bumptech.glide.Glide
 import com.livetvpro.R
+import com.livetvpro.utils.GlideExtensions
 import com.livetvpro.data.models.Channel
 
 private val RED            = Color(0xFFCC0000)
@@ -248,11 +248,7 @@ private fun ChannelItemRow(
         AndroidView(
             factory = { ctx -> ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
             update = { iv ->
-                Glide.with(iv)
-                    .load(channel.logoUrl.takeIf { it.isNotBlank() })
-                    .placeholder(R.mipmap.ic_launcher_round)
-                    .error(R.mipmap.ic_launcher_round)
-                    .into(iv)
+                GlideExtensions.loadImage(iv, channel.logoUrl.takeIf { it.isNotBlank() }, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round)
             },
             modifier = Modifier.size(32.dp).clip(RoundedCornerShape(4.dp))
         )
