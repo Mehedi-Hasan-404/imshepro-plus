@@ -60,7 +60,10 @@
                         android:paddingEnd="16dp"
                         android:background="@drawable/tv_tab_background"
                         android:focusable="true"
-                        android:clickable="true" />
+                        android:clickable="true"
+                        android:nextFocusRight="@id/tv_tab_home"
+                        android:nextFocusLeft="@id/toolbar"
+                        android:nextFocusDown="@id/nav_host_fragment" />
 
                     <TextView
                         android:id="@+id/tv_tab_home"
@@ -75,7 +78,10 @@
                         android:paddingEnd="16dp"
                         android:background="@drawable/tv_tab_background"
                         android:focusable="true"
-                        android:clickable="true" />
+                        android:clickable="true"
+                        android:nextFocusLeft="@id/tv_tab_live"
+                        android:nextFocusRight="@id/tv_tab_sports"
+                        android:nextFocusDown="@id/nav_host_fragment" />
 
                     <TextView
                         android:id="@+id/tv_tab_sports"
@@ -90,7 +96,10 @@
                         android:paddingEnd="16dp"
                         android:background="@drawable/tv_tab_background"
                         android:focusable="true"
-                        android:clickable="true" />
+                        android:clickable="true"
+                        android:nextFocusLeft="@id/tv_tab_home"
+                        android:nextFocusRight="@id/tv_tab_favorites"
+                        android:nextFocusDown="@id/nav_host_fragment" />
 
                     <TextView
                         android:id="@+id/tv_tab_favorites"
@@ -105,7 +114,10 @@
                         android:paddingEnd="16dp"
                         android:background="@drawable/tv_tab_background"
                         android:focusable="true"
-                        android:clickable="true" />
+                        android:clickable="true"
+                        android:nextFocusLeft="@id/tv_tab_sports"
+                        android:nextFocusRight="@id/btn_search"
+                        android:nextFocusDown="@id/nav_host_fragment" />
 
                 </LinearLayout>
             </HorizontalScrollView>
