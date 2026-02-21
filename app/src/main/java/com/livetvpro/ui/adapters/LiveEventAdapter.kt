@@ -40,20 +40,18 @@ class LiveEventAdapter(
         dateFormatSymbols = symbols
     }
     private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault())
+    
+    companion object {
+        const val PAYLOAD_TIMER = "timer"
+    }
 
-    // Internal ticker — drives countdown updates every second, independent of data reloads
+    // Internal 1s ticker drives countdown updates independently of data pipeline
     private val tickHandler = Handler(Looper.getMainLooper())
     private val tickRunnable = object : Runnable {
         override fun run() {
-            for (i in events.indices) {
-                notifyItemChanged(i, PAYLOAD_TIMER)
-            }
+            for (i in events.indices) notifyItemChanged(i, PAYLOAD_TIMER)
             tickHandler.postDelayed(this, 1000)
         }
-    }
-
-    companion object {
-        const val PAYLOAD_TIMER = "timer"
     }
 
     inner class EventViewHolder(val binding: ItemLiveEventBinding) : RecyclerView.ViewHolder(binding.root)
@@ -346,6 +344,11 @@ class LiveEventAdapter(
     override fun getItemCount(): Int = events.size
 
     fun updateData(newEvents: List<LiveEvent>) {
+        // Guard: if the list is identical, skip DiffUtil entirely
+        // This prevents any animation/flash when LiveData re-delivers the same data
+        // to a freshly re-subscribed observer (e.g. after tab switch)
+        if (newEvents == events) return
+
         val diff = DiffUtil.calculateDiff(object : DiffUtil.Callback() {
             override fun getOldListSize() = events.size
             override fun getNewListSize() = newEvents.size
