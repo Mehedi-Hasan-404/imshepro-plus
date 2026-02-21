@@ -553,13 +553,31 @@ class PlayerActivity : AppCompatActivity() {
                 
                 when (intent.getIntExtra(PIP_INTENT_ACTION, 0)) {
                     PIP_PAUSE -> {
-                        player?.pause()
+                        val currentPlayer = player
+                        val hasError = binding.errorView.visibility == View.VISIBLE
+                        val hasEnded = currentPlayer?.playbackState == Player.STATE_ENDED
+                        if (hasError || hasEnded) {
+                            retryPlayback()
+                        } else {
+                            currentPlayer?.pause()
+                        }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             setPictureInPictureParams(updatePipParams(enter = false))
                         }
                     }
                     PIP_PLAY -> {
-                        player?.play()
+                        val currentPlayer = player
+                        val hasError = binding.errorView.visibility == View.VISIBLE
+                        val hasEnded = currentPlayer?.playbackState == Player.STATE_ENDED
+                        // During buffering, isPlaying=false but playWhenReady=true — play() is
+                        // a no-op. Only call play() if actually paused (playWhenReady=false).
+                        val effectivelyPlaying = currentPlayer?.isPlaying == true ||
+                            (currentPlayer?.playbackState == Player.STATE_BUFFERING && currentPlayer.playWhenReady)
+                        if (hasError || hasEnded) {
+                            retryPlayback()
+                        } else if (!effectivelyPlaying) {
+                            currentPlayer?.play()
+                        }
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                             setPictureInPictureParams(updatePipParams(enter = false))
                         }
@@ -659,7 +677,14 @@ class PlayerActivity : AppCompatActivity() {
                 AppTheme {
                     val isPlaying by produceState(initialValue = false, player) {
                         while (true) {
-                            value = player?.isPlaying == true
+                            // Use playWhenReady during buffering so the icon correctly shows
+                            // "pause" while the stream is loading — not a false "play" icon.
+                            val p = player
+                            value = if (p != null && p.playbackState == Player.STATE_BUFFERING) {
+                                p.playWhenReady
+                            } else {
+                                p?.isPlaying == true
+                            }
                             delay(100)
                         }
                     }
@@ -751,7 +776,12 @@ class PlayerActivity : AppCompatActivity() {
                                     if (hasError || hasEnded) {
                                         retryPlayback()
                                     } else {
-                                        if (it.isPlaying) it.pause() else it.play()
+                                        // During buffering isPlaying is false even though
+                                        // playWhenReady=true, so check playWhenReady to
+                                        // correctly pause/resume while the stream is loading.
+                                        val effectivelyPlaying = it.isPlaying ||
+                                            (it.playbackState == Player.STATE_BUFFERING && it.playWhenReady)
+                                        if (effectivelyPlaying) it.pause() else it.play()
                                     }
                                 }
                             },
@@ -1492,10 +1522,18 @@ class PlayerActivity : AppCompatActivity() {
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
                                     binding.errorView.visibility = View.GONE
+                                    // Update PiP action button — during buffering isPlaying=false
+                                    // but playWhenReady=true, so we need to refresh to show pause.
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+                                        setPictureInPictureParams(updatePipParams())
+                                    }
                                 }
                                 Player.STATE_ENDED -> {
                                     binding.progressBar.visibility = View.GONE
                                     binding.playerView.showController()
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+                                        setPictureInPictureParams(updatePipParams())
+                                    }
                                 }
                                 Player.STATE_IDLE -> {}
                             }
@@ -1549,6 +1587,11 @@ class PlayerActivity : AppCompatActivity() {
                             }
 
                             showError(errorMessage)
+
+                            // Switch PiP action to ▶ play so the user can tap to retry
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+                                setPictureInPictureParams(updatePipParams())
+                            }
                         }
                     }
 
@@ -1841,22 +1884,26 @@ class PlayerActivity : AppCompatActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     fun updatePipParams(enter: Boolean = false): PictureInPictureParams {
         val builder = PictureInPictureParams.Builder()
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             builder.setTitle(contentName)
         }
-        
+
+        // isPlaying is false during STATE_BUFFERING even when playWhenReady=true.
+        // Use effectivelyPlaying so PiP actions and auto-enter reflect the true intent.
+        val p = player
+        val effectivelyPlaying = p?.isPlaying == true ||
+            (p?.playbackState == Player.STATE_BUFFERING && p.playWhenReady == true)
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val isPlaying = player?.isPlaying == true
-            builder.setAutoEnterEnabled(isPlaying)
-            builder.setSeamlessResizeEnabled(isPlaying)
+            builder.setAutoEnterEnabled(effectivelyPlaying)
+            builder.setSeamlessResizeEnabled(effectivelyPlaying)
         }
-        
-        val isPaused = player?.isPlaying != true
-        builder.setActions(createPipActions(this, isPaused))
+
+        builder.setActions(createPipActions(this, isPaused = !effectivelyPlaying))
         builder.setSourceRectHint(pipRect)
-        
-        player?.videoFormat?.let { format ->
+
+        p?.videoFormat?.let { format ->
             val height = format.height
             val width = format.width
             if (height > 0 && width > 0) {
@@ -1866,7 +1913,7 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         }
-        
+
         return builder.build()
     }
 
@@ -1917,14 +1964,16 @@ class PlayerActivity : AppCompatActivity() {
     private fun retryPlayback() {
         binding.errorView.visibility = View.GONE
         binding.progressBar.visibility = View.VISIBLE
-        
         binding.playerView.hideController()
-        
-        player?.release()
-        player = null
-        setupPlayer()
-    }
 
+        releasePlayer()
+        setupPlayer()
+
+        // Refresh PiP action button after retry starts
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
+            setPictureInPictureParams(updatePipParams(enter = false))
+        }
+    }
     override fun finish() {
         try {
             releasePlayer()
