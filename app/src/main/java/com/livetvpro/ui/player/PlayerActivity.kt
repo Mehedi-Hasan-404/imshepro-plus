@@ -17,10 +17,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.Parcelable
 import android.util.Rational
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toAndroidRect
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
@@ -149,14 +145,6 @@ class PlayerActivity : AppCompatActivity() {
         private const val EXTRA_RELATED_CHANNELS = "extra_related_channels"
         private const val EXTRA_CATEGORY_ID = "extra_category_id"
         private const val EXTRA_SELECTED_GROUP = "extra_selected_group"
-        
-        // Media control constants
-        private const val ACTION_MEDIA_CONTROL = "com.livetvpro.MEDIA_CONTROL"
-        private const val EXTRA_CONTROL_TYPE = "control_type"
-        private const val CONTROL_TYPE_PLAY = 1
-        private const val CONTROL_TYPE_PAUSE = 2
-        private const val CONTROL_TYPE_REWIND = 3
-        private const val CONTROL_TYPE_FORWARD = 4
         
         // PiP constants
         private const val PIP_INTENTS_FILTER = "com.livetvpro.PIP_CONTROL"
@@ -322,8 +310,8 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // registerPipReceiver() // TODO: Implement or remove PIP receiver registration
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isPipSupported) {
+            setPictureInPictureParams(updatePipParams())
         }
     }
     
@@ -1485,7 +1473,9 @@ class PlayerActivity : AppCompatActivity() {
                                 Player.STATE_READY -> {
                                     binding.progressBar.visibility = View.GONE
                                     binding.errorView.visibility = View.GONE
-                                    updatePipParams()
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                        setPictureInPictureParams(updatePipParams())
+                                    }
                                 }
                                 Player.STATE_BUFFERING -> {
                                     binding.progressBar.visibility = View.VISIBLE
@@ -1500,19 +1490,19 @@ class PlayerActivity : AppCompatActivity() {
                         }
 
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
-            // Update PIP actions when playback state changes
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isInPipMode) {
-                setPictureInPictureParams(updatePipParams(enter = false))
-            }
-
-                            if (isInPipMode) {
-                                updatePipParams()
+                            // Update PIP actions when playback state changes
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                val params = updatePipParams(enter = false)
+                                setPictureInPictureParams(params)
                             }
                         }
 
                         override fun onVideoSizeChanged(videoSize: VideoSize) {
                             super.onVideoSizeChanged(videoSize)
-                            updatePipParams()
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                                val params = updatePipParams()
+                                setPictureInPictureParams(params)
+                            }
                         }
 
                         override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
@@ -1823,88 +1813,18 @@ class PlayerActivity : AppCompatActivity() {
         subtitleView.setFractionalTextSize(SubtitleView.DEFAULT_TEXT_SIZE_FRACTION * 2)
     }
 
-    @SuppressLint("NewApi")
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun enterPipMode() {
         binding.playerView.useController = false
-        // Lock overlay removed - now managed by Compose PlayerControls
-        // Unlock button removed - now managed by Compose
-
         setSubtitleTextSizePiP()
-
-        updatePipParams(enter = true)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.O)
-    private fun createPipRatio(): Rational {
-        return try {
-            val videoFormat = player?.videoFormat
-            if (videoFormat != null && videoFormat.width > 0 && videoFormat.height > 0) {
-                Rational(videoFormat.width, videoFormat.height)
-            } else {
-                Rational(16, 9)
-            }
-        } catch (e: Exception) {
-            Rational(16, 9)
-        }
+        val params = updatePipParams(enter = true)
+        setPictureInPictureParams(params)
     }
 
 
-    private fun setupPipReceiver() {
-        pipReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                if (intent?.action != ACTION_MEDIA_CONTROL) return
-                val currentPlayer = player ?: return
-                val hasError = binding.errorView.visibility == View.VISIBLE
-                val hasEnded = currentPlayer.playbackState == Player.STATE_ENDED
-                when (intent.getIntExtra(EXTRA_CONTROL_TYPE, 0)) {
-                    CONTROL_TYPE_PLAY -> {
-                        if (hasError || hasEnded) {
-                            retryPlayback()
-                        } else {
-                            currentPlayer.play()
-                        }
-                        // Update PiP params to reflect new play state
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            updatePipParams()
-                        }
-                    }
-                    CONTROL_TYPE_PAUSE -> {
-                        if (hasError || hasEnded) {
-                            retryPlayback()
-                        } else {
-                            currentPlayer.pause()
-                        }
-                        // Update PiP params to reflect new pause state
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            updatePipParams()
-                        }
-                    }
-                    CONTROL_TYPE_REWIND -> {
-                        if (!hasError && !hasEnded) {
-                            val newPosition = currentPlayer.currentPosition - skipMs
-                            currentPlayer.seekTo(if (newPosition < 0) 0 else newPosition)
-                        }
-                    }
-                    CONTROL_TYPE_FORWARD -> {
-                        if (!hasError && !hasEnded) {
-                            val newPosition = currentPlayer.currentPosition + skipMs
-                            if (currentPlayer.isCurrentWindowLive && currentPlayer.duration != C.TIME_UNSET && newPosition >= currentPlayer.duration) {
-                                currentPlayer.seekTo(currentPlayer.duration)
-                            } else {
-                                currentPlayer.seekTo(newPosition)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL), Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(pipReceiver, IntentFilter(ACTION_MEDIA_CONTROL))
-        }
-    }
+
+    // PIP broadcast receiver is registered inline in onPictureInPictureModeChanged()
+    // using PIP_INTENTS_FILTER action, matching the PendingIntents in createPipActions().
 
     @RequiresApi(Build.VERSION_CODES.O)
     fun updatePipParams(enter: Boolean = false): PictureInPictureParams {
