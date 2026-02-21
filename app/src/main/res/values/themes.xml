@@ -128,6 +128,12 @@
         <item name="android:fontFamily">@font/bergen_sans</item>
         <item name="fontFamily">@font/bergen_sans</item>
         <item name="android:textColor">#EF4444</item>
+        <item name="materialThemeOverlay">@style/Dialog.ButtonText.ColorOverlay</item>
+    </style>
+
+    <!-- Forces colorPrimary to red so Material3's internal ColorStateList resolves correctly -->
+    <style name="Dialog.ButtonText.ColorOverlay" parent="">
+        <item name="colorPrimary">#EF4444</item>
     </style>
 
 </resources>
