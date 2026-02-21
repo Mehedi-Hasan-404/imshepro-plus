@@ -986,8 +986,8 @@ class FloatingPlayerActivity : AppCompatActivity() {
         } else {
             false
         }
-        
-        if (!isPip) {
+
+        if (!isPip && !DeviceUtils.isTvDevice) {
             binding.playerView.onPause()
             player?.pause()
         }
@@ -1646,7 +1646,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
                             duration = duration,
                             bufferedPosition = bufferedPosition,
                             channelName = contentName,
-                            showPipButton = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            showPipButton = !DeviceUtils.isTvDevice && if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                 isPipSupported()
                             } else {
                                 false
