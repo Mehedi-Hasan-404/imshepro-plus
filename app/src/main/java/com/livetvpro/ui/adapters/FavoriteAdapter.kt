@@ -5,9 +5,9 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.bumptech.glide.Glide
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.livetvpro.R
+import com.livetvpro.utils.GlideExtensions
 import com.livetvpro.data.local.PreferencesManager
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.FavoriteChannel
@@ -42,11 +42,7 @@ class FavoriteAdapter(
             binding.apply {
                 tvName.text = favorite.name
                 
-                Glide.with(imgLogo.context)
-                    .load(favorite.logoUrl)
-                    .placeholder(R.mipmap.ic_launcher_round)
-                    .error(R.mipmap.ic_launcher_round)
-                    .into(imgLogo)
+                GlideExtensions.loadImage(imgLogo, favorite.logoUrl, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round)
 
                 root.setOnClickListener {
                     val liveChannel = getLiveChannel?.invoke(favorite.id)
