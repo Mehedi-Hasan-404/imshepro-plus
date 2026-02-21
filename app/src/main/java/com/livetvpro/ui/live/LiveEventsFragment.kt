@@ -219,7 +219,6 @@ class LiveEventsFragment : Fragment(), Refreshable {
     override fun onDestroyView() {
         super.onDestroyView()
         stopDynamicUpdates()
-        eventAdapter.stopCountdown()
         _binding = null
     }
 }
