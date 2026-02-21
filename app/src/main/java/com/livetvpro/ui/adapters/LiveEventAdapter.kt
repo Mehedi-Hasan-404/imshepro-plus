@@ -3,6 +3,8 @@ package com.livetvpro.ui.adapters
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -38,12 +40,33 @@ class LiveEventAdapter(
         dateFormatSymbols = symbols
     }
     private val dateFormat = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault())
-    
+
+    // Internal ticker — drives countdown updates every second, independent of data reloads
+    private val tickHandler = Handler(Looper.getMainLooper())
+    private val tickRunnable = object : Runnable {
+        override fun run() {
+            for (i in events.indices) {
+                notifyItemChanged(i, PAYLOAD_TIMER)
+            }
+            tickHandler.postDelayed(this, 1000)
+        }
+    }
+
     companion object {
         const val PAYLOAD_TIMER = "timer"
     }
 
     inner class EventViewHolder(val binding: ItemLiveEventBinding) : RecyclerView.ViewHolder(binding.root)
+
+    override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
+        super.onAttachedToRecyclerView(recyclerView)
+        tickHandler.post(tickRunnable)
+    }
+
+    override fun onDetachedFromRecyclerView(recyclerView: RecyclerView) {
+        super.onDetachedFromRecyclerView(recyclerView)
+        tickHandler.removeCallbacks(tickRunnable)
+    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EventViewHolder {
         val binding = ItemLiveEventBinding.inflate(LayoutInflater.from(parent.context), parent, false)
