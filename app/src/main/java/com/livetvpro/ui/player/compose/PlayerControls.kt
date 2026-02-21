@@ -115,6 +115,7 @@ fun PlayerControls(
     showPipButton: Boolean,
     showAspectRatioButton: Boolean,
     isLandscape: Boolean,
+    isTvMode: Boolean = false,
     onBackClick: () -> Unit,
     onPipClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -185,6 +186,7 @@ fun PlayerControls(
                 showPipButton = showPipButton,
                 showAspectRatioButton = showAspectRatioButton,
                 isLandscape = isLandscape,
+                isTvMode = isTvMode,
                 onBackClick = onBackClick,
                 onPipClick = onPipClick,
                 onSettingsClick = onSettingsClick,
@@ -269,6 +271,7 @@ private fun PlayerControlsContent(
     showPipButton: Boolean,
     showAspectRatioButton: Boolean,
     isLandscape: Boolean,
+    isTvMode: Boolean,
     onBackClick: () -> Unit,
     onPipClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -368,11 +371,20 @@ private fun PlayerControlsContent(
                 PlayerIconButton(onClick = { onPlayPauseClick(); onInteraction() }, iconRes = if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play, contentDescription = if (isPlaying) "Pause" else "Play", size = 64, modifier = Modifier.padding(end = 16.dp))
                 PlayerIconButton(onClick = { onForwardClick(); onInteraction() }, iconRes = R.drawable.ic_skip_forward, contentDescription = "Forward 10 seconds", size = 48, modifier = Modifier.padding(end = 12.dp))
 
-                if (isLandscape && isChannelListAvailable) {
-                    PlayerIconButton(onClick = { onChannelListClick(); onInteraction() }, iconRes = R.drawable.ic_list, contentDescription = "Channel list", size = 48, modifier = Modifier.padding(end = 4.dp))
+                if (isTvMode) {
+                    // TV: always show channel list button; no fullscreen toggle
+                    if (isChannelListAvailable) {
+                        PlayerIconButton(onClick = { onChannelListClick(); onInteraction() }, iconRes = R.drawable.ic_list, contentDescription = "Channel list", size = 40)
+                    } else {
+                        Spacer(modifier = Modifier.width(40.dp))
+                    }
+                } else {
+                    // Phone/Tablet: channel list only in landscape, fullscreen always shown
+                    if (isLandscape && isChannelListAvailable) {
+                        PlayerIconButton(onClick = { onChannelListClick(); onInteraction() }, iconRes = R.drawable.ic_list, contentDescription = "Channel list", size = 48, modifier = Modifier.padding(end = 4.dp))
+                    }
+                    PlayerIconButton(onClick = onFullscreenClick, iconRes = if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen, contentDescription = "Toggle fullscreen", size = 40)
                 }
-
-                PlayerIconButton(onClick = onFullscreenClick, iconRes = if (isLandscape) R.drawable.ic_fullscreen_exit else R.drawable.ic_fullscreen, contentDescription = "Toggle fullscreen", size = 40)
             }
         }
     }
