@@ -11,7 +11,6 @@ import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.data.models.EventCategory
 import com.livetvpro.data.local.PreferencesManager
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -157,9 +156,6 @@ class NativeDataRepository @Inject constructor(
     private val refreshMutex = Mutex()
     private val remoteConfig = Firebase.remoteConfig
 
-    // Session ID is generated once per process lifetime (in-memory only).
-    // It changes every time the process is killed and restarted (new session).
-    private val currentSessionId: String = UUID.randomUUID().toString()
 
     init {
         try {
@@ -233,12 +229,8 @@ class NativeDataRepository @Inject constructor(
                     
                     val success = storeJsonData(responseBody)
                     if (success) {
-                        // Persist to disk cache tagged with current session ID.
-                        // Only this session can restore from it — a new process (new session)
-                        // will get a different session ID and skip this cache.
+                        // Persist to disk cache for mid-session background restore
                         preferencesManager.setCachedJson(responseBody)
-                        preferencesManager.setCacheTimestamp(System.currentTimeMillis())
-                        preferencesManager.setCacheSessionId(currentSessionId)
                         return@withContext true
                     } else {
                         return@withContext restoreFromCache()
@@ -256,10 +248,6 @@ class NativeDataRepository @Inject constructor(
      */
     private fun restoreFromCache(): Boolean {
         return try {
-            // Only restore if the cache belongs to the current session.
-            // If the process was killed (new session ID), we do NOT restore —
-            // the user must go through splash and fetch fresh data.
-            if (!preferencesManager.isCacheValidForSession(currentSessionId)) return false
             val cachedJson = preferencesManager.getCachedJson()
             if (cachedJson.isBlank()) return false
             storeJsonData(cachedJson)
