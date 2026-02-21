@@ -527,7 +527,7 @@ class MainActivity : AppCompatActivity() {
             val currentId = navController.currentDestination?.id ?: graphStartDestinationId
             if (currentId != destinationId) {
                 val navOptions = NavOptions.Builder()
-                    .setPopUpTo(currentId, true)
+                    .setPopUpTo(currentId, true, saveState = true)
                     .setLaunchSingleTop(true)
                     .setRestoreState(true)
                     .build()
