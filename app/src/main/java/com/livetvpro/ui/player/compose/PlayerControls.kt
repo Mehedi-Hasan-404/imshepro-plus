@@ -19,7 +19,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material3.ripple
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.focus.focusable
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -404,6 +405,15 @@ private fun PlayerIconButton(
         contentAlignment = Alignment.Center,
         modifier = modifier
             .size(size.dp)
+            .focusable(interactionSource = interactionSource)
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyUp &&
+                    (event.key == Key.DirectionCenter || event.key == Key.Enter)
+                ) {
+                    onClick()
+                    true
+                } else false
+            }
             .clickable(
                 interactionSource = interactionSource,
                 indication = ripple(bounded = true, color = Color.White.copy(alpha = 0.25f)),
