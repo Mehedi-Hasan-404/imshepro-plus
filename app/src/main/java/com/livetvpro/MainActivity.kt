@@ -257,6 +257,8 @@ class MainActivity : AppCompatActivity() {
             R.id.sportsFragment,
             R.id.favoritesFragment
         )
+
+        navigationView?.setNavigationItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.floating_player_settings -> {
                     showFloatingPlayerDialog()
