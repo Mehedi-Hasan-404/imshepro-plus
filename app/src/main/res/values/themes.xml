@@ -87,6 +87,11 @@
     <style name="ThemeOverlay.NetworkStream.AmberHandles" parent="">
         <item name="colorControlActivated">#EF4444</item>
         <item name="colorAccent">#EF4444</item>
+        <item name="colorPrimary">#EF4444</item>
+        <item name="colorOnSurface">#FFFFFF</item>
+        <item name="colorOutline">#666666</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorHint">#888888</item>
         <item name="android:fontFamily">@font/bergen_sans</item>
         <item name="fontFamily">@font/bergen_sans</item>
     </style>
@@ -101,8 +106,11 @@
     <style name="ThemeOverlay.LiveTVPro.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
         <item name="colorSurface">#1F1F1F</item>
         <item name="colorOnSurface">#FFFFFF</item>
+        <item name="colorPrimary">#EF4444</item>
+        <item name="colorOutline">#666666</item>
         <item name="android:textColorPrimary">#FFFFFF</item>
         <item name="android:textColorSecondary">#CCCCCC</item>
+        <item name="android:textColorHint">#888888</item>
         <item name="android:textColorAlertDialogListItem">#FFFFFF</item>
         <item name="materialAlertDialogTitleTextStyle">@style/Dialog.TitleText</item>
         <item name="materialAlertDialogBodyTextStyle">@style/Dialog.BodyText</item>
