@@ -24,13 +24,19 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.ImageView
 import androidx.core.app.NotificationCompat
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.drm.DefaultDrmSessionManager
+import androidx.media3.exoplayer.drm.FrameworkMediaDrm
+import androidx.media3.exoplayer.drm.HttpMediaDrmCallback
+import androidx.media3.exoplayer.drm.LocalMediaDrmCallback
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import java.util.UUID
 import com.livetvpro.R
 import com.livetvpro.data.models.Channel
 import kotlin.math.abs
@@ -458,19 +464,15 @@ class FloatingPlayerService : Service() {
                 .setConnectTimeoutMs(30000)
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
-            val mediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory)
+            val mediaSourceFactory = buildDrmMediaSourceFactory(parsedStream, dataSourceFactory, headers)
             val player = ExoPlayer.Builder(this)
                 .setMediaSourceFactory(mediaSourceFactory)
                 .build()
             val playerView = floatingView.findViewById<PlayerView>(R.id.player_view)
             playerView.player = player
 
-            val mediaItemBuilder = MediaItem.Builder().setUri(actualUrl)
-            if (actualUrl.contains("m3u8", ignoreCase = true) ||
-                actualUrl.contains("extension=m3u8", ignoreCase = true)) {
-                mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
-            }
-            player.setMediaItem(mediaItemBuilder.build())
+            val mediaItem = buildDrmMediaItem(parsedStream)
+            player.setMediaItem(mediaItem)
             player.prepare()
             player.playWhenReady = true
 
@@ -784,18 +786,31 @@ class FloatingPlayerService : Service() {
                 .setConnectTimeoutMs(30000)
                 .setReadTimeoutMs(30000)
                 .setAllowCrossProtocolRedirects(true)
-            val nsMediaSourceFactory = DefaultMediaSourceFactory(this).setDataSourceFactory(nsDataSourceFactory)
 
+            // Build DRM-aware stream info from the individual fields
+            val normalizedScheme = normalizeDrmScheme(drmScheme).takeIf { it.isNotEmpty() }
+            val nsStreamInfo = when {
+                drmLicense.trimStart().startsWith("{") ->
+                    StreamInfo(streamUrl, headers, normalizedScheme, null, null, drmLicense)
+                drmLicense.startsWith("http://", ignoreCase = true) ||
+                drmLicense.startsWith("https://", ignoreCase = true) ->
+                    StreamInfo(streamUrl, headers, normalizedScheme, null, null, drmLicense)
+                drmLicense.contains(":") -> {
+                    val colonIndex = drmLicense.indexOf(':')
+                    StreamInfo(streamUrl, headers, normalizedScheme,
+                        drmLicense.substring(0, colonIndex).trim(),
+                        drmLicense.substring(colonIndex + 1).trim(), null)
+                }
+                else -> StreamInfo(streamUrl, headers, normalizedScheme, null, null, null)
+            }
+
+            val nsMediaSourceFactory = buildDrmMediaSourceFactory(nsStreamInfo, nsDataSourceFactory, headers)
             val player = ExoPlayer.Builder(this)
                 .setMediaSourceFactory(nsMediaSourceFactory)
                 .build()
 
-            val nsMediaItemBuilder = MediaItem.Builder().setUri(streamUrl)
-            if (streamUrl.contains("m3u8", ignoreCase = true) ||
-                streamUrl.contains("extension=m3u8", ignoreCase = true)) {
-                nsMediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
-            }
-            player.setMediaItem(nsMediaItemBuilder.build())
+            val nsMediaItem = buildDrmMediaItem(nsStreamInfo)
+            player.setMediaItem(nsMediaItem)
             player.prepare()
             player.playWhenReady = true
 
@@ -1372,15 +1387,169 @@ class FloatingPlayerService : Service() {
             val key = part.substring(0, eqIndex).trim()
             val value = part.substring(eqIndex + 1).trim()
             when (key.lowercase()) {
-                "drmscheme" -> drmScheme = value
-                "drmlicense" -> drmLicenseUrl = value
-                "user-agent" -> headers["User-Agent"] = value
-                "referer" -> headers["Referer"] = value
+                "drmscheme" -> drmScheme = normalizeDrmScheme(value)
+                "drmlicense" -> {
+                    when {
+                        value.startsWith("http://", ignoreCase = true) ||
+                        value.startsWith("https://", ignoreCase = true) -> {
+                            drmLicenseUrl = value
+                        }
+                        value.trimStart().startsWith("{") -> {
+                            // Raw JWK JSON: {"keys":[{"kty":"oct","k":"...","kid":"..."}]}
+                            drmLicenseUrl = value
+                        }
+                        else -> {
+                            val colonIndex = value.indexOf(':')
+                            if (colonIndex != -1) {
+                                drmKeyId = value.substring(0, colonIndex).trim()
+                                drmKey = value.substring(colonIndex + 1).trim()
+                            }
+                        }
+                    }
+                }
+                "user-agent", "useragent" -> headers["User-Agent"] = value
+                "referer", "referrer" -> headers["Referer"] = value
                 "cookie" -> headers["Cookie"] = value
                 "origin" -> headers["Origin"] = value
+                "x-forwarded-for" -> headers["X-Forwarded-For"] = value
                 else -> headers[key] = value
             }
         }
         return StreamInfo(url, headers, drmScheme, drmKeyId, drmKey, drmLicenseUrl)
     }
-}
+
+    private fun normalizeDrmScheme(scheme: String): String {
+        val lower = scheme.lowercase()
+        return when {
+            lower.contains("clearkey") || lower == "org.w3.clearkey" -> "clearkey"
+            lower.contains("widevine") || lower == "com.widevine.alpha" -> "widevine"
+            lower.contains("playready") || lower == "com.microsoft.playready" -> "playready"
+            lower.contains("fairplay") -> "fairplay"
+            else -> lower
+        }
+    }
+
+    private fun createClearKeyDrmManager(keyIdHex: String, keyHex: String): DefaultDrmSessionManager? {
+        return try {
+            val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
+            val keyIdBytes = hexToBytes(keyIdHex)
+            val keyBytes = hexToBytes(keyHex)
+            val keyIdBase64 = android.util.Base64.encodeToString(
+                keyIdBytes,
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
+            )
+            val keyBase64 = android.util.Base64.encodeToString(
+                keyBytes,
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
+            )
+            val jwkResponse = """{"keys":[{"kty":"oct","k":"$keyBase64","kid":"$keyIdBase64"}],"type":"temporary"}"""
+            val drmCallback = LocalMediaDrmCallback(jwkResponse.toByteArray())
+            DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .setMultiSession(false)
+                .build(drmCallback)
+        } catch (e: Exception) { null }
+    }
+
+    private fun createClearKeyDrmManagerFromJwk(jwkJson: String): DefaultDrmSessionManager? {
+        return try {
+            val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
+            val drmCallback = LocalMediaDrmCallback(jwkJson.toByteArray())
+            DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .setMultiSession(false)
+                .build(drmCallback)
+        } catch (e: Exception) { null }
+    }
+
+    private fun createWidevineDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
+        return try {
+            val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
+                .setDefaultRequestProperties(requestHeaders)
+                .setConnectTimeoutMs(30000)
+                .setReadTimeoutMs(30000)
+                .setAllowCrossProtocolRedirects(true)
+            val drmCallback = HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory)
+            requestHeaders.forEach { (key, value) -> drmCallback.setKeyRequestProperty(key, value) }
+            DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(C.WIDEVINE_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .setMultiSession(false)
+                .build(drmCallback)
+        } catch (e: Exception) { null }
+    }
+
+    private fun createPlayReadyDrmManager(licenseUrl: String, requestHeaders: Map<String, String>): DefaultDrmSessionManager? {
+        return try {
+            val licenseDataSourceFactory = DefaultHttpDataSource.Factory()
+                .setUserAgent(requestHeaders["User-Agent"] ?: "LiveTVPro/1.0")
+                .setDefaultRequestProperties(requestHeaders)
+                .setConnectTimeoutMs(30000)
+                .setReadTimeoutMs(30000)
+                .setAllowCrossProtocolRedirects(true)
+            val drmCallback = HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory)
+            requestHeaders.forEach { (key, value) -> drmCallback.setKeyRequestProperty(key, value) }
+            DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(C.PLAYREADY_UUID, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .setMultiSession(false)
+                .build(drmCallback)
+        } catch (e: Exception) { null }
+    }
+
+    private fun hexToBytes(hex: String): ByteArray {
+        return try {
+            val cleanHex = hex.replace(" ", "").replace("-", "").lowercase()
+            if (cleanHex.length % 2 != 0) return ByteArray(0)
+            cleanHex.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+        } catch (e: Exception) { ByteArray(0) }
+    }
+
+    private fun buildDrmMediaSourceFactory(
+        streamInfo: StreamInfo,
+        dataSourceFactory: DefaultHttpDataSource.Factory,
+        headers: Map<String, String>
+    ): DefaultMediaSourceFactory {
+        val drmSessionManager = when (streamInfo.drmScheme) {
+            "clearkey" -> when {
+                streamInfo.drmKeyId != null && streamInfo.drmKey != null ->
+                    createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
+                streamInfo.drmLicenseUrl != null && streamInfo.drmLicenseUrl.trimStart().startsWith("{") ->
+                    createClearKeyDrmManagerFromJwk(streamInfo.drmLicenseUrl)
+                else -> null
+            }
+            "widevine" -> streamInfo.drmLicenseUrl?.let { createWidevineDrmManager(it, headers) }
+            "playready" -> streamInfo.drmLicenseUrl?.let { createPlayReadyDrmManager(it, headers) }
+            else -> null
+        }
+
+        return if (drmSessionManager != null) {
+            DefaultMediaSourceFactory(this)
+                .setDataSourceFactory(dataSourceFactory)
+                .setDrmSessionManagerProvider { drmSessionManager }
+        } else {
+            DefaultMediaSourceFactory(this).setDataSourceFactory(dataSourceFactory)
+        }
+    }
+
+    private fun buildDrmMediaItem(streamInfo: StreamInfo): MediaItem {
+        val mediaItemBuilder = MediaItem.Builder().setUri(streamInfo.url)
+        if (streamInfo.url.contains("m3u8", ignoreCase = true) ||
+            streamInfo.url.contains("extension=m3u8", ignoreCase = true)) {
+            mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
+        }
+        if (streamInfo.drmScheme != null && streamInfo.drmLicenseUrl != null &&
+            !streamInfo.drmLicenseUrl.trimStart().startsWith("{")) {
+            val drmUuid = when (streamInfo.drmScheme) {
+                "widevine" -> C.WIDEVINE_UUID
+                "playready" -> C.PLAYREADY_UUID
+                "clearkey" -> UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
+                else -> C.WIDEVINE_UUID
+            }
+            mediaItemBuilder.setDrmConfiguration(
+                MediaItem.DrmConfiguration.Builder(drmUuid)
+                    .setLicenseUri(streamInfo.drmLicenseUrl)
+                    .build()
+            )
+        }
+        return mediaItemBuilder.build()
+    }
