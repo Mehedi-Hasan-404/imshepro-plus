@@ -23,8 +23,6 @@ class PreferencesManager @Inject constructor(
         // Data Cache
         private const val KEY_CACHED_JSON = "cached_data_json"
         private const val KEY_CACHED_CONFIG_URL = "cached_config_url"
-        private const val KEY_CACHE_TIMESTAMP = "cache_timestamp"
-        private const val KEY_CACHE_SESSION_ID = "cache_session_id"
 
         // Floating Player Preferences
         private const val KEY_FLOATING_PLAYER_ENABLED = "floating_player_enabled"
@@ -127,25 +125,11 @@ class PreferencesManager @Inject constructor(
         prefs.edit().putString(KEY_CACHED_CONFIG_URL, url).apply()
     }
 
-    fun getCacheTimestamp(): Long {
-        return prefs.getLong(KEY_CACHE_TIMESTAMP, 0L)
-    }
-
-    fun setCacheTimestamp(timestamp: Long) {
-        prefs.edit().putLong(KEY_CACHE_TIMESTAMP, timestamp).apply()
-    }
-
-    fun getCacheSessionId(): String {
-        return prefs.getString(KEY_CACHE_SESSION_ID, "") ?: ""
-    }
-
-    fun setCacheSessionId(sessionId: String) {
-        prefs.edit().putString(KEY_CACHE_SESSION_ID, sessionId).apply()
-    }
-
-    fun isCacheValidForSession(currentSessionId: String): Boolean {
-        if (getCachedJson().isBlank()) return false
-        return getCacheSessionId() == currentSessionId
+    fun clearDataCache() {
+        prefs.edit()
+            .remove(KEY_CACHED_JSON)
+            .remove(KEY_CACHED_CONFIG_URL)
+            .apply()
     }
 
     // Clear all preferences
