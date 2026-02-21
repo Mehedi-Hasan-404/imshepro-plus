@@ -259,7 +259,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         
         binding.playerView.useController = false
         
-        if (!isLandscape && !isTransferredFromFloating) {
+        if (!isLandscape) {
             binding.relatedLoadingProgress.visibility = View.VISIBLE
             binding.relatedChannelsRecycler.visibility = View.GONE
         }
@@ -279,9 +279,7 @@ class FloatingPlayerActivity : AppCompatActivity() {
         )
         
         setupPlayer()
-        if (!isTransferredFromFloating) {
-            loadRelatedContent()
-        }
+        loadRelatedContent()
         
         viewModel.refreshedChannel.observe(this) { freshChannel ->
             if (freshChannel != null && freshChannel.links != null && freshChannel.links.isNotEmpty()) {
@@ -1050,6 +1048,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     if (value.startsWith("http://", ignoreCase = true) ||
                         value.startsWith("https://", ignoreCase = true)) {
                         drmLicenseUrl = value
+                    } else if (value.trimStart().startsWith("{")) {
+                        // Raw JWK JSON format: {"keys":[{"kty":"oct","k":"...","kid":"..."}]}
+                        drmLicenseUrl = value
                     } else {
                         val colonIndex = value.indexOf(':')
                         if (colonIndex != -1) {
@@ -1219,6 +1220,9 @@ class FloatingPlayerActivity : AppCompatActivity() {
                     "clearkey" -> {
                         if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
                             createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
+                        } else if (streamInfo.drmLicenseUrl != null &&
+                            streamInfo.drmLicenseUrl.trimStart().startsWith("{")) {
+                            createClearKeyDrmManagerFromJwk(streamInfo.drmLicenseUrl)
                         } else null
                     }
                     "widevine" -> {
@@ -1424,6 +1428,19 @@ class FloatingPlayerActivity : AppCompatActivity() {
 
             val drmCallback = LocalMediaDrmCallback(jwkResponse.toByteArray())
 
+            DefaultDrmSessionManager.Builder()
+                .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+                .setMultiSession(false)
+                .build(drmCallback)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun createClearKeyDrmManagerFromJwk(jwkJson: String): DefaultDrmSessionManager? {
+        return try {
+            val clearKeyUuid = UUID.fromString("e2719d58-a985-b3c9-781a-b030af78d30e")
+            val drmCallback = LocalMediaDrmCallback(jwkJson.toByteArray())
             DefaultDrmSessionManager.Builder()
                 .setUuidAndExoMediaDrmProvider(clearKeyUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
                 .setMultiSession(false)
