@@ -838,15 +838,6 @@ class MainActivity : AppCompatActivity() {
         drawerToggle?.syncState()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        // Clear data cache only when the activity is truly finishing (app closed),
-        // not on config changes like rotation.
-        if (isFinishing) {
-            preferencesManager.clearDataCache()
-        }
-    }
-
 }
 
 private class CustomTypefaceSpan(private val typeface: Typeface) : android.text.style.TypefaceSpan("") {
