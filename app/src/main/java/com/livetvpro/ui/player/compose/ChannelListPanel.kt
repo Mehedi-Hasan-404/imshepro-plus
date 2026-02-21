@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -246,11 +247,11 @@ private fun ChannelItemRow(
         )
         Spacer(Modifier.width(6.dp))
         AndroidView(
-            factory = { ctx -> ImageView(ctx).apply { scaleType = ImageView.ScaleType.FIT_CENTER } },
+            factory = { ctx -> ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP } },
             update = { iv ->
-                GlideExtensions.loadImage(iv, channel.logoUrl.takeIf { it.isNotBlank() }, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round)
+                GlideExtensions.loadImage(iv, channel.logoUrl.takeIf { it.isNotBlank() }, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round, isCircular = true)
             },
-            modifier = Modifier.size(32.dp).clip(RoundedCornerShape(4.dp))
+            modifier = Modifier.size(32.dp).clip(CircleShape)
         )
         Spacer(Modifier.width(8.dp))
         Text(
