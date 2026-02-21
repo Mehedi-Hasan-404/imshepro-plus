@@ -1,5 +1,6 @@
 package com.livetvpro.ui.adapters
 
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.recyclerview.widget.DiffUtil
@@ -32,11 +33,40 @@ class CategoryAdapter(
     ) : RecyclerView.ViewHolder(binding.root) {
 
         init {
+            // ── Click ────────────────────────────────────────────────────────
             binding.root.setOnClickListener {
-                val position = bindingAdapterPosition
-                if (position != RecyclerView.NO_POSITION) {
-                    onCategoryClick(getItem(position))
+                val pos = bindingAdapterPosition
+                if (pos != RecyclerView.NO_POSITION) onCategoryClick(getItem(pos))
+            }
+
+            // ── D-pad / remote key handler ───────────────────────────────────
+            // OK / Enter on a remote fires the same action as a tap.
+            binding.root.setOnKeyListener { _, keyCode, event ->
+                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                val pos = bindingAdapterPosition
+                if (pos == RecyclerView.NO_POSITION) return@setOnKeyListener false
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_CENTER,
+                    KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                        onCategoryClick(getItem(pos))
+                        true
+                    }
+                    else -> false
                 }
+            }
+
+            // ── TV focus ring ────────────────────────────────────────────────
+            binding.root.isFocusable            = true
+            binding.root.isFocusableInTouchMode = false
+
+            binding.root.setOnFocusChangeListener { view, hasFocus ->
+                view.animate()
+                    .scaleX(if (hasFocus) 1.05f else 1f)
+                    .scaleY(if (hasFocus) 1.05f else 1f)
+                    .setDuration(120)
+                    .start()
+                view.elevation = if (hasFocus) 8f else 0f
             }
         }
 
@@ -46,18 +76,18 @@ class CategoryAdapter(
             if (category.iconUrl.isNullOrEmpty()) {
                 binding.categoryIcon.setImageResource(R.mipmap.ic_launcher_round)
             } else {
-                GlideExtensions.loadImage(binding.categoryIcon, category.iconUrl, R.mipmap.ic_launcher_round, R.mipmap.ic_launcher_round)
+                GlideExtensions.loadImage(
+                    binding.categoryIcon,
+                    category.iconUrl,
+                    R.mipmap.ic_launcher_round,
+                    R.mipmap.ic_launcher_round
+                )
             }
         }
     }
 
     private class CategoryDiffCallback : DiffUtil.ItemCallback<Category>() {
-        override fun areItemsTheSame(oldItem: Category, newItem: Category): Boolean {
-            return oldItem.id == newItem.id
-        }
-
-        override fun areContentsTheSame(oldItem: Category, newItem: Category): Boolean {
-            return oldItem == newItem
-        }
+        override fun areItemsTheSame(oldItem: Category, newItem: Category) = oldItem.id == newItem.id
+        override fun areContentsTheSame(oldItem: Category, newItem: Category) = oldItem == newItem
     }
 }
