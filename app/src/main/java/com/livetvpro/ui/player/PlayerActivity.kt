@@ -1259,8 +1259,22 @@ class PlayerActivity : AppCompatActivity() {
 
         val url = streamUrl.substring(0, pipeIndex).trim()
         val rawParams = streamUrl.substring(pipeIndex + 1).trim()
-        val normalizedParams = rawParams.replace("&", "|")
-        val parts = normalizedParams.split("|")
+        // Split on | first, then also handle & as separator — but only between top-level params,
+        // not inside URL values (which may contain & in query strings).
+        // Strategy: split on | first, then for each part check if it looks like a URL value
+        // that contains &; if not, split further on &.
+        val parts = buildList {
+            for (segment in rawParams.split("|")) {
+                val eqIdx = segment.indexOf('=')
+                val value = if (eqIdx != -1) segment.substring(eqIdx + 1) else ""
+                if (value.startsWith("http://", ignoreCase = true) ||
+                    value.startsWith("https://", ignoreCase = true)) {
+                    add(segment)  // keep URL values intact — don't split on their & chars
+                } else {
+                    addAll(segment.split("&"))  // non-URL params: & is a separator
+                }
+            }
+        }
 
         val headers = mutableMapOf<String, String>()
         var drmScheme: String? = null
@@ -1282,8 +1296,7 @@ class PlayerActivity : AppCompatActivity() {
                         value.startsWith("https://", ignoreCase = true)) {
                         drmLicenseUrl = value
                     } else if (value.trimStart().startsWith("{")) {
-                        // Raw JWK JSON format: {"keys":[{"kty":"oct","k":"...","kid":"..."}]}
-                        drmLicenseUrl = value
+                        drmLicenseUrl = value   // raw JWK JSON
                     } else {
                         val colonIndex = value.indexOf(':')
                         if (colonIndex != -1) {
@@ -1369,8 +1382,7 @@ class PlayerActivity : AppCompatActivity() {
                     "clearkey" -> {
                         if (streamInfo.drmKeyId != null && streamInfo.drmKey != null) {
                             createClearKeyDrmManager(streamInfo.drmKeyId, streamInfo.drmKey)
-                        } else if (streamInfo.drmLicenseUrl != null &&
-                            streamInfo.drmLicenseUrl.trimStart().startsWith("{")) {
+                        } else if (streamInfo.drmLicenseUrl?.trimStart()?.startsWith("{") == true) {
                             createClearKeyDrmManagerFromJwk(streamInfo.drmLicenseUrl)
                         } else null
                     }
