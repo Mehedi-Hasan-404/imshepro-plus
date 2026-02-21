@@ -212,6 +212,10 @@ class PlayerActivity : AppCompatActivity() {
 
         parseIntent()
 
+        // If savedInstanceState is present, restore from it (process death / config change)
+        // This overwrites parseIntent values with the last-known good state
+        savedInstanceState?.let { restoreFromBundle(it) }
+
         if (contentType == ContentType.CHANNEL && contentId.isNotEmpty()) {
             viewModel.refreshChannelData(contentId)
             // Load channel list for the ic_list panel (only meaningful for CHANNEL type)
@@ -1274,7 +1278,59 @@ class PlayerActivity : AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        releasePlayer()
+        // Only release player if actually finishing — NOT on normal backgrounding.
+        // singleTop launchMode keeps us in the same task as MainActivity so Android
+        // manages memory together. Releasing on every onStop caused data loss when
+        // the user briefly switched apps or turned off the screen.
+        if (isFinishing || isChangingConfigurations) {
+            releasePlayer()
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putString("SAVE_CONTENT_TYPE", contentType.name)
+        outState.putParcelable("SAVE_CHANNEL_DATA", channelData)
+        outState.putParcelable("SAVE_EVENT_DATA", eventData)
+        outState.putParcelableArrayList("SAVE_ALL_LINKS", ArrayList(allEventLinks))
+        outState.putInt("SAVE_LINK_INDEX", currentLinkIndex)
+        outState.putString("SAVE_CONTENT_ID", contentId)
+        outState.putString("SAVE_CONTENT_NAME", contentName)
+        outState.putString("SAVE_STREAM_URL", streamUrl)
+        outState.putString("SAVE_CATEGORY_ID", intentCategoryId)
+        outState.putString("SAVE_SELECTED_GROUP", intentSelectedGroup)
+        outState.putLong("SAVE_PLAYBACK_POSITION", player?.currentPosition ?: 0L)
+    }
+
+    override fun onRestoreInstanceState(savedInstanceState: Bundle) {
+        super.onRestoreInstanceState(savedInstanceState)
+        restoreFromBundle(savedInstanceState)
+    }
+
+    private fun restoreFromBundle(bundle: Bundle) {
+        val typeName = bundle.getString("SAVE_CONTENT_TYPE") ?: return
+        contentType = ContentType.valueOf(typeName)
+        channelData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            bundle.getParcelable("SAVE_CHANNEL_DATA", Channel::class.java)
+        } else {
+            @Suppress("DEPRECATION") bundle.getParcelable("SAVE_CHANNEL_DATA")
+        }
+        eventData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            bundle.getParcelable("SAVE_EVENT_DATA", LiveEvent::class.java)
+        } else {
+            @Suppress("DEPRECATION") bundle.getParcelable("SAVE_EVENT_DATA")
+        }
+        allEventLinks = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            bundle.getParcelableArrayList("SAVE_ALL_LINKS", LiveEventLink::class.java) ?: emptyList()
+        } else {
+            @Suppress("DEPRECATION") bundle.getParcelableArrayList<LiveEventLink>("SAVE_ALL_LINKS") ?: emptyList()
+        }
+        currentLinkIndex = bundle.getInt("SAVE_LINK_INDEX", 0)
+        contentId = bundle.getString("SAVE_CONTENT_ID", "")
+        contentName = bundle.getString("SAVE_CONTENT_NAME", "")
+        streamUrl = bundle.getString("SAVE_STREAM_URL", "")
+        intentCategoryId = bundle.getString("SAVE_CATEGORY_ID")
+        intentSelectedGroup = bundle.getString("SAVE_SELECTED_GROUP")
     }
 
     override fun onDestroy() {
