@@ -35,11 +35,8 @@ class LiveEventsViewModel @Inject constructor(
         loadEvents()
     }
 
-    // FIXED: Override onResume() instead to prevent auto-reload when coming back from player
-    // This prevents unnecessary reloading that would lose your scroll position and reload data
     override fun onResume() {
-        // Do nothing - don't reload data when resuming
-        // Data is already loaded and cached in memory
+        // Do nothing — data is already loaded and cached in memory
     }
 
     private fun loadEvents() {
@@ -59,6 +56,8 @@ class LiveEventsViewModel @Inject constructor(
     }
 
     fun loadEventCategories() {
+        // Skip if already loaded — fragment recreates on every tab switch
+        if (_eventCategories.value != null) return
         viewModelScope.launch {
             try {
                 val categories = liveEventRepository.getEventCategories()
@@ -111,8 +110,7 @@ class LiveEventsViewModel @Inject constructor(
             }
         }
 
-        // Only push a new value if the list actually changed — prevents the RecyclerView
-        // from re-rendering (and visually flashing) on every tab switch / timer tick
+        // Only emit if the list actually changed — prevents observer re-delivery flash
         if (filtered != _filteredEvents.value) {
             _filteredEvents.value = filtered
         }
