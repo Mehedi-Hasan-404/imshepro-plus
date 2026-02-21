@@ -254,9 +254,9 @@ class MainActivity : AppCompatActivity() {
         val topLevelDestinations = setOf(
             R.id.homeFragment,
             R.id.liveEventsFragment,
-            R.id.sportsFragment
+            R.id.sportsFragment,
+            R.id.favoritesFragment
         )
-        navigationView?.setNavigationItemSelectedListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.floating_player_settings -> {
                     showFloatingPlayerDialog()
@@ -365,7 +365,7 @@ class MainActivity : AppCompatActivity() {
         val tvSearchView = binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
         val tvClearBtn = binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)
 
-        tvClearBtn?.visibility = View.VISIBLE
+        tvClearBtn?.visibility = View.GONE
 
         tvSearchView?.setOnQueryTextListener(object :
             androidx.appcompat.widget.SearchView.OnQueryTextListener {
@@ -382,7 +382,8 @@ class MainActivity : AppCompatActivity() {
         })
 
         tvClearBtn?.setOnClickListener {
-            hideTvSearch()
+            tvSearchView?.setQuery("", false)
+            tvSearchView?.requestFocus()
         }
     }
 
@@ -415,6 +416,7 @@ class MainActivity : AppCompatActivity() {
         lp.weight = 0f
         tvSearchBar.layoutParams = lp
         tvSearchBar.visibility = View.VISIBLE
+        binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)?.visibility = View.VISIBLE
         animateTvSearchWeight(0f, 2f)
 
         binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)?.post {
@@ -427,6 +429,7 @@ class MainActivity : AppCompatActivity() {
         isSearchVisible = false
         binding.root.findViewById<androidx.appcompat.widget.SearchView>(R.id.search_view)
             ?.apply { setQuery("", false); clearFocus() }
+        binding.root.findViewById<android.widget.ImageButton>(R.id.btn_search_clear)?.visibility = View.GONE
         animateTvSearchWeight(2f, 0f) {
             binding.root.findViewById<View>(R.id.tv_search_bar)?.visibility = View.GONE
         }
