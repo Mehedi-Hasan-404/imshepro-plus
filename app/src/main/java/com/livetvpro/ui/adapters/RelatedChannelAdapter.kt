@@ -93,22 +93,22 @@ class RelatedChannelAdapter(
             categoryIconView?.let {
                 Glide.with(it)
                     .load(channel.logoUrl)
-                    .placeholder(R.drawable.ic_channel_placeholder)
-                    .error(R.drawable.ic_channel_placeholder)
+                    .placeholder(R.mipmap.ic_launcher_round)
+                    .error(R.mipmap.ic_launcher_round)
                     .into(it)
             }
             
             Glide.with(binding.team1Logo)
                 .load(channel.team1Logo.ifEmpty { channel.logoUrl })
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .error(R.drawable.ic_channel_placeholder)
+                .placeholder(R.mipmap.ic_launcher_round)
+                .error(R.mipmap.ic_launcher_round)
                 .circleCrop()
                 .into(binding.team1Logo)
             
             Glide.with(binding.team2Logo)
                 .load(channel.team2Logo.ifEmpty { channel.logoUrl })
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .error(R.drawable.ic_channel_placeholder)
+                .placeholder(R.mipmap.ic_launcher_round)
+                .error(R.mipmap.ic_launcher_round)
                 .circleCrop()
                 .into(binding.team2Logo)
             
@@ -235,8 +235,8 @@ class RelatedChannelAdapter(
             Glide.with(binding.channelLogo)
                 .load(channel.logoUrl)
                 .diskCacheStrategy(DiskCacheStrategy.ALL)
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .error(R.drawable.ic_channel_placeholder)
+                .placeholder(R.mipmap.ic_launcher_round)
+                .error(R.mipmap.ic_launcher_round)
                 .fitCenter()
                 .into(binding.channelLogo)
 
