@@ -13,6 +13,7 @@ import android.text.style.StyleSpan
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.ActionBarDrawerToggle
@@ -56,6 +57,7 @@ class MainActivity : AppCompatActivity() {
     private var drawerToggle: ActionBarDrawerToggle? = null
     private var isSearchVisible = false
     private var showRefreshIcon = false
+    private var backPressedTime = 0L
 
     // Phone-only views — populated in setupNavigation(), null on TV
     private var phoneToolbar: com.google.android.material.appbar.MaterialToolbar? = null
@@ -107,11 +109,31 @@ class MainActivity : AppCompatActivity() {
                 val drawerLayout = binding.root.findViewById<androidx.drawerlayout.widget.DrawerLayout>(
                     R.id.drawer_layout
                 )
+                val navHostFragment = supportFragmentManager
+                    .findFragmentById(R.id.nav_host_fragment) as? NavHostFragment
+                val currentDestId = navHostFragment?.navController?.currentDestination?.id
+                val topLevelDestinations = setOf(
+                    R.id.homeFragment,
+                    R.id.liveEventsFragment,
+                    R.id.sportsFragment
+                )
+                val isTopLevel = currentDestId in topLevelDestinations
+
                 when {
                     drawerLayout?.isDrawerOpen(GravityCompat.START) == true ->
                         drawerLayout.closeDrawer(GravityCompat.START)
                     DeviceUtils.isTvDevice && isSearchVisible -> hideTvSearch()
                     !DeviceUtils.isTvDevice && isSearchVisible -> hideSearch()
+                    isTopLevel -> {
+                        // Double-back to exit: first press shows toast, second press within 2s exits
+                        val now = System.currentTimeMillis()
+                        if (now - backPressedTime < 2000) {
+                            finishAffinity()
+                        } else {
+                            backPressedTime = now
+                            Toast.makeText(this@MainActivity, "Press again to exit", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                     else -> {
                         isEnabled = false
                         onBackPressedDispatcher.onBackPressed()
@@ -268,6 +290,11 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_copyright -> {
                     showCopyrightDialog()
                     drawerLayout?.closeDrawer(GravityCompat.START)
+                    false
+                }
+                R.id.nav_exit -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    drawerLayout?.postDelayed({ finishAffinity() }, 250)
                     false
                 }
                 R.id.nav_contact_browser -> {
@@ -550,6 +577,11 @@ class MainActivity : AppCompatActivity() {
                 R.id.nav_copyright -> {
                     showCopyrightDialog()
                     drawerLayout?.closeDrawer(GravityCompat.START)
+                    false
+                }
+                R.id.nav_exit -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    drawerLayout?.postDelayed({ finishAffinity() }, 250)
                     false
                 }
                 R.id.nav_contact_browser -> {
