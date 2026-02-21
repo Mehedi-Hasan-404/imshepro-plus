@@ -201,13 +201,9 @@ dependencies {
     implementation("com.google.dagger:hilt-android:$hiltVersion")
     ksp("com.google.dagger:hilt-compiler:$hiltVersion")
 
-    // Image Loading - Glide
-    val glideVersion = "4.16.0"
-    implementation("com.github.bumptech.glide:glide:$glideVersion")
-    ksp("com.github.bumptech.glide:ksp:$glideVersion")
-    
-    // SVG Support for Glide
-    implementation("com.caverock:androidsvg-aar:1.4")
+    // Image Loading - Coil (built-in SVG support, works correctly with circleCrop)
+    implementation("io.coil-kt:coil:2.7.0")
+    implementation("io.coil-kt:coil-svg:2.7.0")
 
     // RecyclerView
     implementation("androidx.recyclerview:recyclerview:1.4.0")
