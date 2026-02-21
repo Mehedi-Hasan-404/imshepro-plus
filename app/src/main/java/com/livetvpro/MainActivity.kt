@@ -263,6 +263,11 @@ class MainActivity : AppCompatActivity() {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     false
                 }
+                R.id.nav_copyright -> {
+                    showCopyrightDialog()
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    false
+                }
                 R.id.nav_contact_browser -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
@@ -527,6 +532,11 @@ class MainActivity : AppCompatActivity() {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     false
                 }
+                R.id.nav_copyright -> {
+                    showCopyrightDialog()
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    false
+                }
                 R.id.nav_contact_browser -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
@@ -658,6 +668,14 @@ class MainActivity : AppCompatActivity() {
         phoneBtnFavorites = btnFavorites
         phoneSearchView = searchView
         phoneBtnSearchClear = btnSearchClear
+    }
+
+    private fun showCopyrightDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Copyright")
+            .setMessage("Live TV Pro does not stream any of the channels included in this application, all the streaming links are from third party websites available freely on the internet. We're just giving way to stream and all content is the copyright of their owner.")
+            .setPositiveButton("OK", null)
+            .show()
     }
 
     private fun showFloatingPlayerDialog() {
