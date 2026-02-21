@@ -44,8 +44,8 @@ class FavoriteAdapter(
                 
                 Glide.with(imgLogo.context)
                     .load(favorite.logoUrl)
-                    .placeholder(R.drawable.ic_channel_placeholder)
-                    .error(R.drawable.ic_channel_placeholder)
+                    .placeholder(R.mipmap.ic_launcher_round)
+                    .error(R.mipmap.ic_launcher_round)
                     .into(imgLogo)
 
                 root.setOnClickListener {
