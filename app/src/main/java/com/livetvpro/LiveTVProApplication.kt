@@ -44,6 +44,9 @@ class LiveTVProApplication : Application() {
 
         applicationScope.launch {
             try {
+                // Try to restore cached data into native memory immediately (fast, no network)
+                dataRepository.refreshData()
+                // Then fetch fresh config in background for next time
                 dataRepository.fetchRemoteConfig()
             } catch (e: Exception) {
             }
