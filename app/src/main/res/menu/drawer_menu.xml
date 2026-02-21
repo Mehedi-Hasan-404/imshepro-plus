@@ -40,5 +40,10 @@
             android:id="@+id/nav_email_us"
             android:icon="@drawable/ic_email"
             android:title="@string/nav_email_us" />
+
+        <item
+            android:id="@+id/nav_copyright"
+            android:icon="@drawable/ic_copyright"
+            android:title="Copyright" />
     </group>
 </menu>
