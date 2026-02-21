@@ -70,7 +70,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.livetvpro.ui.player.compose.PlayerControls
 import com.livetvpro.ui.player.compose.PlayerControlsState
-import com.livetvpro.ui.player.compose.GestureState
 import android.media.AudioManager
 import com.livetvpro.ui.theme.AppTheme
 import com.livetvpro.utils.DeviceUtils
@@ -106,7 +105,7 @@ class PlayerActivity : AppCompatActivity() {
     private var gestureBrightness: Int = 0    // 0 = auto
 
     private var isInPipMode = false
-    private var isMuted = false
+    private var isMuted by mutableStateOf(false)
     private val skipMs = 10_000L
     
     // Network streams use orientation-based resize mode
@@ -620,14 +619,14 @@ class PlayerActivity : AppCompatActivity() {
             }
         }
         
-        // Rebind controls after exiting PiP to ensure they work properly
-        setupComposeControls()
+        // Controls composition is already live — no need to rebuild it after exiting PiP.
+        // Shared state (controlsState, isMuted, etc.) will recompose automatically.
         
         if (wasLockedBeforePip) {
-            controlsState.isLocked = true
+            controlsState.lock()
             wasLockedBeforePip = false
         } else {
-            controlsState.isLocked = false
+            if (controlsState.isLocked) controlsState.unlock(lifecycleScope)
         }
         
         // Always keep PlayerView controller disabled - we use Compose controls
@@ -672,8 +671,18 @@ class PlayerActivity : AppCompatActivity() {
                         }
                     }
                     
-                    val duration = player?.duration ?: 0L
-                    val bufferedPosition = player?.bufferedPosition ?: 0L
+                    val duration by produceState(initialValue = 0L, player) {
+                        while (true) {
+                            value = player?.duration?.takeIf { it != C.TIME_UNSET } ?: 0L
+                            delay(100)
+                        }
+                    }
+                    val bufferedPosition by produceState(initialValue = 0L, player) {
+                        while (true) {
+                            value = player?.bufferedPosition ?: 0L
+                            delay(100)
+                        }
+                    }
                     val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
                     // Channel list panel state
@@ -730,7 +739,9 @@ class PlayerActivity : AppCompatActivity() {
                             },
                             onSettingsClick = { showSettingsDialog() },
                             onMuteClick = { toggleMute() },
-                            onLockClick = { locked -> },
+                            onLockClick = { locked ->
+                                wasLockedBeforePip = locked
+                            },
                             onChannelListClick = { showChannelList = true },
                             onPlayPauseClick = {
                                 player?.let {
@@ -756,7 +767,7 @@ class PlayerActivity : AppCompatActivity() {
                             onForwardClick = {
                                 player?.let {
                                     val newPosition = it.currentPosition + skipMs
-                                    if (it.isCurrentWindowLive && it.duration != C.TIME_UNSET && newPosition >= it.duration) {
+                                    if (it.isCurrentMediaItemLive && it.duration != C.TIME_UNSET && newPosition >= it.duration) {
                                         it.seekTo(it.duration)
                                     } else {
                                         it.seekTo(newPosition)
