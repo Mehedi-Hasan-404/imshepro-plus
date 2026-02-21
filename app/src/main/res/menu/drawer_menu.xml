@@ -45,5 +45,10 @@
             android:id="@+id/nav_copyright"
             android:icon="@drawable/ic_copyright"
             android:title="Copyright" />
+
+        <item
+            android:id="@+id/nav_exit"
+            android:icon="@drawable/ic_exit"
+            android:title="Exit" />
     </group>
 </menu>
