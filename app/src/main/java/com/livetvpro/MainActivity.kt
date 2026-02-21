@@ -297,6 +297,11 @@ class MainActivity : AppCompatActivity() {
                     drawerLayout?.postDelayed({ finishAffinity() }, 250)
                     false
                 }
+                R.id.nav_share_app -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    shareApp()
+                    false
+                }
                 R.id.nav_contact_browser -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
@@ -584,6 +589,11 @@ class MainActivity : AppCompatActivity() {
                     drawerLayout?.postDelayed({ finishAffinity() }, 250)
                     false
                 }
+                R.id.nav_share_app -> {
+                    drawerLayout?.closeDrawer(GravityCompat.START)
+                    shareApp()
+                    false
+                }
                 R.id.nav_contact_browser -> {
                     drawerLayout?.closeDrawer(GravityCompat.START)
                     val contactUrl = listenerManager.getContactUrl().takeIf { it.isNotBlank() }
@@ -733,6 +743,29 @@ class MainActivity : AppCompatActivity() {
             .setMessage("Live TV Pro does not stream any of the channels included in this application, all the streaming links are from third party websites available freely on the internet. We're just giving way to stream and all content is the copyright of their owner.")
             .setPositiveButton("OK", null)
             .show()
+    }
+
+    private fun shareApp() {
+        try {
+            val apkPath = packageManager.getApplicationInfo(packageName, 0).sourceDir
+            val apkFile = java.io.File(apkPath)
+            val appName = getString(R.string.app_name).replace(" ", "_")
+            // Copy APK to cache with a user-friendly name so the recipient sees the app name
+            val shareFile = java.io.File(cacheDir, "$appName.apk")
+            apkFile.copyTo(shareFile, overwrite = true)
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                this, "$packageName.fileprovider", shareFile
+            )
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/vnd.android.package-archive"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, getString(R.string.app_name))
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(Intent.createChooser(intent, "Share ${getString(R.string.app_name)}"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Unable to share APK", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showFloatingPlayerDialog() {
