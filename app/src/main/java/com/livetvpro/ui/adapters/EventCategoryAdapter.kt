@@ -62,8 +62,8 @@ class EventCategoryAdapter(
             // Load circular logo
             Glide.with(binding.categoryLogo)
                 .load(category.logoUrl)
-                .placeholder(R.drawable.ic_channel_placeholder)
-                .error(R.drawable.ic_channel_placeholder)
+                .placeholder(R.mipmap.ic_launcher_round)
+                .error(R.mipmap.ic_launcher_round)
                 .circleCrop()
                 .into(binding.categoryLogo)
         }
