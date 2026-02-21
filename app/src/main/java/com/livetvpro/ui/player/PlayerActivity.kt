@@ -506,6 +506,13 @@ class PlayerActivity : AppCompatActivity() {
         binding.root.requestLayout()
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && isPipSupported) {
+            setPictureInPictureParams(updatePipParams())
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         val isLandscape = resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -545,7 +552,7 @@ class PlayerActivity : AppCompatActivity() {
         
         // Update PIP params with current state
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            setPictureInPictureParams(updatePipParams(enter = false))
+            setPictureInPictureParams(updatePipParams(enter = true))
         }
         
         // Hide controls and UI elements
@@ -642,7 +649,18 @@ class PlayerActivity : AppCompatActivity() {
     override fun onUserLeaveHint() {
         if (isPipSupported && player?.isPlaying == true) {
             wasLockedBeforePip = controlsState.isLocked
-            enterPictureInPictureMode(updatePipParams(enter = false))
+            enterPictureInPictureMode(updatePipParams(enter = true))
+        }
+        super.onUserLeaveHint()
+    }
+
+    @SuppressLint("NewApi")
+    override fun onBackPressed() {
+        if (isPipSupported && player?.isPlaying == true) {
+            wasLockedBeforePip = controlsState.isLocked
+            enterPictureInPictureMode(updatePipParams(enter = true))
+        } else {
+            super.onBackPressed()
         }
     }
 
@@ -718,7 +736,7 @@ class PlayerActivity : AppCompatActivity() {
                             onPipClick = {
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                                     wasLockedBeforePip = controlsState.isLocked
-                                    enterPictureInPictureMode(updatePipParams(enter = false))
+                                    enterPictureInPictureMode(updatePipParams(enter = true))
                                 }
                             },
                             onSettingsClick = { showSettingsDialog() },
@@ -1897,8 +1915,9 @@ class PlayerActivity : AppCompatActivity() {
         }
         
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            builder.setAutoEnterEnabled(false)
-            builder.setSeamlessResizeEnabled(true)
+            val isPlaying = player?.isPlaying == true
+            builder.setAutoEnterEnabled(isPlaying)
+            builder.setSeamlessResizeEnabled(isPlaying)
         }
         
         val isPaused = player?.isPlaying != true
