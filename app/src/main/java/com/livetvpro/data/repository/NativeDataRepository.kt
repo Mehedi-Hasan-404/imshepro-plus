@@ -9,6 +9,7 @@ import com.livetvpro.data.models.Category
 import com.livetvpro.data.models.Channel
 import com.livetvpro.data.models.LiveEvent
 import com.livetvpro.data.models.EventCategory
+import com.livetvpro.data.local.PreferencesManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -24,7 +25,8 @@ import javax.inject.Singleton
 class NativeDataRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val httpClient: OkHttpClient,
-    private val gson: Gson
+    private val gson: Gson,
+    private val preferencesManager: PreferencesManager
 ) {
     companion object {
         private var isNativeLibraryLoaded = false
@@ -178,11 +180,25 @@ class NativeDataRepository @Inject constructor(
             
             if (configUrl.isNotEmpty()) {
                 storeConfigUrl(configUrl)
+                // Also persist the config URL so we can use it after process death
+                preferencesManager.setCachedConfigUrl(configUrl)
                 return@withContext true
             } else {
+                // Try falling back to persisted config URL
+                val cachedUrl = preferencesManager.getCachedConfigUrl()
+                if (cachedUrl.isNotEmpty()) {
+                    storeConfigUrl(cachedUrl)
+                    return@withContext true
+                }
                 return@withContext false
             }
         } catch (error: Exception) {
+            // Network failed — try falling back to persisted config URL
+            val cachedUrl = preferencesManager.getCachedConfigUrl()
+            if (cachedUrl.isNotEmpty()) {
+                storeConfigUrl(cachedUrl)
+                return@withContext true
+            }
             return@withContext false
         }
     }
@@ -191,35 +207,52 @@ class NativeDataRepository @Inject constructor(
         refreshMutex.withLock {
             try {
                 if (!checkIntegrityAndEnabled()) {
-                    return@withContext false
+                    return@withContext restoreFromCache()
                 }
                 
                 val dataUrl = retrieveDataUrl()
                 if (dataUrl.isBlank()) {
-                    return@withContext false
+                    return@withContext restoreFromCache()
                 }
                 
                 val request = Request.Builder().url(dataUrl).build()
                 httpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
-                        return@withContext false
+                        return@withContext restoreFromCache()
                     }
                     
                     val responseBody = response.body?.string()
                     if (responseBody.isNullOrBlank()) {
-                        return@withContext false
+                        return@withContext restoreFromCache()
                     }
                     
                     val success = storeJsonData(responseBody)
                     if (success) {
+                        // Persist to disk cache for future process death recovery
+                        preferencesManager.setCachedJson(responseBody)
+                        preferencesManager.setCacheTimestamp(System.currentTimeMillis())
                         return@withContext true
                     } else {
-                        return@withContext false
+                        return@withContext restoreFromCache()
                     }
                 }
             } catch (error: Exception) {
-                return@withContext false
+                return@withContext restoreFromCache()
             }
+        }
+    }
+
+    /**
+     * Restores data from disk cache into native memory after process death.
+     * Returns true if cache exists and was loaded successfully, false otherwise.
+     */
+    private fun restoreFromCache(): Boolean {
+        return try {
+            val cachedJson = preferencesManager.getCachedJson()
+            if (cachedJson.isBlank()) return false
+            storeJsonData(cachedJson)
+        } catch (e: Exception) {
+            false
         }
     }
 
