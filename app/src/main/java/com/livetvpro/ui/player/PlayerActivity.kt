@@ -201,6 +201,9 @@ class PlayerActivity : AppCompatActivity() {
         // On TV devices: force landscape and stay fullscreen at all times
         if (DeviceUtils.isTvDevice) {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            // Wire the retry button that exists only in the TV layout
+            binding.root.findViewById<android.widget.Button>(R.id.btn_error_retry)
+                ?.setOnClickListener { retryPlayback() }
         }
 
         val currentOrientation = resources.configuration.orientation
