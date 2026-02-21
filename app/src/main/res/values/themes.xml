@@ -2,8 +2,8 @@
 <resources>
     <!-- DARK THEME (Default) -->
     <style name="Theme.LiveTVPro" parent="Theme.Material3.Dark.NoActionBar">
-        <item name="colorPrimary">#1F1F1F</item>
-        <item name="colorPrimaryVariant">#0A0A0A</item>
+        <item name="colorPrimary">#2D1010</item>
+        <item name="colorPrimaryVariant">#1A0505</item>
         <item name="colorSecondary">@color/secondary_dark</item>
 
         <item name="android:colorBackground">@color/background_dark</item>
@@ -38,7 +38,7 @@
         <item name="colorOnPrimary">#000000</item>
         <item name="colorOnSecondary">#FFFFFF</item>
         <item name="colorOnBackground">#000000</item>
-        <item name="colorOnSurface">#666666</item>
+        <item name="colorOnSurface">#7A3030</item>
 
         <!-- Red accent color -->
         <item name="colorAccent">@color/accent</item>
